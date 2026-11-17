@@ -260,6 +260,8 @@ export const TEST_SENDER_CONFIG = {
   receiptPollMs: 15,
   idlePollMs: 40,
   replaceAfterMs: 120_000,
+  // Preparation is given up after `maxPrepareAttempts` alone unless a test sets a time budget.
+  maxPrepareMs: 0,
   retryBaseMs: 10,
   retryMaxMs: 80,
   waitPollMs: 20,

@@ -1,5 +1,12 @@
 import type { Logger } from "pino";
-import { keccak256, type Hex, type LocalAccount } from "viem";
+import {
+  keccak256,
+  parseTransaction,
+  recoverTransactionAddress,
+  type Hex,
+  type LocalAccount,
+  type TransactionSerialized,
+} from "viem";
 
 import type { Db } from "../db";
 import { systemClock } from "./clock";
@@ -13,6 +20,7 @@ import {
   ChainIdMismatchError,
   ConcurrentTxUpdateError,
   CorruptSenderStateError,
+  SignerHistoryMismatchError,
   TxNotFoundError,
   TxSenderConfigError,
   TxSenderError,
@@ -23,7 +31,7 @@ import { decodeEscrowLogs, readChainEvents } from "./events";
 import { addGasMargin, backoffDelayMs, bumpFees, computeFees, type Fees } from "./fees";
 import { normalizeTxRequest } from "./request";
 import { resolveTxSenderSettings, type TxSenderSettings } from "./settings";
-import { ChainTxStore, readSenderState } from "./store";
+import { ChainTxStore, readSenderState, readSignedAttempts } from "./store";
 import {
   SIGNER_NAMES,
   type CallRequest,
@@ -201,6 +209,7 @@ export class TxSender {
     if (chainId !== this.settings.chainId) {
       throw new ChainIdMismatchError(this.settings.chainId, chainId);
     }
+    for (const signer of SIGNER_NAMES) await this.checkSignerHistory(signer);
     // A concurrent start() may have won while the node was answering.
     if (!this.stopping) return;
     this.stopController = new AbortController();
@@ -219,6 +228,58 @@ export class TxSender {
       },
       "transaction sender started",
     );
+  }
+
+  /**
+   * Refuses to start when the rows of a signer role were signed by another key or for another
+   * chain and the configured key cannot go on from them. Nonces are stored per role only
+   * (`chain_txs` has no address or chain column), so after a key rotation or a chain switch the
+   * stored nonces would either be driven forever (a `sent` row of the old key) or leave the new
+   * key a nonce gap that is never mined. The key and chain of a row are read back from its
+   * signed bytes. A new key already past every stored nonce is accepted: its nonces come from
+   * the chain and collide with nothing.
+   */
+  private async checkSignerHistory(signer: SignerName): Promise<void> {
+    const address = this.accounts[signer].address.toLowerCase();
+    const chainId = this.settings.chainId;
+    let pendingCount: bigint | null = null;
+    for (const tx of await this.store.rowsToCheckAgainstSigner(signer)) {
+      if (tx.nonce === null) continue;
+      let signedBy: string;
+      let signedFor: number | undefined;
+      try {
+        const [attempt] = readSignedAttempts(tx).attempts;
+        if (!attempt) throw new CorruptSenderStateError(tx.id, "no signed attempt");
+        const serializedTransaction = attempt.raw as TransactionSerialized;
+        signedBy = (await recoverTransactionAddress({ serializedTransaction })).toLowerCase();
+        signedFor = parseTransaction(serializedTransaction).chainId;
+      } catch (error: unknown) {
+        // A row whose signed bytes are unusable blocks only its own signer: its worker refuses
+        // it and says so on every pass, without signing anything for that role.
+        this.log.error(
+          { signer, id: tx.id, status: tx.status, err: describeError(error) },
+          "signing key of a stored transaction cannot be read, not checked against the configuration",
+        );
+        continue;
+      }
+      if (signedBy === address && signedFor === chainId) continue;
+      if (tx.status !== "sent") {
+        pendingCount ??= BigInt(
+          await this.client.getTransactionCount({
+            address: this.accounts[signer].address,
+            blockTag: "pending",
+          }),
+        );
+        // The configured key's own count is past every stored nonce of the role.
+        if (pendingCount > tx.nonce) continue;
+      }
+      throw new SignerHistoryMismatchError(
+        signer,
+        tx.id,
+        { address: signedBy, chainId: signedFor ?? 0, nonce: tx.nonce, status: tx.status },
+        { address, chainId, pendingCount },
+      );
+    }
   }
 
   /**
@@ -388,12 +449,15 @@ export class TxSender {
         }
         return;
       }
-      const attempts = await this.store.recordPrepareFailure(tx.id, verdict.reason);
-      if (attempts >= this.settings.maxPrepareAttempts) {
+      const failure = await this.store.recordPrepareFailure(tx.id, verdict.reason);
+      // The row changed under us (another sender?): the next pass reads it again.
+      if (!failure) return;
+      const { attempts, ageMs } = failure;
+      if (attempts >= this.settings.maxPrepareAttempts && ageMs >= this.settings.maxPrepareMs) {
         const reason = `NodeUnavailable: ${verdict.reason}`;
         if (await this.store.markQueuedFailed(tx.id, reason)) {
           log.error(
-            { id: tx.id, kind: tx.kind, attempts, error: verdict.reason },
+            { id: tx.id, kind: tx.kind, attempts, ageMs, error: verdict.reason },
             "transaction could not be prepared, given up before any nonce was used",
           );
           this.notify(tx.id);
@@ -404,7 +468,7 @@ export class TxSender {
         { id: tx.id, kind: tx.kind, attempts, error: verdict.reason },
         "node error while preparing a transaction, retrying",
       );
-      await this.pause(this.backoff(Math.max(attempts, 1)));
+      await this.pause(this.backoff(attempts));
       return;
     }
 
