@@ -116,6 +116,17 @@ values ('joes-tex13', 'open', 1, 20000000, 5000);
 insert into public.live_hedge_desk (instrument, payload)
 values ('GEMI-NCAAF-2611212030-ARK-TEX-S-TEX13', '{"exposure": "20000000"}');
 
+insert into public.book_cache (symbol, bids, asks, observed_at, source)
+values (
+  'GEMI-NCAAF-2611212030-ARK-TEX-S-TEX13',
+  '[{"priceBps": 1100, "qty": "100000000"}]'::jsonb,
+  '[{"priceBps": 1300, "qty": "250000000"}]'::jsonb,
+  now(), 'rest'
+);
+
+insert into public.tracked_instruments (symbol, expires_at)
+values ('GEMI-NCAAF-2611212030-ARK-TEX-M-TEX', now() + interval '10 minutes');
+
 -- The seed and the fixtures together put at least one row in every table.
 select test.count_is(
   format('select count(*) from (select 1 from public.%I limit 1) t', t.name),
