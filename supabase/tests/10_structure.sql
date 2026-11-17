@@ -88,6 +88,7 @@ from (
     ('events_sport_known', 'SPORTS'),
     ('events_result_known', 'OUTCOMES'),
     ('instruments_type_known', 'INSTRUMENT_TYPES'),
+    ('instruments_outcome_known', 'OUTCOMES'),
     ('campaigns_status_known', 'CAMPAIGN_STATUSES'),
     ('campaigns_sale_state_known', 'SALE_STATES'),
     ('campaigns_outcome_known', 'OUTCOMES'),
@@ -164,4 +165,56 @@ select test.ok(
     where schemaname = 'public' and tablename = 'jobs' and indexdef like '%(status, run_at)%'
   ),
   'jobs has an index on (status, run_at)'
+);
+
+-- Catalogue sync (M-01): the statuses and sides are not enums of domain.ts, they are listed here.
+select test.ok(
+  test.check_values(x.con) = x.vals,
+  format('%s lists exactly %s', x.con, x.vals),
+  format('constraint %s', test.check_values(x.con))
+)
+from (
+  values
+    ('events_status_known', array['active', 'closed', 'settled', 'upcoming', 'void']),
+    ('instruments_side_known', array['away', 'home', 'tie'])
+) as x (con, vals);
+
+select test.ok(
+  (
+    select format('%s %s', data_type, is_nullable) from information_schema.columns
+    where table_schema = 'public' and table_name = x.tbl and column_name = x.col
+  ) = x.kind,
+  format('%s.%s is %s', x.tbl, x.col, x.kind),
+  (
+    select format('%s %s', data_type, is_nullable) from information_schema.columns
+    where table_schema = 'public' and table_name = x.tbl and column_name = x.col
+  )
+)
+from (
+  values
+    ('events', 'gemini_status', 'text YES'),
+    ('events', 'synced_at', 'timestamp with time zone YES'),
+    ('instruments', 'side', 'text YES'),
+    ('instruments', 'outcome', 'text YES'),
+    ('instruments', 'settled_at', 'timestamp with time zone YES'),
+    ('instruments', 'best_bid_bps', 'integer YES'),
+    ('instruments', 'best_ask_bps', 'integer YES'),
+    ('instruments', 'active', 'boolean NO'),
+    ('instruments', 'synced_at', 'timestamp with time zone YES')
+) as x (tbl, col, kind);
+
+select test.ok(
+  (
+    select column_default = 'true' from information_schema.columns
+    where table_schema = 'public' and table_name = 'instruments' and column_name = 'active'
+  ),
+  'instruments.active defaults to true'
+);
+
+select test.ok(
+  exists (
+    select 1 from pg_indexes
+    where schemaname = 'public' and tablename = 'instruments' and indexdef like '%(event_ticker)%'
+  ),
+  'instruments has an index on (event_ticker)'
 );

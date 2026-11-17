@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { CatalogCache } from "./catalog-cache";
-import { InMemoryCatalogStore } from "./catalog-store";
+import { InMemoryCatalogStore, mapEventStatus } from "./catalog-store";
 import { SettlementConflictError } from "./errors";
 import { GeminiRestClient } from "./gemini-rest-client";
 import { normalizeCatalog, type NormalizedCatalog } from "./normalize";
@@ -134,8 +134,32 @@ describe("InMemoryCatalogStore", () => {
     expect(store.getInstrument("GEMI-NCAAF-2611212030-ARK-TEX-M-TEX")).toMatchObject({
       outcome: "yes",
       settledAt: SETTLED_AT,
+      active: false,
     });
     expect(store.getInstrument("GEMI-NOT-IN-THE-CATALOGUE")).toBeUndefined();
+  });
+
+  it("marks what a later catalogue no longer lists inactive, and active again when it is back", async () => {
+    const store = new InMemoryCatalogStore();
+    await store.upsertInstruments(catalog.instruments);
+    const listed = catalog.instruments
+      .map((instrument) => instrument.symbol)
+      .filter((symbol) => symbol !== "GEMI-NCAAF-2611212030-ARK-TEX-M-TEX");
+
+    expect(await store.markDelisted(listed)).toBe(1);
+    expect(await store.markDelisted(listed)).toBe(0);
+    expect(store.listInstruments()).toHaveLength(catalog.instruments.length);
+    expect(store.getInstrument("GEMI-NCAAF-2611212030-ARK-TEX-M-TEX")?.active).toBe(false);
+    expect(store.getInstrument("GEMI-NCAAF-2611212030-ARK-TEX-M-ARK")?.active).toBe(true);
+
+    await store.upsertInstruments(catalog.instruments);
+    expect(store.getInstrument("GEMI-NCAAF-2611212030-ARK-TEX-M-TEX")?.active).toBe(true);
+  });
+
+  it("maps Gemini's event status to the stored one", () => {
+    expect(
+      ["approved", "active", "closed", "settled", "invalid", "something_new"].map(mapEventStatus),
+    ).toEqual(["upcoming", "active", "closed", "settled", "void", "closed"]);
   });
 
   it("keeps the outcome when the instrument is upserted again", async () => {
@@ -189,8 +213,8 @@ describe("sync", () => {
     });
     const store = new InMemoryCatalogStore();
 
-    expect(await syncCatalog(cache, store)).toEqual({ events: 3, instruments: 73 });
-    expect(await syncCatalog(cache, store)).toEqual({ events: 3, instruments: 73 });
+    expect(await syncCatalog(cache, store)).toEqual({ events: 3, instruments: 73, delisted: 0 });
+    expect(await syncCatalog(cache, store)).toEqual({ events: 3, instruments: 73, delisted: 0 });
     expect(http.urls).toHaveLength(1);
 
     time.advance(60_000);
@@ -211,6 +235,7 @@ describe("sync", () => {
         type: "moneyline" as const,
         strike: null,
         label: `${team} wins`,
+        side: null,
         bestBidBps: null,
         bestAskBps: null,
       })),

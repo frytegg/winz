@@ -18,6 +18,20 @@ select test.throws(
   $$update public.events set status = 'postponed'$$,
   '{23514}', 'events rejects an unknown status', 'events_status_known'
 );
+select test.lives(
+  format('update public.events set status = %L', x.status),
+  format('events accepts the status %s', x.status)
+)
+from (values ('upcoming'), ('closed'), ('settled'), ('void'), ('active')) as x (status);
+select test.throws(
+  $$update public.events set status = 'approved'$$,
+  '{23514}', 'events rejects Gemini''s raw status, which belongs in gemini_status',
+  'events_status_known'
+);
+select test.lives(
+  $$update public.events set gemini_status = 'approved', synced_at = now()$$,
+  'events accepts any gemini_status'
+);
 select test.throws(
   $$update public.events set result = 'maybe'$$,
   '{23514}', 'events rejects an unknown result', 'events_result_known'
@@ -25,6 +39,14 @@ select test.throws(
 select test.throws(
   $$update public.instruments set type = 'parlay'$$,
   '{23514}', 'instruments rejects an unknown type', 'instruments_type_known'
+);
+select test.throws(
+  $$update public.instruments set side = 'draw'$$,
+  '{23514}', 'instruments rejects an unknown side', 'instruments_side_known'
+);
+select test.throws(
+  $$update public.instruments set outcome = 'won', settled_at = now()$$,
+  '{23514}', 'instruments rejects an unknown outcome', 'instruments_outcome_known'
 );
 select test.throws(
   $$update public.campaigns set status = 'Live'$$,
@@ -166,6 +188,10 @@ from (
     ('campaigns', 'pause_threshold_bps', 10001, 'campaigns_pause_threshold_bps_range'),
     ('orders', 'price_bps', 10001, 'orders_price_bps_range'),
     ('fills', 'price_bps', -1, 'fills_price_bps_range'),
+    ('instruments', 'best_bid_bps', -1, 'instruments_best_bid_bps_range'),
+    ('instruments', 'best_bid_bps', 10001, 'instruments_best_bid_bps_range'),
+    ('instruments', 'best_ask_bps', -1, 'instruments_best_ask_bps_range'),
+    ('instruments', 'best_ask_bps', 10001, 'instruments_best_ask_bps_range'),
     ('live_instruments', 'bid_bps', -1, 'live_instruments_bid_bps_range'),
     ('live_instruments', 'ask_bps', 10001, 'live_instruments_ask_bps_range'),
     ('live_instruments', 'mid_bps', 10001, 'live_instruments_mid_bps_range'),
@@ -173,6 +199,16 @@ from (
 ) as x (tbl, col, bad, con);
 
 -- Cross-column rules.
+select test.throws(
+  $$update public.instruments set outcome = 'yes'$$,
+  '{23514}', 'instruments rejects an outcome without settled_at',
+  'instruments_settled_at_with_outcome'
+);
+select test.throws(
+  $$update public.instruments set settled_at = now()$$,
+  '{23514}', 'instruments rejects settled_at without an outcome',
+  'instruments_settled_at_with_outcome'
+);
 select test.throws(
   $$update public.campaigns set min_margin_bps = usual_margin_bps + 1 where slug = 'joes-tex13'$$,
   '{23514}', 'campaigns rejects a minimum margin above the usual margin', 'campaigns_margins_ordered'
@@ -288,4 +324,21 @@ update public.live_campaigns set updated_at = '2000-01-01T00:00:00Z' where slug 
 select test.ok(
   (select updated_at > now() - interval '1 minute' from public.live_campaigns where slug = 'joes-tex13'),
   'live_campaigns.updated_at is set by the trigger on update'
+);
+
+-- Catalogue sync (M-01): what the sync writes is accepted, and a delisted instrument stays.
+select test.lives(
+  $$update public.instruments
+    set side = 'home', best_bid_bps = 0, best_ask_bps = 10000, active = false, synced_at = now()
+    where symbol = 'GEMI-NCAAF-2611212030-ARK-TEX-M-TEX'$$,
+  'instruments accepts a side, the two ends of the price range and active = false'
+);
+select test.lives(
+  $$update public.instruments set outcome = 'void', settled_at = now()
+    where symbol = 'GEMI-NCAAF-2611212030-ARK-TEX-M-ARK'$$,
+  'instruments accepts an outcome with its settled_at'
+);
+select test.count_is(
+  $$select count(*) from public.instruments where active$$, 3,
+  'instruments are active by default'
 );

@@ -4,10 +4,11 @@ The Postgres schema of Winz (SPEC section 10). Postgres is the off-chain source 
 escrow contract stays the source of truth for money.
 
 ```
-migrations/20261117000000_init.sql   every table, constraint, index, RLS policy
-seed.sql                             demo merchant, one event and its four instruments
-tests/run.sh                         local test script
-tests/*.sql                          the assertions it runs
+migrations/20261117000000_init.sql     every table, constraint, index, RLS policy
+migrations/20261117010000_catalog.sql  what the Gemini catalogue sync stores on events and instruments
+seed.sql                               demo merchant, one event and its four instruments
+tests/run.sh                           local test script
+tests/*.sql                            the assertions it runs
 ```
 
 ## Apply
@@ -19,7 +20,9 @@ supabase db push                 # applies migrations/ to the linked project (pn
 supabase db push --include-seed  # same, then runs seed.sql
 ```
 
-The migration expects the roles `anon` and `authenticated`, which every Supabase project has. On
+A migration that has been applied is never edited: a change is a new file.
+
+The first migration expects the roles `anon` and `authenticated`, which every Supabase project has. On
 a plain Postgres, create them first (the test script does).
 
 The seed can be run more than once. It creates no campaign: campaigns are created on-chain by
@@ -40,7 +43,7 @@ The script starts a throwaway server in a temp directory, reachable only through
 that directory, and always stops and deletes it. Run as root, it starts the server as the
 `postgres` user (`PG_OS_USER`), since Postgres refuses to run as root.
 
-It applies the migration and the seed to two fresh databases:
+It applies the migrations and the seed to two fresh databases:
 
 | Database | What it imitates |
 | --- | --- |
@@ -49,13 +52,15 @@ It applies the migration and the seed to two fresh databases:
 
 and checks, on both:
 
-- the migration and the seed apply, the seed twice;
+- the migrations and the seed apply, the seed twice;
 - the public schema holds exactly the expected tables, RLS is on for each, and there are exactly
   three policies, all `select` on `live_*`;
 - `live_instruments` and `live_campaigns` have exactly the columns of `liveInstrumentRowSchema`
   and `liveCampaignRowSchema`;
 - every enum check lists exactly the values of the matching array in
   `packages/shared/src/domain.ts`, which the script reads;
+- `events.status` and `instruments.side` list exactly the values of the catalogue section below,
+  and the catalogue columns have the expected type and nullability;
 - every uniqueness constraint rejects a duplicate, by name;
 - check constraints reject bad enum values, negative amounts, out-of-range basis points and
   malformed addresses, hashes and slugs;
@@ -85,6 +90,35 @@ The exit code is non-zero when one assertion fails.
 | `updated_at` | set by a trigger on every update, whatever the writer sends. |
 | FIFO of lots | `lots.seq`, an identity column the database assigns. Order by it, not by `created_at`. |
 
+## Catalogue
+
+`events` and `instruments` are written by the engine's Gemini sync (MD-1, MD-3;
+`apps/engine/src/market-data/pg-catalog-store.ts`) with `insert ... on conflict ... do update`.
+A row is never deleted: a campaign, a lot or an order may reference it.
+
+`events.status` is ours; `events.gemini_status` keeps the string Gemini sent at the last sync.
+
+| Gemini status | `events.status` | Meaning |
+| --- | --- | --- |
+| `approved` | `upcoming` | listed, not trading yet |
+| `active` | `active` | trading |
+| `closed` | `closed` | trading over, result not published yet |
+| `settled` | `settled` | every contract has a yes/no outcome |
+| `invalid` | `void` | cancelled by Gemini, every contract is void |
+| anything else | `closed` | unknown to us: nothing may be sold on it |
+
+The settlement sync also writes `settled` and `void`, once every instrument of the event has an
+outcome (`void` when all of them are void). A later catalogue sync never undoes those two.
+
+| Column of `instruments` | Content |
+| --- | --- |
+| `onchain_id` | `keccak256(symbol)`, `instrumentId()` of `packages/shared` |
+| `side` | `home`, `away`, `tie`, or null (totals, or unknown) |
+| `best_bid_bps`, `best_ask_bps` | quote at the last catalogue sync, null when that side of the book was empty. Up to a minute old: live prices are in `live_instruments`. |
+| `active` | false once Gemini no longer lists the contract as tradable, or once it settled |
+| `outcome`, `settled_at` | set together by the settlement sync, never changed afterwards |
+| `synced_at` | last catalogue sync that listed the row (also on `events`) |
+
 ## Idempotency
 
 | Table | Constraint | What it guarantees |
@@ -97,8 +131,10 @@ The exit code is non-zero when one assertion fails.
 | `users` | unique `email`, `privy_id`, `wallet` | one e-mail, one wallet |
 | `campaigns` | unique `slug`, `onchain_id`, `budget_pi` | one budget payment creates at most one campaign |
 | `lots` | unique `ticket_id` | one lot per ticket |
+| `events`, `instruments` | primary keys `ticker`, `symbol` | a catalogue sync replayed any number of times leaves one row per game and per contract |
 
-Writers use `insert ... on conflict do nothing` on these keys.
+Writers use `insert ... on conflict do nothing` on these keys; the catalogue sync uses
+`on conflict ... do update`.
 
 ## Access
 

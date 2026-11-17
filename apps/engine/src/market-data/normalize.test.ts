@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  contractSide,
   leagueFromTicker,
   mapSport,
   moneylineLabel,
@@ -190,6 +191,7 @@ describe("normalizeCatalog on the recorded active sports page", () => {
       type: "moneyline",
       strike: null,
       label: "Texas wins",
+      side: "home",
       bestBidBps: 9000n,
       bestAskBps: 9200n,
     });
@@ -207,6 +209,8 @@ describe("normalizeCatalog on the recorded active sports page", () => {
       type: "spread",
       strike: "13.5",
       label: "Texas wins by 14+",
+      // No `sportsSide` on this recorded contract: read from the "TEX13" end of the symbol.
+      side: "home",
       bestBidBps: null,
       bestAskBps: null,
     });
@@ -220,6 +224,7 @@ describe("normalizeCatalog on the recorded active sports page", () => {
       type: "total",
       strike: "67.5",
       label: "Over 67.5 points",
+      side: null,
       bestBidBps: null,
       bestAskBps: null,
     });
@@ -232,6 +237,7 @@ describe("normalizeCatalog on the recorded active sports page", () => {
       type: "spread",
       strike: "2.5",
       label: "Florida wins by 3+",
+      side: "home",
       bestBidBps: 1800n,
       bestAskBps: 2200n,
     });
@@ -418,6 +424,7 @@ describe("normalizeCatalog edge cases", () => {
         type: "total",
         strike: "99.5",
         label: "Over 99.5 points",
+        side: null,
         bestBidBps: null,
         bestAskBps: null,
       },
@@ -449,5 +456,87 @@ describe("normalizeCatalog edge cases", () => {
       bestBidBps: null,
       bestAskBps: 200n,
     });
+  });
+});
+
+describe("contract side", () => {
+  const teams = { home: "TEX", away: "ARK" };
+
+  it("takes Gemini's sportsSide on moneylines, the draw included", () => {
+    const catalog = normalizeCatalog(fixtureEvents("events-active-sports"));
+    const sides = instrumentsOf(catalog.instruments, ARS_NEW)
+      .filter((instrument) => instrument.type === "moneyline")
+      .map((instrument) => [instrument.label, instrument.side]);
+    // As recorded: Gemini lists Newcastle as the home participant of "Arsenal vs Newcastle".
+    expect(sides).toEqual([
+      ["Arsenal wins", "away"],
+      ["Draw", "tie"],
+      ["Newcastle wins", "home"],
+    ]);
+    expect(bySymbol(catalog.instruments, "GEMI-NCAAF-2611212030-ARK-TEX-M-ARK")?.side).toBe("away");
+  });
+
+  it("reads the side of a spread from its symbol when sportsSide is absent", () => {
+    expect(
+      contractSide({ instrumentSymbol: "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX13" }, "spread", teams),
+    ).toBe("home");
+    expect(
+      contractSide({ instrumentSymbol: "GEMI-NCAAF-2611212030-ARK-TEX-S-ARK3" }, "spread", teams),
+    ).toBe("away");
+  });
+
+  it("agrees with sportsSide on every recorded spread that carries one", () => {
+    const events = fixtureEvents("events-active-sports");
+    let compared = 0;
+    for (const game of events) {
+      const home = game.participants?.find((participant) => participant.side === "home");
+      const away = game.participants?.find((participant) => participant.side === "away");
+      if (!home || !away) continue;
+      for (const market of game.events ?? []) {
+        if (market.sportsMarket?.type !== "spread") continue;
+        for (const contract of market.contracts) {
+          if (!contract.sportsSide) continue;
+          const fromSymbol = contractSide(
+            { instrumentSymbol: contract.instrumentSymbol },
+            "spread",
+            { home: home.abbreviation, away: away.abbreviation },
+          );
+          expect(fromSymbol).toBe(contract.sportsSide);
+          compared += 1;
+        }
+      }
+    }
+    expect(compared).toBeGreaterThan(10);
+  });
+
+  it("gives every recorded moneyline and spread a side, and no total", () => {
+    const catalog = normalizeCatalog(fixtureEvents("events-active-sports"));
+    for (const instrument of catalog.instruments) {
+      if (instrument.type === "total") expect(instrument.side).toBeNull();
+      else expect(instrument.side).not.toBeNull();
+    }
+  });
+
+  it("prefers sportsSide over the symbol", () => {
+    expect(
+      contractSide({ instrumentSymbol: "GEMI-X-S-TEX13", sportsSide: "away" }, "spread", teams),
+    ).toBe("away");
+  });
+
+  it("is null when nothing tells: unknown sportsSide, unknown abbreviation, a moneyline without sportsSide", () => {
+    expect(
+      contractSide({ instrumentSymbol: "GEMI-X-S-OU13", sportsSide: "neutral" }, "spread", teams),
+    ).toBeNull();
+    expect(contractSide({ instrumentSymbol: "GEMI-X-S-13" }, "spread", teams)).toBeNull();
+    expect(contractSide({ instrumentSymbol: "GEMI-X-M-TEX" }, "moneyline", teams)).toBeNull();
+    expect(
+      contractSide({ instrumentSymbol: "GEMI-X-S-AAA2" }, "spread", { home: "AAA", away: "AAA" }),
+    ).toBeNull();
+  });
+
+  it("is always null on totals", () => {
+    expect(
+      contractSide({ instrumentSymbol: "GEMI-X-T-O45", sportsSide: "home" }, "total", teams),
+    ).toBeNull();
   });
 });

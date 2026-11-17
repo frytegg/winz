@@ -1,5 +1,12 @@
 export { CATALOG_TTL_MS, CatalogCache, type CatalogCacheOptions } from "./catalog-cache";
-export { InMemoryCatalogStore, type CatalogStore, type StoredInstrument } from "./catalog-store";
+export {
+  EVENT_STATUSES,
+  InMemoryCatalogStore,
+  mapEventStatus,
+  type CatalogStore,
+  type EventStatus,
+  type StoredInstrument,
+} from "./catalog-store";
 export {
   GeminiError,
   GeminiHttpError,
@@ -19,6 +26,8 @@ export {
   type ListSettledParams,
 } from "./gemini-rest-client";
 export {
+  INSTRUMENT_SIDES,
+  contractSide,
   leagueFromTicker,
   mapSport,
   moneylineLabel,
@@ -27,12 +36,14 @@ export {
   smallestMarginAbove,
   spreadLabel,
   totalLabel,
+  type InstrumentSide,
   type NormalizedCatalog,
   type NormalizedEvent,
   type NormalizedInstrument,
   type NormalizedTeam,
   type SkippedItem,
 } from "./normalize";
+export { PgCatalogStore, type PgCatalogStoreOptions } from "./pg-catalog-store";
 export {
   GEMINI_BUCKET_DEFAULTS,
   TokenBucket,
@@ -57,7 +68,12 @@ export {
 export { INVALID_EVENT_STATUS, parseSettlements } from "./settlement";
 export {
   loadSportsCatalog,
+  startCatalogSync,
+  storeCatalog,
   syncCatalog,
   syncSettlements,
+  type CatalogSyncResult,
+  type CatalogSyncService,
+  type CatalogSyncServiceOptions,
   type SyncSettlementsOptions,
 } from "./sync";

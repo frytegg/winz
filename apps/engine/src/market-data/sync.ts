@@ -29,15 +29,40 @@ export async function loadSportsCatalog(
   return catalog;
 }
 
-/** MD-1: writes the (cached) catalogue to the store. Events first, instruments reference them. */
+export interface CatalogSyncResult {
+  /** Games in the catalogue just written. */
+  events: number;
+  /** Tradable instruments in the catalogue just written. */
+  instruments: number;
+  /** Instruments already stored that the catalogue no longer lists, newly marked inactive. */
+  delisted: number;
+}
+
+/**
+ * Writes one complete catalogue to the store: events first (instruments reference them), then
+ * the instruments, then whatever the catalogue no longer lists is marked inactive.
+ * `catalog` must be the whole catalogue, not a search result.
+ */
+export async function storeCatalog(
+  catalog: NormalizedCatalog,
+  store: CatalogStore,
+): Promise<CatalogSyncResult> {
+  await store.upsertEvents(catalog.events);
+  await store.upsertInstruments(catalog.instruments);
+  // An empty catalogue is a Gemini incident, not the end of every market: delist nothing on it.
+  const delisted =
+    catalog.instruments.length === 0
+      ? 0
+      : await store.markDelisted(catalog.instruments.map((instrument) => instrument.symbol));
+  return { events: catalog.events.length, instruments: catalog.instruments.length, delisted };
+}
+
+/** MD-1: writes the (cached) catalogue to the store. */
 export async function syncCatalog(
   cache: CatalogCache,
   store: CatalogStore,
-): Promise<{ events: number; instruments: number }> {
-  const catalog = await cache.get();
-  await store.upsertEvents(catalog.events);
-  await store.upsertInstruments(catalog.instruments);
-  return { events: catalog.events.length, instruments: catalog.instruments.length };
+): Promise<CatalogSyncResult> {
+  return storeCatalog(await cache.get(), store);
 }
 
 export interface SyncSettlementsOptions {
@@ -73,4 +98,116 @@ export async function syncSettlements(
     "gemini settlements synced",
   );
   return newlySettled;
+}
+
+export interface CatalogSyncServiceOptions {
+  client: GeminiRestClient;
+  store: CatalogStore;
+  logger: Logger;
+  /** Time between the starts of two runs (SPEC MD-1 and MD-3: 60 s). */
+  intervalMs?: number;
+  /** Aborting it stops the service; a run in flight finishes first. */
+  signal: AbortSignal;
+  /**
+   * The catalogue cache the rest of the engine reads, so one Gemini load serves both.
+   * Without it every run loads the catalogue itself.
+   */
+  cache?: CatalogCache;
+  /** Pages of settled events read per run, see `SyncSettlementsOptions.pages`. */
+  settlementPages?: number;
+  now?: Clock;
+}
+
+export interface CatalogSyncService {
+  /** Resolves once the service has stopped: the signal is aborted and no run is in flight. */
+  stopped: Promise<void>;
+}
+
+/**
+ * Keeps the stored catalogue in step with Gemini: every `intervalMs`, one catalogue sync (MD-1)
+ * then one settlement sync (MD-3). The first run starts at once.
+ *
+ * Runs never overlap: the next one is scheduled when the current one ends, `intervalMs` after
+ * the current one started, or at once when it took longer than that. A failed step is logged
+ * and the service carries on; the settlement step runs even when the catalogue step failed.
+ */
+export function startCatalogSync(options: CatalogSyncServiceOptions): CatalogSyncService {
+  const { client, store, logger, signal, cache } = options;
+  const intervalMs = options.intervalMs ?? 60_000;
+  const now = options.now ?? systemClock;
+  if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
+    throw new RangeError("startCatalogSync: intervalMs must be a positive number");
+  }
+
+  const runOnce = async (): Promise<void> => {
+    try {
+      const result = cache
+        ? await syncCatalog(cache, store)
+        : await storeCatalog(await loadSportsCatalog(client, logger), store);
+      logger.info(result, "catalogue synced");
+    } catch (error: unknown) {
+      logger.error({ err: error }, "catalogue sync failed, next run retries");
+    }
+    if (signal.aborted) return;
+    try {
+      await syncSettlements(client, store, logger, { pages: options.settlementPages, now });
+    } catch (error: unknown) {
+      logger.error({ err: error }, "settlement sync failed, next run retries");
+    }
+  };
+
+  const stopped = new Promise<void>((resolve) => {
+    let timer: NodeJS.Timeout | null = null;
+    let running = false;
+    let finished = false;
+
+    const finish = (): void => {
+      if (finished) return;
+      finished = true;
+      signal.removeEventListener("abort", onAbort);
+      logger.info("catalogue sync stopped");
+      resolve();
+    };
+
+    const tick = (): void => {
+      timer = null;
+      running = true;
+      const startedAtMs = now();
+      // `runOnce` catches what its steps throw; this catch is for a logger that throws.
+      runOnce()
+        .catch(() => undefined)
+        .finally(() => {
+          running = false;
+          if (signal.aborted) {
+            finish();
+            return;
+          }
+          const elapsedMs = now() - startedAtMs;
+          if (elapsedMs > intervalMs) {
+            logger.warn(
+              { elapsedMs, intervalMs },
+              "catalogue sync run took longer than its interval",
+            );
+          }
+          timer = setTimeout(tick, Math.max(0, intervalMs - elapsedMs));
+        });
+    };
+
+    function onAbort(): void {
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      if (!running) finish();
+    }
+
+    if (signal.aborted) {
+      finish();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+    tick();
+  });
+
+  return { stopped };
 }
