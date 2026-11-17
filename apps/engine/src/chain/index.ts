@@ -26,6 +26,7 @@ export {
   TxWaitTimeoutError,
   UnserializableValueError,
 } from "./errors";
+export { redactUrls, summarizeError, type ErrorSummary } from "./error-summary";
 export {
   decodeEscrowLogs,
   insertChainEvents,
@@ -44,6 +45,36 @@ export {
   type FeePolicy,
   type Fees,
 } from "./fees";
+export { startChainIngest, type ChainIngest, type ChainIngestOptions } from "./ingest";
+export {
+  ChainIngestConfigError,
+  ChainIngestError,
+  InvalidEventArgsError,
+  ProjectionError,
+} from "./ingest-errors";
+export {
+  DEFAULT_MAX_BLOCK_RANGE,
+  defaultCursorName,
+  insertLogEvents,
+  isRangeRefusal,
+  LOGS_SOURCE,
+  LogPoller,
+  readCursor,
+  writeCursor,
+  type LogClient,
+  type LogPollerConfig,
+  type PollResult,
+} from "./log-poller";
+export {
+  campaignOnchainIdOf,
+  ChainProjector,
+  lotSeq,
+  projectChainEvent,
+  type ChainProjectorOptions,
+  type ProjectionOutcome,
+  type ProjectorPassResult,
+  type StoredChainEvent,
+} from "./projector";
 export { normalizeTxRequest } from "./request";
 export { resolveTxSenderSettings, type TxSenderSettings } from "./settings";
 export { TxSender, type TxSenderDeps } from "./tx-sender";
