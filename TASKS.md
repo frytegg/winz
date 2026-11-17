@@ -178,13 +178,13 @@ Tous parallèles entre eux dès que F-05 est figé. Lot à lancer ensemble : C-0
 - [x] **A-02** · Qui : Agent `coder-high`, relu par A · Dép. : P-01, D-01, I-01 · CA-2, CA-4, M6, M7
   `POST /api/campaigns/preview`, `POST /api/campaigns` (brouillon + PaymentIntent du budget), liste et détail du commerçant, pause, reprise et clôture manuelles (jobs vers `setPaused` et `closeSales`).
   Fini quand : l'aperçu renvoie les mêmes chiffres que `packages/pricing` en test, et un commerçant ne voit que ses campagnes.
-- [ ] **J-02** · Qui : Agent `coder-high`, relu par A · Dép. : X-01, C-03, J-01, A-02 · CA-2
+- [x] **J-02** · Qui : Agent `coder-high`, relu par A · Dép. : X-01, C-03, J-01, A-02 · CA-2
   Job de création : budget payé (webhook Stripe) → `createCampaignFor` → campagne `Live`, slug court.
   Fini quand : un paiement de budget en mode test produit une campagne on-chain et en base, une seule fois même si le webhook est rejoué.
 - [x] **A-03** · Qui : Agent `coder-high`, relu par A · Dép. : D-01, S-03 · CO-2, CO-3
   `POST /api/checkout` (vérifie que la vente est ouverte, PaymentIntent en capture manuelle), `POST /api/checkout/:pi/confirm`, `GET /api/checkout/:pi`, `POST /api/webhooks/stripe` avec signature vérifiée sur le corps brut.
   Fini quand : webhook rejoué et confirmation du client mènent à un seul job ; une signature fausse est refusée.
-- [ ] **J-03** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : A-03, X-01, C-03, P-01, M-02, I-01 · CO-2, CO-3, CO-4, PR-3, 9.2
+- [x] **J-03** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : A-03, X-01, C-03, P-01, M-02, I-01 · CO-2, CO-3, CO-4, PR-3, 9.2
   Job d'achat : wallet de l'acheteur (recherche ou pré-génération), devis calculé sur le carnet frais, signature EIP-712, `buyFor`, puis capture ; si la vente est fermée ou si `buyFor` échoue, annulation de l'autorisation. Écrit le ticket, son lot et son jeton d'accès.
   Fini quand : testé sur Anvil avec Stripe simulé pour les trois issues (ticket et capture ; pause et annulation ; échec on-chain et annulation), sans jamais capturer sans ticket ni émettre deux tickets.
 - [x] **H-01** · Qui : Agent `coder-high`, relu par A · Dép. : X-02 · HE-1, HE-3
@@ -231,10 +231,10 @@ Lots parallèles : (H-03 → H-04 → H-05, H-06), (R-01 → R-02), (A-05, A-06,
   Croisement interne des expositions complémentaires.
 
 ### Règlement
-- [ ] **R-01** · Qui : Agent `coder-high`, relu par A · Dép. : M-01, H-08, X-01 · MD-3, ST-1
+- [x] **R-01** · Qui : Agent `coder-high`, relu par A · Dép. : M-01, H-08, X-01 · MD-3, ST-1
   Surveillance des résultats toutes les 60 s après le début ; à la résolution, `settle` pour chaque campagne de l'événement.
   Fini quand : `resolutionSide` yes, no et événement invalide mènent à YES, NO et VOID sur des réponses enregistrées.
-- [ ] **R-02** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : R-01 · ST-2, ST-3, ST-4, EC-7
+- [x] **R-02** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : R-01 · ST-2, ST-3, ST-4, EC-7
   Après `settle` : `refundBatch` par lots de 50 envoyés sans attendre le précédent, `payMerchant`, `release` ; reprise des tickets dont le remboursement a échoué.
   Fini quand : sur Anvil, les trois issues laissent le contrat sans un centime dû, et un ticket vers une adresse bloquée reste dû sans bloquer les autres.
 
