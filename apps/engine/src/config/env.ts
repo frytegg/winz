@@ -27,6 +27,10 @@ export const engineEnvSchema = z.object({
   GEMINI_API_URL: z.string().url().default("https://api.gemini.com"),
   GEMINI_WS_URL: z.string().url().default("wss://ws.gemini.com"),
   GEMINI_SANDBOX_API_URL: z.string().url().default("https://api.sandbox.gemini.com"),
+  // Only where direct outbound connections are blocked: the Gemini WebSocket is then opened
+  // through this HTTPS proxy, trusting the CA bundle in the given file.
+  APP_HTTPS_PROXY_URL: z.string().url().optional(),
+  APP_PROXY_CA_FILE: z.string().min(1).optional(),
   GEMINI_SANDBOX_API_KEY: z.string().min(1).optional(),
   GEMINI_SANDBOX_API_SECRET: z.string().min(1).optional(),
 
