@@ -129,9 +129,11 @@ Copy `escrow` and `usdc` from `deployments/5042002.json` into `ARC_ESCROW_ADDRES
 
 ### 5. Verify on the explorer
 
-The explorer is Blockscout at https://explorer.testnet.arc.io. **The commands below have not been
-run against Arc yet: the flags are unverified until someone runs them and records the result
-here.** They follow Foundry's documented Blockscout verifier:
+The explorer is Blockscout at https://explorer.testnet.arc.io. This was run on 17 November 2026
+for the deployment in `deployments/5042002.json` and the explorer answered "Pass - Verified"
+(a partial match, which is expected: the build strips the metadata hash to keep bytecode
+reproducible). The exact command and the result are in `docs/arc-testnet.md`. The form below is
+the same command with the addresses read from the deployment record:
 
 ```sh
 ESCROW="$(jq -r .escrow deployments/5042002.json)"

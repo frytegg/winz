@@ -82,7 +82,7 @@ Tout le reste en dépend. F-02, puis F-03, sont les deux seules tâches vraiment
 
 Chacune répond à une incertitude de la revue (question ouverte 9). Si une sonde échoue, on s'arrête et on en parle avant de construire dessus.
 
-- [ ] **S-01** · Qui : Agent `coder`, relu par A · Dép. : F-01
+- [x] **S-01** · Qui : Agent `coder`, relu par A · Dép. : F-01
   Foundry sur Arc : déployer sur le testnet un contrat de 20 lignes qui fait un `transferFrom` d'USDC, et le vérifier sur l'explorer.
   Fini quand : adresse et transaction notées, avec le `foundry.toml` (version de l'EVM, frais) et la commande de vérification qui marchent.
 - [ ] **S-02** · Qui : T (ou Agent `coder`) · Dép. : F-03 · ID-1
@@ -114,7 +114,7 @@ Tous parallèles entre eux dès que F-05 est figé. Lot à lancer ensemble : C-0
 - [x] **C-02** · Qui : Agent `coder-high`, relu par A · Dép. : C-01 · EC-2
   Tests d'invariants : solvabilité, `lockedRefunds == Σ refundable non payés`, `hedgeSpent + hedgeReserved ≤ hedgeBudget`, R jamais modifié.
   Fini quand : les invariants tiennent sur la campagne de fuzzing, couverture ≥ 90 % sur `WinzEscrow`.
-- [ ] **C-03** · Qui : Agent `coder`, relu par A · Dép. : C-01, S-01
+- [x] **C-03** · Qui : Agent `coder`, relu par A · Dép. : C-01, S-01
   Script de déploiement (adresse du jeton en paramètre, test `decimals() == 6`), export de l'ABI vers `packages/shared`, jeton de test à 6 décimales que l'on peut émettre et qui sait bloquer une adresse (tests, et secours de F-02).
   Fini quand : le contrat est déployé et vérifié sur Arc testnet, son adresse est dans la config, l'ABI est importée par le moteur.
 
