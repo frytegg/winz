@@ -132,14 +132,14 @@ Tous parallèles entre eux dès que F-05 est figé. Lot à lancer ensemble : C-0
 - [x] **M-01** · Qui : Agent `coder`, relu par A · Dép. : F-05 · MD-1, MD-3
   Client REST Gemini : événements actifs avec leurs marchés enfants, carnet `GET /v1/book/{symbol}`, événements réglés ; validation zod, normalisation vers `events` et `instruments`, cache de 60 s, respect de la limite de 120 requêtes par minute.
   Fini quand : les tests tournent sur des réponses enregistrées, et une commande synchronise le catalogue réel en base.
-- [ ] **M-02** · Qui : Agent `coder-high`, relu par A · Dép. : M-01, S-05 · MD-2
+- [x] **M-02** · Qui : Agent `coder-high`, relu par A · Dép. : M-01, S-05 · MD-2
   Flux de carnets : WebSocket avec reconnexion et attente exponentielle, repli sur le carnet REST, marqueur « périmé » au-delà de 10 s, abonnement limité aux instruments des campagnes actives, écriture dans `live_instruments`.
   Fini quand : coupure simulée → reconnexion, flux arrêté → marqué périmé en moins de 11 s, tests sur le jeu de carnets de S-05.
 - [ ] **M-03** ◇ · Qui : Agent `coder` · Dép. : M-01 · MD-4 (Should)
   Score en direct si une source existe ; sinon le ticket ne l'affiche pas.
 
 ### Chaîne
-- [ ] **X-01** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : F-05, D-01 · Section 7
+- [x] **X-01** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : F-05, D-01 · Section 7
   `tx-sender` : une file par clé, nonce géré localement, table `chain_txs` avec clé d'idempotence, frais au-dessus du plancher Arc, reprises, repli de RPC, reçu décodé vers `chain_events`.
   Fini quand : 50 envois concurrents sur Anvil passent sans conflit de nonce, un redémarrage au milieu ne renvoie aucune transaction en double.
 - [ ] **X-02** · Qui : Agent `coder`, relu par A · Dép. : X-01, C-03 · HE-1
@@ -173,7 +173,7 @@ Tous parallèles entre eux dès que F-05 est figé. Lot à lancer ensemble : C-0
 
 ## Vague 2 : une vente de bout en bout (mardi soir à mercredi midi, porte G1)
 
-- [ ] **A-01** · Qui : Agent `coder`, relu par A · Dép. : M-01, P-01, I-01 · CA-1
+- [x] **A-01** · Qui : Agent `coder`, relu par A · Dép. : M-01, P-01, I-01 · CA-1
   `GET /api/events` : catalogue et modèles calculés, limités aux contrats dont le carnet est coté des deux côtés ; `GET /api/me`, `POST /api/merchants`.
 - [ ] **A-02** · Qui : Agent `coder-high`, relu par A · Dép. : P-01, D-01, I-01 · CA-2, CA-4, M6, M7
   `POST /api/campaigns/preview`, `POST /api/campaigns` (brouillon + PaymentIntent du budget), liste et détail du commerçant, pause, reprise et clôture manuelles (jobs vers `setPaused` et `closeSales`).
@@ -193,7 +193,7 @@ Tous parallèles entre eux dès que F-05 est figé. Lot à lancer ensemble : C-0
 - [ ] **H-02** · Qui : Agent `coder-high`, relu par A · Dép. : M-02, P-01, H-01 · CA-5
   État de vente de chaque campagne (`sale_state`) : ouverte, en pause pour prix, budget, profondeur ou carnet périmé, pause manuelle, close ; reprise après 10 s stables avec un tick de marge ; fin des ventes 5 min avant `startTime`.
   Fini quand : une cote qui oscille autour de p_max ne fait pas clignoter l'état (test), et aucun devis n'est signé hors de l'état « ouverte ».
-- [ ] **A-04** · Qui : Agent `coder`, relu par A · Dép. : D-01, I-01 · LT-2, C3
+- [x] **A-04** · Qui : Agent `coder`, relu par A · Dép. : D-01, I-01 · LT-2, C3
   `GET /api/c/:slug`, `GET /api/t/:token`, `GET /api/tickets`.
 - [ ] **U-04** · Qui : T · Dép. : U-02, U-03, A-01 à A-04
   Brancher les écrans sur l'API réelle : onboarding, page de campagne, paiement, ticket.
@@ -206,7 +206,7 @@ Tous parallèles entre eux dès que F-05 est figé. Lot à lancer ensemble : C-0
 Lots parallèles : (H-03 → H-04 → H-05, H-06), (R-01 → R-02), (A-05, A-06, A-07), (H-07), écrans de Téo.
 
 ### Couverture
-- [ ] **H-03** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : M-02, S-05 · HE-8, 9.7
+- [x] **H-03** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : M-02, S-05 · HE-8, 9.7
   Interface `ExecutionVenue` et exécution papier : règles taker et maker de 9.7, profondeur consommée retenue, frais, carnet de référence gardé avec chaque exécution.
   Fini quand : sur le jeu de carnets, un ordre taker ne dépasse jamais la profondeur affichée et un ordre maker n'est exécuté que si le marché l'a touché.
 - [ ] **H-04** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : H-03, H-01 · HE-2, HE-3, 9.3

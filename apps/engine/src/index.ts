@@ -1,7 +1,7 @@
 import { EnvValidationError, loadEngineEnv, type EngineEnv } from "./config/env";
 import { createDb } from "./db";
 import { createLogger, moduleLogger } from "./logger";
-import { GeminiRestClient, PgCatalogStore, startCatalogSync } from "./market-data";
+import { GeminiRestClient, PgCatalogStore, createBookFeed, startCatalogSync } from "./market-data";
 
 /** How long subsystems get to finish what they are doing before the process exits anyway. */
 const SHUTDOWN_GRACE_MS = 15_000;
@@ -35,14 +35,29 @@ function main(): void {
   const db = createDb(env.DB_URL);
   const stop = new AbortController();
 
-  // Gemini catalogue and results, refreshed every minute (SPEC MD-1, MD-3).
+  // One Gemini client for the whole engine, so every request shares one rate limiter.
   const marketDataLog = moduleLogger(root, "market-data");
+  const gemini = new GeminiRestClient({ baseUrl: env.GEMINI_API_URL, logger: marketDataLog });
+
+  // Gemini catalogue and results, refreshed every minute (SPEC MD-1, MD-3).
   const catalogSync = startCatalogSync({
-    client: new GeminiRestClient({ baseUrl: env.GEMINI_API_URL, logger: marketDataLog }),
+    client: gemini,
     store: new PgCatalogStore(db),
     logger: marketDataLog,
     signal: stop.signal,
   });
+
+  // Live order books of the instruments in use: WebSocket first, REST as fallback (SPEC MD-2).
+  const bookFeed = createBookFeed({
+    db,
+    client: gemini,
+    logger: moduleLogger(root, "book-feed"),
+    socket: {
+      url: env.GEMINI_WS_URL,
+      proxyUrl: env.APP_HTTPS_PROXY_URL,
+      caFile: env.APP_PROXY_CA_FILE,
+    },
+  }).start({ signal: stop.signal });
 
   let stopping = false;
   const shutdown = (signal: string, exitCode: number): void => {
@@ -55,7 +70,7 @@ function main(): void {
       process.exit(exitCode === 0 ? 1 : exitCode);
     }, SHUTDOWN_GRACE_MS);
     forced.unref();
-    void catalogSync.stopped
+    void Promise.allSettled([catalogSync.stopped, bookFeed.stopped])
       .then(() => db.end({ timeout: 5 }))
       .catch((error: unknown) => log.error({ err: error }, "error while stopping"))
       .finally(() => process.exit(exitCode));
