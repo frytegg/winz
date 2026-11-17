@@ -1,3 +1,4 @@
+import { createArcClients, startChainIngest } from "./chain";
 import { EnvValidationError, loadEngineEnv, type EngineEnv } from "./config/env";
 import { createDb } from "./db";
 import { createLogger, moduleLogger } from "./logger";
@@ -59,6 +60,18 @@ function main(): void {
     },
   }).start({ signal: stop.signal });
 
+  // The escrow's events, read from the chain and projected into tickets, lots and exposure
+  // (SPEC HE-1). The contract is the source of truth of the money; the database follows it.
+  const arc = createArcClients(env);
+  const chainIngest = startChainIngest({
+    db,
+    publicClient: arc.publicClient,
+    escrowAddress: env.ARC_ESCROW_ADDRESS as `0x${string}`,
+    fromBlock: env.ARC_ESCROW_DEPLOY_BLOCK,
+    logger: moduleLogger(root, "chain-ingest"),
+    signal: stop.signal,
+  });
+
   let stopping = false;
   const shutdown = (signal: string, exitCode: number): void => {
     if (stopping) return;
@@ -70,7 +83,7 @@ function main(): void {
       process.exit(exitCode === 0 ? 1 : exitCode);
     }, SHUTDOWN_GRACE_MS);
     forced.unref();
-    void Promise.allSettled([catalogSync.stopped, bookFeed.stopped])
+    void Promise.allSettled([catalogSync.stopped, bookFeed.stopped, chainIngest.stopped])
       .then(() => db.end({ timeout: 5 }))
       .catch((error: unknown) => log.error({ err: error }, "error while stopping"))
       .finally(() => process.exit(exitCode));
