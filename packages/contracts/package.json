@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "build": "forge build",
-    "test": "forge test",
-    "coverage": "forge coverage --no-match-coverage '(test|script)/'"
+    "test": "forge test && node ../../scripts/export-abi.mjs --check",
+    "coverage": "forge coverage --no-match-coverage '(test|script)/'",
+    "export-abi": "forge build && node ../../scripts/export-abi.mjs"
   },
   "devDependencies": {
     "@foundry-rs/anvil": "^1.7.1",

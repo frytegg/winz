@@ -5,6 +5,8 @@ import {
   http,
   keccak256,
   toHex,
+  zeroAddress,
+  type AbiParameter,
   type Hex,
 } from "viem";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -23,6 +25,15 @@ import { receiptOf, REVERTING_CALL_DATA, sendDirect, testContractInitCode } from
 
 const solidityError = [{ type: "error", name: "Error", inputs: [{ type: "string" }] }] as const;
 const solidityPanic = [{ type: "error", name: "Panic", inputs: [{ type: "uint256" }] }] as const;
+
+/** A placeholder value of an ABI type, for encoding revert data with arguments. */
+function sampleArgument(parameter: AbiParameter): unknown {
+  if (parameter.type === "address") return zeroAddress;
+  if (parameter.type === "string") return "";
+  if (parameter.type === "bool") return false;
+  if (/^u?int\d*$/.test(parameter.type)) return 0n;
+  throw new Error(`no sample value for ABI type ${parameter.type}`);
+}
 
 /** An error shaped like the ones viem raises: nested causes, the node's words in `details`. */
 function rpcError(
@@ -51,12 +62,16 @@ function rpcError(
 
 describe("decodeRevertData", () => {
   it("names every custom error of winzEscrowAbi", () => {
-    const names = winzEscrowAbi.filter((item) => item.type === "error").map((item) => item.name);
-    expect(names.length).toBeGreaterThan(20);
-    for (const errorName of names) {
-      expect(decodeRevertData(encodeErrorResult({ abi: winzEscrowAbi, errorName }))).toBe(
-        errorName,
-      );
+    const errors = winzEscrowAbi.filter((item) => item.type === "error");
+    expect(errors.length).toBeGreaterThan(20);
+    for (const item of errors) {
+      // Implementation-only errors (Ownable, SafeERC20, ShortStrings) take arguments: encode them.
+      const data = encodeErrorResult({
+        abi: winzEscrowAbi,
+        errorName: item.name,
+        args: item.inputs.map(sampleArgument),
+      } as Parameters<typeof encodeErrorResult>[0]);
+      expect(decodeRevertData(data), item.name).toBe(item.name);
     }
   });
 
