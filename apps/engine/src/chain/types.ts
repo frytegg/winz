@@ -199,8 +199,18 @@ export interface TxSenderConfig {
   minPriorityFeePerGasWei?: bigint;
   /** Highest `maxFeePerGas` ever signed, whatever the node suggests. Default 1 000 gwei. */
   maxFeePerGasCapWei?: bigint;
-  /** Node failures tolerated while preparing a transaction before it is `failed`. Default 6. */
+  /**
+   * Node failures tolerated while preparing a transaction before it is `failed`. Default 6. A
+   * transaction is given up only once both this count and `maxPrepareMs` are reached.
+   */
   maxPrepareAttempts?: number;
+  /**
+   * Least time, from the row's creation, during which node failures while preparing a
+   * transaction are retried before it is `failed`, whatever the count. Default 60 000, the life
+   * of a quote (SPEC PR-3): an outage shorter than that does not fail a sale. 0 leaves only
+   * `maxPrepareAttempts`.
+   */
+  maxPrepareMs?: number;
   /** First delay of the exponential backoff. Default 250. */
   retryBaseMs?: number;
   /** Longest delay of the exponential backoff. Default 10 000. */

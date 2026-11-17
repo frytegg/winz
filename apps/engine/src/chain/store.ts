@@ -79,6 +79,20 @@ const senderStateSchema = z.object({
  * transaction is the only thing that may be broadcast for that nonce.
  */
 export function readSenderState(tx: ChainTx): SenderState {
+  const state = readSignedAttempts(tx);
+  const latest = state.attempts[state.attempts.length - 1];
+  if (latest?.hash !== tx.txHash) {
+    throw new CorruptSenderStateError(tx.id, "tx_hash is not the hash of the latest attempt");
+  }
+  return state;
+}
+
+/**
+ * Reads the signed attempts of any row that was signed (`sent`, `mined`, `reverted`, or a
+ * `failed` row that lost its nonce), without the check that the row's hash is the latest
+ * attempt's: a final row records the hash that was mined, which can be an earlier attempt.
+ */
+export function readSignedAttempts(tx: ChainTx): SenderState {
   const parsed = senderStateSchema.safeParse(tx.payload[SENDER_STATE_KEY]);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
@@ -87,12 +101,7 @@ export function readSenderState(tx: ChainTx): SenderState {
       issue ? `${issue.path.join(".")}: ${issue.message}` : "invalid state",
     );
   }
-  const state = parsed.data as SenderState;
-  const latest = state.attempts[state.attempts.length - 1];
-  if (latest?.hash !== tx.txHash) {
-    throw new CorruptSenderStateError(tx.id, "tx_hash is not the hash of the latest attempt");
-  }
-  return state;
+  return parsed.data as SenderState;
 }
 
 export interface NewChainTx {
@@ -187,6 +196,23 @@ export class ChainTxStore {
   }
 
   /**
+   * The rows whose signing key and chain decide whether a signer role can go on with the
+   * configured key: its `sent` rows, and the row holding its highest nonce.
+   */
+  async rowsToCheckAgainstSigner(signer: SignerName): Promise<ChainTx[]> {
+    const rows = await this.db<ChainTxRow[]>`
+      select * from chain_txs
+      where signer = ${signer}
+        and (
+          status = 'sent'
+          or nonce = (select max(nonce) from chain_txs where signer = ${signer})
+        )
+      order by nonce asc
+    `;
+    return rows.map(toChainTx);
+  }
+
+  /**
    * `queued` → `sent`: stores the nonce, the hash and the signed transaction in one statement,
    * before anything is broadcast. False if the row was not `queued` any more.
    */
@@ -233,15 +259,23 @@ export class ChainTxStore {
     return rows.length === 1;
   }
 
-  /** Counts a failed preparation of a `queued` row. Returns the new count, 0 if not `queued`. */
-  async recordPrepareFailure(id: string, error: string): Promise<number> {
-    const rows = await this.db<{ attempts: number }[]>`
+  /**
+   * Counts a failed preparation of a `queued` row. Returns the new count and the age of the row
+   * in milliseconds, both read by the database (one clock for `created_at` and now), or
+   * `undefined` if the row is not `queued` any more.
+   */
+  async recordPrepareFailure(
+    id: string,
+    error: string,
+  ): Promise<{ attempts: number; ageMs: number } | undefined> {
+    const rows = await this.db<{ attempts: number; age_ms: string }[]>`
       update chain_txs
       set attempts = attempts + 1, last_error = ${error}
       where id = ${id} and status = 'queued'
-      returning attempts
+      returning attempts, floor(extract(epoch from (now() - created_at)) * 1000)::text as age_ms
     `;
-    return rows[0]?.attempts ?? 0;
+    const row = rows[0];
+    return row ? { attempts: row.attempts, ageMs: Number(row.age_ms) } : undefined;
   }
 
   /** Notes why a `sent` row is not progressing, without changing anything else. */

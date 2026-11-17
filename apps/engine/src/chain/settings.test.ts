@@ -24,6 +24,7 @@ describe("resolveTxSenderSettings", () => {
       feeBumpPercent: 25,
       gasMarginPercent: 20,
       maxPrepareAttempts: 6,
+      maxPrepareMs: 60_000,
       retryBaseMs: 250,
       retryMaxMs: 10_000,
       waitPollMs: 250,
@@ -47,6 +48,7 @@ describe("resolveTxSenderSettings", () => {
     ["a backoff ceiling below its base", { retryBaseMs: 500, retryMaxMs: 100 }],
     ["a fee floor below Arc's", { minMaxFeePerGasWei: 1n }],
     ["zero prepare attempts", { maxPrepareAttempts: 0 }],
+    ["a negative prepare budget", { maxPrepareMs: -1 }],
   ])("rejects %s", (_label, override) => {
     expect(() => resolveTxSenderSettings({ ...base, ...override })).toThrow(TxSenderConfigError);
   });

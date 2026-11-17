@@ -67,6 +67,35 @@ export class TxSenderStoppedError extends TxSenderError {
   }
 }
 
+/**
+ * `chain_txs` holds transactions of a signer role that were signed by another key or for
+ * another chain than the configured ones, and the sender cannot go on from them safely: a `sent`
+ * row it would drive forever, or stored nonces the configured key has not reached on this chain
+ * (its first nonce would either leave a gap that is never mined or collide with the unique
+ * `(signer, nonce)` index). Needs a human: see the message.
+ */
+export class SignerHistoryMismatchError extends TxSenderError {
+  constructor(
+    public readonly signer: string,
+    public readonly txId: string,
+    public readonly stored: { address: string; chainId: number; nonce: bigint; status: TxStatus },
+    public readonly configured: { address: string; chainId: number; pendingCount: bigint | null },
+  ) {
+    const problem =
+      stored.status === "sent"
+        ? `transaction ${txId} is still 'sent' and can only be completed by that key on that chain`
+        : `the configured key's next nonce on this chain (${String(configured.pendingCount)}) is not above the stored nonce ${stored.nonce.toString()}, so its transactions would wait behind a nonce gap or hit the (signer, nonce) index`;
+    super(
+      `chain_txs rows of the '${signer}' signer were signed by ${stored.address} for chain ${stored.chainId.toString()}, ` +
+        `but the sender is configured with ${configured.address} on chain ${configured.chainId.toString()}: ${problem}. ` +
+        "Nonces are tracked per signer role, not per key and chain: before switching key or chain on this database, " +
+        "let the old key's sent transactions finish and move its rows out of chain_txs, or migrate chain_txs to " +
+        "store signer_address and chain_id per row.",
+    );
+    this.name = "SignerHistoryMismatchError";
+  }
+}
+
 /** A `sent` row does not hold what the sender wrote in it. Needs a human: nothing is re-signed. */
 export class CorruptSenderStateError extends TxSenderError {
   constructor(
