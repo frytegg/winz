@@ -51,12 +51,13 @@ values (
 insert into public.chain_cursor (name, block_number) values ('winz-escrow', 1200);
 
 insert into public.chain_txs (
-  id, idempotency_key, signer, kind, to_address, data, nonce, tx_hash, status, sent_at
+  id, idempotency_key, signer, kind, to_address, data, nonce, signer_address, chain_id, tx_hash,
+  status, sent_at
 )
 values (
   '40000000-0000-4000-8000-000000000001', 'buy:pi_test_1', 'relayer', 'buyFor',
-  '0x3333333333333333333333333333333333333333', '0xdeadbeef', 7, '0x' || repeat('ab', 32),
-  'sent', now()
+  '0x3333333333333333333333333333333333333333', '0xdeadbeef', 7,
+  '0x4444444444444444444444444444444444444444', 5042002, '0x' || repeat('ab', 32), 'sent', now()
 );
 
 insert into public.lots (id, ticket_id, campaign_id, instrument, qty, max_hedge_cost)

@@ -24,6 +24,8 @@ interface ChainTxRow {
   value: bigint;
   payload: JsonObject;
   nonce: bigint | null;
+  signer_address: string | null;
+  chain_id: number | null;
   tx_hash: string | null;
   status: TxStatus;
   attempts: number;
@@ -45,6 +47,8 @@ function toChainTx(row: ChainTxRow): ChainTx {
     value: row.value,
     payload: row.payload,
     nonce: row.nonce,
+    signerAddress: row.signer_address as Address | null,
+    chainId: row.chain_id,
     txHash: row.tx_hash as Hex | null,
     status: row.status,
     attempts: row.attempts,
@@ -116,6 +120,14 @@ export interface NewChainTx {
   payload: JsonObject;
 }
 
+/** A signer role as configured for one run: the key that serves it and the chain it signs for. */
+export interface SigningKey {
+  signer: SignerName;
+  /** Lowercase. */
+  address: Address;
+  chainId: number;
+}
+
 export interface FinalizeInput {
   id: string;
   status: "mined" | "reverted";
@@ -166,11 +178,34 @@ export class ChainTxStore {
     return rows[0] ? toChainTx(rows[0]) : undefined;
   }
 
-  /** The transaction of a signer that was signed and is not final. At most one exists. */
-  async oldestSent(signer: SignerName): Promise<ChainTx | undefined> {
+  /**
+   * The transaction of a signer role that the configured key signed on this chain and that is
+   * not final. At most one exists. A `sent` row of another key or chain is never returned: it
+   * is `foreignSent`'s, and the sender refuses to start while one exists.
+   */
+  async oldestSent(key: SigningKey): Promise<ChainTx | undefined> {
     const rows = await this.db<ChainTxRow[]>`
       select * from chain_txs
-      where signer = ${signer} and status = 'sent'
+      where signer = ${key.signer}
+        and signer_address = ${key.address}
+        and chain_id = ${key.chainId}
+        and status = 'sent'
+      order by nonce asc
+      limit 1
+    `;
+    return rows[0] ? toChainTx(rows[0]) : undefined;
+  }
+
+  /**
+   * The oldest `sent` row of a signer role that was signed by another key or for another chain
+   * than `key`: a transaction that the sender, configured with `key`, would never complete.
+   */
+  async foreignSent(key: SigningKey): Promise<ChainTx | undefined> {
+    const rows = await this.db<ChainTxRow[]>`
+      select * from chain_txs
+      where signer = ${key.signer}
+        and status = 'sent'
+        and (signer_address is distinct from ${key.address} or chain_id is distinct from ${key.chainId})
       order by nonce asc
       limit 1
     `;
@@ -187,38 +222,30 @@ export class ChainTxStore {
     return rows[0] ? toChainTx(rows[0]) : undefined;
   }
 
-  /** Highest nonce ever assigned to a signer, or `null` if it never sent anything. */
-  async maxNonce(signer: SignerName): Promise<bigint | null> {
+  /**
+   * Highest nonce ever stored for a key on a chain, or `null` if it never signed anything there.
+   * Read across roles: the nonce sequence belongs to the key, and the unique index on
+   * `(signer_address, chain_id, nonce)` holds whatever role used it.
+   */
+  async maxNonce(key: Pick<SigningKey, "address" | "chainId">): Promise<bigint | null> {
     const rows = await this.db<{ max: bigint | null }[]>`
-      select max(nonce) as max from chain_txs where signer = ${signer}
+      select max(nonce) as max from chain_txs
+      where signer_address = ${key.address} and chain_id = ${key.chainId}
     `;
     return rows[0]?.max ?? null;
   }
 
   /**
-   * The rows whose signing key and chain decide whether a signer role can go on with the
-   * configured key: its `sent` rows, and the row holding its highest nonce.
-   */
-  async rowsToCheckAgainstSigner(signer: SignerName): Promise<ChainTx[]> {
-    const rows = await this.db<ChainTxRow[]>`
-      select * from chain_txs
-      where signer = ${signer}
-        and (
-          status = 'sent'
-          or nonce = (select max(nonce) from chain_txs where signer = ${signer})
-        )
-      order by nonce asc
-    `;
-    return rows.map(toChainTx);
-  }
-
-  /**
-   * `queued` → `sent`: stores the nonce, the hash and the signed transaction in one statement,
-   * before anything is broadcast. False if the row was not `queued` any more.
+   * `queued` → `sent`: stores the nonce, the signing key and chain, the hash and the signed
+   * transaction in one statement, before anything is broadcast. False if the row was not
+   * `queued` any more.
    */
   async markSent(input: {
     id: string;
     nonce: bigint;
+    /** Address of the key that signed; stored lowercase. */
+    signerAddress: Address;
+    chainId: number;
     txHash: Hex;
     state: SenderState;
     sentAt: Date;
@@ -227,6 +254,8 @@ export class ChainTxStore {
       update chain_txs
       set status = 'sent',
           nonce = ${input.nonce.toString()}::bigint,
+          signer_address = ${input.signerAddress.toLowerCase()},
+          chain_id = ${input.chainId},
           tx_hash = ${input.txHash},
           payload = payload || ${this.db.json({ [SENDER_STATE_KEY]: input.state })}::jsonb,
           attempts = attempts + 1,

@@ -143,6 +143,7 @@ from (
     ('chain_txs', 'value', 'chain_txs_value_range'),
     ('chain_txs', 'nonce', 'chain_txs_nonce_range'),
     ('chain_txs', 'attempts', 'chain_txs_attempts_range'),
+    ('chain_txs', 'chain_id', 'chain_txs_chain_id_range'),
     -- A negative qty also breaks filled_qty <= qty, and Postgres reports that check first.
     ('lots', 'qty', null),
     ('lots', 'max_hedge_cost', 'lots_max_hedge_cost_range'),
@@ -165,6 +166,19 @@ from (
     ('live_campaigns', 'exposure', 'live_campaigns_exposure_range')
 ) as x (tbl, col, con);
 
+select test.throws(
+  $$update public.campaigns set unit_price = 0 where slug = 'joes-tex13'$$,
+  '{23514}', 'campaigns rejects a unit_price of zero, which the contract refuses',
+  'campaigns_unit_price_range'
+);
+select test.lives(
+  $$update public.campaigns set unit_price = 1 where slug = 'joes-tex13'$$,
+  'campaigns accepts a unit_price of 1 micro-USDC'
+);
+select test.throws(
+  $$update public.chain_txs set chain_id = 0$$,
+  '{23514}', 'chain_txs rejects a chain_id of zero', 'chain_txs_chain_id_range'
+);
 select test.throws(
   $$update public.payments set qty = 0$$,
   '{23514}', 'payments rejects a quantity of zero', 'payments_qty_range'
@@ -281,6 +295,37 @@ select test.throws(
 select test.throws(
   $$update public.chain_txs set tx_hash = 'abc'$$,
   '{23514}', 'chain_txs rejects a malformed tx_hash', 'chain_txs_tx_hash_format'
+);
+select test.throws(
+  $$update public.chain_txs set signer_address = '0x1234'$$,
+  '{23514}', 'chain_txs rejects a malformed signer_address', 'chain_txs_signer_address_format'
+);
+select test.throws(
+  $$update public.chain_txs set signer_address = '0x' || repeat('AB', 20)
+    where id = '40000000-0000-4000-8000-000000000001'$$,
+  '{23514}', 'chain_txs rejects a signer_address that is not lowercase', 'chain_txs_signer_address_format'
+);
+select test.throws(
+  $$insert into public.chain_txs (idempotency_key, signer, kind, to_address, data, nonce, chain_id)
+    values ('no-address', 'relayer', 'buyFor', '0x3333333333333333333333333333333333333333', '0x', 99, 5042002)$$,
+  '{23514}', 'chain_txs rejects a nonce without a signer_address', 'chain_txs_nonce_has_signer'
+);
+select test.throws(
+  $$insert into public.chain_txs (idempotency_key, signer, kind, to_address, data, nonce, signer_address)
+    values ('no-chain', 'relayer', 'buyFor', '0x3333333333333333333333333333333333333333', '0x', 99,
+            '0x4444444444444444444444444444444444444444')$$,
+  '{23514}', 'chain_txs rejects a nonce without a chain_id', 'chain_txs_nonce_has_signer'
+);
+select test.throws(
+  $$update public.chain_txs set signer_address = null where id = '40000000-0000-4000-8000-000000000001'$$,
+  '{23514}', 'chain_txs rejects clearing the signer_address of a row that holds a nonce',
+  'chain_txs_nonce_has_signer'
+);
+select test.lives(
+  $$insert into public.chain_txs (idempotency_key, signer, kind, to_address, data, signer_address, chain_id)
+    values ('queued-with-key', 'relayer', 'buyFor', '0x3333333333333333333333333333333333333333', '0x',
+            '0x4444444444444444444444444444444444444444', 5042002)$$,
+  'chain_txs accepts a row without a nonce, with or without a signing key'
 );
 select test.throws(
   $$update public.instruments set onchain_id = 'TEX13' where symbol = 'GEMI-NCAAF-2611212030-ARK-TEX-S-TEX13'$$,
