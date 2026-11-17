@@ -77,3 +77,62 @@ export {
   type CatalogSyncServiceOptions,
   type SyncSettlementsOptions,
 } from "./sync";
+export {
+  BookCacheRowError,
+  bookCacheRowSchema,
+  parseBookCacheRow,
+  readCachedBook,
+  type BookCacheRow,
+} from "./book-cache-reader";
+export {
+  BookFeed,
+  createBookFeed,
+  normalizeBook,
+  type BookFeedEvent,
+  type BookFeedListener,
+  type BookFeedOptions,
+  type BookFeedRun,
+  type BookFeedStats,
+  type CreateBookFeedOptions,
+} from "./book-feed";
+export {
+  GEMINI_WS_URL,
+  ProxyTunnelError,
+  wsBookSocketFactory,
+  type BookSocket,
+  type BookSocketFactory,
+  type BookSocketHandlers,
+  type WsBookSocketOptions,
+} from "./book-socket";
+export {
+  PgBookStore,
+  serializeBookSide,
+  topOfBook,
+  type BookStore,
+  type MarkStaleOptions,
+  type StoredBookLevel,
+} from "./book-store";
+export type {
+  BookSource,
+  BookTransport,
+  BookTransportListener,
+  TradePrint,
+} from "./book-transport";
+export { RestBookPoller, type BookFetcher, type RestBookPollerOptions } from "./rest-book-poller";
+export { schedulerSleep, systemScheduler, type CancelTimer, type Scheduler } from "./scheduler";
+export {
+  WsBookTransport,
+  type DepthStream,
+  type WsBookTransportOptions,
+} from "./ws-book-transport";
+export {
+  BOOK_DEPTH,
+  GeminiWsMessageError,
+  parseGeminiWsMessage,
+  type GeminiWsMessage,
+  type WsBookTicker,
+  type WsDepthSnapshot,
+  type WsDepthUpdate,
+  type WsReply,
+  type WsTrade,
+} from "./ws-messages";
