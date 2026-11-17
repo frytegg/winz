@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+/* Winz identity (SPEC section 2). Dark by default; no light theme in the MVP. */
+@theme {
+  --color-lime: #d8ff34;
+  --color-ink: #0b0b0c;
+  --color-card: #1c1c1f;
+  --color-text: #ffffff;
+  --color-muted: #a1a1aa;
+}
+
+html,
+body {
+  background: var(--color-ink);
+  color: var(--color-text);
+}

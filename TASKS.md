@@ -65,7 +65,7 @@ Tout le reste en dépend. F-02, puis F-03, sont les deux seules tâches vraiment
 - [ ] **F-03** · Qui : T · Dép. : aucune
   Comptes côté front : projet Vercel et domaine stable, compte Stripe en mode test avec le domaine enregistré pour Apple Pay, application Privy (e-mail OTP, passkey, chaîne Arc testnet).
   Fini quand : le domaine sert une page en HTTPS et apparaît comme domaine de paiement vérifié chez Stripe.
-- [ ] **F-04** · Qui : Agent `coder`, relu par A · Dép. : aucune · Sections 11 à 14
+- [x] **F-04** · Qui : Agent `coder`, relu par A · Dép. : aucune · Sections 11 à 14
   Squelette du monorepo : pnpm + turbo, TypeScript strict, ESLint + Prettier, Vitest, `apps/web` (Next.js, App Router, Tailwind, PWA), `apps/engine`, `packages/{shared,pricing,contracts}`, validation des variables d'environnement par zod au démarrage, journalisation pino, CI (lint, typecheck, test).
   Fini quand : `pnpm install && pnpm lint && pnpm typecheck && pnpm test && pnpm build` passent sur un clone neuf, et la CI est verte.
 - [ ] **F-05** · Qui : Agent `coder-high`, relu par A puis T · Dép. : F-04 · Section 10, PR-4

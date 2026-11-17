@@ -1,0 +1,27 @@
+node_modules/
+.turbo/
+.next/
+dist/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment: only the template is committed
+.env
+.env.*
+!.env.example
+
+# Foundry
+packages/contracts/out/
+packages/contracts/cache/
+packages/contracts/broadcast/
+
+# Supabase local state
+supabase/.branches/
+supabase/.temp/
+
+# Playwright
+test-results/
+playwright-report/
+
+.DS_Store

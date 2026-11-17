@@ -1,0 +1,17 @@
+node_modules
+.turbo
+.next
+coverage
+pnpm-lock.yaml
+.claude
+*.md
+packages/contracts/out
+packages/contracts/cache
+packages/contracts/broadcast
+packages/contracts/src
+packages/contracts/test
+packages/contracts/script
+packages/shared/src/abi
+supabase/migrations
+e2e/fixtures
+apps/engine/fixtures
