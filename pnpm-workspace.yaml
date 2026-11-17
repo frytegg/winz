@@ -1,0 +1,13 @@
+packages:
+  - apps/*
+  - packages/*
+
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+
+ignoredBuiltDependencies:
+  - "@foundry-rs/anvil"
+  - "@foundry-rs/cast"
+  - "@foundry-rs/forge"
+  - unrs-resolver
