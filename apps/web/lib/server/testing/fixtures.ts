@@ -25,6 +25,7 @@ export const TEST_CONFIG: ServerConfig = {
   adminKey: ADMIN_KEY,
   baseUrl: "https://winz.test",
   escrowAddress: "0x2222222222222222222222222222222222222222",
+  executionVenue: "paper",
 };
 
 /** The words no customer-facing answer may contain (SPEC section 5). */
