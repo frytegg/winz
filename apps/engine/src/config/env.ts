@@ -20,6 +20,8 @@ export const engineEnvSchema = z.object({
   ARC_RPC_URL: z.string().url(),
   ARC_RPC_FALLBACK_URL: z.string().url().default("https://rpc.testnet.arc.io"),
   ARC_ESCROW_ADDRESS: hexAddress,
+  // Block the escrow was deployed at: where the event reader starts when it has no cursor yet.
+  ARC_ESCROW_DEPLOY_BLOCK: z.coerce.bigint().nonnegative(),
   ARC_USDC_ADDRESS: hexAddress.default("0x3600000000000000000000000000000000000000"),
   ARC_RELAYER_PRIVATE_KEY: privateKey,
   ARC_ORACLE_PRIVATE_KEY: privateKey,

@@ -60,5 +60,10 @@ Balances, in USDC:
 | Oracle (merchant and buyer here) | 2.000000 | 5.846437 | +3.85 less gas: 1.00 non-refundable part, 1.00 refund, 1.00 payout, 0.85 unused budget |
 | Escrow | 0 | 0 | holds nothing once the campaign is settled and released |
 
+The engine was then run against the real chain with an empty database: it read all ten events of
+the contract (two from the deployment, eight from this lifecycle) from the public RPC in about
+1.5 s, in chain order. This campaign has no row off-chain, so the engine leaves its events
+unprojected; set `ARC_ESCROW_DEPLOY_BLOCK=72727571` to start reading after it.
+
 Final on-chain state of the campaign: status SettledYes, hedge spent 0.15, hedge reserved 0,
 locked refunds 0, merchant due 0, released.
