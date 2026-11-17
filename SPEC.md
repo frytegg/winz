@@ -228,7 +228,7 @@ Priorités : **Must** = dans la démo, **Should** = si le Must tourne mercredi s
 
 ### `checkout`
 - **CO-1 (Must)** Page de campagne publique (C1) rendue côté serveur, partageable avec un aperçu réseaux sociaux (Open Graph : promesse + logo).
-- **CO-2 (Must)** Paiement Apple Pay, Google Pay ou carte via Stripe (mode test), en deux temps. La carte est **autorisée** (`capture_method: manual`). À l'autorisation, le backend calcule et signe le devis, puis le relayer appelle `buyFor(buyer, campaignId, qty, quote, sig)` avec des USDC de la trésorerie. Le paiement n'est **capturé** qu'une fois le ticket émis.
+- **CO-2 (Must)** Paiement Apple Pay, Google Pay ou carte via Stripe (mode test), en deux temps. La carte est **autorisée** (`capture_method: manual`). À l'autorisation, le backend calcule et signe le devis, puis le relayer appelle `buyFor(quote, sig)` avec des USDC de la trésorerie. Le paiement n'est **capturé** qu'une fois le ticket émis.
 - **CO-3 (Must)** Idempotence : un paiement Stripe crée au plus un ticket (clé = id du PaymentIntent). Le traitement est déclenché par le webhook Stripe **et** par un appel de confirmation du client, les deux menant au même job.
 - **CO-4 (Must)** Si la campagne est en pause au moment de l'achat on-chain, l'autorisation est annulée et le client voit « Promo just paused, you were not charged ».
 - **CO-5 (Could)** Paiement direct en USDC pour les utilisateurs crypto (`buy`, signé par le client).
@@ -336,8 +336,8 @@ Budget disponible = `hedgeBudget − hedgeSpent − hedgeReserved`.
 |---|---|---|
 | `createCampaignFor(merchant, params, budget)` | Relayer | Enregistre les règles, prélève le budget de couverture sur la trésorerie |
 | `topUpBudgetFor(id, amount)` | Relayer | Ajoute du budget depuis la trésorerie |
-| `buyFor(buyer, id, qty, quote, sig)` | Relayer | Vérifie le devis EIP-712 (signataire oracle, expiration, nonce), exige `maxHedgeCost` ≤ budget disponible et le réserve, prélève `qty × unitPrice` sur la trésorerie, bloque la part remboursable, verse le reste au commerçant, émet le ticket |
-| `buy(id, qty, quote, sig)` | Client (Could) | Idem, payé par le client |
+| `buyFor(quote, sig)` | Relayer | Le devis porte la campagne, l'acheteur et la quantité. Vérifie le devis EIP-712 (signataire oracle, expiration, nonce), exige `maxHedgeCost` ≤ budget disponible et le réserve, prélève `qty × unitPrice` sur la trésorerie, bloque la part remboursable, verse le reste au commerçant, émet le ticket |
+| `buy(quote, sig)` | Client (Could) | Idem, payé par l'appelant, qui doit être l'acheteur du devis |
 | `setPaused(id, bool)` | Relayer | Pause ou reprise manuelle du commerçant (refusé après `salesClose`) |
 | `closeSales(id)` | Relayer | Avance `salesClose` à maintenant, à la demande du commerçant. Ne peut jamais le reculer |
 | `chargeHedge(ticketIds[], amounts[])` | Oracle | Pour chaque ticket, une seule fois et avant `settle` : débite `amount ≤ maxHedgeCost` vers la trésorerie et libère la réserve |
