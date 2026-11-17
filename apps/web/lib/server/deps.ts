@@ -1,6 +1,7 @@
 import type { AuthVerifier, IdentityDirectory } from "./auth";
 import { getDb, type Db } from "./db";
 import { webEnv } from "./env";
+import { StripePaymentGateway, type PaymentGateway } from "./payments-gateway";
 import { PrivyIdentity } from "./privy";
 
 /** Settings the read routes need, taken from the environment. */
@@ -18,6 +19,8 @@ export interface ServerDeps {
   db: Db;
   verifier: AuthVerifier;
   directory: IdentityDirectory;
+  /** Card payments (Stripe in production, a fake in tests). */
+  payments: PaymentGateway;
   config: () => ServerConfig;
   /** The clock. */
   now: () => Date;
@@ -37,7 +40,7 @@ function configFromEnv(): ServerConfig {
 
 /**
  * The dependencies of the running server, built on first use (never at import time): the shared
- * Postgres client, Privy, the environment and the system clock.
+ * Postgres client, Privy, Stripe, the environment and the system clock.
  */
 export function serverDeps(): ServerDeps {
   if (override) return override;
@@ -51,6 +54,10 @@ export function serverDeps(): ServerDeps {
       db: getDb(),
       verifier: privy,
       directory: privy,
+      payments: new StripePaymentGateway(() => ({
+        secretKey: env.STRIPE_SECRET_KEY,
+        webhookSecret: env.STRIPE_WEBHOOK_SECRET,
+      })),
       config: configFromEnv,
       now: () => new Date(),
     };
