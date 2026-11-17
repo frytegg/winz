@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:frontend:schema:sponsor-allowlist:1",
+  "title": "Sponsor allowlist",
+  "description": "assets/sponsor-allowlist.json, the verified deliverable of research/sponsor-brand-kits.md (FD21), copied unchanged with its access dates. loadAllowlists() selects the entries of profile.sponsors. A logo is exempt only when its file matches a logo_sources sha256 of a sponsor whose logo_default is official_file_unaltered_allowed, or whose approval_evidence is set; forbidden_phrases run on rendered text only; tier-2 waivers citing a sponsor are refused when colours.claimed_as_mark is true. Kits drift: re-fetch and re-hash before each event. The fields the checks read are typed here; the rest of each entry is the dossier's own wording and stays open.",
+  "type": "object",
+  "required": ["schema", "accessed", "sponsor_allowlist"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"type": "string", "minLength": 1},
+    "accessed": {"type": "string", "format": "date"},
+    "sponsor_allowlist": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/entry"}}
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "required": ["sponsor", "display_name", "events", "kit_url", "policy_urls", "allowed_phrases", "forbidden_phrases", "logo_default", "logo_sources", "colours", "clear_space", "approval_required", "approval_evidence", "notes", "accessed"],
+      "properties": {
+        "sponsor": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+        "display_name": {"type": "string", "minLength": 1},
+        "events": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "kit_url": {"type": ["string", "null"], "pattern": "^https://"},
+        "policy_urls": {"type": "array", "items": {"type": "string", "pattern": "^https://"}},
+        "allowed_phrases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["text", "basis"],
+            "additionalProperties": false,
+            "properties": {
+              "text": {"type": "string", "minLength": 1},
+              "basis": {"type": "string", "pattern": "^(listed|derived)"}
+            }
+          }
+        },
+        "forbidden_phrases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["regex", "flags", "basis"],
+            "additionalProperties": false,
+            "properties": {
+              "regex": {"type": "string", "minLength": 1, "format": "regex", "description": "JavaScript regular expression run on rendered text only."},
+              "flags": {"type": "string", "pattern": "^[dgimsuvy]*$"},
+              "basis": {"type": "string", "minLength": 1},
+              "severity": {"enum": ["advisory", "block"], "description": "advisory entries never block; absent means block."}
+            }
+          }
+        },
+        "naming_blocklist": {"type": "array", "items": {"type": "string", "pattern": "^[A-Z0-9][A-Z0-9 -]*$"}},
+        "naming_rule": {"type": "string"},
+        "logo_default": {"enum": ["official_file_unaltered_allowed", "text_only", "text_only_until_approved", "text_only_until_board_approval"]},
+        "logo_default_basis": {"type": "string"},
+        "logo_conditions": {"type": "array", "items": {"type": "string"}},
+        "logo_conditions_if_approved": {"type": "array", "items": {"type": "string"}},
+        "logo_exceptions": {"type": "array", "items": {"type": "string"}},
+        "logo_sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["variant", "url", "format", "sha256"],
+            "additionalProperties": false,
+            "properties": {
+              "variant": {"type": "string", "minLength": 1},
+              "url": {"type": ["string", "null"], "pattern": "^https://"},
+              "format": {"enum": ["svg", "png", "zip", "svg/png", "folder"]},
+              "sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        },
+        "colours": {
+          "type": "object",
+          "required": ["core", "gradients", "claimed_as_mark"],
+          "properties": {
+            "core": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "hex"],
+                "properties": {
+                  "name": {"type": "string", "minLength": 1},
+                  "hex": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"}
+                }
+              }
+            },
+            "gradients": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "stops"],
+                "properties": {
+                  "name": {"type": "string", "minLength": 1},
+                  "stops": {"type": ["array", "string"]}
+                }
+              }
+            },
+            "claimed_as_mark": {"type": "boolean", "description": "true when the sponsor claims its colours or look as marks (Solana): no waiver may cite it."}
+          }
+        },
+        "typography": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["family"],
+            "properties": {"family": {"type": "string", "minLength": 1}}
+          }
+        },
+        "clear_space": {"type": ["object", "null"]},
+        "approval_required": {
+          "type": "object",
+          "required": ["descriptive_text", "contact"],
+          "properties": {
+            "descriptive_text": {"type": "boolean"},
+            "logo": {"type": ["boolean", "string"]},
+            "contact": {"type": "string", "minLength": 1}
+          }
+        },
+        "approval_evidence": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "description": "null until the owner stores a written yes; then the path of that email or message."
+        },
+        "trademark_notice": {
+          "type": "object",
+          "properties": {
+            "word_only": {"type": "string", "minLength": 1},
+            "with_logo": {"type": "string", "minLength": 1}
+          }
+        },
+        "checker": {
+          "type": "object",
+          "required": ["tell1_exemption"],
+          "properties": {
+            "tell1_exemption": {"type": "string", "minLength": 1},
+            "flag": {"type": "array", "items": {"type": "string"}},
+            "waiver_policy": {"type": "string"}
+          }
+        },
+        "notes": {"type": "array", "items": {"type": "string"}},
+        "accessed": {"type": "string", "format": "date"}
+      }
+    }
+  }
+}

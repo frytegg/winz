@@ -1,0 +1,31 @@
+{
+  "schema": "execution.result.verifier/1",
+  "role": "verifier",
+  "wave": "W01",
+  "task": "T001",
+  "attempt": 1,
+  "sha": "1111111111111111111111111111111111111111",
+  "run": "T001-11111111-20261003T071200Z-1",
+  "exit_code": 0,
+  "output_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "negative_control_failed_as_required": true,
+  "criteria": [
+    {
+      "criterion": "tests pass",
+      "met": true,
+      "evidence": "exit 0"
+    }
+  ],
+  "scans": {
+    "stubs": [],
+    "todos": [],
+    "weakened_tests": [],
+    "skip_markers": [],
+    "special_casing": []
+  },
+  "findings": [],
+  "verdict": "maybe",
+  "receipt_path": "proofs/T001.json",
+  "receipt_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "claims_rows": []
+}

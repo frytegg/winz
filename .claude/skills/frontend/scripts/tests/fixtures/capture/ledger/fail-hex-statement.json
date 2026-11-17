@@ -1,0 +1,10 @@
+{
+  "references": [
+    {"id": "R1", "customer": "Ledgerline Ltd", "url": "https://light.example/", "page": "/", "captured_at": "2026-10-01T10:00:00Z", "viewports": ["desktop"], "receipt": "manual-notes", "purged": false},
+    {"id": "R2", "customer": "Nightdesk", "url": "https://dark.example/", "page": "/", "captured_at": "2026-10-01T10:05:00Z", "viewports": ["desktop"], "receipt": "manual-notes", "purged": false}
+  ],
+  "patterns": [
+    {"id": "P1", "kind": "relationship", "statement": "One saturated accent such as #2f5bd3 on primary calls to action", "values": {"R1": 1, "R2": 1}, "from": ["R1", "R2"], "not_borrowed": "the accent hue"}
+  ],
+  "excluded": ["logos"]
+}

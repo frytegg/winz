@@ -1,0 +1,4 @@
+[
+  {"path": "/", "name": "home", "first": true, "features": ["FR-003"]},
+  {"path": "/about.html", "name": "about", "features": ["FR-007"]}
+]

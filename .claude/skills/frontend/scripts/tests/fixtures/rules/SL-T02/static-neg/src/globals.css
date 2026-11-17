@@ -1,0 +1,6 @@
+/* FD14-F22: the sponsor template defines this class and no page uses it. */
+.hedera-gradient-text {
+  background: linear-gradient(135deg, #8259ef 0%, #0031ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}

@@ -1,0 +1,11 @@
+47,943.74 withdraw pending collateral
+Reward validator 31,718.73 device timeout
+Vault 34,721.50 testnet preprod fee balance
+Buyer ledger status pending 36,013.20
+Proof dispute health feed health 34,128.10
+Buyer ledger mainnet total 49,918.33
+Release health 2,649.70 signer seller
+Refund feed oracle 9,475.17 claim timeout
+Pending seller 67,089.60 refund claim
+Timeout 84,826.21 confirmed proof liquidation
+Ledger feed window 68,498.95 withdraw

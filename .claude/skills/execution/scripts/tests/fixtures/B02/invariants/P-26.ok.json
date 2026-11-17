@@ -1,0 +1,10 @@
+{
+ "base": "base.json",
+ "note": "an approved plan with one title changed and no amendment",
+ "ops": [
+  {
+   "op": "approve"
+  }
+ ],
+ "expect": []
+}

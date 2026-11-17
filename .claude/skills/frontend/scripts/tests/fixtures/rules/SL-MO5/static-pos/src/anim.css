@@ -1,0 +1,9 @@
+@keyframes float {
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.orb {
+  animation: float 6s ease-in-out infinite;
+}

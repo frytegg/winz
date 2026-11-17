@@ -1,0 +1,953 @@
+# Frontend hygiene for React/Next.js (hooks and effects correctness, state and keys, client/server boundary, accessibility)
+> Code G110 · slug frontend-react-hygiene · verified 2026-09-23 · counts: verified 9 / corrected 14 / downgraded 0 / dropped 0
+
+## Summary
+
+Toolchain state, checked against the npm registry and live docs on 2026-09-23:
+- **react 19.3.0** is `latest` on npm.
+- **next 16.3.6** is current. Its docs are at 16.3.x, where `middleware` is deprecated and renamed `proxy` (since v16.0.0).
+- **eslint-plugin-react-hooks 7.1.1** was published 2026-04-17. 7.0.0 came out 2025-10-08 and 6.1.0 on 2025-10-01.
+- **babel-plugin-react-compiler 1.0.0** (2025-10-07) is still the only stable release.
+- **Vite docs are at v8.3.0**; @vitejs/plugin-react 6.1.0 added "experimental native React Compiler support".
+- **Oxc** announced a Rust React Compiler port on 18 Aug 2026.
+- **axe-core 4.13.0** is current; @axe-core/react 4.13.0 still exists but does not support React 18 and above.
+- **Standards:** WCAG 2.2 (W3C Recommendation, 12 Dec 2024) and the WebAIM Million 2026 report (February 2026 data).
+- **EN 301 549 V4.1.1 (2026-09)** was adopted on 24 Aug 2026 and aligns with WCAG 2.2. The researcher had named V3.2.1 as the operative version; V4.1.1 replaces it.
+
+The facebook/react repository now redirects to **github.com/react/react**.
+
+Most React rules come from official docs: react.dev and the source of eslint-plugin-react-hooks. The main empirical sources are:
+- **ICSE 2026 re-render study** (Khalili, Gokhale, Turcotte, Xu, Tip). A static analysis found at least one of 5 superfluous re-render anti-patterns in 92.1% of 7,758 React repositories. On 23 apps, the refactorings cut render operations by 33.3% and rendering time by 20.54% on average. They changed behaviour in 1 of the 23. The authors call the analysis "potentially unsound". Their RRR tool is published as a research artifact.
+- **LeakPair** (Shahoor, Khamit, Yi, Kim; ASE 2023). The four fix patterns (unreleased subscriptions, unremoved event listeners, uncleared timers, uncancelled animation frames) cover 102 of 124 confirmed React memory-leak bugs (82%).
+- **Cloudflare, 12 Sept 2025.** An object recreated on every render sat in a `useEffect` dependency array. The effect's repeated calls, together with a concurrent Tenant Service deploy and too little capacity, took down the dashboard and many APIs from 17:57 to 19:12 UTC (about 1 h 15 min).
+
+The most serious risks sit at the client/server boundary, and several checks there are mechanical:
+- **Build-time inlining.** `NEXT_PUBLIC_` and `VITE_` variables are written into the client bundle at build time.
+- **Escape scan.** Escape scanned 5,600+ AI-built ("vibe-coded") apps and reported 400+ exposed secrets. Its Lovable-specific bundle finding was *anonymous* Supabase JWTs, which are dangerous only when row-level security is missing. It also says Supabase service keys were "often trivially retrievable from frontend bundles".
+- **Server Functions.** Every exported Server Function is reachable by direct POST, so authorisation cannot live only in middleware or proxy. CVE-2025-29927 (CVSS 9.1) bypassed middleware-only authorisation on self-hosted Next.js.
+- **React2Shell.** RSC CVE-2025-55182 (CVSS 10.0, added to CISA KEV on 2025-12-05) was exploitable in a default create-next-app production build. Wiz found vulnerable versions in 39% of cloud environments.
+
+**Accessibility:**
+- WebAIM 2026 detected WCAG failures on 95.9% of one million home pages. Low contrast is the most common (83.9%), and jest-axe disables contrast checks because they do not work in JSDOM.
+- Estimates of automated coverage depend on what is counted:
+  - Deque and the axe README say about 57% of issues by volume.
+  - Fischer et al. (UAIS 2025) say open-source tools cover about one sixth of WCAG success criteria (about 39% for all six engines combined).
+  - GDS (2017) found that single tools caught 17–41% of 143 barriers, and all 10 tools together missed 29%.
+- **European Accessibility Act (EAA).** It has applied since 28 June 2025 to consumer services, including e-commerce and consumer banking. Microenterprises that provide services are exempt.
+- **EN 301 549 V4.1.1** (Sept 2026) aligns with WCAG 2.2 and adds Annex ZB mapping to the EAA. It gives presumption of conformity once cited in the Official Journal; whether it has been cited was not verified. The earlier V3.2.1 mapped web pages to WCAG 2.1 AA.
+
+**Main point for a hardening pass.** Changes to effects, keys, memoisation and the client/server boundary are usually behaviour changes. Detect them mechanically, then apply only targeted fixes that tests cover. Report, rather than fix, architecture issues and design-level accessibility issues (contrast, target size, focus obscuring, authentication flows).
+
+## Findings
+
+### G110-F14 — Enforce the server/client module boundary with `server-only` and a DTO-returning data access layer
+- **Grade:** A · **Verdict:** VERIFIED
+- **Rule:**
+  - Every module that reads non-public env vars, holds DB or SDK clients, or contains privileged logic starts with `import 'server-only'`.
+  - Only a server-only data access layer (DAL) touches `process.env` and the database.
+  - Client components receive minimal serialisable DTOs, never raw DB records.
+  - `'use client'` files do not declare broad prop types such as `user: User`.
+- **Rationale:**
+  - Modules can be imported from both server and client. In Next.js, env vars without the public prefix are replaced with empty strings in client code, so misuse fails silently.
+  - `server-only` turns an accidental client import into a build error.
+  - Next's data-security guide recommends a server-only DAL that authorises and returns minimal DTOs. It shows how passing a whole DB row to a client component exposes every field, and its audit checklist targets exactly these files.
+- **Evidence:**
+  - [How to think about data security in Next.js](https://nextjs.org/docs/app/guides/data-security) — Vercel/Next.js docs, 2026 (docs v16.3.5, lastUpdated 2026-08-25) — official docs.
+    - "A Data Access Layer should: Only run on the server. Perform authorization checks. Return safe, minimal Data Transfer Objects (DTOs)."
+    - "Secret keys should be stored in environment variables, but only the Data Access Layer should access `process.env`."
+    - Audit checklist: "Verify that database packages and environment variables are not imported outside the Data Access Layer." and "'use client' files: Are the Component props expecting private data? Are the type signatures overly broad?"
+    - Verification: fetched full page; all quotes verbatim.
+  - [Server and Client Components: Preventing environment poisoning](https://nextjs.org/docs/app/getting-started/server-and-client-components) — Vercel/Next.js docs, 2026 (v16.3.6) — official docs. "If variables are not prefixed, Next.js replaces them with an empty string." and "if you try to import the module into a Client Component, there will be a build-time error." Verification: verbatim.
+- **Detect:**
+  - `rg --pcre2 -l 'process\.env\.(?!NEXT_PUBLIC_|NODE_ENV)\w+' app src lib | xargs rg --files-without-match "['\"]server-only['\"]"` lists modules that read secrets without the guard.
+  - `rg -l "^['\"]use client['\"]" app src | xargs rg -n 'from [\x27\x22](@/)?(lib|server|db|data)/'` lists client files that import server-side modules.
+  - By hand: inspect `'use client'` components for props typed as ORM or DB models.
+- **Tools:** ripgrep (PCRE2), `server-only` package, `next build`.
+- **Applies to:** Next.js App Router and other RSC frameworks (React Router RSC, Waku). By analogy, Vite SSR code that is shared with the client.
+- **When not to apply / counterpoints:**
+  - Adding `import 'server-only'` breaks the build if a module really is imported by client code. That break is the finding; the fix is to split the module, which is a refactor.
+  - The taint APIs (`experimental_taintObjectReference` / `experimental_taintUniqueValue`) are an extra layer. Next calls them "an additional layer of protection" and says data must still be filtered in the DAL.
+- **Fix risk:** low
+
+### G110-F15 — Authenticate, authorise (ownership) and validate inside every Server Function and route handler; never rely on middleware/proxy alone
+- **Grade:** A · **Verdict:** VERIFIED
+- **Rule:**
+  - Every Server Action or Server Function and every route handler (`route.ts`, API routes, React Router actions and loaders) must itself do three things:
+    - authenticate the caller;
+    - check that the caller may act on the specific resource (ownership, to prevent IDOR);
+    - validate its arguments.
+  - Middleware, `proxy.ts` or a page-level check must never be the only gate.
+  - Return only the fields the UI needs.
+- **Rationale:**
+  - Exported Server Actions can be called by direct POST even if no UI imports them. Their arguments are fully client-controlled.
+  - A page-level auth check does not extend to the actions defined in that page.
+  - Changing a proxy matcher, or moving a Server Function to another route, can silently remove proxy coverage.
+  - CVE-2025-29927 showed that middleware-only authorisation can be bypassed with a forged `x-middleware-subrequest` header on self-hosted Next.js.
+- **Evidence:**
+  - ['use server' — Security considerations](https://react.dev/reference/rsc/use-server) — React team, 2025 — official docs. "Arguments to Server Functions are fully client-controlled. For security, always treat them as untrusted input" and "In any Server Function, make sure to validate that the logged-in user is allowed to perform that action." Verification: verbatim in react.dev source markdown.
+  - [How to think about data security in Next.js](https://nextjs.org/docs/app/guides/data-security) — Vercel/Next.js docs, 2026 — official docs.
+    - "when a Server Action is created and exported, it is reachable via a direct POST request"
+    - "you should still treat Server Actions as reachable via direct POST requests and verify authentication and authorization inside each one."
+    - "A page-level authentication check does not extend to the Server Actions defined within it."
+    - Includes an IDOR ownership-check example, plus "Server Action return values are serialized and sent to the client. Only return what the UI needs".
+    - Verification: verbatim.
+  - [proxy.js file convention](https://nextjs.org/docs/app/api-reference/file-conventions/proxy) — Vercel/Next.js docs, 2026 (v16.3.6, lastUpdated 2026-09-07) — official docs. "A matcher change or a refactor that moves a Server Function to a different route can silently remove Proxy coverage. Always verify authentication and authorization inside each Server Function rather than relying on Proxy alone." The version history lists v16.0.0: "Middleware is deprecated and renamed to Proxy". Verification: verbatim.
+  - [CVE-2025-29927 (NVD API record)](https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-2025-29927) — NIST NVD, 2025 — standard. "it is possible to bypass authorization checks within a Next.js application, if the authorization check occurs in middleware". Fixed in 12.3.5, 13.5.9, 14.2.25 and 15.2.3. CVSS 3.1 9.1 (AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N). Published 2025-03-21. Verification: fetched the record. NVD's text has a typo, "1.11.4"; the affected range starts at 11.1.4. Not in the CISA KEV catalog.
+  - [Postmortem on Next.js Middleware bypass](https://vercel.com/blog/postmortem-on-next-js-middleware-bypass) — Vercel, 2025 — incident report. "We do not recommend Middleware to be the sole method of protecting routes in your application." Self-hosted `next start` and `output: 'standalone'` were vulnerable. Vercel, Netlify, Cloudflare Workers and static exports were not. Verification: fetched.
+- **Detect:**
+  - List entry points: `rg -n "['\"]use server['\"]" -g '*.{ts,tsx,js,jsx}'` and `rg -l -g '**/route.{ts,js}' 'export (async )?function (GET|POST|PUT|PATCH|DELETE)'`.
+  - For each exported async function, check by hand, in order:
+    1. an auth/session call before any data access;
+    2. schema validation of the arguments;
+    3. an ownership check on every ID argument;
+    4. a return value filtered to a DTO.
+  - Check whether auth exists only in `middleware.*` or `proxy.*`.
+  - Confirm `pnpm ls next` is outside the CVE-2025-29927 ranges.
+- **Tools:** ripgrep, zod/valibot, `pnpm ls`, manual review.
+- **Applies to:** Next.js App Router Server Actions and route handlers, and any RSC framework. For React Router/Remix actions and loaders the same principle applies, but those framework docs were not verified here.
+- **When not to apply / counterpoints:**
+  - Next.js mitigations reduce exposure but do not replace per-action checks, and Next's own docs say so. The mitigations are: encrypted, non-deterministic action IDs; dead-code elimination of unused actions; and comparing the Origin header against Host or X-Forwarded-Host.
+  - Adding auth to a route handler can break legitimate machine callers such as webhooks, cron jobs and wallets that sign messages. Those callers need their own verification, such as signatures or shared secrets.
+- **Fix risk:** medium
+
+### G110-F16 — Check RSC/Next.js versions against the Dec 2025–Jan 2026 RSC advisories; flag secrets hard-coded in Server Function source
+- **Grade:** A · **Verdict:** CORRECTED. Version ranges were reconciled between NVD and React's January-updated advisory, and the Wiz exploitation details were added.
+- **Rule:**
+  - Check the installed React Server Components and Next.js versions against the RSC advisories from December 2025 to January 2026.
+  - Upgrade within the same release line to a patched version. For `react-server-dom-*`, that means 19.0.4, 19.1.5 or 19.2.4 or later (the React advisory, updated 26 Jan 2026, says these "are safe").
+  - Separately, flag secrets hard-coded in Server Function source.
+- **Rationale:**
+  - **CVE-2025-55182.** Pre-auth RCE through unsafe deserialisation of payloads sent to Server Function endpoints; CVSS 10.0, CWE-502. It affects react-server-dom-webpack, -parcel and -turbopack 19.0.0, 19.1.0, 19.1.1 and 19.2.0. CISA added it to KEV on 2025-12-05, with action due 2025-12-12.
+  - **Follow-ups:**
+    - CVE-2025-55184 and CVE-2025-67779 (DoS, CVSS 7.5);
+    - CVE-2025-55183 (source-code exposure, CVSS 5.3);
+    - CVE-2026-23864 (DoS, 26 Jan 2026, CVSS 7.5).
+  - **Why hard-coded secrets matter.** React says of CVE-2025-55183: "Secrets hardcoded in source code may be exposed, but runtime secrets such as `process.env.SECRET` are not affected."
+- **Evidence:**
+  - [Critical Security Vulnerability in React Server Components](https://react.dev/blog/2025/12/03/critical-security-vulnerability-in-react-server-components) — React team, 2025 — official docs.
+    - CVE-2025-55182, "rated CVSS 10.0".
+    - Vulnerable: "19.0, 19.1.0, 19.1.1, and 19.2.0"; initial fixes 19.0.1, 19.1.2, 19.2.1.
+    - Affected frameworks: next, react-router, waku, @parcel/rsc, @vitejs/plugin-rsc, rwsdk.
+    - Current Next upgrade table: next@14.2.35 (for 13.3.x–14.x), 15.0.8, 15.1.12, 15.2.9, 15.3.9, 15.4.11, 15.5.10, 16.0.11, 16.1.5.
+    - Verification: react.dev source markdown.
+  - [Denial of Service and Source Code Exposure in React Server Components](https://react.dev/blog/2025/12/11/denial-of-service-and-source-code-exposure-in-react-server-components) — React team, 2025 (updated 26 Jan 2026) — official docs.
+    - "This includes 19.0.0, 19.0.1, 19.0.2, 19.0.3, 19.1.0, 19.1.1, 19.1.2, 19.1.3, 19.2.0, 19.2.1, 19.2.2, and 19.2.3"
+    - "Versions 19.0.4, 19.1.5, 19.2.4 are safe."
+    - "Only secrets in source code may be exposed."
+    - Verification: verbatim. **Correction:** that version range covers the whole Dec 11 set of advisories. NVD lists a narrower range for CVE-2025-55183 alone (19.0.0–19.0.1, 19.1.0–19.1.2, 19.2.0–19.2.1). Upgrade to at least the "safe" versions either way.
+  - [CVE-2025-55182 (NVD API record)](https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-2025-55182) — NIST NVD, 2025 — standard. CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H = 10.0; CWE-502; cisaExploitAdd 2025-12-05, cisaActionDue 2025-12-12. Verification: fetched the JSON.
+  - [React2Shell (CVE-2025-55182)](https://www.wiz.io/blog/critical-vulnerability-in-react-cve-2025-55182) — Wiz Research (Tikochinski, Bar, Aminov), 3 Dec 2025, with later updates — industry report.
+    - "Wiz data indicates that 39% of cloud environments contain instances of Next.js or React in versions vulnerable to CVE-2025-55182."
+    - "a standard Next.js app created with create-next-app and built for production can be exploited with no code changes".
+    - Compromises seen from 5 Dec 06:00 UTC; credential harvesting from env vars, filesystems and instance metadata; "at least six" cryptomining incidents.
+    - Verification: fetched the page HTML with curl (WebFetch DNS failed).
+  - [pnpm audit](https://pnpm.io/cli/audit) — pnpm, 2026 — official docs. "Checks for known security issues with the installed packages." Options: `--prod`, `--audit-level <severity>`, `--fix`. Verification: fetched.
+- **Detect:**
+  - `pnpm ls next react react-dom --depth 0`.
+  - `pnpm why react-server-dom-webpack react-server-dom-turbopack react-server-dom-parcel`. Next bundles its own copy, so compare the `next` version with the advisory table.
+  - `pnpm audit --prod --audit-level high`.
+  - Hard-coded secrets in server code: `gitleaks dir -v app src lib`, plus `rg -l "['\"]use server['\"]" | xargs rg -n '(sk_live|-----BEGIN|password\s*[:=]\s*[\x27\x22])'`.
+- **Tools:** pnpm ls/why/audit, gitleaks (v8.30.1, `dir` subcommand), ripgrep.
+- **Applies to:** any app using RSC or Server Functions: Next.js App Router 13.3+ to 16.x, React Router RSC, Waku, @vitejs/plugin-rsc, Parcel RSC, rwsdk. Pure client SPAs are not affected.
+- **When not to apply / counterpoints:**
+  - Patch upgrades within a line are usually safe, but a framework bump can change behaviour, so run the E2E suite.
+  - Pages-Router-only Next apps may not use the vulnerable RSC paths. Check the vendor advisory rather than assuming.
+  - Patched versions for CVE-2026-23864 for every Next minor line were not collected. Use the live Vercel/React tables.
+- **Fix risk:** low
+
+### G110-F13 — No secret may use a client-exposed env prefix; scan env files and built client assets; rotate anything shipped
+- **Grade:** A · **Verdict:** CORRECTED. The Escape finding was narrowed: the Lovable bundle finding was anonymous Supabase JWTs. The report's date and authors were added.
+- **Rule:**
+  - No secret may use a client-exposed prefix: `NEXT_PUBLIC_`, `VITE_`, or any custom Vite `envPrefix`.
+  - Scan both the env files and the built client assets.
+  - A secret found in a shipped bundle must be rotated, not merely moved. The code that used it must then go through a server route or Server Function.
+- **Rationale:**
+  - Next.js inlines `NEXT_PUBLIC_` values into browser JS at `next build`, and they stay "frozen with the value evaluated at build time". Vite bundles `VITE_*` variables into client code.
+  - Anything shipped stays public, including in caches and old deployments. That is why moving the variable does not undo the leak (this reasoning is an inference, not a quote).
+  - Vite refuses `envPrefix: ''`.
+  - Escape's scan of 5,600+ vibe-coded apps is real-world evidence that these leaks happen, but read it precisely:
+    - "400+ exposed secrets" is a total that the report does not break down by where the secrets were found.
+    - The Lovable-specific finding was *anonymous* JWTs in the JS bundles. Those are public by design and become exploitable only when row-level security (RLS) is misconfigured.
+    - The conclusion separately says "Supabase service keys were often trivially retrievable from frontend bundles".
+- **Evidence:**
+  - [How to use environment variables in Next.js](https://nextjs.org/docs/app/guides/environment-variables) — Vercel/Next.js docs, 2026 (v16.3.6) — official docs.
+    - Next.js can "'inline' a value, at build time, into the js bundle that is delivered to the client".
+    - "all `NEXT_PUBLIC_` variables will be frozen with the value evaluated at build time".
+    - Dynamic lookups such as `process.env[varName]` "will *not* be inlined".
+    - Verification: full page fetched.
+  - [Env Variables and Modes](https://vite.dev/guide/env-and-mode) — Vite docs v8.3.0, 2026 — official docs. "VITE_* variables should *not* contain sensitive information such as API keys. The values of these variables are bundled into your source code at build time." Verification: verbatim.
+  - [Shared Options: envPrefix](https://vite.dev/config/shared-options) — Vite docs, 2026 — official docs. "`envPrefix` should not be set as `''`, which will expose all your env variables and cause unexpected leaking of sensitive information. Vite will throw an error when detecting `''`." Verification: verbatim.
+  - [Methodology: how we discovered vulnerabilities in apps built with vibe coding](https://escape.tech/blog/methodology-how-we-discovered-vulnerabilities-apps-built-with-vibe-coding/) — Escape (Hinniger-Foray, Mognier, Charikova), 29 Oct 2025 — industry report.
+    - "analyzed over 5,600 publicly available applications and identified more than 2,000 vulnerabilities, 400+ exposed secrets, and 175 instances of PII".
+    - "anonymous JWT tokens were exposed in the JavaScript bundles of the Lovable front end"
+    - "Tokens such as Supabase service keys were often trivially retrievable from frontend bundles".
+    - Verification: raw HTML grepped.
+  - [gitleaks](https://github.com/gitleaks/gitleaks) — gitleaks project, 2026 (latest v8.30.1, 2026-03-21) — official docs. "The `dir` (aliases include `files`, `directory`) command lets you scan directories and files. Example: `gitleaks dir -v path_to_directory_or_file`." The README notes that `detect` and `protect` were deprecated in v8.19.0. Verification: README grepped.
+- **Detect:**
+  1. Names: `rg -n -e '(NEXT_PUBLIC|VITE|REACT_APP)_[A-Z0-9_]*(SECRET|PRIVATE|PASSWORD|PASS|TOKEN|KEY|MNEMONIC|SEED)' -g '!node_modules' .`
+  2. Config: `rg -n 'envPrefix|define:' vite.config.*` to catch broad prefixes and anything that injects `process.env`.
+  3. Build output: `pnpm build && gitleaks dir -v .next/static` for Next.js, or `gitleaks dir -v dist` for Vite.
+  4. In dApps, look for raw private keys and mnemonics in client code: `rg -n -g '!node_modules' '0x[a-fA-F0-9]{64}'`.
+- **Tools:** gitleaks `dir`, ripgrep, `next build` / `vite build`.
+- **Applies to:** Next.js, Vite SPAs, CRA-style apps, and any bundler that inlines env vars.
+- **When not to apply / counterpoints:**
+  - Some keys are public by design. Examples: the Supabase anon key (safe only with RLS on, which is exactly the Escape finding), Stripe publishable keys, domain-restricted RPC or analytics keys, and WalletConnect project IDs. Flag them for a scope and restriction review rather than as leaks.
+  - Rotating a secret and moving it server-side is a behaviour change that needs a new server endpoint.
+- **Fix risk:** medium
+
+### G110-F01 — Adopt eslint-plugin-react-hooks v7 `recommended` in report mode; never `--fix`
+- **Grade:** A · **Verdict:** VERIFIED. Quotes were normalised. Added: compiler rules default to `error` severity in `recommended`, and the repository moved to react/react.
+- **Rule:**
+  - Use eslint-plugin-react-hooks v7.x with the `recommended` preset as the React lint baseline, first in report mode.
+  - Treat `rules-of-hooks` as an error.
+  - Do not enable `recommended-latest` during a hardening pass.
+  - Never run `eslint --fix` with these rules; triage each diagnostic by hand.
+- **Rationale:**
+  - Since 6.1.0/7.0.0 the plugin surfaces React Compiler diagnostics even in apps that do not use the compiler.
+  - What `recommended` contains, checked in the source on main:
+    - `rules-of-hooks` (`error`) and `exhaustive-deps` (`warn`);
+    - these compiler rules at their built-in severity: config, error-boundaries, gating, globals, immutability, incompatible-library, preserve-manual-memoization, purity, refs, set-state-in-effect, set-state-in-render, static-components, unsupported-syntax, use-memo.
+  - `mapErrorSeverityToESlint` maps compiler severity `Error` to ESLint `'error'`, and set-state-in-effect is `ErrorSeverity.Error`. So the preset puts at least some compiler rules in at `error` severity. To start with warnings you must override each rule's severity.
+  - `recommended-latest` adds `void-use-memo`.
+  - react.dev's rule index also lists `component-hook-factories`. 7.1.1 re-added it only as a deprecated no-op.
+- **Evidence:**
+  - [eslint-plugin-react-hooks (reference)](https://react.dev/reference/eslint-plugin-react-hooks) — React team, 2025–2026 — official docs. "React Compiler diagnostics are automatically surfaced by this ESLint plugin, and can be used even if your app hasn't adopted the compiler yet." Lists 17 rules, including component-hook-factories. Verification: verbatim.
+  - [eslint-plugin-react-hooks CHANGELOG](https://github.com/facebook/react/blob/main/packages/eslint-plugin-react-hooks/CHANGELOG.md) — Meta/React, 2025–2026 — official docs.
+    - 7.0.0: "slims down presets to just 2 configurations (`recommended` and `recommended-latest`), and all compiler rules are enabled by default"; `recommended-latest` = "all recommended rules plus new bleeding edge experimental compiler rules".
+    - 6.1.0: "Flat config is now the default `recommended` preset. Legacy config moved to `recommended-legacy`"; "Disallow calling `useEffectEvent` functions in arbitrary closures".
+    - 7.1.0: "Add ESLint v10 support"; "Compiler now reports all errors instead of stopping at the first".
+    - 7.1.1: deprecated no-op `component-hook-factories`.
+    - Verification: fetched. The URL redirects to github.com/react/react.
+  - [npm registry metadata](https://registry.npmjs.org/eslint-plugin-react-hooks) — npm, 2026 — registry. latest = 7.1.1 (2026-04-17T18:03Z); 7.0.0 2025-10-08; 6.1.0 2025-10-01. Verification: queried the JSON.
+  - [CompilerError.ts (LintRulePreset)](https://github.com/react/react/blob/main/compiler/packages/babel-plugin-react-compiler/src/CompilerError.ts) and [plugin index.ts](https://github.com/react/react/blob/main/packages/eslint-plugin-react-hooks/src/index.ts) — React repository, main branch, 2026 — source code. `basicRuleConfigs = { rules-of-hooks: 'error', exhaustive-deps: 'warn' }`. Presets: the 14 compiler rules above are `Recommended`; `void-use-memo` is `RecommendedLatest`; `memoized-effect-dependencies`, `no-deriving-state-in-effects` and others are `Off`. Flat configs are exposed at `configs.flat.recommended`. Verification: raw files grepped.
+  - [Rules of React](https://react.dev/reference/rules) — React team, 2025 — official docs. "We strongly recommend using Strict Mode alongside React's ESLint plugin to help your codebase follow the Rules of React." Verification: verbatim. The researcher's added "and catch violations" is not on the page and was removed.
+- **Detect:**
+  1. `pnpm ls eslint-plugin-react-hooks`. Versions below 6.1 lack the compiler rules.
+  2. Add `reactHooks.configs.flat.recommended` (the legacy form is `plugin:react-hooks/recommended`) and override compiler-rule severities to `warn` for the first run.
+  3. `pnpm eslint . -f json -o eslint-react.json` without fixing, then summarise per rule.
+  4. `rg -n "eslint-disable.*react-hooks/" -g '*.{ts,tsx,js,jsx}'`.
+- **Tools:** eslint-plugin-react-hooks@7.1.1, ESLint 9/10 flat config, ripgrep.
+- **Applies to:** any React 17+ codebase (Vite SPA, Next.js, React Router), with or without React Compiler.
+- **When not to apply / counterpoints:**
+  - The compiler-backed rules are young. On the react/react tracker (GitHub search API, 2026-09-23):
+    - 23 issues mention "set-state-in-effect", including #34743 "overly strict?", which has 40 comments;
+    - 180 issues carry both the "Component: React Compiler" and "Type: Bug" labels, 91 of them open.
+  - Turning the preset on as-is in CI can block a working project. Start with the compiler rules downgraded to warnings and burn the violations down.
+- **Fix risk:** low
+
+### G110-F02 — Resolve exhaustive-deps warnings by restructuring, never by blind dependency-adding or suppression
+- **Grade:** A · **Verdict:** CORRECTED. The two react.dev "quotes" were not verbatim and were replaced. The Cloudflare outage was about 1 h 15 min, not "about an hour", and the useEffect bug was one of several contributing causes.
+- **Rule:**
+  - Resolve `react-hooks/exhaustive-deps` warnings by restructuring the code, never by blindly adding dependencies or suppressing the rule. The right fix depends on what is missing:
+    - move objects and functions used only by the effect inside it;
+    - depend on primitive values rather than objects;
+    - hoist values that never change out of the component;
+    - read non-reactive values through `useEffectEvent` (stable since React 19.2);
+    - or stabilise values with `useCallback` / `useMemo`.
+  - Treat every `eslint-disable … react-hooks/exhaustive-deps` as a likely stale-closure bug.
+- **Rationale:**
+  - A missing dependency makes the effect read values from an earlier render (a stale closure).
+  - An object or function created in the component body gets a new identity on every render, so listing it as a dependency re-runs the effect every time. The result can be loops, repeated fetches or load spikes on the backend.
+  - The plugin offers dependency changes only as editor suggestions. The old autofix is available only behind `enableDangerousAutofixThisMayCauseInfiniteLoops`.
+- **Evidence:**
+  - [ExhaustiveDeps rule source](https://github.com/react/react/blob/main/packages/eslint-plugin-react-hooks/src/rules/ExhaustiveDeps.ts) — React repository, 2026 — source code. Default `enableDangerousAutofixThisMayCauseInfiniteLoops: false`; when set, the code carries the comment "// Used to enable legacy behavior. Dangerous." The rule also has `additionalHooks`, `experimental_autoDependenciesHooks` and `requireExplicitEffectDeps` options. Verification: raw file grepped.
+  - [Removing Effect Dependencies](https://react.dev/learn/removing-effect-dependencies) — React team, 2025 — official docs.
+    - "Suppressing the linter leads to very unintuitive bugs that are hard to find and fix."
+    - "A new `options` object is created from scratch on every re-render … This is why it re-synchronizes your Effect".
+    - Heading: "To remove a dependency, prove that it's not a dependency".
+    - Sections on moving objects and functions inside the effect, reading primitive values, and `useEffectEvent`.
+    - Verification: react.dev source markdown. The researcher's "compared by identity" and "Re-syncs on every render!" are not on the page and were replaced.
+  - [Deep dive into Cloudflare's Sept 12 dashboard and API outage](https://blog.cloudflare.com/deep-dive-into-cloudflares-sept-12-dashboard-and-api-outage/) — Cloudflare (Lianza, Madruga), 13 Sept 2025 — incident report.
+    - "we mistakenly included a problematic object in its dependency array. Because this object was recreated on every state or prop change, React treated it as 'always new,' causing the useEffect to re-run each time."
+    - "This behavior coincided with a service update to the Tenant Service API, compounding instability".
+    - Impact 17:57–19:12 UTC.
+    - Verification: raw HTML grepped.
+  - [exhaustive-deps lint reference](https://react.dev/reference/eslint-plugin-react-hooks/lints/exhaustive-deps) — React team, 2025 — official docs. Troubleshooting "Adding a function dependency causes infinite loops". Fixes: call the function from the event handler, derive during render, stabilise with `useCallback`, or move the logic into the effect. Options: `additionalHooks` (rule-level) and the shared setting `additionalEffectHooks` (plugin 6.1.1+). Verification: source markdown.
+- **Detect:**
+  - `pnpm eslint . --rule '{"react-hooks/exhaustive-deps":"error"}'`.
+  - `rg -n "eslint-disable(-next-line|-line)?\s+react-hooks/exhaustive-deps" -g '*.{ts,tsx,js,jsx}'` and `rg -n enableDangerousAutofixThisMayCauseInfiniteLoops`.
+  - Manual check on each dependency array: an object, array or function literal declared in the component body without memoisation means the effect runs every render.
+  - Configure `additionalHooks` or `additionalEffectHooks` so custom effect hooks are checked too.
+- **Tools:** eslint-plugin-react-hooks, ripgrep, React DevTools Profiler, the browser Network panel (repeated requests).
+- **Applies to:** useEffect, useLayoutEffect, useInsertionEffect, useMemo, useCallback and custom effect hooks.
+- **When not to apply / counterpoints:**
+  - #16265 (open since 2019, 65 comments) disputes the rule asking for the whole `props` object.
+  - The react.dev exhaustive-deps page itself sanctions a ref guard ("✅ Or use a ref guard inside an effect") for effects that must truly run once, such as analytics. Factory wraps such cases in a named `useMountEffect` instead.
+  - `useEffectEvent` needs React 19.2+ and must not be called in arbitrary closures (enforced since plugin 6.1.0).
+  - The Cloudflare outage was not caused by the hook alone: a concurrent Tenant Service deploy and too little capacity contributed.
+- **Fix risk:** high
+
+### G110-F03 — Every resource-acquiring effect returns a cleanup; async fetches drop stale responses
+- **Grade:** B · **Verdict:** CORRECTED. The LeakPair authors were misattributed as "Yang et al."; the paper is by Shahoor, Khamit, Yi and Kim. Its four fix patterns were also misstated: the fourth is `requestAnimationFrame`, not a separate setTimeout pattern. The pull-request study covered React and Angular subjects together.
+- **Rule:**
+  - Every effect that acquires a resource must return a cleanup that releases it:
+    - removeEventListener for addEventListener;
+    - unsubscribe or close for subscriptions and sockets;
+    - clearInterval / clearTimeout for timers;
+    - cancelAnimationFrame for requestAnimationFrame;
+    - disconnect for connections.
+  - For async fetches, use an `ignore` flag or an AbortController so stale responses are dropped.
+- **Rationale:**
+  - Missing cleanup causes memory leaks, duplicate handlers after remount, and races where an older response overwrites newer state.
+  - React's rule of thumb: the user should not be able to tell one setup from a setup → cleanup → setup sequence.
+  - LeakPair mined real-world SPA leak fixes. Its four fix patterns fixed 102 of 124 confirmed React memory-leak bugs (82%):
+    - FP1 unreleased subscription (RxJS observables);
+    - FP2 unremoved event listener;
+    - FP3 uncleared timers (FP3a setTimeout, FP3b setInterval);
+    - FP4 uncancelled `requestAnimationFrame`.
+  - In a live study, 20 pull requests went to 17 open-source subjects (React and Angular together):
+    - 11 were approved and 8 of those merged directly;
+    - none were rejected;
+    - 9 got no response by submission time.
+- **Evidence:**
+  - [LeakPair: Proactive Repairing of Memory Leaks in Single Page Web Applications (ASE 2023)](https://arxiv.org/abs/2308.08144) — Arooba Shahoor, Askar Yeltayuly Khamit, Jooyong Yi, Dongsun Kim, 2023 — peer reviewed.
+    - "we identified 124 and 65 memory leak bugs in SPAs based on React and Angular, respectively … Our four fix patterns can also fix 102 out of 124 (82%) and 57 out of 65 (88%)"
+    - "11 out of 20 PRs (55%) are approved by the developers, out of which 8 were merged directly."
+    - "no PR has been rejected so far".
+    - Leaks were confirmed with MemLab.
+    - Verification: the full PDF from arXiv was text-extracted and the passages found. **The attribution was corrected.**
+  - [Synchronizing with Effects](https://react.dev/learn/synchronizing-with-effects) — React team, 2025 — official docs. "The cleanup function should stop or undo whatever the Effect was doing. The rule of thumb is that the user shouldn't be able to distinguish between the Effect running once (as in production) and a setup → cleanup → setup sequence (as you'd see in development)." Includes an `let ignore = false` fetch example. Verification: verbatim.
+  - [You Might Not Need an Effect (fetching)](https://react.dev/learn/you-might-not-need-an-effect) — React team, 2025 — official docs. "To fix the race condition, you need to add a cleanup function to ignore stale responses". Verification: verbatim.
+- **Detect:**
+  - ast-grep over *.tsx/*.jsx: find `useEffect(() => { $$$ }, $DEPS)` bodies that contain `addEventListener`, `setInterval`, `setTimeout`, `requestAnimationFrame`, `.subscribe(`, `new WebSocket`, `new EventSource` or `fetch(`. Keep those with no `return` in the effect body.
+  - Quick grep: `rg -n -g '*.{tsx,jsx}' -A12 'useEffect\(' | rg 'addEventListener|setInterval|requestAnimationFrame|subscribe\(|new WebSocket|watchContractEvent|\.on\('`. The last two patterns cover viem/wagmi and ethers listeners.
+  - At runtime: keep `<StrictMode>` on in development, navigate away and back, and watch for duplicate listeners or requests. MemLab finds leaks.
+- **Tools:** ast-grep, ripgrep, React StrictMode, MemLab, Chrome DevTools Memory/Network.
+- **Applies to:** React effects. Svelte `$effect` teardowns follow the same semantics (see F23).
+- **When not to apply / counterpoints:**
+  - An `ignore` flag or AbortController protects state only; the server still processes the request.
+  - Aborting makes `fetch` reject with an `AbortError` DOMException (MDN). Existing catch blocks may surface that as a user-visible error unless they filter it out.
+  - Switching hand-written effect fetching to a data library is an architecture change to report.
+  - LeakPair's numbers describe leak bugs that were already fixed and confirmed. They say nothing about how often leaks occur.
+- **Fix risk:** low
+
+### G110-F04 — Do not hide effect bugs from Strict Mode; fix cleanup instead of ref-guarding resource effects
+- **Grade:** A · **Verdict:** CORRECTED. The rule was narrowed: react.dev itself endorses a ref guard for effects that must truly run once, so flag only ref guards that hide missing cleanup of a resource.
+- **Rule:**
+  - Flag:
+    - `reactStrictMode: false` in next.config;
+    - `<StrictMode>` removed from a Vite or React Router entry;
+    - `useRef` guards whose purpose is to stop an effect that acquires a resource (connection, subscription, socket, listener) from running twice.
+  - Fix the missing cleanup instead (see F03).
+  - A ref guard around a fire-and-forget, run-once action, such as an analytics call, is a documented pattern, not a finding.
+- **Rationale:**
+  - In development, Strict Mode renders components twice, runs effects twice and runs ref callbacks twice, specifically to expose impure rendering and missing cleanup. None of this runs in production.
+  - React's docs call the ref guard around a connection a pitfall that hides the bug: the connections are never closed and pile up.
+- **Evidence:**
+  - [StrictMode](https://react.dev/reference/react/StrictMode) — React team, 2025 — official docs. Components will "re-render an extra time", "re-run Effects an extra time" and "re-run ref callbacks an extra time". "All of these checks are development-only and do not impact the production build." Verification: verbatim.
+  - [Synchronizing with Effects — Don't use refs to prevent Effects from firing](https://react.dev/learn/synchronizing-with-effects) — React team, 2025 — official docs. "The right question isn't 'how to run an Effect once', but 'how to fix my Effect so that it works after remounting'." About the ref-guarded connection: "it doesn't fix the bug. When the user navigates away, the connection still isn't closed". Verification: verbatim.
+  - [exhaustive-deps lint — Running an effect only once](https://react.dev/reference/eslint-plugin-react-hooks/lints/exhaustive-deps) — React team, 2025 — official docs. "Either include the dependency (recommended) or use a ref if you truly need to run once", with the example "✅ Or use a ref guard inside an effect" around `sendAnalytics`. Verification: source markdown. Added as a counterweight.
+  - [reactStrictMode](https://nextjs.org/docs/app/api-reference/config/next-config-js/reactStrictMode) — Next.js docs v16.3.6 — official docs. "Since Next.js 13.5.1, Strict Mode is `true` by default with `app` router, so the above configuration is only necessary for `pages`. You can still disable Strict Mode by setting `reactStrictMode: false`." Verification: verbatim.
+- **Detect:**
+  - `rg -n "reactStrictMode:\s*false" next.config.*`.
+  - Vite: `rg -n "StrictMode" src/main.* src/index.*`.
+  - Ref guards: `rg -n -g '*.{tsx,jsx}' -A8 'useRef\((false|true|null)\)' | rg 'current\)\s*return|if \(!?\w+Ref\.current\)'`. Then check by hand whether the guarded effect acquires a resource and has no cleanup.
+- **Tools:** ripgrep, React StrictMode.
+- **Applies to:** React 18+. Next.js App Router has Strict Mode on by default since 13.5.1; Pages Router needs the flag.
+- **When not to apply / counterpoints:**
+  - Some third-party SDKs (older wallet, map or analytics SDKs) cannot be initialised twice. A documented module-level singleton, or initialising outside React, is then a legitimate exception.
+  - Strict Mode applies its double-invocation only inside the `<StrictMode>` subtree.
+- **Fix risk:** medium
+
+### G110-F05 — Flag "You Might Not Need an Effect" patterns; rewrite only pure derivations covered by tests
+- **Grade:** A · **Verdict:** CORRECTED (minor). In #34743 the example is a receipt-polling effect (`useWaitReceipt`); the thread does not identify it as "web3". The community plugin's repository moved to nickjvandyke/.
+- **Rule:**
+  - Flag effects that only derive state from props or state, chain state updates, or run event-specific logic.
+  - Rewrite one only when the effect has no other side effect and tests cover it:
+    - compute the value during render;
+    - move event logic into the handler;
+    - or reset a subtree with `key`.
+  - Otherwise, report it. Do not apply `react-hooks/set-state-in-effect` mechanically.
+- **Rationale:**
+  - A synchronous setState in an effect forces a second render and briefly shows stale intermediate state. Chains of such effects create hidden timing dependencies.
+  - The rewrite changes behaviour: render counts drop, intermediate states disappear, effect ordering changes, and a `key` reset remounts the whole subtree.
+- **Evidence:**
+  - [You Might Not Need an Effect](https://react.dev/learn/you-might-not-need-an-effect) — React team, 2025 — official docs.
+    - "When something can be calculated from the existing props or state, don't put it in state. Instead, calculate it during rendering."
+    - "Use Effects only for code that should run *because* the component was displayed to the user."
+    - "🔴 Avoid: Chains of Effects that adjust the state solely to trigger each other".
+    - Verification: verbatim.
+  - [set-state-in-effect lint](https://react.dev/reference/eslint-plugin-react-hooks/lints/set-state-in-effect) — React team, 2025 — official docs. "Validates against calling setState synchronously in an effect, which can lead to re-renders that degrade performance." Documented exception: "setState in an effect is fine if the value comes from a ref" (a `getBoundingClientRect` measurement in `useLayoutEffect`). Verification: source markdown.
+  - [eslint-plugin-react-you-might-not-need-an-effect](https://github.com/NickvanDyke/eslint-plugin-react-you-might-not-need-an-effect) — Nick van Dyke (repository now nickjvandyke/…; 1,920 stars; last push 2026-08-21; not archived), 2026 — community tool.
+    - Rules: no-derived-state, no-chain-state-updates, no-event-handler, no-adjust-state-on-prop-change, no-reset-all-state-on-prop-change, no-pass-live-state-to-parent, no-pass-data-to-parent, no-external-store-subscription, no-initialize-state.
+    - README: "unnecessary *effects* go far beyond this".
+    - Verification: README and GitHub API.
+  - [Bug: react-hooks/set-state-in-effect overly strict? (#34743)](https://github.com/react/react/issues/34743) — React issue tracker, opened 2025-10-05 (plugin 6.1.1), still open, 40 comments — practitioner forum.
+    - Comment: "Yes, it's overly strict. And sometimes there is no way to avoid setting states synchronously within a useEffect."
+    - Examples in the thread: didMount/hydration flags, `URL.createObjectURL`, `setLoading`, and a `useWaitReceipt` receipt effect. Alternatives offered include ref callbacks and `useSyncExternalStore`.
+    - Verification: fetched the issue and all comments via the GitHub API.
+  - [hydrateRoot — two-pass rendering](https://react.dev/reference/react-dom/client/hydrateRoot) — React team, 2025 — official docs. The recommended pattern for intentional server/client differences is `useState(false)` + `useEffect(() => setIsClient(true), [])`, which set-state-in-effect flags. Verification: source markdown.
+- **Detect:**
+  - `pnpm eslint . --rule '{"react-hooks/set-state-in-effect":"warn"}'`, and optionally the community plugin's recommended config (all rules at warn).
+  - Grep heuristic: `rg -n -g '*.{tsx,jsx}' -A4 'useEffect\(\(\) => \{' | rg '^\S+-\s+set[A-Z]\w*\('`.
+  - Classify each hit as one of:
+    - pure derivation: rewrite, with tests;
+    - event logic: move to the handler;
+    - external synchronisation: keep;
+    - hydration or ref measurement: keep.
+- **Tools:** eslint-plugin-react-hooks, eslint-plugin-react-you-might-not-need-an-effect, ripgrep, React DevTools Profiler.
+- **Applies to:** React function components. Svelte has the same principle (`$derived` instead of `$effect`; see F23).
+- **When not to apply / counterpoints:**
+  - The rule has known false positives: #34905 (async function; closed 2026-09-22) and #34045 (stable primitives; open).
+  - It also has false negatives: #37177 (useReducer dispatch), #35029 (tagged templates) and #35390 (bypass via useEffectEvent).
+  - Factory banned direct `useEffect` (Alvin Sng, 17 Mar 2026). Reddit commenters quoted by The Register called blanket avoidance "just silly".
+  - For expensive derivations, use `useMemo` rather than keeping the effect.
+- **Fix risk:** high
+
+### G110-F06 — Stable, data-derived list keys; treat any key change as a behaviour change
+- **Grade:** A · **Verdict:** CORRECTED. Pokorny's post dates from 11 Oct 2015, not 2016.
+- **Rule:**
+  - List keys must be stable and derived from the data (e.g. `item.id`).
+  - Flag index-based keys where the list can be inserted into, removed from, reordered or filtered.
+  - Flag keys generated during render: `Math.random()`, `crypto.randomUUID()`, `nanoid()`.
+  - Treat any `key` change as a behaviour change. A new key remounts the component, which resets its state, loses focus and input, and re-runs its effects.
+- **Rationale:**
+  - React matches elements between renders by key. With index keys, the state at position *i* survives even when a different item moves into position *i*.
+  - Random keys recreate every item and its DOM on every render.
+  - Keys are also used deliberately to reset state (`<Chat key={contact.id}/>`), so changing or removing a key can silently change reset behaviour.
+- **Evidence:**
+  - [Rendering Lists](https://react.dev/learn/rendering-lists) — React team, 2025 — official docs.
+    - "Keys must not change or that defeats their purpose! Don't generate them while rendering."
+    - "Index as a key often leads to subtle and confusing bugs."
+    - `key={Math.random()}` leads "to all your components and DOM being recreated every time … it will also lose any user input inside the list items".
+    - Verification: verbatim.
+  - [Preserving and Resetting State](https://react.dev/learn/preserving-and-resetting-state) — React team, 2025 — official docs. The Chat example prevents sending "a message they already typed to a wrong person due to an accidental click". "Remember that keys are not globally unique. They only specify the position *within the parent*." Verification: verbatim.
+  - [Index as a key is an anti-pattern](https://robinpokorny.com/blog/index-as-a-key-is-an-anti-pattern/) — Robin Pokorny, **11 Oct 2015** — engineering blog. The index is safe only when all hold: "the list and items are static–they are not computed and do not change"; "the items in the list have no ids"; "the list is *never* reordered or filtered". Verification: fetched. **Year corrected.**
+  - [react/no-array-index-key](https://github.com/jsx-eslint/eslint-plugin-react/blob/master/docs/rules/no-array-index-key.md) — jsx-eslint, 2025 — official docs. Flags `key={index}`, template literals containing the index, `cloneElement` keys, and indexes from map/forEach/filter/reduce/flatMap callbacks. Verification: raw doc.
+- **Detect:**
+  - ESLint `react/no-array-index-key` and `react/jsx-key`.
+  - Grep: `rg -n -g '*.{tsx,jsx}' -e 'key=\{\s*(i|idx|index)\s*\}' -e 'key=\{`[^`]*\$\{(i|idx|index)\}' -e 'key=\{\s*(Math\.random|crypto\.randomUUID|nanoid|uuid\w*)\('`.
+  - For each hit, check whether the source array is ever sorted, filtered or spliced, or is paginated or streamed (live trade or price feeds).
+- **Tools:** eslint-plugin-react (no-array-index-key, jsx-key), ripgrep.
+- **Applies to:** React lists. Vue `v-for` `:key` has the same concern (F23). Svelte keyed each blocks were not checked.
+- **When not to apply / counterpoints:**
+  - Index keys are fine for static, id-less lists that are never reordered (Pokorny).
+  - Vue likewise allows omitting keys for simple content, or deliberately for performance.
+  - If the data has no stable id, adding one at fetch time is a data-layer change.
+- **Fix risk:** high
+
+### G110-F07 — Flag components defined inside components; hoist only after checking reset-dependent behaviour
+- **Grade:** A · **Verdict:** VERIFIED. The react.dev quote was normalised to the page's wording.
+- **Rule:**
+  - Flag components defined inside other components, including inline component factories and components created during render.
+  - Move them to module scope only after checking that no behaviour depended on their state being reset on every parent render.
+  - Pass any values they captured from the parent as explicit props.
+- **Rationale:**
+  - Each parent render creates a new component function, so React treats it as a different type at the same position and remounts it. State resets and the DOM is recreated.
+  - In the ICSE 2026 study, the only app whose behaviour changed after automated refactoring had exactly this pattern.
+- **Evidence:**
+  - [Preserving and Resetting State](https://react.dev/learn/preserving-and-resetting-state) — React team, 2025 — official docs. "This is because a *different* `MyTextField` function is created for every render of `MyComponent`. You're rendering a *different* component in the same position, so React resets all state below. This leads to bugs and performance problems. To avoid this problem, always declare component functions at the top level, and don't nest their definitions." Verification: verbatim.
+  - [react/no-unstable-nested-components](https://github.com/jsx-eslint/eslint-plugin-react/blob/master/docs/rules/no-unstable-nested-components.md) — jsx-eslint, 2025 — official docs. "Creating components inside components (nested components) will cause React to throw away the state of those nested components on each re-render of their parent." Verification: verbatim.
+  - [Remediating Superfluous Re-Rendering in React Applications (ICSE '26)](https://www.franktip.org/pubs/icse2026rerendering.pdf) — Khalili, Gokhale, Turcotte, Xu, Tip, 2026 (DOI 10.1145/3744916.3773235) — peer reviewed. "we only observed one behavioral difference in the TwitchKillMe project. Upon inspection of the code, we observed the implementation … having a nested component definition and did not use props for parent-child communication." Verification: PDF text-extracted.
+- **Detect:** `react-hooks/static-components` (in `recommended`) and `react/no-unstable-nested-components`. Manual pattern: a `function X()` or `const X = () =>` that returns JSX, declared in another component's body and rendered as `<X/>`.
+- **Tools:** eslint-plugin-react-hooks, eslint-plugin-react.
+- **Applies to:** React function components.
+- **When not to apply / counterpoints:**
+  - Helpers that return JSX and are called as functions (`{renderRow(item)}`) do not remount, so they are not this bug.
+  - Hoisting changes semantics: state that used to reset on every parent render now persists.
+- **Fix risk:** medium
+
+### G110-F08 — Flag render-purity and immutability violations; fix only small local cases
+- **Grade:** A · **Verdict:** VERIFIED
+- **Rule:**
+  - Flag:
+    - mutation of props, state, hook arguments or return values, or of values after they are passed to JSX;
+    - side effects during render (fetching, subscribing, writing module globals);
+    - reading or writing `ref.current` during render;
+    - unconditional setState during render.
+  - Fix only small local cases, e.g. `[...items].sort()` instead of `items.sort()` on a prop. Report the rest.
+- **Rationale:**
+  - React assumes components and hooks are idempotent and that props and state are immutable. React Compiler relies on this too.
+  - Concurrent rendering and Strict Mode's double render expose impure renders.
+  - The rules purity, immutability, refs, globals and set-state-in-render (all in `recommended`) detect these statically.
+- **Evidence:**
+  - [Rules of React](https://react.dev/reference/rules) — React team, 2025 — official docs. Headings: "Components must be idempotent"; "Side effects must run outside of render"; "Props and state are immutable"; "Return values and arguments to Hooks are immutable"; "Values are immutable after being passed to JSX". Verification: verbatim.
+  - [React Compiler introduction](https://react.dev/learn/react-compiler/introduction) — React team, 2025 — official docs. "rolling out the compiler to production for your app will depend on the health of your codebase and how well you've followed the Rules of React." Verification: verbatim.
+  - [incompatible-library lint](https://react.dev/reference/eslint-plugin-react-hooks/lints/incompatible-library) — React team, 2025 — official docs. "If something breaks with manual `useMemo`, it will also break the compiler's automatic optimization." It explains interior mutability with the examples react-hook-form `watch`, TanStack Table `useReactTable` and MobX `observer`; the linter "does not yet detect" MobX. Verification: source markdown.
+- **Detect:**
+  - Lint: purity, immutability, refs, globals, set-state-in-render.
+  - `rg -n -g '*.{tsx,jsx}' '\b(props\.\w+|\w+State|items|data)\.(sort|reverse|splice|push|pop|shift|unshift)\('`, then confirm by hand that the target is a prop or state value.
+  - `rg -n -g '*.{tsx,jsx}' '\.current\b'` outside effects and handlers.
+- **Tools:** eslint-plugin-react-hooks, ripgrep, StrictMode.
+- **Applies to:** React components and custom hooks; especially relevant when the compiler is enabled or planned.
+- **When not to apply / counterpoints:**
+  - Interior-mutability libraries (MobX, TanStack Table, react-hook-form `watch`) legitimately break these assumptions. Isolate them, or opt them out with `"use no memo"`.
+  - Open false-positive reports: #34954 (refs forwarding) and #34955 (immutability on ref assignment), both open.
+- **Fix risk:** medium
+
+### G110-F12 — In SSR/SSG apps, flag render-path code that differs between server and client; restrict suppressHydrationWarning
+- **Grade:** A · **Verdict:** CORRECTED. The claim that React "re-renders on the client up to the nearest Suspense boundary" is not on the cited page and was removed. React 19's own wording was added, along with the Next.js hydration-error doc.
+- **Rule:**
+  - In SSR or SSG apps, flag render-path code whose output differs between server and client:
+    - `typeof window` checks, `window.matchMedia`, `localStorage`;
+    - `Date.now()`, `new Date()`, `Math.random()`;
+    - locale-dependent formatting;
+    - invalid HTML nesting.
+  - Flag `suppressHydrationWarning` anywhere other than single text or attribute nodes, such as timestamps.
+- **Rationale:**
+  - React's docs say to treat mismatches as bugs. At best they slow the page down; at worst event handlers get attached to the wrong elements.
+  - React 19 reports "Hydration failed … As a result this tree will be regenerated on the client."
+  - `suppressHydrationWarning` works only one level deep.
+- **Evidence:**
+  - [hydrateRoot](https://react.dev/reference/react-dom/client/hydrateRoot) — React team, 2025 — official docs.
+    - "You should treat mismatches as bugs and fix them."
+    - "React recovers from some hydration errors, but **you must fix them like other bugs.** In the best case, they'll lead to a slowdown; in the worst case, event handlers can get attached to the wrong elements."
+    - On suppressHydrationWarning: "This only works one level deep, and is intended to be an escape hatch. Don't overuse it."
+    - Verification: source markdown.
+  - [React v19 — Diffs for hydration errors](https://react.dev/blog/2024/12/05/react-19) — React team, 2024 — official docs. "Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client." Verification: source markdown. Added.
+  - [Text content does not match server-rendered HTML](https://nextjs.org/docs/messages/react-hydration-error) — Next.js docs, 2026 — official docs.
+    - Common causes: incorrect HTML nesting, "`typeof window !== 'undefined'` in your rendering logic", "browser-only APIs like `window` or `localStorage`", "time-dependent APIs such as the `Date()` constructor", browser extensions, and CDN minification.
+    - Fixes: useEffect, `dynamic(..., { ssr: false })`, and suppressHydrationWarning.
+    - iOS format-detection meta tag.
+    - Verification: fetched. Added.
+- **Detect:**
+  - `rg -n -g '*.{tsx,jsx}' -e 'typeof window' -e 'window\.matchMedia' -e 'localStorage' -e 'Date\.now\(\)' -e 'new Date\(\)' -e 'Math\.random\(\)' -e 'toLocale(Date|Time)?String\(' -e 'suppressHydrationWarning'`.
+  - Keep hits in the component bodies of server-rendered components, not those in effects or handlers.
+  - Run `next build && next start` and check the console for hydration errors on the main routes.
+- **Tools:** ripgrep, Next.js dev overlay, browser console, Playwright console-error assertions.
+- **Applies to:** Next.js App and Pages Router, React Router framework mode, and any `hydrateRoot` use. Not relevant to pure client-rendered Vite SPAs.
+- **When not to apply / counterpoints:** Moving browser-only reads into an effect or `useSyncExternalStore` adds a render and can flash. This is the documented two-pass pattern, and set-state-in-effect flags it (F05).
+- **Fix risk:** medium
+
+### G110-F17 — Two-layer automated a11y floor (jsx-a11y + axe in a real browser); report "no automatically detectable issues", never "compliant"
+- **Grade:** A · **Verdict:** CORRECTED. vitest-axe does not document disabling contrast. jsx-a11y's recommended companion, @axe-core/react, does not support React 18+. The Fischer et al. figures were refined and an unverified "549 sites" detail was dropped.
+- **Rule:**
+  - Set up an automated accessibility floor with two layers:
+    - `eslint-plugin-jsx-a11y` (`flatConfigs.recommended`) for static JSX;
+    - axe-core in a real browser (`@axe-core/playwright`) on the main routes and UI states, with tags wcag2a, wcag2aa, wcag21a, wcag21aa and wcag22aa.
+  - Report a clean run as "no automatically detectable issues", never as "accessible" or "WCAG compliant".
+- **Rationale:**
+  - jsx-a11y only sees static JSX. The runtime companion its README suggests, @axe-core/react, "does not support React 18 and above", so run axe through Playwright instead.
+  - jest-axe turns colour contrast off because it "does not work in JSDOM". Low contrast is the most common failure (83.9% of home pages), so contrast needs a real browser.
+  - Coverage estimates conflict (see Contradictions). All of them show automation is only a floor.
+  - axe claims "zero false positives (bugs notwithstanding)" and marks uncertain checks "incomplete" for manual review.
+- **Evidence:**
+  - [The WebAIM Million 2026](https://webaim.org/projects/million/) — WebAIM, 2026 (February 2026 data, WAVE-detected) — industry report.
+    - "95.9% of home pages had detected WCAG 2 failures" (up from 94.8% in 2025); 56.1 errors per page on average.
+    - Low contrast text 83.9%, missing alt 53.1%, missing form labels 51%, empty links 46.3%, empty buttons 30.6%, missing document language 13.5%.
+    - Next.js sites averaged 40.9 errors and React sites 43.5.
+    - Verification: raw HTML grepped.
+  - [Automated Accessibility Coverage Report](https://www.deque.com/automated-accessibility-coverage-report/) — Deque Systems, undated on page — industry report. "57.38%" of issues were found by automated testing, across 13,000+ pages or page states and nearly 300,000 issues. Coverage is measured by issue volume; the page contrasts this with the "commonly cited 20-30%" per-criterion figure. Verification: fetched. Vendor source.
+  - [Coverage of web accessibility guidelines provided by automated checking tools](https://doi.org/10.1007/s10209-025-01263-x) — Fischer, Lundell, Gamalielsson, *Universal Access in the Information Society* 24:3615–3637, published 18 Sept 2025, open access — peer reviewed.
+    - "the tools cover only one sixth of all WCAG success criteria"
+    - The body adds "except for QualWeb/WCAG which covers about one quarter. The combination of all six engines allows to cover 39% of all success criteria".
+    - Sample: Swedish public-sector landing pages, checked with Pa11y (HTMLCS and an axe-core 4.6.3-era fork), A11yWatch and QualWeb.
+    - Verification: Crossref abstract plus article HTML.
+  - [What we found when we tested tools on the world's least-accessible webpage](https://accessibility.blog.gov.uk/2017/02/24/what-we-found-when-we-tested-tools-on-the-worlds-least-accessible-webpage/) — UK GDS (Mehmet Duran), 24 Feb 2017 — engineering blog.
+    - "a total of 143 failures grouped into 19 categories".
+    - Best tool (Asqatasun) 41%; Google Developer Tools 17%.
+    - All 10 tools together missed 42 barriers (29%).
+    - Verification: fetched.
+  - [axe-core README](https://github.com/dequelabs/axe-core) — Deque, 2026 (v4.13.0) — official docs. "you can find **on average 57% of WCAG issues automatically**"; "It returns zero false positives (bugs notwithstanding)"; rules for WCAG 2.0, 2.1 and 2.2 at A, AA and AAA. Verification: raw README.
+  - [Accessibility testing](https://playwright.dev/docs/accessibility-testing) — Microsoft Playwright, 2026 — official docs. Example tags `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa` (no `wcag22aa`); "many accessibility problems can only be discovered through manual testing." Verification: fetched.
+  - [jest-axe README](https://github.com/NickColley/jest-axe) — Nick Colley, 2025 — official docs. "Color contrast checks do not work in JSDOM so are turned off in jest-axe." "This project does not guarantee that what you build is accessible." Verification: raw README. The vitest-axe README (0.1.0 stable, 2022) does not mention contrast; the JSDOM limitation is inferred to apply.
+  - [eslint-plugin-jsx-a11y README](https://github.com/jsx-eslint/eslint-plugin-jsx-a11y) — jsx-eslint, 2025 — official docs. "Because it only catches errors in static code, use it in combination with @axe-core/react to test the accessibility of the rendered DOM." Exposes `flatConfigs.recommended` and `flatConfigs.strict`. Verification: raw README.
+  - [@axe-core/react README](https://github.com/dequelabs/axe-core-npm/tree/develop/packages/react) — Deque, 2026 — official docs. "This package does not support React 18 and above." Deque recommends its commercial axe Developer Hub instead. Verification: raw README. Added.
+- **Detect:**
+  - Lint: add `jsxA11y.flatConfigs.recommended`.
+  - Runtime: `pnpm add -D @axe-core/playwright @playwright/test`. For each key route and state (modal open, form error, wallet dialog) run `new AxeBuilder({ page }).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']).analyze()`.
+  - Fail on `violations`, and list `incomplete` results in the report for manual review.
+- **Tools:** eslint-plugin-jsx-a11y, axe-core 4.13, @axe-core/playwright, Playwright.
+- **Applies to:** all React, Next and Vite UIs. Vue and Svelte work the same way with their own linters.
+- **When not to apply / counterpoints:**
+  - Unit-level axe under JSDOM is fast but misses contrast and layout-dependent rules.
+  - jsx-a11y cannot see through custom components unless they are mapped in its settings.
+  - A clean axe run can coexist with a UI that is unusable by keyboard or screen reader.
+- **Fix risk:** low
+
+### G110-F18 — Apply only mechanical, design-neutral a11y fixes; report alt text that needs judgement
+- **Grade:** A · **Verdict:** VERIFIED
+- **Rule:**
+  - Apply only accessibility fixes that are mechanical and leave the visual design unchanged:
+    - add `lang` to `<html>`;
+    - link existing visible labels to their inputs (`htmlFor` / `id`);
+    - give icon-only buttons and links an accessible name;
+    - add `type="button"` to non-submit buttons.
+  - Replacing a clickable `<div>` or `<span>` with a `<button>` is a behaviour change: inside a form it defaults to submit, and styles and focus order change. Do it only with `type` set and styles reset.
+  - Report image alt text that needs human judgement instead of inventing it.
+- **Rationale:**
+  - The six most common failures are detectable, but only some can be fixed without knowing the content.
+  - W3C's decision tree separates decorative images (empty alt) from informative and functional ones, whose alt must convey meaning or action. An agent cannot know which kind an image is.
+- **Evidence:**
+  - [The WebAIM Million 2026](https://webaim.org/projects/million/) — WebAIM, 2026 — industry report. The six categories above; "96% of all errors detected fall into these six categories". Verification: raw HTML.
+  - [An alt Decision Tree](https://www.w3.org/WAI/tutorials/images/decision-tree/) — W3C WAI, updated 13 May 2024 — standard (tutorial). "Is the image purely decorative or not intended for users? Yes: Use an empty `alt` attribute." For images in links or buttons: "Use the `alt` attribute to communicate the destination of the link or action taken." Verification: fetched.
+  - [`<button>`: The Button element](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/button) — MDN, 2026 — official docs. `submit` "is the default if the attribute is not specified for buttons associated with a `<form>`". "If your buttons are not for submitting form data to a server, be sure to set their `type` attribute to `button`. Otherwise, they will try to submit form data and to load the (nonexistent) response, possibly destroying the current state of the document." Verification: fetched.
+- **Detect:**
+  - jsx-a11y rules: alt-text, label-has-associated-control, anchor-has-content, anchor-is-valid, click-events-have-key-events, no-static-element-interactions, interactive-supports-focus.
+  - Greps:
+    - `rg -n --pcre2 '<html(?![^>]*\blang=)' -g '*.{tsx,jsx,html}'`;
+    - `rg -n -g '*.{tsx,jsx}' '<(div|span)[^>]*onClick'`;
+    - `rg -n --pcre2 -g '*.{tsx,jsx}' '<button(?![^>]*\btype=)'`, then check whether each button sits inside a form;
+    - `rg -n --pcre2 -g '*.{tsx,jsx}' '<img(?![^>]*\balt=)'`.
+- **Tools:** eslint-plugin-jsx-a11y, axe-core, ripgrep (PCRE2).
+- **Applies to:** React JSX, and Vue and Svelte templates.
+- **When not to apply / counterpoints:**
+  - An aria-label on an icon button is safe only if it matches the action; a wrong label is worse than none.
+  - A "div with onClick" may wrap a focusable child, which is a false positive.
+  - An empty alt on an informative image hides it from screen-reader users.
+- **Fix risk:** medium
+
+### G110-F20 — WCAG 2.2 AA criteria needing design/UX decisions are report-only; enable axe target-size explicitly via the wcag22aa tag
+- **Grade:** A · **Verdict:** CORRECTED. The counterpoint "EN 301 549 still cites WCAG 2.1, so 2.2 criteria may not be required" is outdated: EN 301 549 V4.1.1 (Sept 2026) aligns with WCAG 2.2. The axe snippet was fixed: in @axe-core/playwright, `.options()` replaces the whole options object and discards `withTags`, and axe-core's source shows that a tag match runs rules that are disabled by default.
+- **Rule:**
+  - Treat as report-only the WCAG 2.2 AA criteria that need design or UX decisions:
+    - 2.4.11 Focus Not Obscured (Minimum);
+    - 2.5.7 Dragging Movements;
+    - 2.5.8 Target Size (Minimum): 24×24 CSS px, with five exceptions;
+    - 3.3.8 Accessible Authentication (Minimum).
+  - Also report 3.2.6 Consistent Help and 3.3.7 Redundant Entry (level A), and any colour-contrast change.
+  - Run axe with `withTags([... 'wcag22aa'])`, because `target-size` is disabled by default.
+- **Rationale:**
+  - Fixing these criteria alters layout, visual design or authentication flows (CAPTCHAs, cognitive tests, wallet or seed-phrase entry). That is a product decision, not a hardening edit.
+  - axe-core's only wcag22aa rule, `target-size`, is disabled by default, so a default axe run skips it.
+  - axe-core's `rule-should-run.js` runs any rule whose tags match a `runOnly` tag list, even when the rule is disabled by default. So including `'wcag22aa'` in `withTags` is enough; no extra `rules` option is needed.
+  - `AxeBuilder.options(o)` assigns `this.option = o`, which replaces the `runOnly` set by `withTags`. The researcher's snippet `.withTags([...]).options({ rules: … })` therefore silently drops the tag filter. If you need both, call `.options()` first.
+- **Evidence:**
+  - [Web Content Accessibility Guidelines (WCAG) 2.2](https://www.w3.org/TR/WCAG22/) — W3C, Recommendation 12 December 2024 — standard. Contains 2.4.11, 2.5.7, 2.5.8, 3.2.6, 3.3.7 and 3.3.8; "4.1.1 Parsing (Obsolete and removed)". Verification: raw HTML.
+  - [Understanding SC 2.5.8 Target Size (Minimum)](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html) — W3C WAI, 2024 — standard. "The size of the target for pointer inputs is at least 24 by 24 CSS pixels, except when:". Exceptions: Spacing, Equivalent, Inline, User Agent Control, Essential. Verification: fetched.
+  - [axe-core rule descriptions](https://github.com/dequelabs/axe-core/blob/develop/doc/rule-descriptions.md) — Deque (axe-core 4.13 docs), 2026 — official docs. `target-size` is tagged `wcag22aa, wcag258, EN-301-549v4, EN-9.2.5.8`: "These rules are disabled by default, until WCAG 2.2 is more widely adopted and required." Verification: raw doc.
+  - [axe-core `rule-should-run.js`](https://github.com/dequelabs/axe-core/blob/develop/lib/core/utils/rule-should-run.js) and [@axe-core/playwright `index.ts`](https://github.com/dequelabs/axe-core-npm/blob/develop/packages/playwright/src/index.ts) — Deque, 2026 — source code.
+    - `matchTags` returns true when an include tag matches, independent of `rule.enabled`; `enabled !== false` is checked only when no tags are given.
+    - `options(options) { this.option = options }` and `withTags` sets `this.option.runOnly = { type: 'tag', values }`.
+    - Verification: raw source. Added; resolves the researcher's open question.
+- **Detect:**
+  - `new AxeBuilder({ page }).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']).analyze()`.
+  - Manual checks:
+    - tab through pages that have sticky headers or cookie banners (focus obscured);
+    - look for drag-only interactions without a pointer alternative;
+    - check login and wallet flows for cognitive tests.
+- **Tools:** axe-core target-size, Playwright, manual keyboard walk-through.
+- **Applies to:** all UIs claiming WCAG 2.2 AA, especially dense dashboards and dApp wallet and sign-in flows.
+- **When not to apply / counterpoints:**
+  - EN 301 549 V4.1.1 (adopted 24 Aug 2026) aligns clauses 9–11 with WCAG 2.2. Its legal effect under the EAA depends on citation in the Official Journal, which was not verified.
+  - Conflicting national standards must be withdrawn by 31 May 2028, so a transition period exists.
+  - V4.1.1 treats WCAG 2.1 AA conformance as equivalent to its clauses 9.1–9.4 excluding the six new 2.2 criteria. That makes WCAG 2.1 AA the documented floor during the transition.
+- **Fix risk:** high
+
+### G110-F21 — State the conformance target and legal context; never assert compliance; never recommend overlays
+- **Grade:** A · **Verdict:** CORRECTED. The EN 301 549 status was updated from V3.2.1 (WCAG 2.1 AA) to V4.1.1 (Sept 2026, WCAG 2.2, Annex ZB for the EAA). The microenterprise definition was quoted exactly. EUR-Lex was bot-blocked, so the Directive text was verified via the UK National Archives copy (legislation.gov.uk, "eudr/2019/882").
+- **Rule:**
+  - State the accessibility conformance target and its legal context in the hardening report instead of asserting compliance.
+  - For EU consumer-facing e-commerce or banking services, note that:
+    - the EAA has applied since 28 June 2025;
+    - microenterprises providing services are exempt;
+    - the technical standard is EN 301 549: V3.2.1 maps web pages to WCAG 2.1 AA, and V4.1.1 (Sept 2026) aligns with WCAG 2.2 and adds an EAA annex.
+  - Never recommend accessibility overlays as a fix.
+- **Rationale:**
+  - Directive (EU) 2019/882 applies from 28 June 2025. It covers consumer banking services and e-commerce services, among others, and requires websites and apps to be made "perceivable, operable, understandable and robust".
+  - A microenterprise has fewer than 10 persons and an annual turnover **or** annual balance sheet total of EUR 2 million or less. Microenterprises that provide services are exempt.
+  - Article 32 is narrower than popular summaries:
+    - the transition to 28 June 2030 covers only "products which were lawfully used by them to provide similar services before that date";
+    - service contracts agreed before 28 June 2025 may run until they expire, at most five years.
+  - More than 1,000 practitioners have signed a statement that overlays cannot make a site compliant.
+- **Evidence:**
+  - [Directive (EU) 2019/882 (European Accessibility Act)](https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32019L0882) — European Parliament and Council, 2019 — standard (law).
+    - Art. 31(2): "They shall apply those measures from 28 June 2025."
+    - Art. 4(5): "Microenterprises providing services shall be exempt from complying with the accessibility requirements referred to in paragraph 3 of this Article and any obligations relating to the compliance with those requirements."
+    - Art. 3(23): "'microenterprise' means an enterprise which employs fewer than 10 persons and which has an annual turnover not exceeding EUR 2 million or an annual balance sheet total not exceeding EUR 2 million".
+    - Art. 32(1): the 28 June 2030 transitional period for products "lawfully used … before that date"; "Service contracts agreed before 28 June 2025 may continue without alteration until they expire, but no longer than five years from that date."
+    - Art. 2(2)(d) consumer banking services and (f) e-commerce services.
+    - Verification: EUR-Lex returned a bot challenge (HTTP 202), so the verbatim text was checked on [legislation.gov.uk/eudr/2019/882](https://www.legislation.gov.uk/eudr/2019/882/contents).
+  - [EN 301 549 V3.2.1 (2021-03)](https://www.etsi.org/deliver/etsi_en/301500_301599/301549/03.02.01_60/en_301549v030201p.pdf) — ETSI/CEN/CENELEC, 2021 — standard. Clause 9.6: "Where ICT is a web page, it shall satisfy all the following five WCAG 2.1 conformance requirements at Level AA". Verification: PDF text-extracted.
+  - [EN 301 549 V4.1.1 (2026-09)](https://www.etsi.org/deliver/etsi_en/301500_301599/301549/04.01.01_60/en_301549v040101p.pdf) — ETSI/CEN/CENELEC, 2026 — standard.
+    - "the requirements of clauses 9, 10 and 11 have all been updated to align with the WCAG 2.2 recommendation"
+    - It adds Annex ZB for Directive (EU) 2019/882.
+    - "Once the present document is cited in the Official Journal of the European Union under that Directive, compliance … confers … a presumption of conformity".
+    - Adopted 24 Aug 2026; date of withdrawal of conflicting national standards 31 May 2028.
+    - Verification: PDF text-extracted. Added.
+  - [European Accessibility Act (Commission page)](https://commission.europa.eu/strategy-and-policy/policies/justice-and-fundamental-rights/disability/union-equality-strategy-rights-persons-disabilities-2021-2030/european-accessibility-act_en) — European Commission, 2026 — official docs. The covered list includes banking services, e-books and e-commerce; "The European accessibility standard EN 301 549 has been updated" (7 September 2026). Verification: fetched.
+  - [Overlay Fact Sheet](https://overlayfactsheet.com/en/) — accessibility practitioners (1,031 signatories), 2021–2026 — practitioner statement. "No overlay product on the market can cause a website to become fully compliant with any existing accessibility standard and therefore cannot eliminate legal risk." Verification: fetched.
+- **Detect:**
+  - Scoping questions to answer in the report:
+    - Is the product a consumer service in scope (e-commerce, banking, transport, e-books)?
+    - Is the provider a microenterprise?
+    - Which WCAG version and level is targeted?
+  - Overlay grep: `rg -n -i 'accessibe|userway|audioeye|equalweb' -g '!node_modules'`.
+- **Tools:** manual scoping, ripgrep.
+- **Applies to:** EU-based or EU-serving consumer products. Hackathon demos and B2B tools are often out of scope, but WCAG remains the reference.
+- **When not to apply / counterpoints:**
+  - National transposition and enforcement differ between Member States; not verified here.
+  - Article 31(3) lets Member States delay the Article 4(8) obligations to 28 June 2027.
+  - Whether crypto dApps count as "consumer banking services" is legally unclear.
+- **Fix risk:** low
+
+### G110-F09 — Do not bulk-add or bulk-remove useMemo/useCallback/React.memo; keep memoisation that stabilises effect dependencies
+- **Grade:** B · **Verdict:** VERIFIED
+- **Rule:**
+  - Do not bulk-remove or bulk-add `useMemo`, `useCallback` or `React.memo` in a hardening pass.
+  - Where React Compiler is enabled, leave existing manual memoisation in place unless a test proves removing it is behaviour-neutral.
+  - Keep memoisation wherever a memoised value is an effect dependency.
+  - Remove a manual memo only when preserve-manual-memoization or the profiler shows it is broken or useless, and record it as a performance change.
+- **Rationale:**
+  - For existing code, React's official guidance is to leave memoisation in place or test carefully before removing it, because removal can change compilation output.
+  - React also recommends memoisation to keep effects from re-firing.
+  - Independent evidence is mixed:
+    - Meta reports loads and navigations up to 12% faster and some interactions more than 2.5× faster.
+    - A 2024 pre-1.0 trial found the compiler fixed only 2 of 10, 2 of 10 and 1 of 8 known unnecessary re-renders.
+    - TkDodo shows many manual useCallbacks achieve nothing.
+- **Evidence:**
+  - [React Compiler v1.0](https://react.dev/blog/2025/10/07/react-compiler-1) — React team, 2025 — official docs. "We've seen initial loads and cross-page navigations improve by up to 12%, while certain interactions are more than 2.5× faster." "For existing code, we recommend either leaving existing memoization in place (removing it can change compilation output) or carefully testing before removing the memoization." Verification: source markdown.
+  - [React Compiler introduction](https://react.dev/learn/react-compiler/introduction) — React team, 2025 — official docs. "The `useMemo` and `useCallback` hooks can continue to be used with React Compiler as an escape hatch … A common use-case for this is if a memoized value is used as an effect dependency, in order to ensure that an effect does not fire repeatedly". Verification: verbatim.
+  - [I tried React Compiler](https://www.developerway.com/posts/i-tried-react-compiler) — Nadia Makarevich, 5 June 2024 (canary compiler, pre-1.0) — engineering blog. "out of 10 cases of unnecessary re-renders … only 2 were fixed", then 2 of 10 again, then "out of 8 cases … one". "Can we forget about memo, useMemo, and useCallback after installing the Compiler? Absolutely not! At least not in its current state." Verification: raw HTML.
+  - [The Useless useCallback](https://tkdodo.eu/blog/the-useless-use-callback) — Dominik Dorfmeister (TkDodo), 28 July 2025 — engineering blog. "Memoizing onClick achieves *nothing*, as `button` doesn't care if `onClick` is referentially stable or not." One non-memoised `attachments.filter()` makes three downstream memoisations useless. Verification: fetched.
+  - [preserve-manual-memoization lint](https://react.dev/reference/eslint-plugin-react-hooks/lints/preserve-manual-memoization) — React team, 2025 — official docs. "React Compiler preserves your existing `useMemo`, `useCallback`, and `React.memo` calls … incomplete dependencies prevent the compiler from understanding your code's data flow". Verification: verbatim.
+- **Detect:**
+  - Compiler enabled? `rg -n "babel-plugin-react-compiler|reactCompiler|react-compiler|compiler:\s*true" package.json next.config.* vite.config.* babel.config.*`.
+  - Count manual memoisation: `rg -c -g '*.{tsx,jsx,ts}' 'useMemo\(|useCallback\(|\bmemo\('`.
+  - Lint with preserve-manual-memoization and use-memo.
+  - Justify any removal with before/after Profiler "why did this render" output.
+- **Tools:** eslint-plugin-react-hooks, React DevTools Profiler, ripgrep.
+- **Applies to:** React 17+ codebases, with or without the compiler.
+- **When not to apply / counterpoints:**
+  - One HN commenter (2024) expected to "eliminate about 10k LOC".
+  - Makarevich's trial predates 1.0 and the 2026 Rust ports.
+  - No independent peer-reviewed evaluation of compiler 1.0 on real apps was found.
+- **Fix risk:** high
+
+### G110-F10 — Treat React Compiler config/version as behaviour-bearing: pin exactly, inventory opt-outs, never upgrade in a hardening pass
+- **Grade:** B · **Verdict:** CORRECTED. The master.dev post's real title, author and date were supplied, and its bail-out claim narrowed to "a `throw` from inside a `try` block". Oxc's own 18 Aug 2026 announcement was added. #34971 is closed as completed.
+- **Rule:**
+  - If React Compiler is enabled, pin `babel-plugin-react-compiler` to an exact version, not a `^` range.
+  - Keep the lint and compiler versions aligned.
+  - Inventory `"use no memo"` opt-outs and `incompatible-library` / `unsupported-syntax` diagnostics.
+  - Treat a compiler upgrade, or turning the compiler on, as a feature change, never as part of a hardening pass.
+- **Rationale:**
+  - Memoisation output can change between versions, and miscompilations have been reported after 1.0.
+  - 180 issues carry both the Compiler and Bug labels (91 open); 24 were filed on or after 7 Oct 2025.
+  - Examples:
+    - `const count = agg.itemCounter++` compiled as a pre-increment (#35205, open);
+    - memoisation wrongly applied around a `for` loop (#34971, closed as completed 2026-06-17).
+  - React recommends pinning an exact version when test coverage is poor.
+  - Rust ports are arriving:
+    - Oxc announced React Compiler support on 18 Aug 2026 and claims conformance with the latest experimental babel plugin across 100+ repositories.
+    - One team reports its remaining bail-outs are a `throw` inside a `try` block and the logical assignment operators.
+- **Evidence:**
+  - [React Compiler v1.0](https://react.dev/blog/2025/10/07/react-compiler-1) — React team, 2025 — official docs. "If you don't have good test coverage, we recommend pinning the compiler to an exact version (eg `1.0.0`) rather than a SemVer range (eg `^1.0.0`) … You should then do any upgrades of the compiler manually". Install commands use `--save-exact`. Verification: verbatim.
+  - [#35205 Post Increment Assignment Compiling to Pre Increment Assignment](https://github.com/react/react/issues/35205) — React issue tracker, 25 Nov 2025, open — practitioner forum. The compiled output "Which is not equivalent because it increments before assigning". Reproduced in dev and production. React 19.2.0, Compiler 1.0.0. Verification: GitHub API.
+  - [#34971 Memoization is not correctly applied around `for` loops](https://github.com/react/react/issues/34971) — React issue tracker, 24 Oct 2025, closed as completed 2026-06-17 — practitioner forum. "the memoization is clearly applied incorrectly"; frequency "Every time"; React 19.2.0 / Compiler 1.0.0. Verification: GitHub API.
+  - [GitHub search: Compiler + Bug labels](https://github.com/react/react/issues?q=is%3Aissue+label%3A%22Component%3A+React+Compiler%22+label%3A%22Type%3A+Bug%22) — GitHub API query, 2026-09-23 — other. total_count 180, open 91, created on or after 2025-10-07: 24. The labels also cover lint issues. Verification: re-run.
+  - [React Now Rusted All The Way Out](https://blog.master.dev/react-now-rusted-all-the-way-out/) — Andrew Patton (master.dev), 4 Sept 2026 — engineering blog.
+    - "1,036 files going from 14.3s when built with Babel to 0.81s natively (single-threaded)"
+    - "The two patterns … that will still cause the compiler to skip a component/hook are a `throw` from inside a `try` block and logical assignment operators (`??=`, `&&=`, `||=`)"
+    - @vitejs/plugin-react v6.1.0 brought "experimental native React Compiler support".
+    - The post dates the Oxc release to 4 Aug 2026.
+    - Verification: fetched. **Title and author corrected.**
+  - [Announcing React Compiler Support](https://oxc.rs/blog/2026-08-18-react-compiler-support.html) — Oxc, 18 Aug 2026 — official docs (vendor). "stable support for linting and transformation"; claims conformance with "the latest experimental release of babel-plugin-react-compiler … across more than 100 large and popular repositories"; acknowledges remaining Todo diagnostics. Verification: fetched. Added. Self-reported.
+- **Detect:**
+  - A range instead of a pinned version: `rg -n '"babel-plugin-react-compiler"\s*:\s*"[\^~]' package.json`.
+  - Opt-outs: `rg -n "['\"]use no memo['\"]" -g '*.{ts,tsx,js,jsx}'`.
+  - Lint with incompatible-library and unsupported-syntax.
+  - Before any compiler change, run the E2E suite with the compiler on and off.
+- **Tools:** babel-plugin-react-compiler, eslint-plugin-react-hooks, ripgrep, Playwright.
+- **Applies to:** projects with React Compiler enabled via Babel, the Next.js `reactCompiler` option, or the Vite/Oxc integration.
+- **When not to apply / counterpoints:**
+  - Meta says the compiler is "battle tested on major apps at Meta".
+  - Many labelled issues are lint false positives rather than miscompilations, and an issue count is not a failure rate.
+- **Fix risk:** high
+
+### G110-F11 — Report superfluous re-render anti-patterns with profiler evidence; do not auto-apply fixes
+- **Grade:** B · **Verdict:** CORRECTED. The RRR tool *is* published, as a research artifact at github.com/faridekhalili/RRR; the researcher had it as unverified.
+- **Rule:** Report the five anti-patterns with profiler evidence, but do not apply the fixes automatically:
+  - controlled inputs that re-render large parents;
+  - state variables that do not affect the UI;
+  - child components with no props re-rendered by their parent;
+  - children receiving new object or array props on every render;
+  - children receiving new function props on every render.
+- **Rationale:**
+  - The ICSE 2026 study found these anti-patterns in 92.1% of 7,758 repositories. Its refactorings cut rendering operations by 33.3% and rendering time by 20.54% on average across 23 apps, but changed behaviour in one.
+  - The authors call the static analysis potentially unsound.
+  - The fixes change semantics or add complexity: switching to uncontrolled inputs, turning state into refs, `React.memo`, `useCallback`. In one app, cyclomatic complexity rose from 325 to 338.
+- **Evidence:**
+  - [Remediating Superfluous Re-Rendering in React Applications (ICSE '26)](https://www.franktip.org/pubs/icse2026rerendering.pdf) — Khalili, Gokhale, Turcotte, Xu, Tip, 2026 — peer reviewed.
+    - "The static analysis is potentially unsound, so developers should carefully review the suggested refactorings. A survey of 7,758 React repositories showed that 92.1% of them exhibit at least one anti-pattern"
+    - Prevalence: P1 30.4%, P2 42.7%, P3 91.2%, P4 6.3%, P5 36.7%.
+    - "reduces the number of rendering operations by 33.3% on average while preserving application behavior in all but one case"; rendering time −20.54%.
+    - Table 1 caption: "The cyclomatic complexity changed from 325 to 338 after refactoring".
+    - The paper links the artifact at github.com/faridekhalili/RRR.
+    - Verification: PDF text-extracted.
+  - [RRR artifact repository](https://github.com/faridekhalili/RRR) — Khalili et al., created 2025-11-14, last push 2026-09-10 — research artifact. Dockerised reproduction package with CodeQL queries, transformation source and a profiler extension; no licence stated. Verification: GitHub API plus page fetch. Added.
+  - [The Useless useCallback](https://tkdodo.eu/blog/the-useless-use-callback) — TkDodo, 28 July 2025 — engineering blog. "This component has no control over the referential stability of those props". Verification: fetched.
+- **Detect:**
+  - React DevTools Profiler with "Highlight updates" and "Record why each component rendered" while running the main flows.
+  - Static hints: `rg -n -g '*.{tsx,jsx}' '=\{\{|=\{\[|=\{\(\) =>'` on props passed to memoised children.
+  - RRR can be run for analysis, but it is a research prototype (Docker, CodeQL). Do not make it a required gate.
+- **Tools:** React DevTools Profiler, ripgrep, optionally RRR.
+- **Applies to:** React SPAs and client components with measurable interaction latency.
+- **When not to apply / counterpoints:**
+  - Most extra renders of cheap components have no user-visible impact.
+  - The compiler may remove some of them.
+  - The paper evaluated relatively small open-source apps, and its prevalence figures come from a static analysis the authors call potentially unsound.
+- **Fix risk:** high
+
+### G110-F19 — Prefer native elements to ARIA; never add ARIA as a mechanical fix
+- **Grade:** B · **Verdict:** VERIFIED
+- **Rule:**
+  - Do not add ARIA roles or attributes as a mechanical fix.
+  - Report `role="button"`, `"link"`, `"checkbox"` and similar on non-native elements that lack keyboard handling (Enter/Space), `tabIndex` and focus styling.
+  - Report ARIA attributes that contradict native semantics.
+- **Rationale:**
+  - ARIA changes only what assistive technology announces, not how the element behaves. A role is a promise of keyboard behaviour.
+  - WebAIM 2026 found that pages with ARIA averaged 59.1 errors versus 42 without. That is a correlation, not a cause.
+- **Evidence:**
+  - [Read Me First](https://www.w3.org/WAI/ARIA/apg/practices/read-me-first/) — W3C WAI ARIA Authoring Practices Guide, 2026 — standard (guidance). Section "No ARIA is better than Bad ARIA"; "ARIA roles, states, and properties are analogous to a CSS for assistive technologies"; "A role is a promise". Verification: fetched.
+  - [The WebAIM Million 2026](https://webaim.org/projects/million/) — WebAIM, 2026 — industry report. "Home pages with ARIA present had significantly more errors (59.1 on average) than pages without ARIA (42 on average)." ARIA was used on 82.7% of pages. Verification: raw HTML.
+- **Detect:**
+  - jsx-a11y: aria-props, no-redundant-roles, interactive-supports-focus, click-events-have-key-events, no-noninteractive-element-interactions.
+  - `rg -n -g '*.{tsx,jsx}' 'role="(button|link|checkbox|tab|menuitem)"'`, then check each hit for onKeyDown/onKeyUp and tabIndex.
+  - axe ARIA rules at runtime.
+- **Tools:** eslint-plugin-jsx-a11y, axe-core, ripgrep.
+- **Applies to:** custom widgets in React, Vue and Svelte.
+- **When not to apply / counterpoints:** Complex widgets (comboboxes, trees, grids) need ARIA. Use an audited headless library; choosing one is an architecture decision to report.
+- **Fix risk:** medium
+
+### G110-F23 — Vue/Svelte equivalents: stable `:key`, no v-if with v-for, `$derived` over `$effect`, effect teardowns
+- **Grade:** A · **Verdict:** VERIFIED
+- **Rule:**
+  - **Vue:**
+    - use a stable `:key` on `v-for` when items hold component or DOM state;
+    - never put `v-if` on the same element as `v-for` (`vue/no-use-v-if-with-v-for`).
+  - **Svelte 5:**
+    - use `$derived`, not `$effect`, for derived state;
+    - give effects that acquire resources a teardown function.
+- **Rationale:**
+  - Vue's default in-place patch is safe only when the output does not depend on child component state or temporary DOM state. `v-if` also has implicit precedence over `v-for`.
+  - Svelte teardowns run before each re-run and on destroy, mirroring React's cleanup semantics.
+- **Evidence:**
+  - [List Rendering](https://vuejs.org/guide/essentials/list.html) — Vue.js docs, 2026 — official docs.
+    - The in-place patch is "only suitable when your list render output does not rely on child component state or temporary DOM state (e.g. form input values)".
+    - "It's **not** recommended to use `v-if` and `v-for` on the same element due to implicit precedence."
+    - Keys are recommended "unless the iterated DOM content is simple … or you are intentionally relying on the default behavior for performance gains".
+    - Verification: vuejs/docs source.
+  - [vue/no-use-v-if-with-v-for](https://eslint.vuejs.org/rules/no-use-v-if-with-v-for.html) — eslint-plugin-vue, 2026 — official docs. "disallow using `v-if` on the same element as `v-for`"; included in `flat/essential` and `flat/vue2-essential`. Verification: source doc.
+  - [$effect](https://svelte.dev/docs/svelte/$effect) — Svelte docs, 2026 — official docs. The teardown runs "a) immediately before the effect re-runs b) when the component is destroyed". It shows a "// don't do this!" example of syncing state in an effect and `let doubled = $derived(count * 2);` as the fix. Verification: sveltejs/svelte source markdown.
+  - [Svelte 5 migration guide](https://svelte.dev/docs/svelte/v5-migration-guide) — Svelte docs, 2026 — official docs. "spoiler alert: 90% of the time you want `$derived`". Verification: source markdown.
+- **Detect:**
+  - Vue: the eslint-plugin-vue essential config, plus `rg -n --pcre2 -g '*.vue' 'v-for="[^"]*"(?![^>]*:key)'`.
+  - Svelte: `rg -n -g '*.svelte' -A3 '\$effect\(' | rg '^\S+-\s+\w+\s*=\s*'` (an assignment inside an effect body is a derived-state candidate).
+- **Tools:** eslint-plugin-vue, ripgrep (PCRE2).
+- **Applies to:** Vue 3 and Svelte 5. Covered only briefly; no empirical bug studies for these frameworks were found.
+- **When not to apply / counterpoints:**
+  - Vue explicitly allows omitting keys for simple content or for performance.
+  - Moving from `$effect` to `$derived` changes timing.
+- **Fix risk:** medium
+
+### G110-F22 — Report bundle-hygiene issues; set a size budget at the current size; never run knip --fix unattended
+- **Grade:** C · **Verdict:** CORRECTED. size-limit's README does not list React as a user. `optimizePackageImports` defaults to specific @mui packages, not `@mui/*`, and is flagged "not recommended for production". The barrel-file numbers are dev/test module-loading measurements.
+- **Rule:**
+  - Record a size-limit budget set at the current bundle size, to catch regressions.
+  - Report, rather than refactor:
+    - `'use client'` placed high in the tree (layouts, whole pages);
+    - barrel re-exports that pull in heavy libraries;
+    - unused exports and dependencies found by knip, reviewed by hand, never `--fix` unattended.
+- **Rationale:**
+  - Web Almanac 2024: the median mobile page ships 558 KB of JS, and 206 KB (44%) of it is unused at load.
+  - Next's docs say everything a `'use client'` file imports joins the client bundle.
+  - Barrel files inflate module graphs in dev and test tools. Hagemeister's synthetic benchmark on an M1 Air: 25,000 modules took 16.81 s to load.
+  - knip tells users to review `--fix` changes in version control.
+- **Evidence:**
+  - [Web Almanac 2024: JavaScript](https://almanac.httparchive.org/en/2024/javascript) — HTTP Archive, 2024 — industry report. 558 KB mobile and 613 KB desktop, up 14%; "206 kilobytes—or 44% of bytes delivered—at the median on mobile". Verification: fetched.
+  - [Server and Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components) — Next.js docs v16.3.6, 2026 — official docs. "Once a file is marked with `"use client"`, **all of its imports and the components it directly renders are included in the client bundle**"; "add `'use client'` to specific interactive components instead of marking large parts of your UI as Client Components." Verification: verbatim.
+  - [Speeding up the JavaScript ecosystem — the barrel file debacle](https://marvinh.dev/blog/speeding-up-javascript-ecosystem-part-7/) — Marvin Hagemeister, 8 Oct 2023 — engineering blog. "10000 take 3.12s, 25000 take 16.81s, 50000 take 48.44s" (MacBook M1 Air). Discusses dev and test tooling, not production tree-shaking. Verification: fetched.
+  - [optimizePackageImports](https://nextjs.org/docs/app/api-reference/config/next-config-js/optimizePackageImports) — Next.js docs v16.3.6 — official docs.
+    - "This feature is currently experimental and subject to change, it's not recommended for production."
+    - "Some packages can export hundreds or thousands of modules, which can cause performance issues in development and production."
+    - Defaults include lucide-react, date-fns, lodash-es, @mui/material, @mui/icons-material, recharts, react-icons/* and others.
+    - Verification: fetched. **Corrected.**
+  - [size-limit](https://github.com/ai/size-limit) — Andrey Sitnik, 2026 — official docs. "checks every commit on CI, calculates the real cost of your JS for end-users and throws an error if the cost exceeds the limit". Users listed: MobX, Material-UI, Ant Design, Autoprefixer, PostCSS and others, **not React**. Verification: raw README.
+  - [knip auto-fix](https://knip.dev/features/auto-fix) — Lars Kappert, 2026 — official docs. "Use a VCS (version control system) like Git to review and undo changes as necessary." `--fix` removes `export` keywords and unused dependencies; files are removed only with `--allow-remove-files`. Verification: fetched.
+- **Detect:**
+  - `rg -l "^['\"]use client['\"]" app | rg '(layout|page)\.(t|j)sx$'`.
+  - `rg -l 'export \* from' src app lib`.
+  - `pnpm dlx knip --production` (report only).
+  - Add `.size-limit.json` at the current size, run `pnpm size-limit` in CI, and use `@next/bundle-analyzer` for inspection.
+- **Tools:** size-limit, knip, @next/bundle-analyzer, ripgrep.
+- **Applies to:** Next.js App Router and Vite SPAs. The barrel-file and dead-code details belong to the T20 and T07 dossiers.
+- **When not to apply / counterpoints:**
+  - Moving `'use client'` boundaries changes where code runs and requires serialisable props, so it is an architecture change.
+  - Production bundlers tree-shake many barrels.
+  - No study was found linking bundle budgets to fewer defects; this is practitioner consensus (C).
+- **Fix risk:** medium
+
+## Practitioner voice
+
+- [Cloudflare Sept 12 outage deep dive](https://blog.cloudflare.com/deep-dive-into-cloudflares-sept-12-dashboard-and-api-outage/) — An object in a dashboard `useEffect` dependency array was "recreated on every state or prop change", so the effect re-ran constantly.
+  - Together with a concurrent Tenant Service deploy, this overwhelmed the service, which is part of API authorisation. Impact lasted 17:57–19:12 UTC.
+  - The dashboard bug was hotfixed. Random retry delays are *planned*, the Argo Rollouts (automatic rollback) migration was reprioritised, and capacity was increased.
+  - (Corrected: the random delays were not the hotfix.)
+- [The Register: "Cloudflare DDoSed itself with React useEffect hook blunder"](https://www.theregister.com/2025/09/18/cloudflare_ddosed_itself/) (Tim Anderson, 18 Sept 2025) — Reddit commenters quoted by the article split three ways:
+  - "the idea that it is a bad thing to use is just silly";
+  - "Nearly everyone I know continues to put tons of useEffects everywhere for no reason";
+  - a third blamed the backend for collapsing under excess calls.
+- [Factory: "Why we banned React's useEffect"](https://api.fxtwitter.com/alvinsng/status/2033969062834045089) (Alvin Sng, 17 Mar 2026; read via the fxtwitter mirror of the X post) — Factory banned direct `useEffect`. The replacements:
+  - derive state instead of syncing it;
+  - data-fetching libraries;
+  - event handlers;
+  - `useMountEffect` for real one-time external sync;
+  - key-based resets.
+- [react/react #34743](https://github.com/react/react/issues/34743) — Pushback on set-state-in-effect (40 comments, open).
+  - Examples: hydration or didMount flags, object URLs, loading flags, and a `useWaitReceipt` receipt effect.
+  - Alternatives offered in the thread: ref callbacks, `useSyncExternalStore`.
+  - One commenter says some cases have "no way to avoid" synchronous setState.
+- [react/react #35205](https://github.com/react/react/issues/35205) — Post-1.0 miscompilation (Nov 2025, open): `const count = agg.itemCounter++` was compiled as a pre-increment, in both dev and prod. The workaround was to move the counter out of the object.
+- [react/react #34971](https://github.com/react/react/issues/34971) — React 19.2.0 with Compiler 1.0.0: memoisation was applied incorrectly around a `for` loop, "Every time". Closed as completed June 2026.
+- [I tried React Compiler](https://www.developerway.com/posts/i-tried-react-compiler) (Nadia Makarevich, June 2024, pre-1.0) — On three real apps the compiler fixed only 2/10, 2/10 and 1/8 known re-render problems. Her conclusion: developers still need to understand memoisation.
+- [HN: Understanding React Compiler](https://hn.algolia.com/api/v1/items/40819440) (28 June 2024) — One commenter: "I estimate I can eliminate about 10k LOC assuming the react compiler does what it's advertised to do." This is at odds with React's later advice to keep existing memoisation.
+- [React Now Rusted All The Way Out](https://blog.master.dev/react-now-rusted-all-the-way-out/) (Andrew Patton, 4 Sept 2026) — Adopting the Oxc Rust compiler: 14.3 s → 0.81 s on 1,036 files. The remaining bail-outs are a `throw` inside a `try` block and logical assignment operators. A lint/compiler version mismatch led the author to file a mistaken issue with Oxc.
+- [The Useless useCallback](https://tkdodo.eu/blog/the-useless-use-callback) (TkDodo, July 2025) — A chain of three memoisations made useless by one non-memoised array upstream. Recommends the latest-ref pattern, `useEffectEvent`, or leaving memoisation to the compiler.
+- [Index as a key is an anti-pattern](https://robinpokorny.com/blog/index-as-a-key-is-an-anti-pattern/) (Robin Pokorny, 2015) — The classic write-up: index keys show wrong data after list changes. They are safe only for static, id-less lists that are never reordered or filtered.
+- [React2Shell](https://www.wiz.io/blog/critical-vulnerability-in-react-cve-2025-55182) (Wiz, Dec 2025) — 39% of cloud environments held vulnerable versions. Victims were compromised from 5 Dec 06:00 UTC, and attackers harvested credentials from env vars and metadata. At least six cryptomining incidents. A default create-next-app build was exploitable.
+- [Vercel middleware-bypass postmortem](https://vercel.com/blog/postmortem-on-next-js-middleware-bypass) — A forged internal header skipped middleware on self-hosted Next.js. Vercel's lesson: "We do not recommend Middleware to be the sole method of protecting routes".
+- [Escape vibe-coding methodology](https://escape.tech/blog/methodology-how-we-discovered-vulnerabilities-apps-built-with-vibe-coding/) (29 Oct 2025) — 5,600+ apps (about 4,000 on Lovable): 2,000+ vulnerabilities, 400+ exposed secrets, 175 PII exposures. Anonymous Supabase JWTs in Lovable bundles became exploitable where RLS was missing. Service keys were "often trivially retrievable from frontend bundles".
+- [LeakPair (ASE 2023)](https://arxiv.org/abs/2308.08144) — Of 20 cleanup PRs to React and Angular SPA projects: 11 approved (8 merged), none rejected, 9 with no response. The authors read this as evidence that the patches are non-intrusive.
+- [Overlay Fact Sheet](https://overlayfactsheet.com/en/) — 1,031 signatories say no overlay can make a site compliant. A user reports that with an overlay enabled "the page is flooded with headings".
+- [The European Accessibility Act for websites and apps](https://martijnhols.nl/blog/the-european-accessibility-act-for-websites-and-apps) (Martijn Hols, Jan 2025) — Calls WCAG 2.1 AA "widely considered the best way" to comply. He expected an EN 301 549 update requiring WCAG 2.2 AA in late 2025; it arrived as V4.1.1 in Sept 2026. Advises testing with a screen reader and starting early. His "By 2030, all applicable sites and apps must fully meet accessibility standards" oversimplifies Art. 32.
+
+## Contradictions and open questions
+
+**Contradictions**
+- **What "automated coverage" means.** Deque: 57.38% of issues by volume (vendor data; 13k+ pages or states, about 300k issues); the axe README repeats "57%". Fischer et al. (UAIS 2025): about one sixth of WCAG success criteria per tool, about one quarter for QualWeb, 39% with all six engines combined. GDS (2017): single tools found 17–41% of 143 barriers, and all 10 together missed 29%.
+  - **Correction:** jest-axe's "~30% missed" *matches* GDS's all-tools figure (42/143 = 29%). The researcher had called it inconsistent.
+- **Ref guards inside React's own docs.** "Synchronizing with Effects" calls a `useRef` guard a pitfall that "doesn't fix the bug", for a connection effect. The exhaustive-deps lint page shows "✅ Or use a ref guard inside an effect" for a run-once analytics call. How to reconcile them: ref guards are acceptable only for fire-and-forget actions, never to hide missing cleanup of a resource.
+- **set-state-in-effect.** React docs and the lint rule treat synchronous setState in effects as an anti-pattern. React's own hydrateRoot docs, and Next's hydration-error doc, recommend `useState` + `useEffect(() => setIsClient(true), [])` for intentional server/client differences, which the rule flags. Practitioners in #34743 list further legitimate cases.
+- **Manual memoisation under the compiler.**
+  - React: keep existing `useMemo`/`useCallback`, or test before removing; keep them to stabilise effect dependencies.
+  - HN (2024): expected large deletions.
+  - TkDodo: many useCallbacks are already useless.
+  - Makarevich (2024, pre-1.0): the compiler missed most real re-render problems.
+  - Meta: up to 12% faster loads and navigations, 2.5× faster interactions.
+- **`useEffect` itself.** Factory bans direct `useEffect`. React presents effects as the right tool for external synchronisation. Commenters quoted by The Register call blanket avoidance "silly".
+- **Index keys.** React: "often leads to subtle and confusing bugs". Pokorny and Vue: fine for static or simple lists, and Vue even allows relying on in-place patching for performance.
+- **Re-render refactoring.** Behaviour was preserved in 22 of 23 apps, but the authors call the analysis potentially unsound and complexity rose (325 → 338 in one app).
+- **EAA timeline.** Popular explainers say existing services have until 2030. Article 32 limits that to products already in use before 28 June 2025, plus pre-existing service contracts for at most five years.
+- **WCAG version for EU compliance.** V3.2.1 (2021) maps web pages to WCAG 2.1 AA. V4.1.1 (Sept 2026) aligns with WCAG 2.2 but confers presumption of conformity only once cited in the Official Journal, and treats 2.1 AA as a subset during a transition that runs to 31 May 2028.
+- **Frameworks and ARIA vs accessibility.** WebAIM 2026: React (43.5) and Next.js (40.9) sites have fewer detected errors than average (56.1), while pages with ARIA have more (59.1 vs 42). Both findings are correlational.
+
+**Open questions**
+- **Prevalence of hooks misuse.** No peer-reviewed study was found that measures how often hooks-misuse bugs (missing dependencies, stale closures, effects without cleanup beyond memory leaks) occur in production React apps. The Ferreira & Valente React code-smell paper (IST 2023) was not opened.
+- **Accuracy of the v7 compiler lint rules.** Their precision and recall have not been measured independently. The tracker shows false positives and negatives, but no rates.
+- **Rust-port parity.** Oxc's claim of conformance with the Babel compiler is self-reported. No independent evaluation of Oxc/Rust compiler parity or bail-out behaviour was found. The two sources also date the Oxc release differently: master.dev says 4 Aug 2026, Oxc's blog 18 Aug 2026.
+- **Official Journal citation.** Whether EN 301 549 V4.1.1 has been cited in the OJ under Directive 2019/882 was not verified. National transposition and enforcement were not checked.
+- **Next.js patch versions.** Patched versions for CVE-2026-23864 on every Next.js 15.x/16.x minor line were not collected. Use the live Vercel/React advisory tables.
+- **React Router/Remix.** Their guidance on authorisation in actions and loaders was not retrieved.
+- **dApps under the EAA.** Whether crypto dApps count as "consumer banking services" under the EAA is legally unclear; no source was found.
+- **Resolved during verification:**
+  - `withTags([...,'wcag22aa'])` *does* run the disabled-by-default `target-size` rule (per axe-core source).
+  - The RRR tool *is* published as a research artifact.
+
+## Dropped findings
+
+None. All 23 findings survived. Removed or corrected details within surviving findings:
+- **Wrong attribution:** LeakPair was credited to "Yang et al."
+- **Wrong numbers:** Cloudflare "about an hour" (actually about 1 h 15 min); Pokorny "2016" (actually 2015).
+- **Wrong facts:**
+  - the hydration "nearest Suspense boundary" claim;
+  - the claim that the RRR tool was "not verified as released";
+  - the "web3" label on #34743;
+  - "throw statements" as a blanket bail-out (actually `throw` inside `try` only);
+  - `@mui/*` as an `optimizePackageImports` default;
+  - "used by React" for size-limit;
+  - "up to 549" sites for Fischer et al.;
+  - "including WCAG and ARIA spec contributors" for the overlay signatories.
+- **Misquotes:** two misquoted react.dev phrases ("compared by identity", "Re-syncs on every render!") and "and catch violations" appended to the Rules of React quote.
+- **Broken snippet:** the axe `.withTags().options()` chain silently discards the tag filter.
+- **Outdated:** the EN 301 549 V3.2.1-only framing.

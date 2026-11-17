@@ -1,0 +1,1111 @@
+# C++ best practices from authoritative sources
+> Code T23 · slug lang-cpp · verified 2026-09-23 · counts: verified 9 / corrected 14 / downgraded 0 / dropped 0
+
+## Summary
+
+The fact-checker opened every source for this topic on 2026-09-23. Most were downloaded with curl and searched for the exact quoted text. Hacker News comments were read through the official HN Firebase API, and each one's root story title was checked. When the workflow was resumed, a second pass re-checked the corrections against the same downloads, and live-checked two facts: gecko-dev was archived on Jul 9, 2025, and LLVM 23.1.2 was released on Sep 22, 2026. That pass also completed the F05 flag list.
+
+**Versions checked.**
+- C++ Core Guidelines, dated Jun 14, 2026 (GitHub markdown source).
+- clang-tidy docs, "Extra Clang Tools 24.0.0git". These are trunk docs. The latest LLVM release is 23.1.2, so some checks and options may not exist in the clang-tidy a project actually uses.
+- GCC manual. The URLs the researcher cited point to "current development" docs. Every quoted passage was also found in the pinned GCC 16.2 manual, and the URLs below are pinned to 16.2.
+- OpenSSF Compiler Options Hardening Guide, dated 2026-08-20.
+- libc++ Hardening Modes and the libstdc++ manual.
+- MSVC docs. The ASan page has ms.date 2026-05-28, not 2026-07. The Core Guidelines checkers page has ms.date 2023-06-21.
+- MSVC STL Hardening wiki, last edited Mar 4, 2026.
+- Google C++ Style Guide (targets C++20).
+- SEI CERT C++, 2016 edition, with 2025/2026 tool versions on the site.
+- CISA/FBI Product Security Bad Practices, January 17, 2025.
+
+**Correction to the researcher's Mozilla source.** The `mozilla/gecko-dev` repository was archived on Jul 9, 2025 ("SUPERSEDED by mozilla-firefox/firefox"). The current Firefox `tools/clang-tidy/config.yaml` pins clang-tidy 22.1.8. It actively enables only 20 checks, mostly modernize-\* and performance-\*, plus a few bugprone-\* and misc-definitions-in-headers. The old reliability-rated list is kept only as a commented-out block. All Mozilla claims below are re-sourced to the current file.
+
+**Main conclusion (unchanged after checking).** Let the toolchain do the work, and never apply a whole guideline at once. For a finished C++ project, these rules have the best cost/benefit:
+
+1. **Warnings baseline.** Set a warnings-clean baseline: GCC/Clang `-Wall -Wextra` and friends, MSVC `/W4 /permissive-`. Use `-Werror` in development and CI only, never in source you distribute (OpenSSF).
+2. **Standard-library hardening in production.** Use libc++ FAST, `_GLIBCXX_ASSERTIONS`, or `_MSVC_STL_HARDENING`, together with the OpenSSF release flags. Google measured:
+   - 0.30% average overhead;
+   - more than 1,000 bugs found;
+   - a 30% lower baseline segfault rate.
+3. **Sanitizers on the full test suite.** Run the tests under ASan+UBSan, and run TSan as a separate build. OpenSSF documents that TSan cannot be combined with ASan. Never ship the sanitizer runtimes.
+4. **A small clang-tidy set that finds real bugs.** Chromium lists its rejected checks explicitly. Mozilla has cut its active set to about 20 checks.
+5. **Fix-its one check at a time, with a rebuild and tests after each.** The clang-tidy docs state that several fix-its change semantics or break builds. Chromium records build breaks. Firefox's own instructions say to run `--checks='-*,new-checker'` and apply `--fix` "depending on the confidence you have in the checker".
+
+**Language rules with official backing.**
+- RAII, and no naked new/delete.
+- Rule of zero or rule of five. A polymorphic base destructor is either virtual or protected.
+- override on overriding functions, explicit on converting constructors, noexcept on moves.
+- Named casts, and std::bit_cast for type punning.
+- std::span instead of pointer+size pairs.
+- Initialize everything.
+- Watch lifetimes of string_view, span, and lambdas that capture by reference.
+
+**Where the sources disagree.**
+- Signed vs unsigned integers.
+- Exceptions (Core Guidelines) vs no exceptions (Google).
+- How much `-Wconversion` noise is worth tolerating.
+- `-Werror` in distributed builds.
+- Include cleanup with IWYU / include-cleaner.
+- Enforcing const-correctness.
+- `(void)` casts and functional-style casts (Google allows them; ES.48 flags them).
+- Zero-init vs pattern-init as the uninitialized-memory backstop.
+
+**Empirical evidence is thin.** Kudrjavets et al. (ICSE-SEIP 2022) state that the evidence for fixing warnings "stems from grey literature or is anecdotal". No replicated peer-reviewed study of clang-tidy or Core Guidelines outcomes was found. The strongest numbers are industrial (Google, Chromium, Android, Microsoft). Recent preprints show that static analysis alone misses a lot:
+- Hassler et al. (2025) found the bugs found by fuzzers and by static analyzers are "nearly disjoint".
+- Mahmud et al. (2026) found AI-generated C++ about twice as likely as human code to trigger a confirmed runtime violation, although the two looked equally safe under static analysis. This was on competitive-programming tasks.
+
+So dynamic checks (sanitizers, a hardened standard library, tests) must be part of the skill.
+
+## Findings
+
+### T23-F04 — Enable standard-library hardening in production builds
+- **Grade:** A · **Verdict:** CORRECTED. The MSVC STL wiki is from 2026, not 2025. "Shipped disabled by default" is reworded to what the wiki actually says. A primary Microsoft changelog entry is added.
+- **Rule:** Enable standard-library hardening in production builds, not only in debug:
+  - libc++: `-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST`;
+  - libstdc++: `-D_GLIBCXX_ASSERTIONS`;
+  - MSVC STL: `_MSVC_STL_HARDENING=1` where available.
+
+  Keep the expensive, sometimes ABI-affecting debug modes (`_GLIBCXX_DEBUG`, the libc++ debug mode, MSVC `_ITERATOR_DEBUG_LEVEL=2`) for test builds. Roll out in stages: tests first, then pre-production, then gradual production. Opt specific hot paths out only after measuring.
+- **Rationale:** Hardened containers turn out-of-bounds `operator[]`, `front()`/`pop_back()` on an empty container, and access to an empty optional into deterministic traps instead of silent memory corruption. At Google's scale this cost almost nothing and found many latent bugs, including library-level UB that ASan does not see.
+- **Evidence:**
+  - [Retrofitting spatial safety to hundreds of millions of lines of C++](https://security.googleblog.com/2024/11/retrofitting-spatial-safety-to-hundreds.html) — Alex Rebert, Max Shavrick, Kinuko Yasuda (Google), Nov 15, 2024 — engineering_blog / industry report.
+    - Quotes: "Hardening libc++ resulted in an average 0.30% performance impact across our services"; "The safety checks have uncovered over 1,000 bugs"; "led to a 30% reduction in our baseline segmentation fault rate across production"; "We first enabled hardened libc++ in our tests over a year ago"; "a handful of performance-critical code paths still require targeted use of explicitly unsafe accesses".
+    - Verification: all quotes found verbatim.
+  - [libc++ Hardening Modes](https://libcxx.llvm.org/Hardening.html) — LLVM, 2026 — official_docs.
+    - Fast mode: "security-critical checks that can be done with relatively little overhead in constant time and are intended to be used in production. We recommend most projects adopt this." Debug mode "is not intended to be used in production."
+    - "Enabling hardening has no impact on the ABI." A per-TU override must be set "before including any headers to avoid ODR issues."
+    - Verification: verbatim. Bounded iterators are a separate vendor ABI option.
+  - [libstdc++ Macros](https://gcc.gnu.org/onlinedocs/libstdc++/manual/using_macros.html) and [Debug Mode: Using](https://gcc.gnu.org/onlinedocs/libstdc++/manual/debug_mode_using.html) — GCC libstdc++ manual — official_docs.
+    - `_GLIBCXX_ASSERTIONS`: "Defined by default when compiling with no optimization, undefined by default when compiling with optimization ... enables extra error checking in the form of precondition assertions, such as bounds checking in strings and null pointer checks when dereferencing smart pointers."
+    - `_GLIBCXX_DEBUG` "changes the sizes and behavior of standard class templates such as std::vector, and therefore you can only link code compiled with debug mode and code compiled without debug mode if no instantiation of a container is passed between the two translation units."
+    - Verification: verbatim.
+  - [Compiler Options Hardening Guide for C and C++](https://best.openssf.org/Compiler-Hardening-Guides/Compiler-Options-Hardening-Guide-for-C-and-C++.html) — OpenSSF Best Practices WG, 2026-08-20 — standard.
+    - `_GLIBCXX_ASSERTIONS`: "Slowdowns of up to 6% have been reported." `_LIBCPP_HARDENING_MODE_FAST` is in the TL;DR flag set.
+    - Verification: verbatim.
+  - [STL Hardening (microsoft/STL wiki)](https://github.com/microsoft/STL/wiki/STL-Hardening) — Microsoft STL team, last edited Mar 4, 2026 — official_docs.
+    - "We plan to initially release this as disabled-by-default ... We intend to change it to enabled-by-default in a future release."
+    - Fine-grained macros such as `_MSVC_STL_HARDENING_VECTOR` allow "targeted opt-out".
+    - Old IDL=1 "is an ABI-breaking option ... quite expensive (2x perf penalty in the worst case), which users rejected".
+    - Verification: verbatim. Year corrected from 2025 to 2026.
+  - [microsoft/STL Changelog](https://github.com/microsoft/STL/wiki/Changelog) — Microsoft, 2026 — official_docs.
+    - The "MSVC Build Tools 14.50" section ("shipped in VS 2026 18.0") says: "Improved the performance of STL Hardening by using the MSVC __fastfail intrinsic".
+    - Verification: confirms the feature ships. Its current default state was not confirmed.
+  - [Can sanitizers find the two bugs I wrote in C++?](https://ahelwer.ca/post/2023-02-07-cpp-bugs-sanitized/) — Andrew Helwer, Feb 7, 2023 — engineering_blog.
+    - `pop_back()` on an empty vector: ASan reported only a downstream heap-buffer-overflow in `serialize()`. `-D_GLIBCXX_ASSERTIONS` reported "Assertion '!this->empty()' failed."
+    - Verification: verbatim.
+- **Detect:**
+  - Check the flags: `jq -r '.[].command' build/compile_commands.json | grep -cE '_LIBCPP_HARDENING_MODE|_GLIBCXX_ASSERTIONS|_MSVC_STL_HARDENING'`.
+  - Identify the standard library in use: `-stdlib=libc++`, libstdc++, or the MSVC STL.
+  - Add a canary test that indexes an empty `std::vector` with `operator[]` and expects abnormal termination in the hardened release configuration.
+  - Look for ABI-mixing risks: `rg -n '_GLIBCXX_DEBUG|_ITERATOR_DEBUG_LEVEL' CMakeLists.txt cmake`.
+- **Tools:** libc++ hardening modes; libstdc++ `_GLIBCXX_ASSERTIONS`; MSVC STL `_MSVC_STL_HARDENING`; GCC `-fhardened` (implies `_GLIBCXX_ASSERTIONS`).
+- **Applies to:** Every C++ binary that handles untrusted or non-trivial input: services, parsers, anything network-facing.
+- **When not to apply / counterpoints:**
+  - Overhead varies: 0.30% average at Google (fleet-wide, with PGO available), and "up to 6%" reported for `_GLIBCXX_ASSERTIONS` (OpenSSF). Tight numeric loops may need measured opt-outs.
+  - MSVC STL hardening was planned to ship disabled by default. Its older IDL=1 mode was ABI-breaking and up to 2x slower.
+  - `_GLIBCXX_DEBUG` changes container layout, so it is not a production option.
+- **Fix risk:** medium
+
+### T23-F06 — Run the whole test suite under a sanitizer matrix
+- **Grade:** A · **Verdict:** CORRECTED. The TSan/ASan incompatibility is now attributed to OpenSSF; the LLVM TSan page does not state it. The MSVC ASan page date is corrected. "ASan has no false positives" is now sourced to the ASan docs.
+- **Rule:** Run the whole existing test suite, and any fuzz targets, under a sanitizer matrix before and after the hardening pass.
+  - **Build 1:** `-fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g`, with UBSan made fatal (`-fno-sanitize-recover=all`).
+  - **Build 2:** `-fsanitize=thread`. It cannot be combined with ASan, and every TU must be instrumented.
+  - **MSVC:** `/fsanitize=address /Zi`, with `/RTC1`, `/ZI` and `/INCREMENTAL` turned off.
+
+  Never link sanitizer runtimes into shipped binaries. For UB checks in production, use `-fsanitize-minimal-runtime` or `-fsanitize-trap`.
+- **Rationale:** Static tools and dynamic tools find largely different bugs. Sanitizers cost about 2-4x on average: ASan about 2x, TSan 5-15x. The ASan docs say it "is not expected to produce false positives". Sanitizers are the dynamic check that a "finished" project usually lacks.
+- **Evidence:**
+  - [AddressSanitizer](https://clang.llvm.org/docs/AddressSanitizer.html) — LLVM/Clang, 2026 — official_docs.
+    - "Typical slowdown introduced by AddressSanitizer is 2x."
+    - "its runtime is not meant to be linked against production executables"
+    - "AddressSanitizer is not expected to produce false positives."
+    - Verification: verbatim.
+  - [ThreadSanitizer](https://clang.llvm.org/docs/ThreadSanitizer.html) — LLVM/Clang, 2026 — official_docs.
+    - "Typical slowdown ... about 5x-15x. Typical memory overhead ... about 5x-10x."
+    - "If some code (such as pre-compiled dynamic libraries) is not compiled with the flag, TSan may fail to detect races or may report false positives."
+    - Verification: verbatim. This page does not say TSan and ASan are incompatible; see the OpenSSF entry.
+  - [UndefinedBehaviorSanitizer](https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html) — LLVM/Clang, 2026 — official_docs.
+    - "UndefinedBehaviorSanitizer's runtime is meant for testing purposes and its usage in production environment should be carefully considered from security perspective"
+    - "consider using Minimal Runtime or trap mode for all checks"
+    - Verification: verbatim.
+  - [AddressSanitizer (MSVC)](https://learn.microsoft.com/en-us/cpp/sanitizers/asan) — Microsoft Learn, ms.date 2026-05-28 — official_docs.
+    - "AddressSanitizer shouldn't be used in production."
+    - Not compatible with edit-and-continue, incremental linking, or /RTC.
+    - Other sanitizers (thread, undefined, ...) are only requested in feedback.
+    - Verification: verbatim.
+  - [Compiler Options Hardening Guide (Sanitizers section)](https://best.openssf.org/Compiler-Hardening-Guides/Compiler-Options-Hardening-Guide-for-C-and-C++.html) — OpenSSF, 2026-08-20 — standard.
+    - "On average, Sanitizers impose a 2× to 4× slowdown"; "prohibitively expensive ... to be used with Release builds".
+    - "TSan cannot be used simultaneously with AddressSanitizer (ASan) or LeakSanitizer (LSan)."
+    - GCC- and Clang-instrumented code cannot be mixed.
+    - Verification: verbatim.
+  - [A Comparative Study of Fuzzers and Static Analysis Tools for Finding Memory Unsafety in C and C++](https://arxiv.org/abs/2505.22052) — Hassler, Görz, Lipp, 2025 (v2 Mar 2026) — preprint.
+    - Five static analyzers and 13 fuzzers were run on more than 100 known vulnerabilities.
+    - "fuzzers discover a very similar set of bugs, while static analyzers report more diverse sets"; the unions of the two groups are "nearly disjoint".
+    - Verification: abstract verified.
+  - [Undefined Behavior in C and C++: An Experiment With Desktop Use Cases](https://arxiv.org/abs/2606.12064) — Ruohonen, Sierszecki, 2026 — preprint.
+    - "nearly 11 thousand unique undefined behavior warnings ... by 32 unique programs"; over 500 from logging into GNOME; "the clear majority was about virtual table pointers".
+    - Verification: abstract verified.
+  - [C++ safety, in context](https://herbsutter.com/2024/03/11/safety-in-context/) — Herb Sutter, 2024 — engineering_blog.
+    - "Do use your language's static analyzers and sanitizers ... If you're a manager, don't allow your product to be shipped without using these tools."
+    - "some sanitizers conflict and so can't be used at the same time ... some should be run only in testing and never in production".
+    - Verification: verbatim.
+- **Detect:**
+  - Look for an existing sanitizer configuration: `rg -n 'fsanitize' CMakeLists.txt CMakePresets.json cmake .github`.
+  - If there is none, add `asan-ubsan` and `tsan` presets and run ctest in each.
+  - Pair the runs with gcov or llvm-cov branch coverage, because sanitizers only see paths that execute.
+  - Expect a burst of findings on the first UBSan run, and triage them by check type.
+- **Tools:** clang/gcc `-fsanitize=address,undefined,thread`; MSVC `/fsanitize=address`; llvm-cov/gcov; libFuzzer.
+- **Applies to:** All projects with an automated test suite. If a project has no tests, write a few smoke or integration tests first; otherwise the sanitizers see nothing.
+- **When not to apply / counterpoints:**
+  - Sanitizers only catch bugs on executed paths. A practitioner's stack use-after-free needed branch coverage the team did not have (HN 32823103).
+  - ASan misses library-level UB such as `pop_back()` on an empty vector; pair it with F04.
+  - TSan gives false positives with uninstrumented libraries.
+  - The first UBSan run on real software can be very noisy (about 11k warnings in the desktop study).
+  - Do not combine sanitizers with `_FORTIFY_SOURCE` (see F05).
+- **Fix risk:** low
+
+### T23-F05 — Build release artifacts with the OpenSSF runtime-protection flags
+- **Grade:** A · **Verdict:** CORRECTED. The GCC URL is pinned to the 16.2 manual. The flag list is completed from the OpenSSF TL;DR. The practitioner overhead data is replaced by primary sources: P2723R1 and the MSRC blog.
+- **Rule:** Build release artifacts with the OpenSSF runtime-protection flags. On GCC 14+ you can use `-fhardened`, with `-Whardened` to catch downgrades.
+  - **OpenSSF TL;DR set:**
+    - `-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=3` (needs `-O1` or higher);
+    - `-fstrict-flex-arrays=3`;
+    - `-fstack-clash-protection -fstack-protector-strong`;
+    - `-Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now`;
+    - `-Wl,--as-needed -Wl,--no-copy-dt-needed-entries`.
+  - **Situation-specific flags (OpenSSF table):**
+    - executables: `-fPIE -pie`; shared libraries: `-fPIC -shared`;
+    - x86_64: `-fcf-protection=full -fzero-call-used-regs=used-gpr`;
+    - aarch64: `-mbranch-protection=standard -fzero-call-used-regs=used-gpr`;
+    - GCC only: `-Wtrampolines -fzero-init-padding-bits=all`.
+  - **Production-only additions:** `-fno-delete-null-pointer-checks -fno-strict-overflow -fno-strict-aliasing -ftrivial-auto-var-init=zero`.
+
+  Keep sanitizer test builds free of `_FORTIFY_SOURCE`.
+- **Rationale:** These mitigations turn common memory bugs into crashes rather than exploits, and their documented cost is low. CISA/FBI (2025) ask manufacturers of memory-unsafe products to "concurrently implement hardware or compiler controls" while they move toward memory safety.
+- **Evidence:**
+  - [Compiler Options Hardening Guide for C and C++](https://best.openssf.org/Compiler-Hardening-Guides/Compiler-Options-Hardening-Guide-for-C-and-C++.html) — OpenSSF, 2026-08-20 — standard.
+    - `-D_FORTIFY_SOURCE=3`: "significantly more calls fortified with a potential to impact performance in some rare cases. Requires -O1 or higher."
+    - "We recommend using zero for production code".
+    - `-Whardened`: "Warn if options implied by -fhardened are downgraded or disabled."
+    - "we do not recommend enabling _FORTIFY_SOURCE for instrumented test builds where sanitizers are used".
+    - Full RELRO "can increase the startup time for applications with large numbers of dynamic dependencies".
+    - Verification: verbatim; the flag list was taken from the TL;DR table.
+  - [GCC Instrumentation Options: -fhardened](https://gcc.gnu.org/onlinedocs/gcc-16.2.0/gcc/Instrumentation-Options.html) — GCC 16.2 manual, 2026 — official_docs.
+    - Flags implied: `-D_FORTIFY_SOURCE=3 -D_GLIBCXX_ASSERTIONS -ftrivial-auto-var-init=zero -fPIE -pie -Wl,-z,relro,-z,now -fstack-protector-strong -fstack-clash-protection -fcf-protection=full (x86 GNU/Linux only)`.
+    - "This option is intended to be used in production builds, not merely in debug builds. Currently, -fhardened is only supported on GNU/Linux targets."
+    - It only enables an option "if it wasn't already specified anywhere on the command line".
+    - Verification: verbatim in the 16.2 manual. The researcher's URL was the current-development manual.
+  - [Product Security Bad Practices v2.0](https://www.cisa.gov/resources-tools/resources/product-security-bad-practices) — CISA/FBI, Jan 17, 2025 — standard.
+    - "For existing products written in memory-unsafe languages, not having a published memory safety roadmap is dangerous"
+    - "a company might begin by writing new code components in memory safe languages and concurrently implement hardware or compiler controls to mitigate memory safety vulnerabilities."
+    - Verification: verbatim.
+  - [P2723R1: Zero-initialize objects of automatic storage duration](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/p2723r1.html) — JF Bastien, WG21, 2023-01-15 — standard proposal.
+    - "The performance impact is negligible (less that 0.5% regression) to slightly positive ... The code size impact is negligible (smaller than 0.5%)."
+    - Verification: verbatim. This replaces the second-hand HN summary of the same figure (smarks, HN 43779449, also verified).
+  - [Solving Uninitialized Stack Memory on Windows](https://www.microsoft.com/en-us/msrc/blog/2020/05/solving-uninitialized-stack-memory-on-windows) — Joe Bialek (Microsoft MSRC), May 13, 2020 — engineering_blog.
+    - "During initial testing where we forcibly initialized all types of data on the stack we saw performance regressions of over 10% in several key scenarios."
+    - With POD types only, optimizations reduced the regression "from observable to noise-level for most tests."
+    - Verification: verbatim; this is the primary source that HN 43781342 quoted.
+- **Detect:**
+  - On Linux, `gcc --help=hardened` lists what `-fhardened` implies.
+  - Inspect compile_commands.json and the linker flags.
+  - Check the binaries: `readelf -d app | grep -E 'BIND_NOW|FLAGS'` and `readelf -lW app | grep GNU_RELRO`.
+  - Confirm that the sanitizer configurations do not define `_FORTIFY_SOURCE`.
+- **Tools:** GCC 14+ `-fhardened` / `-Whardened`; clang; readelf; CMake presets.
+- **Applies to:** Release and production builds on GNU/Linux primarily. The OpenSSF guide covers GCC and Clang only; MSVC coverage is future work there. Test builds keep sanitizers instead of FORTIFY.
+- **When not to apply / counterpoints:**
+  - Some flags cost startup time (full RELRO with many shared libraries) or, rarely, throughput (FORTIFY=3).
+  - `-ftrivial-auto-var-init=zero` hides uninitialized reads from tools. Sutter: a jammed-in zero "masks others for which zero is not a valid initializer ... harder for sanitizers to detect". bri3d (HN 43776929) prefers `=pattern` in QA builds.
+  - Initializing all stack types cost Windows over 10% before optimizer work (MSRC, 2020).
+  - `-fhardened` is GNU/Linux-only, and its flag set may change between major GCC releases.
+- **Fix risk:** low
+
+### T23-F01 — Freeze a compiler-warning baseline, drive it to zero, and gate it in CI
+- **Grade:** A · **Verdict:** CORRECTED. The cppbestpractices quote is fixed to its real wording, and its MSVC baseline is stated exactly.
+- **Rule:** Before changing code, record a warnings baseline, drive it to zero, and gate it in CI.
+  - **GCC/Clang minimum:** `-Wall -Wextra -Wpedantic -Wshadow -Wold-style-cast -Woverloaded-virtual -Wformat=2 -Wimplicit-fallthrough`.
+  - **-Wconversion:** roll it out in stages (see F02).
+  - **MSVC:** `/W4 /permissive-`. Since VS 2019 16.11, `/permissive-` is implied by `/std:c++20`.
+  - **Warnings as errors:** `-Werror` or `/WX` in developer and CI builds only. Not in source tarballs or release builds that will be compiled with toolchains you do not control.
+- **Rationale:** Compiler diagnostics are the cheapest analysis with the fewest false positives. Google found that developers ignored warnings, and diagnostics only worked once they broke the build. `-Werror` in distributed builds breaks users' builds when a new compiler adds warnings.
+- **Evidence:**
+  - [Compiler Options Hardening Guide for C and C++](https://best.openssf.org/Compiler-Hardening-Guides/Compiler-Options-Hardening-Guide-for-C-and-C++.html) — OpenSSF, 2026-08-20 — standard.
+    - TL;DR: "-O2 -Wall -Wformat -Wformat=2 -Wconversion -Wimplicit-fallthrough -Werror=format-security ...". Table row: "during development but not when distributing source: -Werror".
+    - "We encourage developers to consider it a bug if the program cannot be compiled with these options."
+    - "-Werror should not be used in this blanket form when distributing source code".
+    - Verification: verbatim.
+  - [/w, /W0 ... /W4, /Wall, /WX (Warning level)](https://learn.microsoft.com/en-us/cpp/build/reference/compiler-option-warning-level) — Microsoft Learn, ms.date 2022-02-17 — official_docs.
+    - /W4: "We recommend that you use this option to provide lint-like warnings. For a new project, it may be best to use /W4 in all compilations."
+    - /WX: "For a new project, it may be best to use /WX in all compilations".
+    - Verification: verbatim.
+  - [/permissive- (Standards conformance)](https://learn.microsoft.com/en-us/cpp/build/reference/permissive-standards-conformance) — Microsoft Learn, ms.date 2023-10-12 — official_docs.
+    - "The /permissive- option is implicitly set by the /std:c++latest option starting in Visual Studio 2019 version 16.8, and in version 16.11 by the /std:c++20 option."
+    - Verification: verbatim.
+  - [Lessons from Building Static Analysis Tools at Google](https://cacm.acm.org/research/lessons-from-building-static-analysis-tools-at-google/) — Sadowski, Aftandilian, Eagle, Miller-Cushon, Jaspan, CACM 61(4), 2018 — peer_reviewed (magazine).
+    - "enabled the new diagnostic as a compiler error (not a warning, which the Clang team found Google developers ignored)"
+    - "As of January 2018, there was a compiler warnings-free default for C++ and Java builds at Google".
+    - Verification: verbatim ("As of", not "By").
+  - [The Unexplored Terrain of Compiler Warnings](https://arxiv.org/abs/2201.10599) — Kudrjavets, Kumar, Nagappan, Rastogi, ICSE-SEIP 2022 (2-page paper) — peer_reviewed.
+    - "Current published data indicates that addressing compiler warnings early is beneficial. However, support for this value theory stems from grey literature or is anecdotal."
+    - Verification: abstract verbatim.
+  - [C++ Best Practices: Use the Tools Available](https://github.com/cpp-best-practices/cppbestpractices/blob/master/02-Use_the_Tools_Available.md) — Jason Turner et al., living document — book/guide.
+    - GCC/Clang baseline: "-Wall -Wextra -Wshadow -Wnon-virtual-dtor -pedantic". MSVC: "/permissive-" plus "/W4 /w14640".
+    - "`-Weffc++` warning mode can be too noisy". MSVC /Wall is "Not recommended for normal builds".
+    - Verification: the quote was corrected; the researcher's "excessively noisy" was a paraphrase.
+  - [HN comment on "Not -Werror considered harmful"](https://news.ycombinator.com/item?id=28746596) — flohofwoe, 2021 — practitioner_forum.
+    - "enable -Werror for development and keep your own code warning free ... For release builds, don't use -Werror (because you can't know what compiler version your users are using)".
+    - Verification: verbatim via the HN API.
+- **Detect:**
+  1. Generate compile_commands.json (`-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`) and check each TU's flags.
+  2. Do a clean rebuild with the target flags and count the warnings: `cmake --build build 2>&1 | grep -c 'warning:'`. That count is the baseline.
+  3. Look for suppressions: `rg -n -- '-w\b|-Wno-|/wd[0-9]+|#pragma (GCC|clang) diagnostic ignored|#pragma warning\(disable' CMakeLists.txt cmake src include`.
+  4. Make sure third-party headers are included with `-isystem`.
+- **Tools:** gcc, clang, MSVC cl, CMake, compile_commands.json, ripgrep.
+- **Applies to:** All C++ builds. Do this as step 0 of the hardening pass.
+- **When not to apply / counterpoints:**
+  - The cost/benefit evidence is mostly grey literature (Kudrjavets et al.).
+  - `-Weffc++` and MSVC `/Wall` are documented as too noisy.
+  - `-Werror` breaks builds of old commits under new compilers unless the toolchain is hermetic (HN dataflow, 38480332, verified).
+  - Microsoft recommends `/WX` for new projects, while OpenSSF says not to use blanket `-Werror` in distributed source. Both are compatible with "CI only".
+  - GCC recommends `-Wdelete-non-virtual-dtor` (in `-Wall`) over `-Wnon-virtual-dtor` (see F10).
+- **Fix risk:** low
+
+### T23-F09 — Remove naked ownership
+- **Grade:** A · **Verdict:** CORRECTED. Only the date of the MSVC checkers page changed, from 2025 to ms.date 2023-06-21. Every claim was verified.
+- **Rule:** Every `new` or `malloc` result must be owned immediately by a resource handle: `std::make_unique` by default, `std::make_shared` only for truly shared ownership, or a container. Raw `T*` and `T&` mean non-owning. Replace owning raw pointers and manual `delete`/`delete[]`/`free` with RAII types. Keep the legitimate exceptions (allocators, placement new, framework-managed object trees, C APIs) inside a single audited handle class.
+- **Rationale:** Memory unsafety dominates severe C++ bugs. In Chromium, about 70% of high-severity security bugs are memory unsafety, and half of those are use-after-free. The Core Guidelines, Google's style guide and Sutter's safety proposals all converge on this rule.
+- **Evidence:**
+  - [C++ Core Guidelines R.11, R.20, R.21, I.11](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#rr-newdelete) — Stroustrup, Sutter (eds.), Jun 14, 2026 — standard.
+    - R.11: "If you have a naked `new`, you probably need a naked `delete` somewhere, so you probably have a bug."
+    - R.11 enforcement: "(Simple) Warn on any explicit use of `new` and `delete`. Suggest using `make_unique` instead."
+    - R.21: "A `unique_ptr` is conceptually simpler and more predictable (you know when destruction happens) and faster".
+    - I.11: "If there is any doubt whether the caller or the callee owns an object, leaks or premature destruction will occur."
+    - Verification: verbatim.
+  - [Google C++ Style Guide: Ownership and Smart Pointers](https://google.github.io/styleguide/cppguide.html) — Google, 2026 — official_docs.
+    - "Prefer to use std::unique_ptr to make ownership transfer explicit."
+    - "Do not design your code to use shared ownership without a very good reason."
+    - Verification: verbatim.
+  - [Memory Safety (Chromium Security)](https://www.chromium.org/Home/chromium-security/memory-safety/) — Chromium project — industry_report.
+    - "Around 70% of our high severity security bugs are memory unsafety problems ... Half of those are use-after-free bugs." Based on "912 high or critical security bugs since 2015".
+    - Verification: verbatim.
+  - [clang-tidy cppcoreguidelines-owning-memory](https://clang.llvm.org/extra/clang-tidy/checks/cppcoreguidelines/owning-memory.html) — LLVM, 2026 — official_docs.
+    - "All checks are purely type based and not (yet) flow sensitive."
+    - The Limitations section covers templates and `std::vector<gsl::owner<T*>>`.
+    - Verification: verbatim.
+  - [Using the C++ Core Guidelines checkers (MSVC)](https://learn.microsoft.com/en-us/cpp/code-quality/using-the-cpp-core-guidelines-checkers) — Microsoft Learn, ms.date 2023-06-21 — official_docs.
+    - Rule sets include Owner Pointer, Raw Pointer, Unique Pointer and Shared pointer Rules.
+    - Suppression example: `[[gsl::suppress("26400")]]`.
+    - Enabled with `msbuild /p:EnableCppCoreCheck=true /p:RunCodeAnalysis=true`.
+    - Verification: verbatim; the year was corrected.
+  - [C++ safety, in context](https://herbsutter.com/2024/03/11/safety-in-context/) — Herb Sutter, 2024 — engineering_blog.
+    - "All manual memory management is banned by default (new, delete, malloc, and free). Corollary: 'Owning' raw pointers are banned by default".
+    - Verification: verbatim.
+- **Detect:**
+  - Naked `new`: `rg -n '\bnew\s+[A-Za-z_:][A-Za-z0-9_:<>, ]*\s*[\(\{\[]' -g '*.{cpp,cc,cxx,h,hpp}'`. Review the hits by hand; placement new shows up as `new (buf)`.
+  - Explicit `delete`: `rg -n '\bdelete\s*(\[\s*\])?\s*[A-Za-z_(*]'`.
+  - C allocation: `rg -n '\b(malloc|calloc|realloc|free)\s*\('`.
+  - clang-tidy: cppcoreguidelines-owning-memory, cppcoreguidelines-no-malloc, modernize-make-unique, modernize-make-shared, bugprone-unique-ptr-array-mismatch.
+  - MSVC `/analyze` with CppCoreCheck (C26400, C26409).
+- **Tools:** clang-tidy; MSVC /analyze CppCoreCheck; ripgrep / ast-grep; ASan LeakSanitizer.
+- **Applies to:** Application code. Code that exists to manage resources (containers, allocators, pools) should be isolated and audited, not rewritten.
+- **When not to apply / counterpoints:**
+  - Converting ownership can change destruction timing and order, exception-safety behaviour, and public API/ABI.
+  - shared_ptr cycles leak.
+  - Frameworks with parent-owned object trees legitimately use `new` without a matching `delete`.
+  - gsl::owner checking is type-based only.
+- **Fix risk:** high
+
+### T23-F11 — Hunt lifetime bugs explicitly
+- **Grade:** A · **Verdict:** VERIFIED. The GCC URL is pinned to 16.2, with the added fact that `-Wdangling-reference` is enabled by `-Wextra`.
+- **Rule:** Look for each of these lifetime bugs explicitly:
+  - Use of an object after `std::move`, unless it was reinitialized first (CERT EXP63-CPP).
+  - `std::string_view` or `std::span` bound to temporaries, returned from functions that own the data, or stored as members without a proven owner.
+  - Reference-capturing lambdas (`[&]`) that outlive their scope: stored, passed to threads/async/callbacks, or returned (EXP61-CPP).
+  - Container iterators or references used after an insert, erase or reallocation (CTR51-CPP).
+- **Rationale:** Use-after-free is half of Chromium's severe memory bugs. Non-owning views dangle silently.
+- **Evidence:**
+  - [clang-tidy bugprone-use-after-move](https://clang.llvm.org/extra/clang-tidy/checks/bugprone/use-after-move.html) — LLVM, 2026 — official_docs.
+    - The analysis "is flow-sensitive but not path-sensitive".
+    - It "only considers calls of std::move on local variables or function parameters. It does not check moves of member variables or global variables."
+    - Verification: verbatim.
+  - [clang-tidy bugprone-dangling-handle](https://clang.llvm.org/extra/clang-tidy/checks/bugprone/dangling-handle.html) — LLVM, 2026 — official_docs.
+    - Flags `string_view View = string();` and `V.push_back(string())` on a `vector<string_view>`.
+    - HandleClasses defaults to "std::basic_string_view, std::experimental::basic_string_view and std::span".
+    - Verification: verbatim.
+  - [Abseil Tip of the Week #1: string_view](https://abseil.io/tips/1) — Michael Chastain (Google), originally 2012, updated 2020-08-18 — engineering_blog.
+    - "must have a known lifespan, and must outlast the string_view itself"
+    - "If your API only needs to reference the string data during a single call".
+    - Verification: verbatim.
+  - [SEI CERT C++ EXP61-CPP](https://cmu-sei.github.io/secure-coding-standards/sei-cert-cpp-coding-standard/rules/expressions-exp/exp61-cpp) and [CTR51-CPP](https://cmu-sei.github.io/secure-coding-standards/sei-cert-cpp-coding-standard/rules/containers-ctr/ctr51-cpp) — CMU SEI, 2016 edition (tool table 2025-2026) — standard.
+    - EXP61-CPP: High / Probable / not detectable / P6 / L2.
+    - CTR51-CPP: High / Probable / P6 / L2.
+    - Detectors listed include PVS-Studio V1047 (EXP61), V783 and Klocwork ITER.CONTAINER.MODIFIED (CTR51).
+    - Verification: verbatim from the risk tables.
+  - [GCC C++ Dialect Options (-Wdangling-reference)](https://gcc.gnu.org/onlinedocs/gcc-16.2.0/gcc/C_002b_002b-Dialect-Options.html) — GCC 16.2 manual — official_docs.
+    - "Warn when a reference is bound to a temporary whose lifetime has ended." Example: `const int& r = std::max(n - 1, n + 1);`.
+    - Some functions "can fool the warning" and need a `#pragma`. "This warning is enabled by -Wextra."
+    - Verification: verbatim.
+  - [Clang Diagnostics Reference (-Wdangling)](https://clang.llvm.org/docs/DiagnosticsReference.html) — LLVM, 2026 — official_docs.
+    - "This diagnostic is enabled by default. Also controls -Wdangling-assignment, -Wdangling-assignment-gsl, -Wdangling-capture, -Wdangling-field, -Wdangling-gsl, -Wdangling-initializer-list, -Wreturn-stack-address."
+    - Verification: verbatim.
+  - [HN comment on "C++23: std::out_ptr and std::inout_ptr"](https://news.ycombinator.com/item?id=33918669) — abbeyj, 2022 — practitioner_forum.
+    - "getting a const reference to a temporary and then constructing a string_view out of it is not an error or even a warning."
+    - Verification: verbatim.
+- **Detect:**
+  - clang-tidy: bugprone-use-after-move, bugprone-dangling-handle (extend HandleClasses with the project's own view types), bugprone-return-const-ref-from-parameter.
+  - Compilers: clang `-Wdangling` (on by default), GCC `-Wdangling-reference` (via `-Wextra`).
+  - View-type members in headers: `rg -n '^\s*(const\s+)?std::(string_view|span<[^>]*>)\s+\w+\s*(;|\{|=)' -g '*.{h,hpp}'`.
+  - Escaping `[&]` lambdas: `rg -n '\[&[^\]]*\]' | rg 'std::thread|std::async|std::function|detach|post\(|then\(|return \['`.
+  - Confirm dynamically with ASan (`detect_stack_use_after_return`).
+- **Tools:** clang-tidy; clang -Wdangling; GCC -Wdangling-reference; ASan; PVS-Studio (commercial).
+- **Applies to:** Code that uses string_view/span, move semantics, callbacks and async, or mutates containers while iterating.
+- **When not to apply / counterpoints:**
+  - The static checks are incomplete. use-after-move is not path-sensitive and ignores members and globals. GCC's warning has documented false positives.
+  - A real stack use-after-free passed both cppcheck and clang-tidy (HN 32823103).
+  - Replacing a string_view member with a std::string adds allocations and changes aliasing semantics.
+- **Fix risk:** medium
+
+### T23-F13 — Replace unchecked pointer arithmetic and (T*, size) pairs with bounds-carrying types
+- **Grade:** A · **Verdict:** CORRECTED. The SafeBuffers "rather than pointer-size pairs" wording is a paraphrase, not a quote. The newer check cppcoreguidelines-pro-bounds-avoid-unchecked-container-access is noted.
+- **Rule:**
+  - Replace unchecked buffers with bounds-carrying types: `std::span` for views, `std::array` for fixed arrays, `std::vector` for owned buffers.
+  - Use algorithms or ranges instead of memcpy/memset.
+  - Consider clang `-Wunsafe-buffer-usage`, and adopt it file by file.
+  - Opt out only through explicit, justified markers: `#pragma clang unsafe_buffer_usage begin/end`, or a project `UNSAFE_BUFFERS()` macro with a `// SAFETY:` comment.
+- **Rationale:** Spatial safety bugs account for 40% of in-the-wild memory-safety exploits. Putting the size in the type lets the hardened library (F04) check every access.
+- **Evidence:**
+  - [C++ Safe Buffers](https://clang.llvm.org/docs/SafeBuffers.html) — LLVM/Clang, 2026 — official_docs.
+    - `-Wunsafe-buffer-usage` fires on "array indexing with [], pointer arithmetic, bounds-unsafe standard C functions such as std::memcpy()".
+    - Ideal code: containers "are never 'unforged' into raw pointer-size pairs".
+    - "It is not a 'push-button' solution". Opt-out via `#pragma clang unsafe_buffer_usage begin`.
+    - Verification: verbatim; the researcher's "rather than pointer-size pairs" is a paraphrase.
+  - [Unsafe buffers (Chromium docs)](https://chromium.googlesource.com/chromium/src/+/main/docs/unsafe_buffers.md) — Chromium project, 2026 — other.
+    - `UNSAFE_BUFFERS()` "must always be accompanied by a `// SAFETY:` comment".
+    - "`base::span<T>` replaces `T* ptr, size_t size`".
+    - "often 85%+ of files in a directory already happen to be compliant".
+    - Verification: verbatim.
+  - [Retrofitting spatial safety ...](https://security.googleblog.com/2024/11/retrofitting-spatial-safety-to-hundreds.html) — Google, 2024 — engineering_blog.
+    - "spatial safety vulnerabilities represent 40% of in-the-wild memory safety exploits over the past decade".
+    - Verification: verbatim; based on Project Zero data.
+  - [Using the C++ Core Guidelines checkers](https://learn.microsoft.com/en-us/cpp/code-quality/using-the-cpp-core-guidelines-checkers) — Microsoft Learn, 2023 — official_docs.
+    - "C26485 is rule Bounds.3: No array-to-pointer decay." "C26481 is rule Bounds.1: Don't use pointer arithmetic. Use span instead."
+    - Verification: verbatim.
+  - [SEI CERT C++ CTR50-CPP](https://cmu-sei.github.io/secure-coding-standards/sei-cert-cpp-coding-standard/rules/containers-ctr/) — CMU SEI, 2016 — standard.
+    - "Guarantee that container indices and iterators are within the valid range". Rated High / Likely, P9 L2.
+    - Verification: verbatim.
+- **Detect:**
+  - clang `-Wunsafe-buffer-usage`, with counts per file.
+  - clang-tidy: cppcoreguidelines-pro-bounds-pointer-arithmetic, -array-to-pointer-decay, -constant-array-index, -avoid-unchecked-container-access; modernize-avoid-c-arrays.
+  - MSVC: C26481 and C26485.
+  - Pointer+size signatures: `rg -n '\(\s*(const\s+)?\w+\s*\*\s*\w+\s*,\s*(std::)?size_t\s+\w+' -g '*.{h,hpp}'`.
+- **Tools:** clang -Wunsafe-buffer-usage; clang-tidy pro-bounds-\*; MSVC CppCoreCheck Bounds; std::span (C++20) / gsl::span.
+- **Applies to:** Parsing, codecs, networking, serialization, and any code that indexes raw buffers.
+- **When not to apply / counterpoints:**
+  - Full compliance is a migration, not a single pass; Clang itself says it is not push-button.
+  - `std::array` is copied by value, so replacing a C array can change cost and aliasing.
+  - Hot loops may need audited opt-outs.
+  - The pro-bounds checks are noisy on C-interop code.
+- **Fix risk:** medium
+
+### T23-F08 — Apply automated fix-its one check at a time
+- **Grade:** A · **Verdict:** CORRECTED. The O'Dwyer anecdote is reframed: the student misapplied the fix-it. Evidence that Firefox runs loop-convert at MinConfidence=safe is added.
+- **Rule:** Apply automated fix-its one check at a time, each in its own commit, and rebuild and test after each one, ideally under ASan/UBSan. Never run `--fix` with a broad glob. Review each fix from these checks by hand:
+  - **modernize-loop-convert:** keep MinConfidence at reasonable or safe.
+  - **modernize-use-emplace:** consider `IgnoreImplicitConstructors=true`.
+  - **modernize-use-transparent-functors:** use SafeMode.
+  - **performance-unnecessary-value-param and misc-unused-parameters:** their fixes change signatures.
+  - **modernize-use-auto:** contested.
+- **Rationale:** The tool docs themselves state that these fixes can change semantics or break builds, and Chromium records fix-its that broke builds. Small steps verified by tests keep the "without breaking behaviour" promise and make regressions bisectable.
+- **Evidence:**
+  - [clang-tidy modernize-loop-convert](https://clang.llvm.org/extra/clang-tidy/checks/modernize/loop-convert.html) — LLVM, 2026 — official_docs.
+    - Confidence levels: risky, reasonable (the default), safe.
+    - "If the called member function modifies the container the semantics of the converted loop will differ due to .end() being called only once."
+    - Side effects of an overloaded `operator->()` are lost.
+    - Modifying the container through a pointer or reference can "circumvent the analysis".
+    - Verification: verbatim.
+  - [clang-tidy modernize-use-emplace](https://clang.llvm.org/extra/clang-tidy/checks/modernize/use-emplace.html) — LLVM, 2026 — official_docs.
+    - IgnoreImplicitConstructors: "Default is false."
+    - It skips unique_ptr/new cases because the change "could cause a leak of this pointer if emplace_back would throw exception before emplacement".
+    - EmplacyFunctions: "the check will report when a temporary is unnecessarily created".
+    - Verification: verbatim.
+  - [Don't blindly prefer emplace_back to push_back](https://quuxplusone.github.io/blog/2021/03/03/push-back-emplace-back/) — Arthur O'Dwyer, 2021 — engineering_blog.
+    - A student followed the modernize-use-emplace warning by writing `widgets.emplace_back(Widget(foo, bar, baz))`. This kept the temporary: "Absolutely no difference". The intended fix was to pass the constructor arguments.
+    - emplace_back "is more work for the compiler" and is "a dumb perfect-forwarding template". Rule: "Use push_back by default."
+    - Verification: verbatim; the researcher's framing was corrected.
+  - [Chromium .clang-tidy](https://raw.githubusercontent.com/chromium/chromium/main/.clang-tidy) — Chromium project, 2026 — other.
+    - "crbug.com/1342136, crbug.com/1343915: At times, this check makes suggestions that break builds. Safe mode allows us to sidestep that." (modernize-use-transparent-functors.SafeMode=1)
+    - modernize-use-emplace.IgnoreImplicitConstructors=1.
+    - Verification: verbatim.
+  - [Firefox tools/clang-tidy/config.yaml](https://raw.githubusercontent.com/mozilla-firefox/firefox/main/tools/clang-tidy/config.yaml) — Mozilla, 2026 — other.
+    - modernize-loop-convert is active with `MinConfidence: safe`.
+    - Procedure: `--checks='-*, new-checker'`; "Fix all issues found ... Running the above with `--fix` may help, depending on the confidence you have in the checker. Eventually use // NOLINT(new-checker)".
+    - Verification: verbatim; new evidence.
+  - [clang-tidy performance-unnecessary-value-param](https://clang.llvm.org/extra/clang-tidy/checks/performance/unnecessary-value-param.html) — LLVM, 2026 — official_docs.
+    - "Because the fix-it needs to change the signature of the function, it may break builds if the function is used in multiple translation units or some codes depends on function signatures."
+    - Verification: verbatim.
+  - [HN comment on "Refactoring in C++: Top Techniques and Best Practices"](https://news.ycombinator.com/item?id=42405952) — kimixa, 2024 — practitioner_forum.
+    - "I also wouldn't treat the output of clang-tidy as gospel 100% truth either, look at the changes it suggests ... before blindly applying them".
+    - Verification: verbatim.
+- **Detect:** Process:
+  1. `run-clang-tidy -p build -checks='-*,<one-check>' -fix`
+  2. `cmake --build build && ctest --test-dir build`
+  3. Commit.
+
+  Review by hand every fix that touches function signatures, loops over containers, or emplace calls.
+- **Tools:** clang-tidy -fix / -export-fixes; clang-apply-replacements; git bisect; ctest.
+- **Applies to:** Every automated refactoring step, especially AI-driven bulk application.
+- **When not to apply / counterpoints:**
+  - Going one check at a time is slower, and teams do batch trivially safe checks such as modernize-use-nullptr.
+  - Check behaviour varies by version. Per HN 41096949 (verified), newer modernize-use-emplace also flags unnecessary temporaries inside emplace calls. Pin the clang-tidy version.
+- **Fix risk:** medium
+
+### T23-F10 — Make class semantics explicit and safe
+- **Grade:** A · **Verdict:** CORRECTED. The Mozilla source is moved from the archived gecko-dev mirror to the current Firefox repo; there those ratings sit in the commented-out legacy list. The GCC URL is pinned to 16.2.
+- **Rule:**
+  - Rule of zero, or else the rule of five (C.21).
+  - A polymorphic base destructor is either public and virtual, or protected and non-virtual (C.35).
+  - Each overriding function says exactly one of virtual, override or final (C.128).
+  - Single-argument constructors are explicit unless an implicit conversion is intended (C.46).
+  - Move operations are noexcept (C.66).
+  - No const or reference data members in copyable or movable types (C.12).
+- **Rationale:**
+  - Compiler-generated copies of a class that owns a resource lead to double deletion.
+  - Deleting a derived object through a base pointer without a virtual destructor is UB.
+  - Without override, a typo in the signature silently stops the function from overriding.
+  - If the move constructor is not noexcept, standard containers may copy instead of move.
+- **Evidence:**
+  - [C++ Core Guidelines C.21, C.35, C.128, C.46, C.66, C.12](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#rc-five) — isocpp, Jun 14, 2026 — standard.
+    - C.35: "the result is undefined if the base class's destructor is non-virtual".
+    - C.46: "Copy and move constructors should not be made `explicit`".
+    - C.66: "A non-throwing move will be used more efficiently by standard-library and language facilities."
+    - C.12: "only-sort-of-copyable".
+    - Verification: verbatim.
+  - [GCC C++ Dialect Options](https://gcc.gnu.org/onlinedocs/gcc-16.2.0/gcc/C_002b_002b-Dialect-Options.html) — GCC 16.2 manual — official_docs.
+    - "The -Wdelete-non-virtual-dtor option (enabled by -Wall) should be preferred because it warns about the unsafe cases without false positives."
+    - `-Woverloaded-virtual` warns "when a function declaration hides virtual functions from a base class"; level 1 is in `-Wall`.
+    - Verification: verbatim.
+  - [clang-tidy cppcoreguidelines-special-member-functions](https://clang.llvm.org/extra/clang-tidy/checks/cppcoreguidelines/special-member-functions.html), [performance-noexcept-move-constructor](https://clang.llvm.org/extra/clang-tidy/checks/performance/noexcept-move-constructor.html), [bugprone-exception-escape](https://clang.llvm.org/extra/clang-tidy/checks/bugprone/exception-escape.html) — LLVM, 2026 — official_docs.
+    - AllowSoleDefaultDtor, AllowMissingMoveFunctions and AllowMissingMoveFunctionsWhenCopyIsDeleted all default to false.
+    - "Otherwise STL may choose copy constructors instead."
+    - exception-escape: "WARNING! This check may be expensive on large source files."
+    - Verification: verbatim.
+  - [Firefox tools/clang-tidy/config.yaml](https://raw.githubusercontent.com/mozilla-firefox/firefox/main/tools/clang-tidy/config.yaml) — Mozilla, 2026 — other.
+    - In the commented-out legacy list: google-explicit-constructor "reliability: low", not published. modernize-use-override "reliability: low", "Too noisy because of how we implement NS_IMETHOD".
+    - Verification: verbatim. The researcher's gecko-dev URL is a mirror archived on Jul 9, 2025.
+- **Detect:**
+  - clang-tidy: cppcoreguidelines-special-member-functions, cppcoreguidelines-virtual-class-destructor, modernize-use-override (or cppcoreguidelines-explicit-virtual-functions), google-explicit-constructor, performance-noexcept-move-constructor, bugprone-exception-escape.
+  - Compiler flags: `-Wall` (includes `-Wdelete-non-virtual-dtor` in GCC and Clang), `-Woverloaded-virtual`, clang `-Winconsistent-missing-override` / `-Wsuggest-override`.
+  - Const or reference members in headers: manual grep.
+- **Tools:** clang-tidy; gcc/clang warnings; MSVC CppCoreCheck Class Rules.
+- **Applies to:** All class types, especially resource-owning classes and polymorphic hierarchies.
+- **When not to apply / counterpoints:**
+  - Adding a virtual destructor adds a vptr and changes layout and ABI.
+  - Adding explicit breaks implicit-conversion call sites (at compile time, so safe but churny).
+  - noexcept on a move that can throw turns the exception into std::terminate.
+  - Mozilla historically rated google-explicit-constructor and modernize-use-override as low reliability for its macro-heavy code.
+- **Fix risk:** medium
+
+### T23-F12 — Remove C-style casts; use named casts and std::bit_cast
+- **Grade:** A · **Verdict:** VERIFIED. A contradiction with Google is added: Google permits `(void)` casts and `T(x)` for class types.
+- **Rule:**
+  - Replace C-style casts with named casts (static_cast, const_cast, reinterpret_cast, dynamic_cast), or with no cast at all.
+  - Replace type punning through reinterpret_cast, unions or memcpy with `std::bit_cast` (C++20).
+  - Never memset or memcpy non-trivially-copyable types (C.90).
+  - Never cast a `[[nodiscard]]` result to `(void)`; use `std::ignore =` after review.
+  - Treat a high density of casts in a module as a design finding.
+- **Rationale:** Casts disable the type system. A C-style cast can silently combine const_cast and reinterpret_cast. Named casts can be found with grep.
+- **Evidence:**
+  - [C++ Core Guidelines ES.48 / ES.49 / C.90](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#res-casts) — isocpp, 2026 — standard.
+    - "Casts are a well-known source of errors and make some optimizations unreliable."
+    - "If you feel the need for a lot of casts, there might be a fundamental design problem."
+    - "Never cast to `(void)` to ignore a `[[nodiscard]]`return value ... use `std::ignore =`".
+    - Enforcement: "Flag all C-style casts, including to `void`" and "Flag functional style casts using `Type(value)`".
+    - C.90: "Using memcpy to copy a non-trivially copyable type has undefined behavior."
+    - Verification: verbatim.
+  - [GCC -Wold-style-cast](https://gcc.gnu.org/onlinedocs/gcc-16.2.0/gcc/C_002b_002b-Dialect-Options.html) — GCC 16.2 manual — official_docs.
+    - "The new-style casts ... are less vulnerable to unintended effects and much easier to search for."
+    - Verification: verbatim.
+  - [Google C++ Style Guide: Casting](https://google.github.io/styleguide/cppguide.html) — Google, 2026 — official_docs.
+    - "Do not use cast formats like (int)x unless the cast is to void. You may use cast formats like T(x) only when T is a class type."
+    - Verification: verbatim.
+  - [std::bit_cast](https://en.cppreference.com/w/cpp/numeric/bit_cast) — cppreference.com — other (community reference).
+    - Requires `sizeof(To) == sizeof(From)` and both types TriviallyCopyable.
+    - "reinterpret_cast (or equivalent explicit cast) between pointer or reference types shall not be used to reinterpret object representation in most cases because of the type aliasing rule."
+    - Verification: verbatim.
+- **Detect:**
+  - Compiler: `-Wold-style-cast`.
+  - clang-tidy: google-readability-casting, cppcoreguidelines-pro-type-cstyle-cast / -reinterpret-cast / -const-cast, bugprone-undefined-memory-manipulation, readability-redundant-casting.
+  - Cast density per file, and grep for punning candidates (researcher's regexes).
+- **Tools:** gcc/clang -Wold-style-cast; clang-tidy; MSVC CppCoreCheck.
+- **Applies to:** All C++ code. Low-level serialization and FFI layers should isolate their casts.
+- **When not to apply / counterpoints:**
+  - Rewriting a cast mechanically as reinterpret_cast or const_cast keeps the UB.
+  - Removing a redundant cast can change overload resolution.
+  - `bit_cast` needs C++20.
+  - Google allows `(void)` casts and `T(x)` for class types, while ES.48/ES.49 flag both. Follow the project's style guide.
+  - The guidelines concede "Casts are necessary in a systems programming language."
+- **Fix risk:** medium
+
+### T23-F14 — Initialize every object at its declaration
+- **Grade:** A · **Verdict:** VERIFIED. The HN comment (bri3d) is now verified directly rather than through an Algolia summary. Sutter's caveat on zero-init is added.
+- **Rule:** Initialize every object at its declaration (ES.20), including all data members. Pick a meaningful initial value, not an arbitrary 0 that hides a logic error. Keep `-ftrivial-auto-var-init` (F05) only as a backstop.
+- **Rationale:** Reading uninitialized memory is UB and an information leak, and ASan does not catch it.
+- **Evidence:**
+  - [C++ Core Guidelines ES.20](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#res-always) — isocpp, 2026 — standard.
+    - "Avoid used-before-set errors and their associated undefined behavior."
+    - "a compiler that can detect whether we made a used-before-set error can also eliminate any redundant double initialization."
+    - Verification: verbatim.
+  - [Using the C++ Core Guidelines checkers](https://learn.microsoft.com/en-us/cpp/code-quality/using-the-cpp-core-guidelines-checkers) — Microsoft Learn, 2023 — official_docs.
+    - "warning C26494: Variable 'arr' is uninitialized. Always initialize an object. (type.5".
+    - Verification: verbatim.
+  - [SEI CERT C++ EXP53-CPP](https://cmu-sei.github.io/secure-coding-standards/sei-cert-cpp-coding-standard/rules/expressions-exp/) — CMU SEI, 2016 — standard.
+    - "EXP53-CPP. Do not read uninitialized memory"
+    - Verification: title verbatim.
+  - [Chromium .clang-tidy](https://raw.githubusercontent.com/chromium/chromium/main/.clang-tidy) — Chromium, 2026 — other.
+    - Enables `clang-analyzer-core.uninitialized.*`.
+    - Verification: verbatim.
+  - [C++ safety, in context](https://herbsutter.com/2024/03/11/safety-in-context/) — Herb Sutter, 2024 — engineering_blog.
+    - Zero-initialization "masks others for which zero is not a valid initializer and so the behavior is still wrong, but because a zero has been jammed in it's harder for sanitizers to detect."
+    - Verification: verbatim; new evidence.
+  - [HN comment (GTA San Andreas / Windows 11 24H2 thread)](https://news.ycombinator.com/item?id=43776929) — bri3d, 2025 — practitioner_forum.
+    - "I tried this with clang ASAN. Nothing happens. It won't catch this bug."
+    - `-ftrivial-auto-var-init=pattern` "does make it appear pretty quickly in QA".
+    - Verification: verbatim via the HN API.
+- **Detect:**
+  - Compilers: `-Wuninitialized` / `-Wmaybe-uninitialized` (GCC), `-Wuninitialized` / `-Wsometimes-uninitialized` (Clang), MSVC C4700 / C26494.
+  - clang-tidy: cppcoreguidelines-init-variables, cppcoreguidelines-pro-type-member-init, clang-analyzer-core.uninitialized.\*.
+  - Dynamic: MSan or Valgrind memcheck on the tests.
+  - Grep for members without initializers.
+- **Tools:** gcc/clang -Wuninitialized; clang-tidy; clang static analyzer; MSan; MSVC C26494.
+- **Applies to:** All locals and data members, especially POD structs that cross API, serialization or IPC boundaries.
+- **When not to apply / counterpoints:**
+  - An added initializer turns UB into defined behaviour with a possibly wrong value, and can hide the bug from MSan.
+  - init-variables fixes insert arbitrary defaults; review them.
+  - Large buffers in hot loops can cost performance. Windows saw over 10% when initializing all types, before optimizer work (MSRC 2020).
+- **Fix risk:** low
+
+### T23-F16 — Use RAII lock guards, thread-safety annotations and TSan for shared mutable state
+- **Grade:** A · **Verdict:** VERIFIED
+- **Rule:**
+  - Never call lock()/unlock() by hand; use RAII guards (CP.20, CERT CON51-CPP).
+  - Annotate mutex-protected members with Clang Thread Safety Analysis attributes and compile with `-Wthread-safety`.
+  - Run the tests under TSan in a separate build.
+  - Wrap condition-variable waits in a predicate loop (CON54-CPP).
+- **Rationale:** Data races are UB and can survive testing. The annotations are compile-time only and have no runtime cost.
+- **Evidence:**
+  - [C++ Core Guidelines CP.2 / CP.20](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#rconc-raii) — isocpp, 2026 — standard.
+    - "Unless you do, nothing is guaranteed to work and subtle errors will persist."
+    - "Local static variables are a common source of data races."
+    - "Sooner or later, someone will forget the `mtx.unlock()`, place a `return` ... throw an exception".
+    - Enforcement: "Flag calls of member `lock()` and `unlock()`."
+    - Verification: verbatim.
+  - [Thread Safety Analysis](https://clang.llvm.org/docs/ThreadSafetyAnalysis.html) — LLVM/Clang, 2026 — official_docs.
+    - "there is no run-time overhead"; "used extensively in Google's internal code base".
+    - Known limitations include no conditionally held locks, no checking inside constructors and destructors, and no alias analysis. It is "not inter-procedural".
+    - Verification: verbatim.
+  - [SEI CERT C++ Concurrency (CON)](https://cmu-sei.github.io/secure-coding-standards/sei-cert-cpp-coding-standard/rules/concurrency-con/) — CMU SEI, 2016 — standard.
+    - CON51-CPP: "Ensure actively held locks are released on exceptional conditions".
+    - CON53-CPP: lock ordering.
+    - CON54-CPP: "Wrap functions that can spuriously wake up in a loop".
+    - Verification: verbatim.
+  - [ThreadSanitizer](https://clang.llvm.org/docs/ThreadSanitizer.html) — LLVM/Clang, 2026 — official_docs.
+    - Slowdown of 5x-15x. Uninstrumented code causes missed races or false positives.
+    - Verification: verbatim.
+- **Detect:**
+  - Manual lock calls: `rg -n '\.(lock|unlock|try_lock)\s*\(\s*\)'`.
+  - condition_variable waits without a predicate.
+  - clang-tidy: concurrency-mt-unsafe, bugprone-unused-raii, bugprone-spuriously-wake-up-functions.
+  - clang `-Wthread-safety` after annotating the code.
+  - The TSan build of the tests.
+- **Tools:** clang -Wthread-safety; TSan; clang-tidy concurrency-\* / bugprone-unused-raii; MSVC CppCoreCheck Concurrency.
+- **Applies to:** Multi-threaded code, and any class that holds a std::mutex.
+- **When not to apply / counterpoints:**
+  - The annotations are Clang-only and intra-procedural, and retrofitting them is manual work.
+  - Changing lock scope can introduce deadlocks or contention.
+  - Chromium rejected bugprone-spuriously-wake-up-functions as noisy or useless for its code (verified in its .clang-tidy).
+- **Fix risk:** medium
+
+### T23-F22 — Headers are self-contained and inject no names
+- **Grade:** A · **Verdict:** VERIFIED. Supporting sources SF.2, SF.11 and Google "Self-contained Headers" are added; all were checked.
+- **Rule:**
+  - No `using namespace` at global or namespace scope in headers (SF.7). The exception is `using namespace std::literals`.
+  - No non-inline definitions of objects or functions in headers (SF.2).
+  - Every header compiles on its own (SF.11).
+- **Rationale:** A using-directive in a header changes name lookup in every file that includes it, and makes the result depend on include order.
+- **Evidence:**
+  - [C++ Core Guidelines SF.7](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#rs-using-directive) — isocpp, 2026 — standard.
+    - "Doing so takes away an `#include`r's ability to effectively disambiguate and to use alternatives. It also makes `#include`d headers order-dependent"
+    - "An exception is `using namespace std::literals;`"
+    - Enforcement: "Flag `using namespace` at global scope in a header file."
+    - Verification: verbatim.
+  - [C++ Core Guidelines SF.2 / SF.11](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#rs-inline) — isocpp, 2026 — standard.
+    - SF.2: "A header file must not contain object definitions or non-inline function definitions."
+    - SF.11: "Header files should be self-contained."
+    - Verification: headings verbatim.
+  - [Google C++ Style Guide: Namespaces / Self-contained Headers](https://google.github.io/styleguide/cppguide.html) — Google, 2026 — official_docs.
+    - "Do not use using-directives (e.g., using namespace foo)."
+    - "Header files should be self-contained (compile on their own)".
+    - Verification: verbatim.
+- **Detect:**
+  - `rg -n -P '^\s*using\s+namespace\s+(?!std::literals)' -g '*.{h,hpp,hh,hxx}'`.
+  - clang-tidy: google-build-using-namespace, misc-definitions-in-headers (active in Firefox's current config).
+  - Compile each header on its own: `echo '#include "x.h"' | clang++ -fsyntax-only -x c++ -`.
+- **Tools:** clang-tidy; ripgrep.
+- **Applies to:** All project headers.
+- **When not to apply / counterpoints:**
+  - Removing a using-directive breaks includers that relied on it (at compile time).
+  - In rare cases it changes overload resolution through ADL; run the tests.
+- **Fix risk:** low
+
+### T23-F20 — Keep the project's error-handling model; noexcept only where it is a contract
+- **Grade:** A · **Verdict:** CORRECTED. "Cannot see into other TUs" is presented as an inference from the TreatFunctionsWithoutSpecificationAsThrowing option, not as a documented statement.
+- **Rule:**
+  - Do not change the project's error-handling model (exceptions vs error codes / std::expected) during hardening. Detect the existing policy and follow it consistently.
+  - In a codebase that uses exceptions:
+    - destructors, move operations and swap must not throw (check with bugprone-exception-escape);
+    - mark moves noexcept (C.66);
+    - add noexcept elsewhere only where throwing is impossible or unacceptable (F.6, E.12).
+- **Rationale:** The two most authoritative style sources disagree on exceptions. noexcept is a behavioural contract: a throw becomes std::terminate.
+- **Evidence:**
+  - [C++ Core Guidelines NR.3, F.6, E.12](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#rnr-no-exceptions) — isocpp, 2026 — standard.
+    - NR.3 "Don't avoid exceptions": "There is no way we can settle this issue to the satisfaction of everybody."
+    - NR.3 also concedes hard-real-time and small embedded exceptions.
+    - F.6: "don't just sprinkle `noexcept` all over the place without considering whether the possible exceptions can be handled"; "`noexcept` is most useful (and most clearly correct) for frequently used, low-level functions".
+    - Verification: verbatim.
+  - [Google C++ Style Guide: Exceptions](https://google.github.io/styleguide/cppguide.html) — Google, 2026 — official_docs.
+    - "We do not use C++ exceptions." ... "Things would probably be different if we had to do it all over again from scratch."
+    - Verification: verbatim.
+  - [clang-tidy bugprone-exception-escape](https://clang.llvm.org/extra/clang-tidy/checks/bugprone/exception-escape.html) — LLVM, 2026 — official_docs.
+    - Checks destructors, move constructors and assignments, main, swap/iter_swap/iter_move, and noexcept functions.
+    - Options: FunctionsThatShouldNotThrow, IgnoredExceptions, TreatFunctionsWithoutSpecificationAsThrowing (default None: only functions whose visible definition can throw count as throwing).
+    - "This check may be expensive on large source files."
+    - Verification: verbatim. The false negatives from functions defined in other TUs are inferred from that option.
+- **Detect:**
+  - Find the policy by comparing `rg -c '\bthrow\b|\btry\s*\{'` with `rg -c 'std::expected|absl::Status|error_code'`, and checking the build flags (`-fno-exceptions`, `/EHsc`).
+  - clang-tidy: bugprone-exception-escape, performance-noexcept-move-constructor.
+  - Swallowing catch-alls: `rg -n 'catch\s*\(\s*\.\.\.\s*\)\s*\{\s*\}'`.
+- **Tools:** clang-tidy; MSVC CppCoreCheck Function rules.
+- **Applies to:** All projects. The noexcept rules apply to builds with exceptions enabled.
+- **When not to apply / counterpoints:**
+  - The Core Guidelines and Google directly contradict each other.
+  - Hard real-time and embedded code may ban exceptions.
+  - exception-escape is expensive, and it does not treat functions with no visible definition as throwing unless configured to.
+- **Fix risk:** high
+
+### T23-F03 — Don't mix signed and unsigned integers
+- **Grade:** A · **Verdict:** VERIFIED
+- **Rule:**
+  - Don't mix signed and unsigned arithmetic or comparisons.
+  - Don't use unsigned to mean "non-negative"; use signed types of sufficient width plus assertions.
+  - Use unsigned only for bit patterns and modular arithmetic.
+  - At unavoidable size_t boundaries, use C++20 `std::ssize()` and `std::cmp_less` / `std::cmp_equal`.
+- **Rationale:** Mixed-sign arithmetic produces wrong results silently. Google and the Core Guidelines agree on this independently.
+- **Evidence:**
+  - [Google C++ Style Guide: Integer Types](https://google.github.io/styleguide/cppguide.html) — Google, 2026 — official_docs.
+    - "You should not use the unsigned integer types such as uint32_t, unless there is a valid reason such as representing a bit pattern rather than a number, or you need defined overflow modulo 2^N. In particular, do not use unsigned types to say a number will never be negative. Instead, use assertions for this."
+    - Verification: verbatim.
+  - [C++ Core Guidelines ES.100-ES.107](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#res-mix) — isocpp, 2026 — standard.
+    - ES.106: "Using `unsigned` doesn't actually eliminate the possibility of negative values."
+    - ES.102 enforcement: "Flag mixed signed and unsigned arithmetic", plus the noise exception for `sizeof` / `.size()` vs `ptrdiff_t`.
+    - ES.107: "no perfect and fully compatible solution is possible".
+    - Verification: verbatim.
+  - [std::cmp_equal, cmp_less ...](https://en.cppreference.com/w/cpp/utility/intcmp) — cppreference.com — other.
+    - "negative signed integers always compare less than (and not equal to) unsigned integers".
+    - `static_assert(-1 > 1U)` and `std::cmp_less(-1, 1U)` examples.
+    - Verification: verbatim.
+  - [clang-tidy modernize-use-integer-sign-comparison](https://clang.llvm.org/extra/clang-tidy/checks/modernize/use-integer-sign-comparison.html) — LLVM, 2026 — official_docs.
+    - Replaces mixed comparisons with `std::cmp_*`. A replacement is provided "only for C++20 or later".
+    - Verification: verbatim.
+  - [HN comment (C++ Safety, in Context)](https://news.ycombinator.com/item?id=39682728) — fweimer, 2024 — practitioner_forum.
+    - "For tight loops, GCC can often eliminate the bounds checks, at least if you use size_t (or size_type) for the loop iteration variable, not unsigned."
+    - Verification: verbatim.
+- **Detect:**
+  - Compilers: `-Wsign-compare` (in `-Wall` for C++ in GCC; in `-Wextra` for Clang) and `-Wsign-conversion`.
+  - MSVC: C4018 and C4389.
+  - clang-tidy: modernize-use-integer-sign-comparison.
+  - Manual review of `a.size() - 1` and of `i >= 0` loops on unsigned counters.
+- **Tools:** gcc/clang warnings; clang-tidy; MSVC /W4.
+- **Applies to:** Index arithmetic, size calculations, loop counters, and count/length APIs.
+- **When not to apply / counterpoints:**
+  - The standard library uses unsigned size_type (ES.107).
+  - fweimer's size_t loop-index point pulls the other way.
+  - Changing signedness changes overflow semantics: unsigned wraps, while signed overflow is UB.
+- **Fix risk:** medium
+
+### T23-F02 — Treat -Wconversion as staged triage, not cast insertion
+- **Grade:** B · **Verdict:** CORRECTED. The arXiv 2601.14936 numbers are reworded to match the abstract, and the counterpoint that overstated them is fixed.
+- **Rule:** Treat `-Wconversion`, `-Wsign-conversion` and bugprone-narrowing-conversions as a staged triage.
+  1. Record a baseline without `-Werror`.
+  2. Fix the high-risk conversions first: those that feed array indexing, object sizes, or security logic.
+  3. Prefer changing declared types. Add explicit casts only where truncation is intended and documented. Never mass-silence with static_cast.
+  4. In test builds, back this up with clang `-fsanitize=implicit-conversion` or `-fsanitize=integer`. Neither is part of `-fsanitize=undefined`.
+- **Rationale:** Narrowing silently destroys information, but flagging every case floods a brownfield codebase. Blind casts hide the very truncations the warning was meant to catch, and UBSan's implicit-conversion checks cannot see explicit casts.
+- **Evidence:**
+  - [Compiler Options Hardening Guide (-Wconversion considerations)](https://best.openssf.org/Compiler-Hardening-Guides/Compiler-Options-Hardening-Guide-for-C-and-C++.html) — OpenSSF, 2026-08-20 — standard.
+    - "On large, brown-field code bases the -Wconversion option can generate hundreds or thousands of warnings, many of which are benign ... developers may start ignoring all warnings"
+    - "Build once with -Wconversion without failing the build (omit -Werror) to record a baseline"
+    - "Triage remaining warnings, prioritising high-risk ones (conversions that influences array indexing, object size calculations, or security-sensitive logic)"
+    - It also suggests starting with the narrower `-Wsign-conversion`.
+    - Verification: verbatim.
+  - [C++ Core Guidelines ES.46](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#res-narrowing) — isocpp, 2026 — standard.
+    - "A good analyzer can detect all narrowing conversions. However, flagging all narrowing conversions will lead to a lot of false positives." ("Here be dragons! We need data.")
+    - Verification: verbatim.
+  - [clang-tidy bugprone-narrowing-conversions](https://clang.llvm.org/extra/clang-tidy/checks/bugprone/narrowing-conversions.html) — LLVM, 2026 — official_docs.
+    - cppcoreguidelines-narrowing-conversions is an alias.
+    - Defaults: WarnOnIntegerNarrowingConversion=true, WarnWithinTemplateInstantiation=false, PedanticMode=false.
+    - The check "diagnoses more instances of narrowing than the compiler warning -Wconversion does". IgnoreConversionFromTypes can be set to `size_t;ptrdiff_t;size_type;difference_type` for legacy code.
+    - Verification: verbatim.
+  - [LLM-Based Repair of C++ Implicit Data Loss Compiler Warnings: An Industrial Case Study](https://arxiv.org/abs/2601.14936) — You, Choi, Hong, Jan 2026 — preprint.
+    - A 92.73% acceptance rate in code review.
+    - The fixes "reduced the number of warning fix changes that introduced additional instructions due to range checks and exception handling by 39.09% compared to a baseline fix strategy". The result "was 13.56% behind the optimal solutions created by human developers."
+    - Verification: abstract; wording corrected. It counts changes, not instructions, and "behind optimal" is not a runtime performance gap.
+  - [HN comment on "My favorite C compiler flags during development"](https://news.ycombinator.com/item?id=35762122) — nwellnhof, 2023 — practitioner_forum.
+    - "explicit casts enforced by -Wconversion only hide errors. You really have to remove as many explicit casts as possible to detect unwanted truncation."
+    - Verification: verbatim.
+  - [UndefinedBehaviorSanitizer](https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html) — LLVM, 2026 — official_docs.
+    - `-fsanitize=implicit-conversion` "Checks for suspicious behavior of implicit conversions".
+    - `-fsanitize=integer` "Checks for undefined or suspicious integer behavior (e.g. unsigned integer overflow)".
+    - Unsigned overflow "is not undefined behavior, but it is often unintentional". Neither group is in `-fsanitize=undefined`.
+    - Verification: verbatim.
+- **Detect:** (researcher's commands, checked for plausibility)
+  - Warning counts per file.
+  - `clang-tidy -checks='-*,bugprone-narrowing-conversions'`.
+  - Prioritize subscripts, sizes, allocation sizes and loop bounds.
+  - Watch the `static_cast<` count in an agent's diff: `git diff -U0 | grep -c 'static_cast<'`.
+- **Tools:** gcc/clang -Wconversion -Wsign-conversion; clang-tidy; clang -fsanitize=implicit-conversion / integer; MSVC C4244/C4267.
+- **Applies to:** Parsing, serialization, allocation and indexing code with mixed-width or mixed-sign integers.
+- **When not to apply / counterpoints:**
+  - OpenSSF puts -Wconversion in its default set but advises a staged rollout, or only selected TUs.
+  - nwellnhof advises dropping -Wconversion in favour of `-fsanitize=integer`.
+  - LLM fixes were accepted but trailed optimal human fixes on avoiding unnecessary range-check or exception code.
+  - `gsl::narrow` throws, which changes behaviour.
+- **Fix risk:** medium
+
+### T23-F15 — Const by default, with the guidelines' own exceptions
+- **Grade:** B · **Verdict:** CORRECTED. An unsourced claim ("const is assumed thread-safe by the standard library") is removed from the counterpoints. The note that cmake_template disables readability-avoid-const-params-in-decls is added.
+- **Rule:**
+  - Make locals const by default (Con.1).
+  - Make member functions const unless they change observable state (Con.2).
+  - Do not const-qualify by-value parameters in declarations, or returned-by-value locals (that blocks moves).
+  - Do not use const data members in copyable or movable types (C.12).
+  - Run misc-const-correctness on changed files only.
+- **Rationale:** const turns accidental mutation into a compile error. The guidelines' own exceptions prevent pessimized moves and types that cannot be assigned.
+- **Evidence:**
+  - [C++ Core Guidelines Con.1 / Con.2 / C.12](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#rconst-immutable) — isocpp, 2026 — standard.
+    - "A local variable that is returned by value and is cheaper to move than copy should not be declared `const`"
+    - "To avoid confusion and lots of false positives, don't enforce this rule for function parameters."
+    - "A member function should be marked `const` unless it changes the object's observable state."
+    - Verification: verbatim.
+  - [clang-tidy misc-const-correctness](https://clang.llvm.org/extra/clang-tidy/checks/misc/const-correctness.html) — LLVM, 2026 — official_docs.
+    - Fix-its apply only to variables "declared in single declarations".
+    - It "will not analyze templated variables, template functions or variables that are instantiation dependent".
+    - Defaults: AnalyzeValues, AnalyzeReferences and AnalyzePointers are true; WarnPointersAsValues is false.
+    - Verification: verbatim.
+  - [LLVM project .clang-tidy](https://raw.githubusercontent.com/llvm/llvm-project/main/.clang-tidy) — LLVM, 2026 — other.
+    - `-misc-const-correctness` is disabled while `misc-*` is enabled.
+    - Verification: verbatim.
+- **Detect:**
+  - misc-const-correctness, restricted to changed files.
+  - readability-make-member-function-const.
+  - readability-avoid-const-params-in-decls.
+  - MSVC CppCoreCheck Const rules.
+- **Tools:** clang-tidy; MSVC CppCoreCheck.
+- **Applies to:** Locals and member functions in application code.
+- **When not to apply / counterpoints:**
+  - LLVM disables misc-const-correctness.
+  - cpp-best-practices' cmake_template disables readability-avoid-const-params-in-decls.
+  - Adding const to a member function changes overload selection for const objects.
+  - Const data members silently disable assignment and move.
+- **Fix risk:** low
+
+### T23-F17 — Find dead C++ code with layered evidence before deleting anything
+- **Grade:** B · **Verdict:** CORRECTED. The misc-unused-parameters doc does not say "Removing parameters changes function signatures"; its actual text is used. LLVM does not disable misc-use-internal-linkage, which stays enabled through `misc-*`; it disables only misc-use-anonymous-namespace.
+- **Rule:** Gather several independent signals before deleting code:
+  1. **Compiler:** `-Wunused-*`. In Clang, `-Wunused` is part of `-Wall` via `-Wmost`. Also add Clang `-Wunused-member-function`, `-Wunused-template` and `-Wunreachable-code-aggressive`, none of which is in `-Wall`.
+  2. **Internal linkage:** give file-local entities internal linkage (misc-use-internal-linkage) so the compiler can prove them unused.
+  3. **Whole program:** `cppcheck --enable=unusedFunction` with a build dir, and the linker's `-ffunction-sections -fdata-sections -Wl,--gc-sections -Wl,--print-gc-sections`.
+  4. **Confirmation:** coverage, plus a grep for dynamic uses.
+- **Rationale:** Each tool sees a different scope, and macros, templates, virtual dispatch and `#ifdef` configurations all produce false "unused" results.
+- **Evidence:**
+  - [Clang Diagnostics Reference](https://clang.llvm.org/docs/DiagnosticsReference.html) — LLVM, 2026 — official_docs.
+    - `-Wunreachable-code-aggressive` "Controls -Wunreachable-code, -Wunreachable-code-break, -Wunreachable-code-return".
+    - `-Wunused-member-function` produces "warning: unused member function A".
+    - `-Wunused-template` "Also controls -Wunneeded-internal-declaration".
+    - The `-Wunused` group, which is in `-Wall`, does not include these.
+    - Verification: verbatim.
+  - [clang-tidy misc-use-internal-linkage](https://clang.llvm.org/extra/clang-tidy/checks/misc/use-internal-linkage.html) — LLVM, 2026 — official_docs.
+    - "Any entity that's only used within a single file should be given internal linkage. Doing so gives the compiler more information, allowing it to better remove dead code and perform more aggressive optimizations."
+    - Verification: verbatim.
+  - [Cppcheck manual](https://cppcheck.sourceforge.io/manual.html) — Cppcheck project, 2026 — official_docs.
+    - "Whole program analysis does not work when multiple threads are used unless you use a Cppcheck build dir. For instance, the unusedFunction warnings require whole program analysis."
+    - Verification: verbatim in the [manual source](https://github.com/danmar/cppcheck/blob/main/man/manual.md); the HTML page returned a bot check.
+  - [GNU ld Options](https://sourceware.org/binutils/docs/ld/Options.html) — GNU Binutils — official_docs.
+    - `--print-gc-sections`: "List all sections removed by garbage collection. The listing is printed on stderr. This option is only effective if garbage collection has been enabled via the '--gc-sections'".
+    - Verification: verbatim.
+  - [clang-tidy misc-unused-parameters](https://clang.llvm.org/extra/clang-tidy/checks/misc/unused-parameters.html) — LLVM, 2026 — official_docs.
+    - The fix comments the parameter name out, or removes the parameter "if all callers of the function are in the same translation unit and can be updated". IgnoreVirtual defaults to false.
+    - LLVM's own .clang-tidy disables this check.
+    - Verification: the quote was corrected.
+  - [Why IWYU is difficult](https://github.com/include-what-you-use/include-what-you-use/blob/master/docs/WhyIWYUIsDifficult.md) — IWYU project — official_docs.
+    - "If you're running IWYU without that preprocessor definition set, it has no way of telling if a header is necessary."
+    - Verification: verbatim. Applying it to dead-code analysis is the researcher's analogy.
+- **Detect:** (researcher's commands, checked for plausibility)
+  - clang build with the extra warnings.
+  - `cppcheck --project=build/compile_commands.json --enable=unusedFunction --cppcheck-build-dir=.cppcheck`.
+  - Linker gc-sections listing.
+  - clang-tidy: misc-use-internal-linkage, misc-unused-using-decls, misc-unused-alias-decls, bugprone-unused-local-non-trivial-variable.
+  - Before deleting symbol X, grep every configuration, script and build file for it, and confirm zero coverage.
+- **Tools:** clang/gcc warnings; cppcheck; GNU ld; clang-tidy; llvm-cov/gcov.
+- **Applies to:** Applications and internal libraries. Exported public API is out of scope without a deprecation cycle.
+- **When not to apply / counterpoints:**
+  - cpp-best-practices' cmake_template disables both misc-use-internal-linkage and misc-use-anonymous-namespace. LLVM disables only misc-use-anonymous-namespace.
+  - unusedFunction has false positives with templates, virtual functions and callbacks.
+  - Self-registering static objects look unused but have side effects at load time.
+- **Fix risk:** medium
+
+### T23-F21 — Prefer type-safe formatting; keep format warnings on
+- **Grade:** B · **Verdict:** VERIFIED. Note: Google names absl::StrCat/Substitute/StrFormat and std::ostream, not std::format. The std::format / std::print part rests only on the clang-tidy checks existing.
+- **Rule:**
+  - Replace printf-family formatting with type-safe formatting where the project's standard allows: std::format / std::print, iostreams, or fmt.
+  - Keep `-Wformat -Wformat=2 -Werror=format-security` on.
+  - Annotate the project's printf-like wrappers with `__attribute__((format(printf,...)))`.
+- **Rationale:** Format-string mismatches are type errors that the compiler can only catch through the format attribute.
+- **Evidence:**
+  - [Google C++ Style Guide: Architecture Portability](https://google.github.io/styleguide/cppguide.html) — Google, 2026 — official_docs.
+    - "When printing values, use type-safe numeric formatting libraries like absl::StrCat, absl::Substitute, absl::StrFormat, or std::ostream instead of the printf family of functions."
+    - Verification: verbatim.
+  - [Compiler Options Hardening Guide](https://best.openssf.org/Compiler-Hardening-Guides/Compiler-Options-Hardening-Guide-for-C-and-C++.html) — OpenSSF, 2026-08-20 — standard.
+    - The TL;DR includes `-Wformat -Wformat=2 ... -Werror=format-security`.
+    - "we recommend specifying both -Wformat and -Wformat=2 in projects that may be built with both GCC and Clang."
+    - Verification: verbatim.
+  - [clang-tidy checks list](https://clang.llvm.org/extra/clang-tidy/checks/list.html) — LLVM, 2026 — official_docs.
+    - modernize-use-std-print and modernize-use-std-format are present.
+    - Verification: names confirmed.
+- **Detect:**
+  - Count printf-family calls with rg.
+  - clang-tidy: modernize-use-std-print / use-std-format.
+  - Compiler: `-Wformat=2 -Werror=format-security`.
+  - Grep for non-literal format strings.
+- **Tools:** gcc/clang format warnings; clang-tidy.
+- **Applies to:** Logging, diagnostics and string building.
+- **When not to apply / counterpoints:**
+  - std::format needs a recent standard library.
+  - Output can differ subtly from printf, so use golden tests where logs are parsed.
+  - The churn has modest benefit if `-Wformat=2` is already clean.
+- **Fix risk:** medium
+
+### T23-F23 — Prioritize hardening by code age and provenance
+- **Grade:** B · **Verdict:** VERIFIED. Two nuances are added. The Android decline from 76% to 24% is attributed by Google to writing new code in memory-safe languages, not to C++ hardening. The 3.4x-7.4x figures are modelled.
+- **Rule:**
+  - Prioritize hardening by code age and provenance: vulnerability density is highest in new code.
+  - Freshly written code, including AI-generated C++, gets the heaviest dynamic verification: sanitizers, hardened standard library, fuzzing and tests. A clean static-analysis report is not enough.
+- **Rationale:** Vulnerability lifetimes follow an exponential distribution. A 2026 preprint found that AI-generated C++ looks as safe as human code under static analysis but triggers confirmed runtime violations about twice as often.
+- **Evidence:**
+  - [Eliminating Memory Safety Vulnerabilities at the Source](https://security.googleblog.com/2024/09/eliminating-memory-safety-vulnerabilities-Android.html) — Jeff Vander Stoep, Alex Rebert (Google), Sep 25, 2024 — engineering_blog / industry report.
+    - "vulnerabilities decay exponentially. They have a half-life."
+    - "5-year-old code has a 3.4x (using lifetimes from the study) to 7.4x (using lifetimes observed in Android and Chromium) lower vulnerability density than new code".
+    - Memory-safety share dropped "from 76% to 24% over 6 years as development shifted to memory safe languages."
+    - Verification: verbatim.
+  - [How Long Do Vulnerabilities Live in the Code?](https://www.usenix.org/conference/usenixsecurity22/presentation/alexopoulos) — Alexopoulos, Brack, Wagner, Grube, Mühlhäuser, USENIX Security 2022 — peer_reviewed.
+    - "the average lifetime of a vulnerability is around 4 years, varying significantly between projects (~2 years for Chromium, ~7 years for OpenSSL)"; lifetimes are approximately exponential.
+    - "the introduction of fuzzers does not significantly reduce the lifetimes of memory-related vulnerabilities".
+    - Verification: abstract verbatim.
+  - [The Illusion of Safety: Multi-Tier Verification of AI vs. Human C++ Code](https://arxiv.org/abs/2607.00107) — Mahmud, Sikder, Ji, Zhang, Lei, 2026 (v3 Aug 2026) — preprint.
+    - 8,918 programs from three open-weight LLMs (Gemma 3 27B, LLaMA 3.3 70B, Qwen 2.5 Coder 32B) and human authors, on 851 competitive-programming tasks.
+    - AI code is "roughly twice as likely as human code to trigger a confirmed runtime violation, even after controlling for code length and test pass-rate".
+    - The apparent static-analysis parity "reflects code length rather than real safety". The tools used were cppcheck, clang-tidy, ASan/UBSan and ESBMC.
+    - Verification: abstract verbatim.
+- **Detect:**
+  - Rank files by recency and churn with git log.
+  - Intersect that list with complexity (F19) and with input-handling code.
+  - Schedule sanitizer and fuzz coverage for the top of the list.
+- **Tools:** git log; llvm-cov; libFuzzer; ASan/UBSan.
+- **Applies to:** Allocating limited review effort, especially in projects written quickly or with AI help.
+- **When not to apply / counterpoints:**
+  - The decay data comes from large, long-lived projects.
+  - The AI study is a preprint on competitive-programming tasks with open-weight models.
+  - USENIX found fuzzers did not significantly shorten memory-bug lifetimes.
+  - "Old code is safer" assumes the code was actually exercised.
+- **Fix risk:** low
+
+### T23-F07 — Choose clang-tidy checks by measured signal, not by glob
+- **Grade:** C · **Verdict:** CORRECTED. Mozilla is re-sourced from the archived gecko-dev mirror to the current Firefox repo, where the active set is now only 20 checks. The example checks are attributed correctly: bugprone-sizeof-expression and bugprone-swapped-arguments are not in Chromium's set; they come from Mozilla's legacy "high" ratings. The clang-tidy doc quotes are fixed.
+- **Rule:**
+  - Start from `-*` and enable high-reliability bug-finding checks that large projects actually run:
+    - in Chromium's current set: bugprone-use-after-move, bugprone-dangling-handle, bugprone-unused-raii, bugprone-assert-side-effect, bugprone-undefined-memory-manipulation, bugprone-unique-ptr-array-mismatch, bugprone-string-constructor, clang-analyzer-core.uninitialized.\*, modernize-use-nullptr, modernize-use-override;
+    - rated "high" in Mozilla's legacy list: bugprone-sizeof-expression, bugprone-swapped-arguments, several clang-analyzer-core.\* checks.
+  - Keep contested style checks (magic numbers, trailing return types, use-auto, implicit-bool-conversion, else-after-return) out of a hardening pass unless the project already uses them.
+  - Drop or tune any check whose effective false-positive rate is above about 10%.
+  - Record existing findings as a baseline, and suppress only with a named check plus a reason.
+- **Rationale:** Developers stop trusting tools that waste their time. Google disables analyzers that go above 10% "not useful" ratings. Chromium and Mozilla both document the checks they rejected.
+- **Evidence:**
+  - [Lessons from Building Static Analysis Tools at Google](https://cacm.acm.org/research/lessons-from-building-static-analysis-tools-at-google/) — Sadowski et al., CACM 2018 — peer_reviewed.
+    - "Produce less than 10% effective false positives. Developers should feel the check is pointing out an actual issue at least 90% of the time"
+    - "If the ratio for an analyzer goes above 10%, the Tricorder team disables the analyzer".
+    - Verification: verbatim.
+  - [Chromium .clang-tidy](https://raw.githubusercontent.com/chromium/chromium/main/.clang-tidy) — Chromium, 2026 — other.
+    - Enabled set as listed above, plus google-explicit-constructor and google-readability-casting.
+    - Comment: "An analysis was done of the following checks and they were deemed to either have too high of a false positive rate, or were redundant/useless (e.g. never fired once in the entirety of chromium)". The list includes bugprone-macro-repeated-side-effects, bugprone-suspicious-enum-usage and bugprone-spuriously-wake-up-functions.
+    - Verification: verbatim.
+  - [Firefox tools/clang-tidy/config.yaml](https://raw.githubusercontent.com/mozilla-firefox/firefox/main/tools/clang-tidy/config.yaml) — Mozilla, 2026 — other.
+    - `package_version: "22.1.8"`. Twenty active checks.
+    - The legacy list (commented out) includes: modernize-use-auto "Controversial, see bug 1371052" (not published); readability-magic-numbers not published ("we must see first its impact on our code"); readability-implicit-bool-conversion "reliability: low"; misc-include-cleaner "Disable this checker until we move to before/after".
+    - Verification: verbatim. The researcher's gecko-dev URL points to a mirror archived on Jul 9, 2025, with clang-tidy 19.1.7.
+  - [LLVM project .clang-tidy](https://raw.githubusercontent.com/llvm/llvm-project/main/.clang-tidy) — LLVM, 2026 — other.
+    - `-*, clang-diagnostic-*, llvm-*, misc-*` minus misc-const-correctness, misc-include-cleaner, misc-no-recursion, misc-non-private-member-variables-in-classes, misc-unused-parameters and misc-use-anonymous-namespace.
+    - Verification: verbatim.
+  - [cpp-best-practices cmake_template .clang-tidy](https://raw.githubusercontent.com/cpp-best-practices/cmake_template/main/.clang-tidy) — Jason Turner / cpp-best-practices — other.
+    - Starts from `*` and disables modernize-use-trailing-return-type, readability-else-after-return, misc-no-recursion, misc-use-anonymous-namespace, misc-use-internal-linkage and others.
+    - Verification: verbatim.
+  - [Clang-Tidy documentation](https://clang.llvm.org/extra/clang-tidy/) — LLVM, 2026 — official_docs.
+    - Examples include `// NOLINT(google-explicit-constructor, google-runtime-int)`, `// NOLINT(google*)`, `// NOLINT(*-avoid-c-arrays)`, and `// NOLINT: Allow implicit conversion from char, because <some valid reason>`.
+    - "clang-tidy-diff.py only reports diagnostics for changed lines".
+    - Verification: corrected. The exact example `NOLINT(google-*, *-avoid-c-arrays)` is not in the doc. The doc does not "warn" about missed diagnostics on unchanged lines; that is an inference from the changed-lines-only filtering.
+  - [Cppcheck manual: Generating and using a baseline](https://github.com/danmar/cppcheck/blob/main/man/manual.md) — Cppcheck project, 2026 — official_docs.
+    - `cppcheck --enable=style --xml src 2> baseline-results.xml`; `python3 generate-baseline-suppressions.py baseline-results.xml suppressions.xml`.
+    - Goal: "as few false positives (wrongly reported warnings) as possible".
+    - Verification: verbatim in the main-branch manual source. It may be newer than older released versions.
+  - [HN comment on "Checked C"](https://news.ycombinator.com/item?id=34093384) — ryao, 2022 — practitioner_forum.
+    - OpenZFS: CTU analysis "turned around 80 mostly false positive reports from scan-build into 300 to 400 mostly false positive reports". CodeChecker's default clang-tidy set includes the "problematic bugprone-assignment-in-if-condition rule".
+    - Verification: verbatim.
+- **Detect:**
+  - `clang-tidy --list-checks -checks='-*,bugprone-*,clang-analyzer-core.*' -p build`.
+  - `run-clang-tidy -p build -checks='<set>' -export-fixes=baseline.yaml > baseline.txt`.
+  - Count findings per check, and sample about 10 per check to estimate the false-positive rate.
+  - Bare NOLINTs: `rg -P -n 'NOLINT(NEXTLINE|BEGIN)?\b(?!\()'`.
+- **Tools:** clang-tidy; run-clang-tidy; CodeChecker; cppcheck; clang static analyzer.
+- **Applies to:** Any project with a compile_commands.json. Check in a `.clang-tidy`, and pin the clang-tidy version: Firefox pins 22.1.8, and these docs are for trunk 24.0.0git.
+- **When not to apply / counterpoints:**
+  - This is practitioner consensus, not a controlled study.
+  - Which checks are noisy depends on the codebase: Mozilla's macros make modernize-use-override noisy, while Chromium enables it.
+  - cmake_template enables `*` and then tunes, the opposite of starting from `-*`.
+- **Fix risk:** low
+
+### T23-F18 — Clean up #includes conservatively
+- **Grade:** C · **Verdict:** CORRECTED. Chromium's `.clang-tidy` only configures `misc-include-cleaner.IgnoreHeaders`; the check is not in its enabled Checks list, so "Chromium enables it" is not supported by that file. Mozilla's disablement is re-sourced to the current Firefox repo; the check is rated "high" there but disabled for workflow reasons. Core Guidelines SF.10 is added.
+- **Rule:**
+  - Use clang-tidy misc-include-cleaner or include-what-you-use to propose unused and missing includes.
+  - Exclude third-party and system headers.
+  - Apply the changes only after checking every supported platform and configuration.
+  - Don't promise build-time wins. The goal is removing hidden transitive-include dependencies.
+- **Rationale:** Unused includes are dead code at the preprocessor level, and missing direct includes make builds fragile (SF.10). But the tools are unreliable around macros, templates and conditional compilation.
+- **Evidence:**
+  - [clang-tidy misc-include-cleaner](https://clang.llvm.org/extra/clang-tidy/checks/misc/include-cleaner.html) — LLVM, 2026 — official_docs.
+    - "Checks for unused and missing includes. Generates findings only for the main file of a translation unit."
+    - Options: IgnoreHeaders, UnusedIncludes, MissingIncludes.
+    - Verification: verbatim.
+  - [Why IWYU is difficult](https://github.com/include-what-you-use/include-what-you-use/blob/master/docs/WhyIWYUIsDifficult.md) — IWYU project — official_docs.
+    - "Include-what-you-use has the most problems with templates and macros."
+    - "There's no general way to distinguish private from public headers; we have to manually construct the proper mapping."
+    - Verification: verbatim.
+  - [Don't Use include-what-you-use](https://danra.prose.sh/dont_use_iwyu) — danra (Sound Radix), 2024-05-20 — engineering_blog.
+    - "it made almost no difference to the CI build time". "It sometimes crashes." "include-what-you-use is alpha quality".
+    - Verification: verbatim.
+  - [Chromium .clang-tidy](https://raw.githubusercontent.com/chromium/chromium/main/.clang-tidy) — Chromium, 2026 — other.
+    - `misc-include-cleaner.IgnoreHeaders = (gmock/gmock|gtest/gtest|third_party|build/linux/debian).*`. The 'build/linux/debian' entry excludes system headers "as they don't have appropriate IWYU pragmas".
+    - The check itself is not in the Checks list.
+    - Verification: corrected.
+  - [C++ Core Guidelines SF.10](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#rs-implicit) — isocpp, 2026 — standard.
+    - "Avoid dependencies on implicitly `#include`d names".
+    - Verification: heading verbatim.
+  - [HN comment on "Don't Use include-what-you-use"](https://news.ycombinator.com/item?id=40569552) — wakawaka28, 2024 — practitioner_forum.
+    - "Include-what-you-use won't make your stuff build faster, unless you end up removing lots of headers. What it will do is make your codebase more stable".
+    - Verification: verbatim.
+- **Detect:**
+  - `run-clang-tidy -p build -checks='-*,misc-include-cleaner'` with IgnoreHeaders set, or `iwyu_tool.py -p build`.
+  - Afterwards, build every preset and platform and run the tests.
+  - Respect `// IWYU pragma: keep/export`.
+- **Tools:** clang-tidy misc-include-cleaner; clangd include-cleaner; include-what-you-use + fix_includes.py.
+- **Applies to:** The project's own headers and sources. Never third-party code.
+- **When not to apply / counterpoints:**
+  - LLVM disables misc-include-cleaner. Firefox disables it "until we move to before/after". Chromium configures ignore lists but does not enable it in `.clang-tidy`.
+  - One practitioner measured almost no build-time gain.
+  - A removed include can change which overload or specialization is visible.
+- **Fix risk:** medium
+
+### T23-F19 — Use complexity metrics to rank refactoring candidates, not as gates
+- **Grade:** C · **Verdict:** VERIFIED
+- **Rule:**
+  - Use readability-function-cognitive-complexity (default threshold 25) and readability-function-size to rank candidate functions.
+  - Treat Google's "about 40 lines" as a prompt to consider splitting.
+  - Refactor a flagged function only when tests cover it, preferring well-named helpers and early returns.
+- **Rationale:** The metrics rank hotspots usefully. The thresholds are conventions, not empirically derived limits.
+- **Evidence:**
+  - [clang-tidy readability-function-cognitive-complexity](https://clang.llvm.org/extra/clang-tidy/checks/readability/function-cognitive-complexity.html) — LLVM, 2026 — official_docs.
+    - "implemented as per the COGNITIVE COMPLEXITY by SonarSource specification version 1.2 (19 April 2017)".
+    - Threshold "Default is 25". DescribeBasicIncrements defaults to true. IgnoreMacros defaults to false.
+    - Verification: verbatim.
+  - [clang-tidy readability-function-size](https://clang.llvm.org/extra/clang-tidy/checks/readability/function-size.html) — LLVM, 2026 — official_docs.
+    - StatementThreshold defaults to 800. Line, Branch, Parameter, Nesting and Variable thresholds default to "none".
+    - Verification: verbatim.
+  - [Google C++ Style Guide: Write Short Functions](https://google.github.io/styleguide/cppguide.html) — Google, 2026 — official_docs.
+    - "no hard limit is placed on functions length. If a function exceeds about 40 lines, think about whether it can be broken up without harming the structure of the program."
+    - Verification: verbatim.
+- **Detect:** The researcher's run-clang-tidy pipeline, cross-referenced with git churn.
+- **Tools:** clang-tidy; lizard (optional).
+- **Applies to:** All functions. Generated code, table-driven parsers and state machines may legitimately exceed the thresholds.
+- **When not to apply / counterpoints:**
+  - Macro-heavy code distorts the scores.
+  - Splitting can scatter logic.
+  - No source consulted derives the value 25 empirically.
+- **Fix risk:** medium
+
+## Practitioner voice
+- [ynik, HN 34706266](https://news.ycombinator.com/item?id=34706266) — Thread "Can sanitizers find the two bugs I wrote in C++?". ASan/UBSan "cannot find library-level undefined behavior such as the pop_back() on the empty vector". Recommends `-D_GLIBCXX_ASSERTIONS` alongside `-fsanitize=undefined,address`, "might not be a bad idea to keep these assertions enabled in release builds".
+- [Andrew Helwer, 2023](https://ahelwer.ca/post/2023-02-07-cpp-bugs-sanitized/) — Two real bugs. ASan caught the non-null-terminated vector passed to atoi. For pop_back on an empty vector, ASan only reported a downstream overflow, while `_GLIBCXX_ASSERTIONS` pinpointed it. Helwer: "Bit of a mixed bag."
+- [fweimer, HN 39682728](https://news.ycombinator.com/item?id=39682728) — Fedora and downstream distros build with `-D_GLIBCXX_ASSERTIONS`. GCC can often eliminate the bounds checks in tight loops when the index is size_t.
+- [nwellnhof, HN 35762122](https://news.ycombinator.com/item?id=35762122) — After fuzzing with `-fsanitize=integer`, concluded that casts added for `-Wconversion` "only hide errors". Recommends removing explicit casts and testing with UBSan integer checks.
+- [flohofwoe, HN 28746596](https://news.ycombinator.com/item?id=28746596) — `-Werror` in development only, because new compilers add warnings. "hardly any C/C++ code I've encountered is -Wsign-compare clean".
+- [dataflow, HN 38480332](https://news.ycombinator.com/item?id=38480332) — Thread on the OpenSSF guide. `-Werror` in release builds is only safe with a hermetic toolchain.
+- [ryao, HN 34093384](https://news.ycombinator.com/item?id=34093384) — OpenZFS: CSA CTU turned about 80 mostly false-positive reports into 300-400. CodeChecker's default clang-tidy set includes bugprone-assignment-in-if-condition, which fires on a ZFS idiom.
+- [jstimpfle, HN 45773137](https://news.ycombinator.com/item?id=45773137) — Thread on a small pure-C traceroute tool. Disabling one check (clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling) left "only a single warning". Most of the noise came from one check.
+- [galangalalgol, HN 32823103](https://news.ycombinator.com/item?id=32823103) — A stack use-after-free in a large C++98 codebase was missed by cppcheck and clang-tidy. It showed only in g++ optimized builds; clang -O3 optimized it away. ASan would have needed branch coverage the team lacked, and the bug reached production.
+- [galangalalgol, HN 46769163](https://news.ycombinator.com/item?id=46769163) — 2026, same bug. It survived "getting clang tidy modernize to pass", and an LLM later explained it. The lesson is to combine tool classes.
+- [kimixa, HN 42405952](https://news.ycombinator.com/item?id=42405952) — clang-tidy modernize catches "low hanging fruit". Structural modernization is manual. Don't treat its output "as gospel".
+- [abbeyj, HN 33918669](https://news.ycombinator.com/item?id=33918669) — Whether `std::string_view name(person.get_name())` dangles depends on "a single ampersand far away in some header file", with no error or warning.
+- [elteto, HN 39752058](https://news.ycombinator.com/item?id=39752058) — Never had dangling-pointer bugs in a decade of C++ until adopting string_view. Now never lets views escape the enclosing scope.
+- [Arthur O'Dwyer, 2021](https://quuxplusone.github.io/blog/2021/03/03/push-back-emplace-back/) — A student "fixed" a modernize-use-emplace warning by wrapping the same temporary in emplace_back. "Absolutely no difference", plus more compiler work. "Use push_back by default."
+- [danra (Sound Radix), 2024](https://danra.prose.sh/dont_use_iwyu) — IWYU work "made almost no difference to the CI build time". It needed platform-specific manual fixes and sometimes crashes: "alpha quality".
+- [wakawaka28, HN 40569552](https://news.ycombinator.com/item?id=40569552) — IWYU won't speed builds unless many headers go, but it stabilizes the codebase. Hasn't used it in years.
+- [Chromium .clang-tidy](https://raw.githubusercontent.com/chromium/chromium/main/.clang-tidy) — Records rejected checks ("too high of a false positive rate ... never fired once"). modernize-use-transparent-functors "makes suggestions that break builds" (crbug.com/1342136), so it runs in SafeMode.
+- [Firefox clang-tidy config](https://raw.githubusercontent.com/mozilla-firefox/firefox/main/tools/clang-tidy/config.yaml) — Current config: 20 active checks at clang-tidy 22.1.8, with the old reliability-rated list commented out. modernize-use-auto is "Controversial", modernize-use-override "Too noisy" because of NS_IMETHOD, misc-include-cleaner disabled. The researcher's gecko-dev link is an archived mirror.
+- [MSRC: Solving Uninitialized Stack Memory on Windows (2020)](https://www.microsoft.com/en-us/msrc/blog/2020/05/solving-uninitialized-stack-memory-on-windows) — Primary source for canucker2016's HN 43781342 quote. Forcing initialization of all stack types cost "over 10% in several key scenarios". Restricting to POD types plus optimizer work brought it to "noise-level for most tests".
+
+## Contradictions and open questions
+
+**Contradictions**
+- **Signed vs unsigned.** Google and Core Guidelines ES.100-ES.107 say to avoid unsigned except for bit patterns and modular arithmetic. The standard library uses unsigned size_type, and ES.107 admits "no perfect and fully compatible solution is possible". fweimer reports that GCC removes hardened bounds checks better with size_t loop indices.
+- **Exceptions.** Core Guidelines NR.3 says "Don't avoid exceptions"; Google says "We do not use C++ exceptions." Both are authoritative, so the skill must detect and follow the project's policy.
+- **-Wconversion.** OpenSSF includes it in the default TL;DR set, yet warns of "hundreds or thousands" of mostly benign warnings on brownfield code. ES.46 warns of "a lot of false positives". nwellnhof prefers `-fsanitize=integer` over casts.
+- **-Werror.** Microsoft recommends /WX "for a new project", and Google turns diagnostics into errors. OpenSSF and practitioners say: during development only, not in distributed source.
+- **Hardening overhead.**
+  - Google: 0.30% average for hardened libc++.
+  - OpenSSF: "up to 6%" for `_GLIBCXX_ASSERTIONS`.
+  - MSVC's old IDL=1 mode: up to 2x, and rejected by users.
+  - New MSVC STL hardening: planned to ship disabled by default.
+- **Destructor warning.** cppbestpractices recommends `-Wnon-virtual-dtor`. The GCC manual says `-Wdelete-non-virtual-dtor` "should be preferred because it warns about the unsafe cases without false positives".
+- **emplace_back.** modernize-use-emplace suggests replacing push_back. O'Dwyer says "Use push_back by default". Chromium runs the check with IgnoreImplicitConstructors=1.
+- **Include cleanup.** LLVM and Firefox disable misc-include-cleaner. Chromium configures ignore lists for it but does not enable it in `.clang-tidy`. One practitioner values IWYU for stability; another measured almost no build-time benefit.
+- **Const-correctness.** Con.1 says to make objects immutable by default, but LLVM disables misc-const-correctness.
+- **Internal linkage.** The misc-use-internal-linkage docs say it helps dead-code removal. cmake_template disables it and misc-use-anonymous-namespace. LLVM keeps misc-use-internal-linkage (via misc-\*) and disables only misc-use-anonymous-namespace.
+- **Casts to void and functional casts.** ES.48/ES.49 enforcement flags all C-style casts "including to void" and `Type(value)` casts. Google allows `(void)` casts and `T(x)` for class types.
+- **Zero-init backstop.**
+  - OpenSSF and GCC `-fhardened` use `-ftrivial-auto-var-init=zero` for production.
+  - Sutter notes that zero-init masks bugs from sanitizers.
+  - A practitioner prefers `=pattern` in QA builds.
+  - P2723R1 reports under 0.5% overhead, while MSRC (2020) saw over 10% before restricting to POD types and doing optimizer work.
+- **Sufficiency of static analysis.** Sutter estimates a roughly 98% reduction in type, bounds, initialization and lifetime CVEs is achievable with future safety rules. Today's evidence (Hassler et al. 2025; Mahmud et al. 2026; HN 32823103) shows current static tools miss many real bugs.
+- **Fuzzing's effect.** Fuzzing is widely recommended, but USENIX Security 2022 found that introducing fuzzers "does not significantly reduce the lifetimes of memory-related vulnerabilities".
+
+**Open questions**
+- No peer-reviewed, replicated study measures defect reduction from adopting clang-tidy check sets or the C++ Core Guidelines.
+- **SonarSource.** Its default Cognitive Complexity threshold for C++ was not verified (rules.sonarsource.com was unreachable for the researcher, and this pass did not re-check it).
+- **NSA/CISA 2025.** The June 2025 "Memory Safe Languages" PDF was not read (HTTP 403 for the researcher).
+- **MSVC STL hardening default.** The current default of `_MSVC_STL_HARDENING` in VS 2026 / MSVC Build Tools 14.51 is unverified. The wiki states only the plan to release it disabled by default and enable it later.
+- **C++26.** P2795 "Erroneous behaviour for uninitialized reads" exists (R5 confirmed at open-std.org). Its adoption status and compiler support as of Sept 2026, and the status of standard library hardening (P3471), were not verified from primary sources.
+- **Performance of -D_FORTIFY_SOURCE=3 and -fstack-clash-protection** on typical C++ workloads: OpenSSF says only "in some rare cases". No quantitative data was found.
+- **-Wunsafe-buffer-usage** false-positive and effort rates outside Chromium are not published in the sources reached.
+- **AI-generated C++.** Whether it has systematically different defect classes rests on one preprint.
+
+## Dropped findings
+None. All 23 findings survived. Fourteen needed corrections: wrong or stale URLs (the archived Mozilla gecko-dev mirror, GCC current-development docs), wrong years (MSVC STL wiki, MSVC checkers page, MSVC ASan page), misquotes (cppbestpractices, SafeBuffers, misc-unused-parameters, clang-tidy NOLINT example), misattributions (TSan/ASan incompatibility, Chromium enabling misc-include-cleaner, LLVM disabling misc-use-internal-linkage, O'Dwyer anecdote), and overstatements (the arXiv 2601.14936 numbers, "shipped disabled by default", an unsourced thread-safety claim).

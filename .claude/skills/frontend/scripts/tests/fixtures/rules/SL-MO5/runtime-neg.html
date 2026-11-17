@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Motion that honours the preference</title>
+<style>
+  body { margin: 0; font-family: Arial, sans-serif; color: #111; padding: 48px; }
+  .strip { overflow: hidden; margin-top: 24px; }
+  .track { display: flex; gap: 32px; width: max-content; }
+  .live { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #16a34a; animation: pulse 2s ease-in-out infinite; }
+  @keyframes rise { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  @media (prefers-reduced-motion: no-preference) {
+    .hero { animation: rise 600ms ease-out both; }
+    .track { animation: slide 20s linear infinite; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hero { animation: fade 300ms ease-out both; }
+  }
+</style>
+</head>
+<body>
+  <h1 class="hero">Settlement in minutes</h1>
+  <div class="strip"><div class="track"><span>Vaults</span><span>Oracles</span><span>Vaults</span><span>Oracles</span></div></div>
+  <p><span class="live" aria-hidden="true"></span> Opacity-only feedback may stay under reduced motion.</p>
+</body>
+</html>

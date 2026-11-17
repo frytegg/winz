@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "project": "Badge",
+      "direction": "A",
+      "name": "Safe-deposit box",
+      "picked": false,
+      "recorded_at": "2026-10-12T13:43:01Z",
+      "ground": "#f5f7fc",
+      "accent": "#2455d6",
+      "display": "montserrat",
+      "body": "montserrat",
+      "signature": "the two-locks diagram. Lock 1 (cobalt) is the attested enclave, where every note sits and where",
+      "tokens_sha256": "9261f004b754e91f7c4746c1f7f7d575d7b74f00199bcd9c6e04eafd4c792e0a"
+    },
+    {
+      "project": "Badge",
+      "direction": "B",
+      "name": "The consent request",
+      "picked": true,
+      "recorded_at": "2026-10-12T13:43:01Z",
+      "ground": "#f5f7fc",
+      "accent": "#2455d6",
+      "display": "montserrat",
+      "body": "montserrat",
+      "signature": "the Ledger review screen with its seven fields at full size (values 15 px mono, labels 12 px),",
+      "tokens_sha256": "5c07923298a73bf34a15a45a3e70e378caa8b970ea5db7f676d26997f9642cac"
+    },
+    {
+      "project": "Badge",
+      "direction": "C",
+      "name": "Evidence register",
+      "picked": false,
+      "recorded_at": "2026-10-12T13:43:01Z",
+      "ground": "#f5f7fc",
+      "accent": "#2455d6",
+      "display": "montserrat",
+      "body": "montserrat",
+      "signature": "**the status register**, one table that maps each feature FR-001 to FR-015 to its status",
+      "tokens_sha256": "4eaccd929274992987950c8a37a429945e0d9f37f70c86ad921c87a9acd05cb9"
+    }
+  ]
+}

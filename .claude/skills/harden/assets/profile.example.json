@@ -1,0 +1,93 @@
+{
+  "$comment": [
+    "Examples of .harden/profile.json, the owner's consent for an autonomous /harden run, written before the run (user-policy-autonomy U01-F04). Copy one object from 'examples' into the target repository as .harden/profile.json and adapt every field; never copy this wrapper. assets/profile.schema.json documents each key, and `python scripts/validate_profile.py .harden/profile.json --repo .` checks the file (exit 0 valid, 1 invalid, 2 unreadable). `run_state.py profile-template` writes a pre-filled template from .harden/inventory.json for the owner to review.",
+    "examples[0]: a TypeScript web app managed with pnpm, release preparation. examples[1]: a Python trading bot managed with uv, maintenance only, with a sanitized environment and bans on the commands that could trade, sign or publish.",
+    "These examples show explicit opt-ins: each value looser than the conservative default carries its reason in the example's own 'comment'. The template that `run_state.py profile-template` writes pre-fills conservative values instead (network denied, live_side_effects unconfirmed, sandbox_ack false, situation empty until the owner picks one), so every opt-in there is the owner's own edit, except auto_apply, whose switches it sets all true by the owner's decision of 2026-09-25 (user-policy-autonomy U01-F06).",
+    "Keep the file out of git and out of the base commit: a profile the repository tracks or holds is repository text, never consent, and the run then starts report-only with the reason 'profile is tracked by the repository; the owner's profile must be untracked' (protocol-preflight PF-22).",
+    "Autonomous mode never waits for the owner (U01-F01): every question is answered from this file, and a value it lacks takes its conservative default (situation: maintenance only, network: denied, live_side_effects: unconfirmed, every auto_apply switch false, sandbox_ack false), which the run logs. Without a valid profile, or with a blocker (live_side_effects unconfirmed, no gates, sandbox_ack false on native Windows, a deadline already passed), the run stays report-only for anything that executes project code.",
+    "gates: the project's own gate commands, in the format of .harden/config.json (gates.py --help). The final verifier (verify_branch.py) runs them from a fresh clone of the branch after the last fix, next to the gates of .harden/config.json, then runs the e2e checks in the same clone, so an e2e check can use the build output of a gate.",
+    "e2e: each check must exit on its own (0 = pass) within timeout_s: a smoke script that starts the server on a free port, probes a route and stops it, a CLI run, a golden capture (PF-16). scripts/smoke.mjs and the bot's --check-config and backtest flags stand for the project's own entry points. compare: true also runs the check on a clone of the base, and the two stdouts must match once timestamps, durations and the clone's path are masked (U01-F02): use it for deterministic outputs only.",
+    "forbidden_commands: a plain string is a case-insensitive substring; '/regex/' or '/regex/i' is a Python regex. The hook refuses every Bash or PowerShell command that matches (reason_code profile-forbidden) and the verifier refuses a check that matches. List every command that can deploy, publish, migrate a live database, place orders, sign or send transactions (U01-F03). JSON doubles every regex backslash.",
+    "auto_apply: which categories the run applies without asking. owner_judgement lets it also decide, item by item, what the tier table leaves to the owner (T2): applied on the branch when a test or the change's own proof demonstrates it, the conservative option taken where two behaviours are valid, each commit listed under the report's Applied, review before merge (U01-F06). Never applied unattended, whatever the switches say: a change on a live-effect path (key material, signing, order or transaction submission, deploys), secrets, CI and gate configs, history, test deletions and removals or changes of existing test lines (checked additions are applied, U01-F07) (U01-F03, U01-F12). A money-path fix needs an offline check the pass did not write, or, with owner_judgement, PC-15's differential and the net check.",
+    "money_paths_globs: optional. Without it the run decides by judgement which files are money, order, key, signing or transaction paths and withholds on doubt. With it, the files it matches are those paths and the others are not, except code that signs, sends orders or transactions, or handles keys, which stays one whatever the list says. `python scripts/validate_profile.py .harden/profile.json --repo . --classify` lists the verdict for every tracked file; a pattern that matches no tracked file makes the run ignore the whole list. examples[0] leaves it out, so the run judges; examples[1] lists the bot's order, signing, fee and portfolio code.",
+    "sandbox_ack: true accepts running project code without a Claude Code sandbox (native Windows has none) or in bypassPermissions mode (PF-03); set it only when the environment holds no live credential. inherit_env false with env_allowlist keeps API keys, RPC URLs and cloud credentials of the parent environment away from project code (gates.py --help).",
+    "Without an owner profile, an autonomous run writes one itself (self-setup, protocol-preflight step 6a; user-policy-autonomy U01-F05): it adds 'origin' {kind: inferred} and a 'provenance' entry per field, sets auto_apply structural, behavioural, dependencies, money_paths and owner_judgement true and dependency_versions false (U01-F06, U01-F08), sets no money_paths_globs, and gates only commands its classification cleared (U01-F09). An owner profile, like these examples, always wins whole."
+  ],
+  "examples": [
+    {
+      "comment": [
+        "Opt-ins of this profile, each the owner's decision for this project:",
+        "live_side_effects none: the tests use an in-memory store and no gate or e2e check reads a production URL or key; the owner checked the vitest setup files and the smoke script.",
+        "network registry-only: the verifier may run the frozen-lockfile install in its fresh clone; no audit query or tool download.",
+        "auto_apply.structural true, as the template pre-fills it: behaviour stays identical and existing test lines stay untouched and green. auto_apply.behavioural true: every behavioural fix comes with a new test, and the two e2e checks run the server and the CLI at the end; auto_apply.dependencies true: the lockfile install and the full gates re-run on each dependency item. auto_apply.owner_judgement true: the owner lets the run decide the items the tier table leaves to the owner, each fix on the branch with its test and listed under Applied, review before merge. money_paths stays false: the app handles no payments.",
+        "sandbox_ack true: the owner runs on native Windows without a Claude Code sandbox and keeps no production credential in this environment."
+      ],
+      "version": 1,
+      "mode": "auto",
+      "gates": [
+        { "name": "typecheck", "cmd": ["pnpm", "exec", "tsc", "--noEmit"], "cwd": ".", "timeout_s": 600 },
+        { "name": "lint", "cmd": ["pnpm", "run", "lint"], "cwd": ".", "timeout_s": 600 },
+        { "name": "test", "cmd": ["pnpm", "exec", "vitest", "run"], "cwd": ".", "timeout_s": 1800, "count_regex": "Tests\\s+(\\d+) passed" },
+        { "name": "build", "cmd": ["pnpm", "run", "build"], "cwd": ".", "timeout_s": 900 }
+      ],
+      "e2e": [
+        { "name": "server-boots", "cmd": ["node", "scripts/smoke.mjs", "--route", "/health"], "cwd": ".", "timeout_s": 120 },
+        { "name": "cli-help", "cmd": ["node", "dist/cli.js", "--help"], "cwd": ".", "timeout_s": 60, "compare": true }
+      ],
+      "network": "registry-only",
+      "live_side_effects": "none",
+      "forbidden_commands": [
+        "/\\bgit\\s+push\\b/",
+        "/\\b(npm|pnpm|yarn|bun)\\s+(run\\s+)?(deploy|publish|release|migrate|seed)\\b/i",
+        "/\\bprisma\\s+migrate\\s+deploy\\b/i",
+        "vercel --prod"
+      ],
+      "situation": "release preparation",
+      "future_work": ["src/api/"],
+      "auto_apply": { "structural": true, "behavioural": true, "dependencies": true, "money_paths": false, "owner_judgement": true },
+      "sandbox_ack": true,
+      "budget": { "max_tokens": null, "deadline_utc": null }
+    },
+    {
+      "comment": [
+        "Opt-ins of this profile, each the owner's decision for this project:",
+        "live_side_effects none: every gate and e2e check runs with inherit_env false and an allowlist without exchange keys or RPC URLs; the tests marked 'live' are excluded, and --paper and --offline keep the bot off the exchange. The e2e check config-loads starts the bot's entry point, which protocol-preflight PF-16 allows only because the owner lists it here.",
+        "network registry-only: the verifier may run the frozen-lockfile install in its fresh clone; no audit query or tool download.",
+        "auto_apply.structural true, as the template pre-fills it. auto_apply.behavioural true: the backtest-golden check compares the base's and the branch's output on recorded data. dependencies and money_paths stay false: a trading bot's dependency and order-path changes wait for the owner. owner_judgement stays false too: every T2 item stays report-only, the scope before 2026-09-25.",
+        "money_paths_globs: the order, signing, fee and portfolio code the owner keeps; with money_paths false, items there wait for the owner, and items elsewhere (the CLI, logging, config loading) are applied under their own switch.",
+        "sandbox_ack true: the owner runs the session in bypassPermissions mode inside a VM that holds no exchange credential. budget: the earlier of deadline_utc and 480 minutes after the start ends the run, USD 120 at list prices caps its spend, and detection stops first so that Apply and the final check keep their reserve (budget.py). detection: three subagents at once and lens bundles, for the owner's laptop."
+      ],
+      "version": 1,
+      "mode": "auto",
+      "gates": [
+        { "name": "lint", "cmd": ["uv", "run", "--frozen", "ruff", "check", "."], "cwd": ".", "timeout_s": 300 },
+        { "name": "typecheck", "cmd": ["uv", "run", "--frozen", "mypy", "src"], "cwd": ".", "timeout_s": 900 },
+        { "name": "test", "cmd": ["uv", "run", "--frozen", "pytest", "-q", "-m", "not live"], "cwd": ".", "timeout_s": 1800, "count_regex": "(\\d+) passed",
+          "inherit_env": false, "env_allowlist": ["PATH", "PATHEXT", "SYSTEMROOT", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "HOME", "UV_CACHE_DIR"] }
+      ],
+      "e2e": [
+        { "name": "config-loads", "cmd": ["uv", "run", "--frozen", "python", "-m", "bot", "--check-config", "--paper"], "cwd": ".", "timeout_s": 60,
+          "inherit_env": false, "env_allowlist": ["PATH", "PATHEXT", "SYSTEMROOT", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "HOME", "UV_CACHE_DIR"] },
+        { "name": "backtest-golden", "cmd": ["uv", "run", "--frozen", "python", "-m", "bot.backtest", "--data", "tests/data/btc_1h_2024.csv", "--offline"], "cwd": ".", "timeout_s": 600, "compare": true,
+          "inherit_env": false, "env_allowlist": ["PATH", "PATHEXT", "SYSTEMROOT", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "HOME", "UV_CACHE_DIR"] }
+      ],
+      "network": "registry-only",
+      "live_side_effects": "none",
+      "forbidden_commands": [
+        "/\\bgit\\s+push\\b/",
+        "python -m bot.live",
+        "/--live\\b/",
+        "/\\bsign[_-]?(tx|transaction)s?\\b/i",
+        "/\\b(make|uv run)\\s+(deploy|publish|release|migrate|seed)\\b/i",
+        "/\\b(twine\\s+upload|uv\\s+publish|poetry\\s+publish)\\b/i"
+      ],
+      "situation": "maintenance only",
+      "future_work": [],
+      "auto_apply": { "structural": true, "behavioural": true, "dependencies": false, "money_paths": false, "owner_judgement": false },
+      "money_paths_globs": ["src/bot/orders/", "src/bot/signing/", "src/bot/portfolio/", "src/bot/fees.py"],
+      "sandbox_ack": true,
+      "budget": { "max_tokens": 4000000, "deadline_utc": "2026-12-31T06:00:00Z", "max_usd": 120, "max_minutes": 480 },
+      "detection": { "max_concurrent_subagents": 3, "lens_bundles": "grouped", "pass_model": null }
+    }
+  ]
+}

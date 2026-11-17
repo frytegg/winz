@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "corpus_sha256": "fixture",
+  "registry_sha256": "fixture",
+  "sessions": [
+    {
+      "id": "L1",
+      "labeller": "owner",
+      "tells_offered": {"row_a": ["SL-T01", "SL-T02"], "row_b": ["SL-X02"]}
+    }
+  ],
+  "screens": [],
+  "labels": [],
+  "derived": {
+    "by": "scripts/calibrate.mjs",
+    "entries": [
+      {"entry": "pos-a", "set": "positive", "verdict": "vibecoded", "tells": {"SL-T01": 2}},
+      {"entry": "pos-b", "set": "positive", "verdict": "unsure", "tells": {}},
+      {"entry": "ctl-a", "set": "control", "verdict": "not", "tells": {"SL-T02": 1}}
+    ]
+  }
+}

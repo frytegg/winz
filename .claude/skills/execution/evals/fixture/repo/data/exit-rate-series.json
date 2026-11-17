@@ -1,0 +1,138 @@
+{
+  "meta": {
+    "synthetic": true,
+    "seed": 20260110,
+    "generator": "evals/fixture/tools/gen_data.py",
+    "unit": "ETH as decimal strings, never floats",
+    "frame_cadence": "one oracle frame per day at 12:00 UTC",
+    "note": "Synthetic data for a rehearsal fixture. It describes no real protocol and no real request."
+  },
+  "frames": [
+    {
+      "frame_at": "2025-12-28T12:00:00Z",
+      "capacity_eth": "4291.28",
+      "from_buffer_eth": "2732.22",
+      "from_rewards_eth": "685.75",
+      "from_exits_eth": "873.31",
+      "finalized_eth": "4062.10",
+      "requests_finalized": 55
+    },
+    {
+      "frame_at": "2025-12-29T12:00:00Z",
+      "capacity_eth": "3878.10",
+      "from_buffer_eth": "1255.77",
+      "from_rewards_eth": "683.97",
+      "from_exits_eth": "1938.36",
+      "finalized_eth": "3864.36",
+      "requests_finalized": 25
+    },
+    {
+      "frame_at": "2025-12-30T12:00:00Z",
+      "capacity_eth": "7715.17",
+      "from_buffer_eth": "2042.72",
+      "from_rewards_eth": "663.91",
+      "from_exits_eth": "5008.54",
+      "finalized_eth": "7522.64",
+      "requests_finalized": 83
+    },
+    {
+      "frame_at": "2025-12-31T12:00:00Z",
+      "capacity_eth": "5669.54",
+      "from_buffer_eth": "788.26",
+      "from_rewards_eth": "701.91",
+      "from_exits_eth": "4179.37",
+      "finalized_eth": "5659.47",
+      "requests_finalized": 72
+    },
+    {
+      "frame_at": "2026-01-01T12:00:00Z",
+      "capacity_eth": "8235.71",
+      "from_buffer_eth": "3138.53",
+      "from_rewards_eth": "731.15",
+      "from_exits_eth": "4366.03",
+      "finalized_eth": "7945.18",
+      "requests_finalized": 116
+    },
+    {
+      "frame_at": "2026-01-02T12:00:00Z",
+      "capacity_eth": "1860.46",
+      "from_buffer_eth": "1089.22",
+      "from_rewards_eth": "771.24",
+      "from_exits_eth": "0.00",
+      "finalized_eth": "1666.35",
+      "requests_finalized": 21
+    },
+    {
+      "frame_at": "2026-01-03T12:00:00Z",
+      "capacity_eth": "7246.97",
+      "from_buffer_eth": "2069.90",
+      "from_rewards_eth": "770.93",
+      "from_exits_eth": "4406.14",
+      "finalized_eth": "7209.08",
+      "requests_finalized": 100
+    },
+    {
+      "frame_at": "2026-01-04T12:00:00Z",
+      "capacity_eth": "2891.84",
+      "from_buffer_eth": "304.23",
+      "from_rewards_eth": "693.22",
+      "from_exits_eth": "1894.39",
+      "finalized_eth": "2666.77",
+      "requests_finalized": 28
+    },
+    {
+      "frame_at": "2026-01-05T12:00:00Z",
+      "capacity_eth": "2219.12",
+      "from_buffer_eth": "1452.74",
+      "from_rewards_eth": "766.38",
+      "from_exits_eth": "0.00",
+      "finalized_eth": "2093.57",
+      "requests_finalized": 16
+    },
+    {
+      "frame_at": "2026-01-06T12:00:00Z",
+      "capacity_eth": "5796.19",
+      "from_buffer_eth": "1278.92",
+      "from_rewards_eth": "715.68",
+      "from_exits_eth": "3801.59",
+      "finalized_eth": "5779.90",
+      "requests_finalized": 127
+    },
+    {
+      "frame_at": "2026-01-07T12:00:00Z",
+      "capacity_eth": "4265.07",
+      "from_buffer_eth": "598.91",
+      "from_rewards_eth": "724.77",
+      "from_exits_eth": "2941.39",
+      "finalized_eth": "4230.08",
+      "requests_finalized": 85
+    },
+    {
+      "frame_at": "2026-01-08T12:00:00Z",
+      "capacity_eth": "2693.00",
+      "from_buffer_eth": "1934.32",
+      "from_rewards_eth": "758.68",
+      "from_exits_eth": "0.00",
+      "finalized_eth": "2649.62",
+      "requests_finalized": 43
+    },
+    {
+      "frame_at": "2026-01-09T12:00:00Z",
+      "capacity_eth": "2941.74",
+      "from_buffer_eth": "2218.43",
+      "from_rewards_eth": "723.31",
+      "from_exits_eth": "0.00",
+      "finalized_eth": "2822.92",
+      "requests_finalized": 67
+    },
+    {
+      "frame_at": "2026-01-10T12:00:00Z",
+      "capacity_eth": "2013.09",
+      "from_buffer_eth": "1241.39",
+      "from_rewards_eth": "771.70",
+      "from_exits_eth": "0.00",
+      "finalized_eth": "1813.37",
+      "requests_finalized": 46
+    }
+  ]
+}

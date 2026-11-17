@@ -1,0 +1,7 @@
+.btn {
+  transition: background-color 150ms ease-out, transform 150ms ease-out;
+}
+
+.card {
+  transition: all 0.2s;
+}

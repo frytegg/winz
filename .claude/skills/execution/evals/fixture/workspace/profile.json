@@ -1,0 +1,185 @@
+{
+  "schema": "execution.profile/1",
+  "project": {
+    "name": "Queue Clock",
+    "slug": "{{slug}}",
+    "name_owner_confirmed": false,
+    "product_repo": {
+      "path": "{{p:repo}}",
+      "remote_url": "{{remote:product}}",
+      "default_branch": "main"
+    },
+    "state_repo": {
+      "remote_url": "{{remote:state}}",
+      "private": true
+    }
+  },
+  "event": {
+    "kind": "hackathon",
+    "presence": "in-person",
+    "start_utc": "{{t:t0}}",
+    "deadline_utc": "{{t:end}}",
+    "display_zones": [
+      {"label": "SGT", "iana": "Asia/Singapore", "fallback_utc_offset_min": 480},
+      {"label": "Paris", "iana": "Europe/Paris", "fallback_utc_offset_min": "{{offset:Europe/Paris}}"}
+    ],
+    "judging": {
+      "mode": "stage",
+      "readme_is_pitch": false,
+      "surfaces": ["repo", "video", "live-room"]
+    },
+    "demo": {
+      "format": "recording",
+      "live_allowed": false,
+      "video": {"max_s": 180, "embed": "mp4"}
+    },
+    "deliverables": [
+      {"id": "repo", "title": "Repository link", "kind": "repo", "due_utc": "{{t:end}}", "manual": false},
+      {"id": "video", "title": "Recorded video (mp4, at most 180 s)", "kind": "video", "due_utc": "{{t:end}}", "manual": true},
+      {"id": "form", "title": "Submission form", "kind": "form", "due_utc": "{{t:end}}", "manual": true},
+      {"id": "tag", "title": "Tag on the submitted commit", "kind": "tag", "due_utc": "{{t:end}}", "manual": false}
+    ],
+    "rubric": {
+      "tracks": [
+        {
+          "id": "main",
+          "name": "Main track",
+          "criteria": [
+            {"name": "Technical depth", "weight_pct": 30},
+            {"name": "Usefulness to the sponsor's users", "weight_pct": 30},
+            {"name": "UX & Design", "weight_pct": 20},
+            {"name": "Presentation", "weight_pct": 20}
+          ],
+          "source": "{{p:private}}/event-brief.md#rubric"
+        }
+      ]
+    },
+    "tracks": ["main"],
+    "source": "{{p:private}}/event-brief.md (fictional rehearsal event, rendered {{t:now}})"
+  },
+  "team": {
+    "devs": [
+      {
+        "id": "devA",
+        "name": "Dev A (owner)",
+        "executor": "A",
+        "setup": "full",
+        "notion_member": true,
+        "availability": [
+          {"start_utc": "{{t:now-10m}}", "end_utc": "{{t:end+3h}}", "kind": "awake"},
+          {"start_utc": "{{t:t0+3h}}", "end_utc": "{{t:t0+210m}}", "kind": "talk"}
+        ]
+      }
+    ]
+  },
+  "channels": [
+    {"name": "Organiser announcements", "kind": "web", "access": "manual-copy", "url": null, "cadence_min": 60}
+  ],
+  "prework": {
+    "code": true,
+    "designs": false,
+    "until_utc": "{{t:t0}}"
+  },
+  "freezes": [
+    {"id": "code-for-recording", "kind": "code-for-recording", "at_utc": "{{t:end-90m}}", "globs": ["**"]},
+    {"id": "docs", "kind": "docs", "at_utc": "{{t:end-45m}}", "globs": ["README.md", "docs/**"]},
+    {"id": "push-tag", "kind": "push-tag", "at_utc": "{{t:end}}", "globs": ["**"]}
+  ],
+  "workspace": {
+    "private_dir": "{{p:private}}"
+  },
+  "paths": {
+    "never_show": "{{p:private}}/never-show.json",
+    "feature_catalogue": "{{p:repo}}/.execution/feature-catalogue.json",
+    "spec": "{{p:private}}/SPEC.md",
+    "research": "{{p:private}}/research",
+    "judge_facing": ["README.md", "docs/**/*.md"]
+  },
+  "phase_b": {
+    "claims_ledger": "{{p:private}}/claims-ledger.md",
+    "dx_journal": "{{p:private}}/dx-journal.md",
+    "run_sheet": "{{p:private}}/run-sheet.md",
+    "private": true
+  },
+  "machine": {
+    "max_lanes": 3,
+    "max_verifiers": 2,
+    "disk_floor_gb": 2.0,
+    "ram_floor_gb": 1.5,
+    "workspace_mode": "auto",
+    "lane_footprint_gb": 0.3,
+    "workflow_concurrency": 6,
+    "browser_slots": 1,
+    "scratch_root": "{{p:scratch}}"
+  },
+  "notion": {
+    "enabled": true,
+    "hub_page_id": null,
+    "databases": {"tasks": null, "waves": null},
+    "views": {"board": null, "needs_dev_a": null, "needs_dev_b": null, "to_ingest": null, "waves": null},
+    "language": "fr",
+    "tool_suffix_match": true
+  },
+  "harden": {
+    "budget_min_p80": null,
+    "scope_paths": [],
+    "exclude_globs": [],
+    "profile_draft_path": null
+  },
+  "quota": {
+    "snapshot_path": "{{p:usage_snapshot}}",
+    "max_age_s": 900,
+    "five_hour_critical_only_pct": 85,
+    "weekly_reserve_pct": 10
+  },
+  "heartbeat": {
+    "every_min": 20,
+    "minute_offset": 7
+  },
+  "event_tools": [],
+  "frontend": {
+    "mode": "small",
+    "run_mode": "A",
+    "judged_surface": "site",
+    "format": {
+      "stage": true,
+      "projector_zoom": 1.25,
+      "video": {"max_s": 180, "width": 1920, "height": 1080, "embed": "mp4"},
+      "async_readme": false
+    },
+    "viewports": [
+      {"name": "desktop", "width": 1440, "height": 900, "dpr": 1},
+      {"name": "mobile", "width": 390, "height": 844, "dpr": 2, "isMobile": true, "hasTouch": true},
+      {"name": "reflow", "width": 320, "height": 640, "dpr": 1}
+    ],
+    "record_mode": true,
+    "ready_flag": false,
+    "stack": "static-html",
+    "hosting": "local",
+    "external_requests": false,
+    "review_surface": "board",
+    "critique": {"rounds_max": 1, "critics": 3, "probes": 5},
+    "budget": {"ui_hours": 2, "tokens": null},
+    "references": [
+      {"customer": "Aave", "url": "https://aave.com/", "source": "{{p:private}}/customers.json#candidates/0", "owner_confirmed": false},
+      {"customer": "Morpho", "url": "https://morpho.org/", "source": "{{p:private}}/customers.json#candidates/1", "owner_confirmed": false},
+      {"customer": "EigenLayer", "url": "https://www.eigencloud.xyz/", "source": "{{p:private}}/customers.json#candidates/2", "owner_confirmed": false},
+      {"customer": "Spark", "url": "https://spark.finance/", "source": "{{p:private}}/customers.json#candidates/3", "owner_confirmed": false},
+      {"customer": "Euler", "url": "https://www.euler.finance/", "source": "{{p:private}}/customers.json#candidates/4", "owner_confirmed": false},
+      {"customer": "Curve", "url": "https://www.curve.finance/", "source": "{{p:private}}/customers.json#candidates/5", "owner_confirmed": false}
+    ],
+    "sponsors": ["lido"],
+    "tells": {"score_max": null},
+    "paths": {
+      "design": "design",
+      "claims_ledger": "{{p:private}}/claims-ledger.md",
+      "never_show": "{{p:private}}/never-show.json",
+      "feature_catalogue": "{{p:repo}}/.execution/feature-catalogue.json",
+      "spec": "{{p:private}}/SPEC.md",
+      "research": "{{p:private}}/research"
+    },
+    "workspace": {
+      "private_dir": "{{p:private}}"
+    }
+  }
+}

@@ -1,0 +1,8 @@
+:root {
+  --color-line-subtle: #1b2740;
+}
+
+.panel {
+  border: 1px solid transparent;
+  background: linear-gradient(#0b0b0f, #0b0b0f) padding-box, linear-gradient(135deg, #374151, #4b5563) border-box;
+}

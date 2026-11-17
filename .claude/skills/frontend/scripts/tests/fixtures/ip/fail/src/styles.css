@@ -1,0 +1,6 @@
+/* The display face comes straight from Google's CDN. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap");
+
+.hero h1 {
+  font-family: "Inter", sans-serif;
+}

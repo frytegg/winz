@@ -1,0 +1,11 @@
+.grain-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.08;
+  background-image: url('/textures/paper.png');
+}
+
+.ledger {
+  background: #0a0b0e;
+}

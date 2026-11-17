@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fixture: recording check</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=block" rel="stylesheet">
+<style>
+  body { margin: 0; font-family: Inter, Arial, sans-serif; background: linear-gradient(180deg, #0a0a0a 0%, #171727 100%); color: #e5e7eb; min-height: 1080px; }
+  .grain { position: fixed; inset: 0; pointer-events: none; opacity: .12; mix-blend-mode: overlay; }
+  header { padding: 48px 96px; }
+  h1 { font-size: 64px; margin: 0 0 12px; }
+  .sub { font-size: 20px; color: #9ca3af; }
+  .panel { margin: 24px 96px; padding: 24px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: #0a0a0a; }
+  .kpi { font-size: 20px; font-weight: 600; }
+  .kpi-big { font-size: 40px; font-weight: 600; }
+  .muted-proj { color: #7c828d; font-size: 16px; }
+  .footnote { font-size: 11px; color: #6b7280; }
+  .light { background: #fff; color: #9ca3af; font-size: 16px; padding: 12px 96px; }
+  .info { position: relative; display: inline-block; margin-left: 12px; cursor: help; border-bottom: 1px dotted #9ca3af; }
+  .tip { position: absolute; left: 0; top: 28px; opacity: 0; background: #111; padding: 6px 10px; white-space: nowrap; font-size: 14px; }
+  .info:hover .tip { opacity: 1; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #22c55e; animation: pulse 1.2s infinite; }
+  .blink { animation: blink .2s steps(1) infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  @keyframes blink { 50% { opacity: 0; } }
+  .wide { min-width: 1700px; height: 8px; background: #1f2937; margin: 12px 96px; }
+</style>
+</head>
+<body>
+  <svg class="grain" width="100%" height="100%"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="3"/></filter><rect width="100%" height="100%" filter="url(#n)"/></svg>
+  <header>
+    <h1 data-rec-role="key">Settle disputes in one block</h1>
+    <div class="sub">Escrow with a refund path buyers can verify <span class="info">why?<span class="tip">Refund after 72 h if the seller never ships</span></span></div>
+  </header>
+  <section class="panel" data-provenance="testnet" data-as-of="2026-10-01T09:41:00Z">
+    <div><span class="dot"></span> <span class="blink">LIVE</span> preprod · 09:41 UTC</div>
+    <div class="kpi" data-rec-role="key">Held in escrow: 12,480.00 ADA</div>
+    <div class="kpi-big" data-rec-role="key">Refunded: 3 of 3 disputes</div>
+    <div class="muted-proj">Median settlement 1 block (about 20 s)</div>
+    <div class="footnote">Fees 0.17 ADA per settlement, paid by the losing party. <span title="Plutus V3 validator">ⓘ</span></div>
+  </section>
+  <div class="wide"></div>
+  <div class="light">Contract address addr_test1wz...9d4k (low-contrast grey on white)</div>
+</body>
+</html>

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Marquee</title>
+<style>
+  body { margin: 0; font-family: Arial, sans-serif; color: #111; }
+  .marquee { overflow: hidden; padding: 32px 0; }
+  .track { display: flex; gap: 48px; width: max-content; animation: scroll 20s linear infinite; }
+  .track span { font-size: 20px; color: #555; }
+  @keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+</style>
+</head>
+<body>
+  <div class="marquee">
+    <div class="track">
+      <span>Northwind</span><span>Contoso</span><span>Fabrikam</span>
+      <span>Northwind</span><span>Contoso</span><span>Fabrikam</span>
+    </div>
+  </div>
+</body>
+</html>

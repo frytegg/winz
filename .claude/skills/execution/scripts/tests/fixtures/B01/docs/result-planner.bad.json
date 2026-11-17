@@ -1,0 +1,25 @@
+{
+  "schema": "execution.result.planner/1",
+  "role": "planner",
+  "draft_path": "plan.draft.json",
+  "draft_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "requirements_assigned": [],
+  "libraries": [
+    {
+      "library": "execution",
+      "params": {}
+    }
+  ],
+  "manual_tasks": [],
+  "decision_tasks": [
+    "approve-plan"
+  ],
+  "questions": [],
+  "risks": [],
+  "assumptions": [],
+  "self_check": {
+    "command": "exec.py plan instantiate --dry-run",
+    "exit_code": 0,
+    "errors": []
+  }
+}

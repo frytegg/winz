@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SL-T11 runtime negative</title>
+<style>
+  /* shadcn components re-themed from the project's tokens (FD14-F05: XRPL re-themed the kit) */
+  :root {
+    --radius: 0.25rem;
+    --background: oklch(0.985 0.01 95);
+    --foreground: oklch(0.21 0.03 260);
+    --primary: oklch(0.55 0.2 150);
+    --primary-foreground: oklch(0.99 0 0);
+    --border: oklch(0.9 0.02 95);
+  }
+  body { margin: 0; padding: 48px; background: var(--background); color: var(--foreground); font-family: Arial, sans-serif; }
+  [data-slot="card"] { border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; width: 360px; }
+  [data-slot="button"] { background: var(--primary); color: var(--primary-foreground); border: 0; border-radius: var(--radius); padding: 8px 16px; }
+</style>
+</head>
+<body>
+  <div data-slot="card">
+    <h3 data-slot="card-title">Vault health</h3>
+    <button data-slot="button" class="inline-flex items-center hover:bg-primary-strong">Open vault</button>
+  </div>
+</body>
+</html>

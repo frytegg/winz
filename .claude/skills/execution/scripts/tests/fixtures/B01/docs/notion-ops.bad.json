@@ -1,0 +1,28 @@
+{
+  "schema": "execution.notion-ops/1",
+  "batch_id": "N-20261003T071200Z-A-1",
+  "executor": "A",
+  "created_utc": "2026-10-03T07:12:00Z",
+  "kind": "mirror",
+  "stage": 1,
+  "wave": null,
+  "ops": [
+    {
+      "op_id": "op-1",
+      "tool": "notion-delete-page",
+      "args": {
+        "page_id": "p1"
+      },
+      "key": "T001",
+      "purpose": "update-row",
+      "hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "capture": []
+    }
+  ],
+  "budget": {
+    "calls": 1,
+    "query_calls": 0,
+    "max_in_flight": 3
+  },
+  "followup": null
+}

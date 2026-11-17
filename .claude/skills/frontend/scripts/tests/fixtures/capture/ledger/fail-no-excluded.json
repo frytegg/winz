@@ -1,0 +1,9 @@
+{
+  "references": [
+    {"id": "R1", "customer": "Ledgerline Ltd", "url": "https://light.example/", "page": "/", "captured_at": "2026-10-01T10:00:00Z", "viewports": ["desktop"], "receipt": "manual-notes", "purged": false},
+    {"id": "R2", "customer": "Nightdesk", "url": "https://dark.example/", "page": "/", "captured_at": "2026-10-01T10:05:00Z", "viewports": ["desktop"], "receipt": "manual-notes", "purged": false}
+  ],
+  "patterns": [
+    {"id": "P1", "kind": "convention", "statement": "Navigation at the top with four links or fewer", "values": {"R1": 4, "R2": 0}, "from": ["R1", "R2"], "not_borrowed": "link labels"}
+  ]
+}

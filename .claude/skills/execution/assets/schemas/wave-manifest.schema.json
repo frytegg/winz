@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.execution.invalid/wave-manifest.schema.json",
+  "title": ".execution/waves/Wnn.json, the manifest of one emitted wave",
+  "description": "Written by `exec.py wave emit` next to the generated waves/Wnn.js (created with O_EXCL: the id is allocated by the file's creation), and updated only by `wave launched` (launch block), `wave ingest`, `status` and `resume` (status). Emit is final: the manifest is written with status launching and its tasks go running, so a crash before the Workflow call never leads to a second launch (resume resolves a launching wave by its workflow_name). The script embeds everything it needs from this manifest as constants; args carry only now_utc and skip (the task ids already proven, so a relaunch after a usage-limit stop reruns only what is open).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "wave", "executor", "plan_version", "plan_sha256", "created_utc", "script_path", "script_sha256", "workflow_name", "args", "limits", "lanes", "tasks", "fragments", "launch", "status"],
+  "properties": {
+    "schema": {"const": "execution.wave-manifest/1"},
+    "wave": {"$ref": "common.schema.json#/$defs/wave_id"},
+    "executor": {"$ref": "common.schema.json#/$defs/executor"},
+    "pre_t0": {"type": "boolean", "description": "true for a pre-T0 research wave (FRONTEND.md 11): chain [implementer], no merge, outcome recorded, no status transition."},
+    "launching_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+    "plan_version": {"type": "integer", "minimum": 1},
+    "plan_sha256": {"$ref": "common.schema.json#/$defs/sha256"},
+    "created_utc": {"$ref": "common.schema.json#/$defs/utc"},
+    "script_path": {"$ref": "common.schema.json#/$defs/abs_path"},
+    "script_sha256": {"$ref": "common.schema.json#/$defs/sha256"},
+    "workflow_name": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,60}$"},
+    "args": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["now_utc", "skip"],
+      "properties": {
+        "now_utc": {"$ref": "common.schema.json#/$defs/utc"},
+        "skip": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/task_id"}}
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["writers", "verifiers", "integrators", "browser_slots", "concurrency_env"],
+      "properties": {
+        "writers": {"type": "integer", "minimum": 1, "maximum": 6},
+        "verifiers": {"type": "integer", "minimum": 1, "maximum": 4},
+        "integrators": {"const": 1, "description": "Merges are serialized by the merge lock (one at a time per product repo); the implementer runs exec.py merge as its last step, so a separate integrator agent runs only after test-designer and fragment steps."},
+        "browser_slots": {"type": "integer", "minimum": 0, "maximum": 2},
+        "concurrency_env": {"type": "integer", "minimum": 1, "maximum": 16, "description": "CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS the launcher set; writers + verifiers + integrators never exceed it."}
+      }
+    },
+    "lanes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["lane", "workspace_mode", "tasks"],
+        "properties": {
+          "lane": {"$ref": "common.schema.json#/$defs/lane_id"},
+          "workspace_mode": {"enum": ["worktrees", "single-tree"]},
+          "tasks": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/task_id"}}
+        }
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["task", "lane", "attempt", "kind", "chain", "brief_path", "inbox", "results", "agents", "deps_in_wave", "priority_rank", "critical", "resources"],
+        "properties": {
+          "task": {"$ref": "common.schema.json#/$defs/task_id"},
+          "lane": {"anyOf": [{"$ref": "common.schema.json#/$defs/lane_id"}, {"type": "null"}]},
+          "attempt": {"type": "integer", "minimum": 1},
+          "rerun": {"type": "integer", "minimum": 0, "description": "The run key k of a<n>r<k> (status reruns at emit): it keys the merge counter, the merge-gates dir, the critique worktree and the intent file."},
+          "fix_attempts": {"type": "array", "items": {"type": "integer", "minimum": 2}, "description": "In-wave fix attempts prepared for this task (attempt+1 .. max_attempts), each with its own brief; wave ingest applies them in order (SCHEMAS.md 4.2 failed -> running)."},
+          "from_status": {"enum": ["ready", "planned", "built", "verifying"], "description": "planned: an in-wave dependent; built/verifying: a verifier-only chain after a dead verifier."},
+          "kind": {"$ref": "common.schema.json#/$defs/kind"},
+          "chain": {
+            "description": "Steps run in order for this task inside the wave (no barrier across tasks). Default for code/test/infra: [implementer, verifier] (the implementer ends with exec.py merge). integrator appears after test-designer and fragment steps (merge --single-tree or --worktree) and for single-tree recovery; [verifier] alone for gate tasks and for built tasks whose verifier died; [implementer] alone only in a pre_t0 manifest.",
+            "type": "array",
+            "minItems": 1,
+            "items": {"enum": ["test-designer", "implementer", "integrator", "verifier", "fe-critique", "fe-directions", "reviewer"]}
+          },
+          "brief_path": {"$ref": "common.schema.json#/$defs/abs_path"},
+          "inbox": {"$ref": "common.schema.json#/$defs/abs_path", "description": "Directory where this task's agents Write their result JSON before `exec.py result put` moves it to results/."},
+          "results": {
+            "type": "object",
+            "additionalProperties": {"$ref": "common.schema.json#/$defs/state_rel_path"},
+            "description": "role -> expected result path (local/results/<wave>/<task>.<role>.a<attempt>.json)."
+          },
+          "agents": {
+            "type": "object",
+            "description": "role -> agent() options the script uses.",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["agentType", "model", "effort", "isolation", "label", "phase"],
+              "properties": {
+                "agentType": {"$ref": "common.schema.json#/$defs/agent_type"},
+                "model": {"$ref": "common.schema.json#/$defs/model"},
+                "effort": {"$ref": "common.schema.json#/$defs/effort"},
+                "isolation": {"enum": ["worktree", null]},
+                "label": {"type": "string", "minLength": 1, "maxLength": 80},
+                "phase": {"type": "string", "minLength": 1, "maxLength": 40},
+                "schema": {"type": "string", "description": "Name of the result schema inlined for this role, e.g. result-implementer."}
+              }
+            }
+          },
+          "deps_in_wave": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/task_id"}},
+          "priority_rank": {"type": "integer", "minimum": 0},
+          "critical": {"type": "boolean"},
+          "resources": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/resource"}}
+        }
+      }
+    },
+    "fragments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "source_path", "sha256"],
+        "properties": {
+          "name": {"enum": ["feCritique", "feDirections"]},
+          "source_path": {"$ref": "common.schema.json#/$defs/abs_path"},
+          "sha256": {"$ref": "common.schema.json#/$defs/sha256"}
+        }
+      }
+    },
+    "launch": {
+      "anyOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["at_utc", "run_id", "error"],
+          "properties": {
+            "at_utc": {"$ref": "common.schema.json#/$defs/utc"},
+            "run_id": {"type": ["string", "null"]},
+            "transcript_dir": {"$ref": "common.schema.json#/$defs/abs_path_or_null"},
+            "error": {"type": ["string", "null"]},
+            "relaunches": {"type": "integer", "minimum": 0}
+          }
+        }
+      ]
+    },
+    "status": {"enum": ["emitted", "launching", "launched", "launch-failed", "finished", "ingested", "abandoned"]}
+  }
+}

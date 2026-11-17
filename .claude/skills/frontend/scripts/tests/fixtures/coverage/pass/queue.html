@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Queue Clock: the queue</title>
+  <style>
+    body { margin: 0; font: 16px/1.5 system-ui, sans-serif; color: #111; background: #fff; }
+    main { max-width: 960px; margin: 0 auto; padding: 24px; }
+  </style>
+</head>
+<body>
+  <main>
+    <section data-feature="FR-002" data-record-show hidden>
+      <h2>Estimate when a withdrawal becomes claimable</h2>
+      <span data-status="planned">Planned</span>
+      <p>Arrives after the claim estimator is measured.</p>
+    </section>
+  </main>
+  <script>
+    if (new URLSearchParams(location.search).get('record') === '1') {
+      for (const el of document.querySelectorAll('[data-record-show]')) el.hidden = false;
+    }
+  </script>
+</body>
+</html>

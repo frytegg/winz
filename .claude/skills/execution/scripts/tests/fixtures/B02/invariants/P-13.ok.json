@@ -1,0 +1,17 @@
+{
+ "base": "base.json",
+ "note": "a code task with a waived negative control",
+ "ops": [
+  {
+   "op": "set",
+   "path": "/plan/tasks/@engine/proof/negative_control",
+   "value": {
+    "kind": "planted-defect",
+    "description": "a planted off-by-one",
+    "expect_nonzero": true,
+    "patch_path": "negative-controls/engine.plant.json"
+   }
+  }
+ ],
+ "expect": []
+}

@@ -1,0 +1,6 @@
+# Spawning ai.txt shape: pages allowed, images opted out.
+User-Agent: *
+Disallow: *.png
+Disallow: *.jpg
+Disallow: *.webp
+Allow: /

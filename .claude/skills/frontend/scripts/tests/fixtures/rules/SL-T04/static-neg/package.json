@@ -1,0 +1,7 @@
+{
+  "name": "vaultline-web",
+  "private": true,
+  "dependencies": {
+    "@fontsource/inter": "5.2.5"
+  }
+}

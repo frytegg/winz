@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.execution.invalid/result-planner.schema.json",
+  "title": "Structured result of the execution-planner agent",
+  "description": "Self-contained (no $ref) because it is inlined as the agent() schema option. The plan itself is a file (plan-draft.schema.json) the planner writes with the Write tool; this result points at it and reports what the owner must see at approval. Recorded with `exec.py result put --role planner`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "role", "draft_path", "draft_sha256", "requirements_assigned", "libraries", "manual_tasks", "decision_tasks", "questions", "risks", "assumptions", "self_check"],
+  "properties": {
+    "schema": {"const": "execution.result.planner/1"},
+    "role": {"const": "planner"},
+    "draft_path": {"type": "string", "pattern": "^([A-Za-z]:/|/).*plan\\.draft\\.json$"},
+    "draft_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "requirements_assigned": {
+      "description": "Requirement ids the planner assigned because the spec had none (shown in the approval).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "text", "source"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^((FR|SC|NFR)-[0-9]{3,}|US[0-9]{1,3})$"},
+          "text": {"type": "string", "minLength": 1},
+          "source": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "libraries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["library", "params"],
+        "properties": {
+          "library": {"enum": ["execution", "frontend"]},
+          "params": {"type": "object"}
+        }
+      }
+    },
+    "manual_tasks": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,60}$"}},
+    "decision_tasks": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,60}$"}},
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["field", "action", "why"],
+        "properties": {
+          "field": {"type": "string", "minLength": 1},
+          "action": {"enum": ["manual-task", "decision"]},
+          "why": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "risks": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "assumptions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "self_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "exit_code", "errors"],
+      "properties": {
+        "command": {"type": "string", "minLength": 1, "description": "The `exec.py plan instantiate --dry-run` call the planner ran on its draft."},
+        "exit_code": {"type": "integer"},
+        "errors": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

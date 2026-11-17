@@ -1,0 +1,50 @@
+{
+  "critique": {
+    "pass_id": "T042-r1-c1",
+    "kind": "critique",
+    "checklist": [
+      {"id": "FV1", "answer": "yes"},
+      {"id": "T1", "answer": "no", "mark": "m12"}
+    ],
+    "issues": [
+      {"mark": "m12", "item": "T1", "category": "typography", "problem": "Body measure is 104 characters per line (marks file, m12.chars_per_line)", "fix": "Cap the paragraph at max-width: 68ch", "source": "app/src/sections/G1/Queue.tsx:40"}
+    ]
+  },
+  "pairwise": {
+    "pass_id": "T042-r1-pAB",
+    "kind": "pairwise",
+    "checklist": [{"id": "FV1", "a": "yes", "b": "yes"}, {"id": "T1", "a": "no", "b": "yes"}],
+    "preferred": "B",
+    "reason": "B keeps the body measure within 45-90 characters; everything else is equal."
+  },
+  "probeMatch": {
+    "pass_id": "T042-r0-desktop-match",
+    "kind": "probe-match",
+    "matches": [
+      {"probe": "p1", "restates": true, "what": true, "does": true, "for_whom": true, "reason": "Same product, action and user."},
+      {"probe": "p2", "restates": false, "reason": "Reads it as an exchange."}
+    ]
+  },
+  "probe": {
+    "pass_id": "T042-r0-desktop-p1",
+    "answer": "This is a dashboard for a staking withdrawal queue. It shows stakers when their withdrawal becomes claimable.",
+    "what": "a withdrawal queue dashboard",
+    "does": "shows when a withdrawal becomes claimable",
+    "for_whom": "stakers",
+    "unclear": false
+  },
+  "measure": {
+    "round": 0,
+    "label": "baseline",
+    "sha": "4f2a9c1",
+    "ui_tree": "9b1d77e",
+    "dir": "C:/state/critique/round-0/baseline",
+    "gates": {"ok": true, "counts": {"ok": 31, "fail": 0, "skipped": 0}, "failing": []},
+    "scores": {"layout": 12, "typography": 8, "economy": 5},
+    "deterministic": [{"mark": "m12", "check": "B5.measure", "problem": "104 characters per line", "fix": "max-width: 68ch"}],
+    "task_file": "C:/state/critique/round-0/baseline/critic-task.md",
+    "tiles": [{"viewport": "desktop", "path": "C:/state/critique/round-0/baseline/desktop-0.png"}],
+    "first_view": {"desktop": "C:/state/critique/round-0/baseline/first-desktop.png", "mobile": "C:/state/critique/round-0/baseline/first-mobile.png"},
+    "proposition": "Know when you can withdraw. Queue Clock shows stakers where their withdrawal request stands and when it becomes claimable."
+  }
+}

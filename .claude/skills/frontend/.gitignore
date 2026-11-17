@@ -1,0 +1,5 @@
+# Third-party material captured during research: screenshots and saved pages of other sites,
+# kept locally as provenance, never committed (see research/policy-copying-and-ip.md).
+research/assets/
+research/evidence/
+node_modules/

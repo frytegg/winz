@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Content-Usage: train-ai=n

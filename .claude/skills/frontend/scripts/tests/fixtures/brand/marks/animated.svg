@@ -1,0 +1,1 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><style>@keyframes spin{to{transform:rotate(1turn)}} .r{animation:spin 2s linear infinite}</style><rect class="r" x="4" y="4" width="24" height="24" fill="#14161a"/></svg>

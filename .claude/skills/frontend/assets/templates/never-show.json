@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "NS-001",
+      "class": "embargo",
+      "pattern": "EXAMPLE-ADVISORY-0042",
+      "regex": false,
+      "case_sensitive": false,
+      "until_utc": "2026-10-11T12:00:00Z",
+      "scope": "both",
+      "note": "Fictional example: a finding held back until the sponsor ships its fix; inactive after the date.",
+      "source": "memory/project_example.md:12"
+    },
+    {
+      "id": "NS-002",
+      "class": "embargo",
+      "pattern": "EXAMPLE-LAUNCH-DATE",
+      "regex": false,
+      "case_sensitive": false,
+      "until_utc": "2026-09-01T00:00:00Z",
+      "scope": "rendered",
+      "note": "Fictional example of an embargo already past: inactive.",
+      "source": "research/redaction.md:3"
+    },
+    {
+      "id": "NS-003",
+      "class": "undisclosed-security",
+      "pattern": "\\bexample[- ]withdrawal[- ]race\\b",
+      "regex": true,
+      "case_sensitive": false,
+      "until_utc": null,
+      "scope": "both",
+      "note": "Fictional example of a regular-expression entry.",
+      "source": "research/findings/example-security.md:7"
+    },
+    {
+      "id": "NS-004",
+      "class": "never-public",
+      "pattern": "internal-endpoint.example.invalid",
+      "regex": false,
+      "case_sensitive": false,
+      "until_utc": null,
+      "scope": "repo",
+      "note": "Fictional example: a private endpoint that never appears in the public repository.",
+      "source": "research/notes/infra.md:20"
+    },
+    {
+      "id": "NS-005",
+      "class": "do-not-carry",
+      "pattern": "Example Earlier Project",
+      "regex": false,
+      "case_sensitive": true,
+      "until_utc": null,
+      "scope": "rendered",
+      "note": "Fictional example: the name of an earlier project that must not carry over.",
+      "source": "memory/project_example.md:30"
+    }
+  ]
+}

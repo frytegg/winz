@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Queue Clock: see when your withdrawal clears</title>
+  <meta name="description" content="Lenders see where their withdrawal stands in the queue and when it becomes claimable.">
+  <style>
+    body { margin: 0; font: 16px/1.5 system-ui, sans-serif; color: #111; background: #fff; }
+    main { max-width: 960px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 40px; text-transform: uppercase; margin: 0 0 8px; }
+    .figure { font-size: 40px; font-weight: 700; }
+    section { margin: 24px 0; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1 data-hero="h1">See when your
+      withdrawal clears</h1>
+    <p data-hero="sentence">Lenders see where their withdrawal stands in the queue and when it becomes claimable.</p>
+    <p>Built on the Cardano blockchain, running on the preprod testnet.</p>
+    <p><span class="figure" data-metric data-ledger="C-001">2.1M tADA</span> queued</p>
+
+    <section data-feature="FR-001">
+      <h2>See where a withdrawal stands</h2>
+      <span data-status="testnet">Testnet</span>
+      <p>Position 12 of 40. <a data-proof="C-001" href="#proof">Read the proof</a></p>
+    </section>
+
+    <section data-feature="FR-004">
+      <h2>A section the routes file does not map</h2>
+      <span data-status="testnet">Testnet</span>
+      <a data-proof="tx" href="#tx">Transaction</a>
+    </section>
+
+    <section data-source="testnet" data-as-of="2026-10-01T10:00:00Z">
+      <h2>Queue right now</h2>
+      <p class="figure">41 min</p>
+      <p>Updated <time datetime="2026-10-01">1 Oct 2026</time></p>
+    </section>
+
+    <p data-metric data-source="live" data-as-of="block 123456">3 claims settled</p>
+    <pre><code>// TODO: example code is never a placeholder on the page</code></pre>
+    <p>Step 2 of 3. Version v1.2.3, released in 2026.</p>
+    <p>REPO-ONLY-TOKEN may appear on the page: its entry covers the repository only.</p>
+    <p hidden>EXPIRED-EMBARGO-TOKEN</p>
+  </main>
+</body>
+</html>

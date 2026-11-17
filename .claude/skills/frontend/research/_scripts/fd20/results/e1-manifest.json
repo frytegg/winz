@@ -1,0 +1,4778 @@
+[
+{
+"variant": {
+"id": "v1-ink-white-400",
+"fg": "#111827",
+"bg": "#ffffff",
+"w": 400
+},
+"fontOk": true,
+"file": "v1-ink-white-400.png",
+"boxes": [
+{
+"size": 9,
+"text": "Withdraw window dispute status 37,161.05",
+"x": 30,
+"y": 12,
+"w": 178.546875,
+"h": 11
+},
+{
+"size": 9,
+"text": "32,561.02 vault network device oracle",
+"x": 650,
+"y": 12,
+"w": 161.71875,
+"h": 11
+},
+{
+"size": 9,
+"text": "Device withdraw escrow 63,130.68 buyer",
+"x": 1270,
+"y": 12,
+"w": 174.71875,
+"h": 11
+},
+{
+"size": 10,
+"text": "Ledger 7,724.88 testnet epoch amount",
+"x": 30,
+"y": 36,
+"w": 182.09375,
+"h": 12
+},
+{
+"size": 10,
+"text": "Testnet 3,191.77 preprod balance block",
+"x": 650,
+"y": 36,
+"w": 183.34375,
+"h": 12
+},
+{
+"size": 10,
+"text": "Settled block 12,601.65 health liquidation",
+"x": 1270,
+"y": 36,
+"w": 192.140625,
+"h": 12
+},
+{
+"size": 11,
+"text": "Total amount price window 58,831.82 feed",
+"x": 30,
+"y": 62,
+"w": 220.28125,
+"h": 14
+},
+{
+"size": 11,
+"text": "Validator timeout balance timeout 89,816.76",
+"x": 650,
+"y": 62,
+"w": 227.015625,
+"h": 14
+},
+{
+"size": 11,
+"text": "3,717.86 mainnet amount seller pending",
+"x": 1270,
+"y": 62,
+"w": 204.9375,
+"h": 14
+},
+{
+"size": 12,
+"text": "Deposit 10,111.56 mainnet pending claim",
+"x": 30,
+"y": 89,
+"w": 225.234375,
+"h": 15
+},
+{
+"size": 12,
+"text": "Buyer settled network total 89,966.55",
+"x": 650,
+"y": 89,
+"w": 213.203125,
+"h": 15
+},
+{
+"size": 12,
+"text": "Device amount block balance 63,417.17",
+"x": 1270,
+"y": 89,
+"w": 220.484375,
+"h": 15
+},
+{
+"size": 13,
+"text": "Oracle pending 31,041.61 timeout mainnet",
+"x": 30,
+"y": 118,
+"w": 255.171875,
+"h": 16
+},
+{
+"size": 13,
+"text": "60,619.90 dispute liquidation health",
+"x": 650,
+"y": 118,
+"w": 217.84375,
+"h": 16
+},
+{
+"size": 13,
+"text": "3,931.93 window mainnet vault timeout",
+"x": 1270,
+"y": 118,
+"w": 239.734375,
+"h": 16
+},
+{
+"size": 14,
+"text": "81,792.97 liquidation buyer escrow claim",
+"x": 30,
+"y": 148,
+"w": 268.28125,
+"h": 17
+},
+{
+"size": 14,
+"text": "Withdraw network 1,381.49 withdraw liquidation",
+"x": 650,
+"y": 148,
+"w": 316.03125,
+"h": 17
+},
+{
+"size": 14,
+"text": "Epoch ratio factor vault price 13,162.25",
+"x": 1270,
+"y": 148,
+"w": 256.0625,
+"h": 17
+},
+{
+"size": 16,
+"text": "81,409.88 price window dispute amount",
+"x": 30,
+"y": 180,
+"w": 302.46875,
+"h": 20
+},
+{
+"size": 16,
+"text": "57,482.74 ledger network liquidation",
+"x": 650,
+"y": 180,
+"w": 275.1875,
+"h": 20
+},
+{
+"size": 16,
+"text": "Settled 61,171.17 claim total oracle",
+"x": 1270,
+"y": 180,
+"w": 251.265625,
+"h": 20
+},
+{
+"size": 18,
+"text": "Dispute dispute release network 51,236.51",
+"x": 30,
+"y": 216,
+"w": 358.015625,
+"h": 21
+},
+{
+"size": 18,
+"text": "80,297.38 testnet testnet signer proof",
+"x": 650,
+"y": 216,
+"w": 319.9375,
+"h": 21
+},
+{
+"size": 18,
+"text": "47,281.06 confirmed status collateral",
+"x": 1270,
+"y": 216,
+"w": 312.671875,
+"h": 21
+},
+{
+"size": 20,
+"text": "Window reward 4,718.20 vault withdraw",
+"x": 30,
+"y": 254,
+"w": 377.171875,
+"h": 24
+},
+{
+"size": 20,
+"text": "Testnet fee 45,340.04 vault factor total",
+"x": 650,
+"y": 254,
+"w": 368.59375,
+"h": 24
+},
+{
+"size": 20,
+"text": "Withdraw block 49,200.02 network feed",
+"x": 1270,
+"y": 254,
+"w": 381.359375,
+"h": 24
+},
+{
+"size": 24,
+"text": "Collateral pending block ratio 39,688.03",
+"x": 30,
+"y": 295,
+"w": 454.296875,
+"h": 29
+},
+{
+"size": 24,
+"text": "Release seller 22,822.16 collateral release",
+"x": 650,
+"y": 295,
+"w": 472.78125,
+"h": 29
+},
+{
+"size": 24,
+"text": "55,200.58 network device status confirmed",
+"x": 1270,
+"y": 295,
+"w": 494.421875,
+"h": 29
+},
+{
+"size": 28,
+"text": "Withdraw total oracle timeout 47,863.45",
+"x": 30,
+"y": 342,
+"w": 528.828125,
+"h": 34
+},
+{
+"size": 28,
+"text": "Escrow 68,394.29 proof health device",
+"x": 650,
+"y": 342,
+"w": 504.765625,
+"h": 34
+},
+{
+"size": 28,
+"text": "Device window buyer 52,168.45 liquidation",
+"x": 1270,
+"y": 342,
+"w": 564.390625,
+"h": 34
+},
+{
+"size": 9,
+"text": "11,168.06 proof amount confirmed price",
+"x": 30,
+"y": 394,
+"w": 167.375,
+"h": 11
+},
+{
+"size": 9,
+"text": "Signer 11,228.56 health mainnet withdraw",
+"x": 650,
+"y": 394,
+"w": 176.5625,
+"h": 11
+},
+{
+"size": 9,
+"text": "Balance block total health 71,972.56",
+"x": 1270,
+"y": 394,
+"w": 152.609375,
+"h": 11
+},
+{
+"size": 10,
+"text": "Buyer factor withdraw 12,200.54 refund",
+"x": 30,
+"y": 418,
+"w": 187.734375,
+"h": 12
+},
+{
+"size": 10,
+"text": "Oracle 80,977.87 dispute collateral withdraw",
+"x": 650,
+"y": 418,
+"w": 209.390625,
+"h": 12
+},
+{
+"size": 10,
+"text": "Block preprod mainnet 75,069.16 dispute",
+"x": 1270,
+"y": 418,
+"w": 191.984375,
+"h": 12
+},
+{
+"size": 11,
+"text": "Settled validator network dispute 17,186.54",
+"x": 30,
+"y": 444,
+"w": 220.328125,
+"h": 14
+},
+{
+"size": 11,
+"text": "83,269.86 liquidation block health price",
+"x": 650,
+"y": 444,
+"w": 205.8125,
+"h": 14
+},
+{
+"size": 11,
+"text": "Window 22,396.55 device ledger proof",
+"x": 1270,
+"y": 444,
+"w": 202.484375,
+"h": 14
+},
+{
+"size": 12,
+"text": "Ledger fee release oracle testnet 36,849.11",
+"x": 30,
+"y": 471,
+"w": 242.78125,
+"h": 15
+},
+{
+"size": 12,
+"text": "Buyer refund device total 9,746.12 withdraw",
+"x": 650,
+"y": 471,
+"w": 247.484375,
+"h": 15
+},
+{
+"size": 12,
+"text": "Pending reward 35,884.64 network claim",
+"x": 1270,
+"y": 471,
+"w": 233.34375,
+"h": 15
+},
+{
+"size": 13,
+"text": "Release collateral 19,319.89 deposit",
+"x": 30,
+"y": 500,
+"w": 217.765625,
+"h": 16
+},
+{
+"size": 13,
+"text": "20,549.01 liquidation withdraw health",
+"x": 650,
+"y": 500,
+"w": 228.796875,
+"h": 16
+},
+{
+"size": 13,
+"text": "Window status 19,068.25 buyer withdraw",
+"x": 1270,
+"y": 500,
+"w": 253.234375,
+"h": 16
+},
+{
+"size": 14,
+"text": "Release health 78,898.42 ledger release",
+"x": 30,
+"y": 530,
+"w": 266.265625,
+"h": 17
+},
+{
+"size": 14,
+"text": "Settled testnet pending 42,453.11 validator",
+"x": 650,
+"y": 530,
+"w": 280.09375,
+"h": 17
+},
+{
+"size": 14,
+"text": "Deposit 44,270.34 health refund total",
+"x": 1270,
+"y": 530,
+"w": 247.203125,
+"h": 17
+},
+{
+"size": 16,
+"text": "Total balance preprod window 60,050.51",
+"x": 30,
+"y": 562,
+"w": 306.484375,
+"h": 20
+},
+{
+"size": 16,
+"text": "Factor signer factor 29,177.06 ratio",
+"x": 650,
+"y": 562,
+"w": 260.671875,
+"h": 20
+},
+{
+"size": 16,
+"text": "Refund withdraw 3,297.24 health status",
+"x": 1270,
+"y": 562,
+"w": 299.21875,
+"h": 20
+},
+{
+"size": 18,
+"text": "65,628.08 signer escrow ratio escrow",
+"x": 30,
+"y": 598,
+"w": 321.078125,
+"h": 21
+},
+{
+"size": 18,
+"text": "Signer total 73,596.01 factor signer",
+"x": 650,
+"y": 598,
+"w": 296.25,
+"h": 21
+},
+{
+"size": 18,
+"text": "Window 30,774.79 dispute collateral oracle",
+"x": 1270,
+"y": 598,
+"w": 365.875,
+"h": 21
+},
+{
+"size": 20,
+"text": "Vault reward collateral 15,726.94 collateral",
+"x": 30,
+"y": 636,
+"w": 398.59375,
+"h": 24
+},
+{
+"size": 20,
+"text": "Escrow mainnet balance 81,924.34 price",
+"x": 650,
+"y": 636,
+"w": 382.84375,
+"h": 24
+},
+{
+"size": 20,
+"text": "Dispute timeout oracle testnet 57,383.49",
+"x": 1270,
+"y": 636,
+"w": 382.78125,
+"h": 24
+},
+{
+"size": 24,
+"text": "Mainnet oracle price fee balance 1,359.35",
+"x": 30,
+"y": 677,
+"w": 473.265625,
+"h": 29
+},
+{
+"size": 24,
+"text": "Release window health 44,566.33 signer",
+"x": 650,
+"y": 677,
+"w": 460.59375,
+"h": 29
+},
+{
+"size": 24,
+"text": "Epoch escrow ledger 51,771.50 price dispute",
+"x": 1270,
+"y": 677,
+"w": 505.09375,
+"h": 29
+},
+{
+"size": 28,
+"text": "Fee dispute device 89,225.11 liquidation",
+"x": 30,
+"y": 724,
+"w": 521.609375,
+"h": 34
+},
+{
+"size": 28,
+"text": "Factor reward 42,673.79 ratio total escrow",
+"x": 650,
+"y": 724,
+"w": 560.296875,
+"h": 34
+},
+{
+"size": 28,
+"text": "Escrow 19,387.02 network preprod price",
+"x": 1270,
+"y": 724,
+"w": 532.546875,
+"h": 34
+}
+],
+"body": [
+{
+"size": 9,
+"body": 9,
+"xHeight": 5
+},
+{
+"size": 10,
+"body": 11,
+"xHeight": 6
+},
+{
+"size": 11,
+"body": 11,
+"xHeight": 6
+},
+{
+"size": 12,
+"body": 12,
+"xHeight": 7
+},
+{
+"size": 13,
+"body": 13,
+"xHeight": 7
+},
+{
+"size": 14,
+"body": 14,
+"xHeight": 8
+},
+{
+"size": 16,
+"body": 16,
+"xHeight": 9
+},
+{
+"size": 18,
+"body": 17,
+"xHeight": 10
+},
+{
+"size": 20,
+"body": 20,
+"xHeight": 11
+},
+{
+"size": 24,
+"body": 24,
+"xHeight": 14
+},
+{
+"size": 28,
+"body": 27,
+"xHeight": 16
+}
+]
+},
+{
+"variant": {
+"id": "v2-gray500-white-400",
+"fg": "#6b7280",
+"bg": "#ffffff",
+"w": 400
+},
+"fontOk": true,
+"file": "v2-gray500-white-400.png",
+"boxes": [
+{
+"size": 9,
+"text": "Dispute block price confirmed 26,376.29",
+"x": 30,
+"y": 12,
+"w": 173.328125,
+"h": 11
+},
+{
+"size": 9,
+"text": "Testnet 17,929.19 status signer proof",
+"x": 650,
+"y": 12,
+"w": 154.40625,
+"h": 11
+},
+{
+"size": 9,
+"text": "73,181.53 window settled release liquidation",
+"x": 1270,
+"y": 12,
+"w": 185.125,
+"h": 11
+},
+{
+"size": 10,
+"text": "Refund preprod health 49,457.35 claim",
+"x": 30,
+"y": 36,
+"w": 183.359375,
+"h": 12
+},
+{
+"size": 10,
+"text": "Network validator confirmed 73,565.35",
+"x": 650,
+"y": 36,
+"w": 184.421875,
+"h": 12
+},
+{
+"size": 10,
+"text": "Block seller release claim 9,190.84",
+"x": 1270,
+"y": 36,
+"w": 161.984375,
+"h": 12
+},
+{
+"size": 11,
+"text": "Feed 74,088.25 timeout confirmed ledger",
+"x": 30,
+"y": 62,
+"w": 215.25,
+"h": 14
+},
+{
+"size": 11,
+"text": "Ledger mainnet 49,581.38 release vault",
+"x": 650,
+"y": 62,
+"w": 204.65625,
+"h": 14
+},
+{
+"size": 11,
+"text": "Signer epoch health claim deposit 44,936.05",
+"x": 1270,
+"y": 62,
+"w": 232.984375,
+"h": 14
+},
+{
+"size": 12,
+"text": "Mainnet network total 60,926.84 validator",
+"x": 30,
+"y": 89,
+"w": 237.09375,
+"h": 15
+},
+{
+"size": 12,
+"text": "Refund total 26,246.24 deposit claim",
+"x": 650,
+"y": 89,
+"w": 208.703125,
+"h": 15
+},
+{
+"size": 12,
+"text": "45,084.42 status claim withdraw confirmed",
+"x": 1270,
+"y": 89,
+"w": 246.625,
+"h": 15
+},
+{
+"size": 13,
+"text": "Window claim 24,319.84 refund oracle",
+"x": 30,
+"y": 118,
+"w": 235.40625,
+"h": 16
+},
+{
+"size": 13,
+"text": "Claim health oracle 47,454.53 factor",
+"x": 650,
+"y": 118,
+"w": 222.625,
+"h": 16
+},
+{
+"size": 13,
+"text": "Buyer withdraw device dispute 67,270.21",
+"x": 1270,
+"y": 118,
+"w": 250.390625,
+"h": 16
+},
+{
+"size": 14,
+"text": "Collateral claim deposit confirmed 9,811.41",
+"x": 30,
+"y": 148,
+"w": 280.4375,
+"h": 17
+},
+{
+"size": 14,
+"text": "62,845.32 signer deposit oracle feed",
+"x": 650,
+"y": 148,
+"w": 244.046875,
+"h": 17
+},
+{
+"size": 14,
+"text": "Mainnet network 90,556.03 status reward",
+"x": 1270,
+"y": 148,
+"w": 275.921875,
+"h": 17
+},
+{
+"size": 16,
+"text": "Amount 66,972.57 deposit release oracle",
+"x": 30,
+"y": 180,
+"w": 310.171875,
+"h": 20
+},
+{
+"size": 16,
+"text": "Feed fee escrow ratio feed 30,910.09",
+"x": 650,
+"y": 180,
+"w": 280.96875,
+"h": 20
+},
+{
+"size": 16,
+"text": "50,657.59 buyer seller refund ledger",
+"x": 1270,
+"y": 180,
+"w": 273.703125,
+"h": 20
+},
+{
+"size": 18,
+"text": "Fee liquidation buyer block 19,687.69",
+"x": 30,
+"y": 216,
+"w": 313.78125,
+"h": 21
+},
+{
+"size": 18,
+"text": "Validator status block deposit 48,346.16",
+"x": 650,
+"y": 216,
+"w": 338.515625,
+"h": 21
+},
+{
+"size": 18,
+"text": "Amount epoch window 38,960.73 preprod",
+"x": 1270,
+"y": 216,
+"w": 358.96875,
+"h": 21
+},
+{
+"size": 20,
+"text": "Pending pending pending factor 53,029.87",
+"x": 30,
+"y": 254,
+"w": 403.96875,
+"h": 24
+},
+{
+"size": 20,
+"text": "Preprod 8,542.39 claim collateral mainnet",
+"x": 650,
+"y": 254,
+"w": 393.421875,
+"h": 24
+},
+{
+"size": 20,
+"text": "53,541.07 oracle ratio buyer withdraw",
+"x": 1270,
+"y": 254,
+"w": 354.96875,
+"h": 24
+},
+{
+"size": 24,
+"text": "Fee 23,425.13 proof signer balance network",
+"x": 30,
+"y": 295,
+"w": 497.484375,
+"h": 29
+},
+{
+"size": 24,
+"text": "Timeout preprod buyer 48,232.02 pending",
+"x": 650,
+"y": 295,
+"w": 483.609375,
+"h": 29
+},
+{
+"size": 24,
+"text": "Window testnet 30,566.19 validator pending",
+"x": 1270,
+"y": 295,
+"w": 495.65625,
+"h": 29
+},
+{
+"size": 28,
+"text": "Device seller seller 1,015.14 epoch",
+"x": 30,
+"y": 342,
+"w": 446.984375,
+"h": 34
+},
+{
+"size": 28,
+"text": "Confirmed oracle fee buyer 44,863.22",
+"x": 650,
+"y": 342,
+"w": 507.75,
+"h": 34
+},
+{
+"size": 28,
+"text": "87,487.54 oracle validator confirmed",
+"x": 1270,
+"y": 342,
+"w": 483.0625,
+"h": 34
+},
+{
+"size": 9,
+"text": "Price oracle testnet claim 52,042.09",
+"x": 30,
+"y": 394,
+"w": 153.875,
+"h": 11
+},
+{
+"size": 9,
+"text": "Feed epoch 19,753.44 dispute factor network",
+"x": 650,
+"y": 394,
+"w": 192.75,
+"h": 11
+},
+{
+"size": 9,
+"text": "Ledger 31,902.35 factor factor window",
+"x": 1270,
+"y": 394,
+"w": 164.90625,
+"h": 11
+},
+{
+"size": 10,
+"text": "67,465.15 device fee status total proof",
+"x": 30,
+"y": 418,
+"w": 178.9375,
+"h": 12
+},
+{
+"size": 10,
+"text": "Buyer factor factor network 22,332.85",
+"x": 650,
+"y": 418,
+"w": 180.953125,
+"h": 12
+},
+{
+"size": 10,
+"text": "Confirmed confirmed 60,109.78 network",
+"x": 1270,
+"y": 418,
+"w": 190.390625,
+"h": 12
+},
+{
+"size": 11,
+"text": "60,328.66 factor device health ratio",
+"x": 30,
+"y": 444,
+"w": 185.703125,
+"h": 14
+},
+{
+"size": 11,
+"text": "Status liquidation block fee 47,773.49",
+"x": 650,
+"y": 444,
+"w": 194.671875,
+"h": 14
+},
+{
+"size": 11,
+"text": "Window feed seller 13,695.73 ratio epoch",
+"x": 1270,
+"y": 444,
+"w": 214.375,
+"h": 14
+},
+{
+"size": 12,
+"text": "69,777.15 reward escrow settled preprod",
+"x": 30,
+"y": 471,
+"w": 229.0625,
+"h": 15
+},
+{
+"size": 12,
+"text": "71,381.29 seller preprod ledger factor",
+"x": 650,
+"y": 471,
+"w": 211.265625,
+"h": 15
+},
+{
+"size": 12,
+"text": "Buyer escrow dispute ratio 22,401.14",
+"x": 1270,
+"y": 471,
+"w": 208.25,
+"h": 15
+},
+{
+"size": 13,
+"text": "Reward mainnet 79,850.50 mainnet timeout",
+"x": 30,
+"y": 500,
+"w": 266.40625,
+"h": 16
+},
+{
+"size": 13,
+"text": "Factor confirmed reward refund 19,220.11",
+"x": 650,
+"y": 500,
+"w": 253.09375,
+"h": 16
+},
+{
+"size": 13,
+"text": "Proof validator dispute proof 39,052.77",
+"x": 1270,
+"y": 500,
+"w": 240.84375,
+"h": 16
+},
+{
+"size": 14,
+"text": "Signer withdraw ratio 13,954.92 reward",
+"x": 30,
+"y": 530,
+"w": 259.34375,
+"h": 17
+},
+{
+"size": 14,
+"text": "Escrow epoch 22,318.28 reward release",
+"x": 650,
+"y": 530,
+"w": 264.4375,
+"h": 17
+},
+{
+"size": 14,
+"text": "Epoch factor timeout collateral 70,227.55",
+"x": 1270,
+"y": 530,
+"w": 270.0625,
+"h": 17
+},
+{
+"size": 16,
+"text": "Validator oracle 18,251.66 refund liquidation",
+"x": 30,
+"y": 562,
+"w": 329.390625,
+"h": 20
+},
+{
+"size": 16,
+"text": "Oracle block feed dispute ratio 68,809.83",
+"x": 650,
+"y": 562,
+"w": 313.921875,
+"h": 20
+},
+{
+"size": 16,
+"text": "Escrow reward 63,865.38 status collateral",
+"x": 1270,
+"y": 562,
+"w": 316.96875,
+"h": 20
+},
+{
+"size": 18,
+"text": "51,201.88 reward testnet escrow release",
+"x": 30,
+"y": 598,
+"w": 341.8125,
+"h": 21
+},
+{
+"size": 18,
+"text": "Device status refund settled 80,003.18",
+"x": 650,
+"y": 598,
+"w": 326.109375,
+"h": 21
+},
+{
+"size": 18,
+"text": "35,188.16 factor buyer refund device",
+"x": 1270,
+"y": 598,
+"w": 307.609375,
+"h": 21
+},
+{
+"size": 20,
+"text": "77,013.80 buyer reward reward preprod",
+"x": 30,
+"y": 636,
+"w": 371.21875,
+"h": 24
+},
+{
+"size": 20,
+"text": "Seller feed 80,036.50 ratio status buyer",
+"x": 650,
+"y": 636,
+"w": 373.890625,
+"h": 24
+},
+{
+"size": 20,
+"text": "Validator vault signer 20,247.78 window",
+"x": 1270,
+"y": 636,
+"w": 375.953125,
+"h": 24
+},
+{
+"size": 24,
+"text": "Price 57,258.41 claim window validator",
+"x": 30,
+"y": 677,
+"w": 437.203125,
+"h": 29
+},
+{
+"size": 24,
+"text": "Liquidation window 46,778.34 buyer collateral",
+"x": 650,
+"y": 677,
+"w": 521.84375,
+"h": 29
+},
+{
+"size": 24,
+"text": "Ratio vault health 11,517.92 timeout",
+"x": 1270,
+"y": 677,
+"w": 391.078125,
+"h": 29
+},
+{
+"size": 28,
+"text": "Ledger release health validator 55,249.24",
+"x": 30,
+"y": 724,
+"w": 551.90625,
+"h": 34
+},
+{
+"size": 28,
+"text": "Refund signer fee 48,527.93 escrow status",
+"x": 650,
+"y": 724,
+"w": 565.9375,
+"h": 34
+},
+{
+"size": 28,
+"text": "Seller window withdraw 25,943.50 collateral",
+"x": 1270,
+"y": 724,
+"w": 585.734375,
+"h": 34
+}
+],
+"body": [
+{
+"size": 9,
+"body": 9,
+"xHeight": 5
+},
+{
+"size": 10,
+"body": 11,
+"xHeight": 6
+},
+{
+"size": 11,
+"body": 11,
+"xHeight": 6
+},
+{
+"size": 12,
+"body": 12,
+"xHeight": 7
+},
+{
+"size": 13,
+"body": 13,
+"xHeight": 7
+},
+{
+"size": 14,
+"body": 14,
+"xHeight": 8
+},
+{
+"size": 16,
+"body": 16,
+"xHeight": 9
+},
+{
+"size": 18,
+"body": 17,
+"xHeight": 10
+},
+{
+"size": 20,
+"body": 20,
+"xHeight": 11
+},
+{
+"size": 24,
+"body": 24,
+"xHeight": 14
+},
+{
+"size": 28,
+"body": 27,
+"xHeight": 16
+}
+]
+},
+{
+"variant": {
+"id": "v3-gray400-white-400",
+"fg": "#9ca3af",
+"bg": "#ffffff",
+"w": 400
+},
+"fontOk": true,
+"file": "v3-gray400-white-400.png",
+"boxes": [
+{
+"size": 9,
+"text": "53,333.73 timeout liquidation factor",
+"x": 30,
+"y": 12,
+"w": 150.8125,
+"h": 11
+},
+{
+"size": 9,
+"text": "Factor reward 89,229.95 oracle pending",
+"x": 650,
+"y": 12,
+"w": 170.859375,
+"h": 11
+},
+{
+"size": 9,
+"text": "45,890.46 device deposit settled amount",
+"x": 1270,
+"y": 12,
+"w": 174.515625,
+"h": 11
+},
+{
+"size": 10,
+"text": "Withdraw window settled pending 20,314.96",
+"x": 30,
+"y": 36,
+"w": 209.859375,
+"h": 12
+},
+{
+"size": 10,
+"text": "Testnet 16,424.65 balance settled reward",
+"x": 650,
+"y": 36,
+"w": 194.53125,
+"h": 12
+},
+{
+"size": 10,
+"text": "57,641.56 seller ratio liquidation status",
+"x": 1270,
+"y": 36,
+"w": 179.5625,
+"h": 12
+},
+{
+"size": 11,
+"text": "Ledger 35,498.79 release block dispute",
+"x": 30,
+"y": 62,
+"w": 206.296875,
+"h": 14
+},
+{
+"size": 11,
+"text": "Fee withdraw 71,780.21 health ledger",
+"x": 650,
+"y": 62,
+"w": 191.9375,
+"h": 14
+},
+{
+"size": 11,
+"text": "Window buyer withdraw feed 41,545.38",
+"x": 1270,
+"y": 62,
+"w": 206.125,
+"h": 14
+},
+{
+"size": 12,
+"text": "3,335.08 release vault balance factor",
+"x": 30,
+"y": 89,
+"w": 210.640625,
+"h": 15
+},
+{
+"size": 12,
+"text": "4,722.13 ledger timeout health mainnet",
+"x": 650,
+"y": 89,
+"w": 219.265625,
+"h": 15
+},
+{
+"size": 12,
+"text": "Reward 75,074.38 testnet seller escrow",
+"x": 1270,
+"y": 89,
+"w": 222.46875,
+"h": 15
+},
+{
+"size": 13,
+"text": "22,370.21 price claim claim testnet settled",
+"x": 30,
+"y": 118,
+"w": 257.484375,
+"h": 16
+},
+{
+"size": 13,
+"text": "Status 72,214.27 oracle network testnet",
+"x": 650,
+"y": 118,
+"w": 243.234375,
+"h": 16
+},
+{
+"size": 13,
+"text": "Claim withdraw 67,870.63 total escrow",
+"x": 1270,
+"y": 118,
+"w": 236.890625,
+"h": 16
+},
+{
+"size": 14,
+"text": "Deposit signer 45,542.06 settled confirmed",
+"x": 30,
+"y": 148,
+"w": 287.875,
+"h": 17
+},
+{
+"size": 14,
+"text": "Block factor 44,890.04 device escrow",
+"x": 650,
+"y": 148,
+"w": 252.09375,
+"h": 17
+},
+{
+"size": 14,
+"text": "Health seller 14,998.90 dispute claim",
+"x": 1270,
+"y": 148,
+"w": 243.625,
+"h": 17
+},
+{
+"size": 16,
+"text": "Claim deposit 82,114.49 testnet amount",
+"x": 30,
+"y": 180,
+"w": 295.921875,
+"h": 20
+},
+{
+"size": 16,
+"text": "Refund total proof 25,331.32 block total",
+"x": 650,
+"y": 180,
+"w": 297.15625,
+"h": 20
+},
+{
+"size": 16,
+"text": "Block confirmed health withdraw 85,714.16",
+"x": 1270,
+"y": 180,
+"w": 321.921875,
+"h": 20
+},
+{
+"size": 18,
+"text": "Vault network dispute block 42,335.09",
+"x": 30,
+"y": 216,
+"w": 328.515625,
+"h": 21
+},
+{
+"size": 18,
+"text": "Amount balance 29,887.85 confirmed buyer",
+"x": 650,
+"y": 216,
+"w": 372.625,
+"h": 21
+},
+{
+"size": 18,
+"text": "Preprod total device 75,583.73 escrow",
+"x": 1270,
+"y": 216,
+"w": 326.953125,
+"h": 21
+},
+{
+"size": 20,
+"text": "Block total claim claim 30,853.89 fee",
+"x": 30,
+"y": 254,
+"w": 347.375,
+"h": 24
+},
+{
+"size": 20,
+"text": "Feed testnet network buyer 13,161.03",
+"x": 650,
+"y": 254,
+"w": 348.421875,
+"h": 24
+},
+{
+"size": 20,
+"text": "Confirmed 31,021.38 balance validator",
+"x": 1270,
+"y": 254,
+"w": 361.515625,
+"h": 24
+},
+{
+"size": 24,
+"text": "Claim 66,671.19 buyer feed oracle liquidation",
+"x": 30,
+"y": 295,
+"w": 503.328125,
+"h": 29
+},
+{
+"size": 24,
+"text": "35,707.13 deposit ratio dispute status",
+"x": 650,
+"y": 295,
+"w": 417.046875,
+"h": 29
+},
+{
+"size": 24,
+"text": "Settled 47,524.92 block pending preprod",
+"x": 1270,
+"y": 295,
+"w": 462.515625,
+"h": 29
+},
+{
+"size": 28,
+"text": "Refund settled 88,132.32 mainnet timeout",
+"x": 30,
+"y": 342,
+"w": 547.734375,
+"h": 34
+},
+{
+"size": 28,
+"text": "Amount status release 27,576.98 collateral",
+"x": 650,
+"y": 342,
+"w": 559.71875,
+"h": 34
+},
+{
+"size": 28,
+"text": "16,689.78 refund confirmed release oracle",
+"x": 1270,
+"y": 342,
+"w": 559.671875,
+"h": 34
+},
+{
+"size": 9,
+"text": "28,640.43 window network reward claim",
+"x": 30,
+"y": 394,
+"w": 173.765625,
+"h": 11
+},
+{
+"size": 9,
+"text": "18,722.41 dispute price pending withdraw",
+"x": 650,
+"y": 394,
+"w": 176.25,
+"h": 11
+},
+{
+"size": 9,
+"text": "Total oracle price collateral 81,661.09",
+"x": 1270,
+"y": 394,
+"w": 157.53125,
+"h": 11
+},
+{
+"size": 10,
+"text": "Vault confirmed validator 42,768.89 signer",
+"x": 30,
+"y": 418,
+"w": 201.4375,
+"h": 12
+},
+{
+"size": 10,
+"text": "Total buyer total 52,458.70 deposit deposit",
+"x": 650,
+"y": 418,
+"w": 202.578125,
+"h": 12
+},
+{
+"size": 10,
+"text": "Confirmed withdraw 28,943.54 amount vault",
+"x": 1270,
+"y": 418,
+"w": 211.71875,
+"h": 12
+},
+{
+"size": 11,
+"text": "Liquidation preprod factor 57,999.88",
+"x": 30,
+"y": 444,
+"w": 189.25,
+"h": 14
+},
+{
+"size": 11,
+"text": "19,187.24 claim release feed confirmed",
+"x": 650,
+"y": 444,
+"w": 200.453125,
+"h": 14
+},
+{
+"size": 11,
+"text": "Factor withdraw 4,244.43 reward buyer",
+"x": 1270,
+"y": 444,
+"w": 206.28125,
+"h": 14
+},
+{
+"size": 12,
+"text": "Balance 61,947.45 status escrow timeout",
+"x": 30,
+"y": 471,
+"w": 231.46875,
+"h": 15
+},
+{
+"size": 12,
+"text": "Ledger validator window 75,864.28 vault",
+"x": 650,
+"y": 471,
+"w": 230.90625,
+"h": 15
+},
+{
+"size": 12,
+"text": "Feed 59,038.08 buyer block withdraw confirmed",
+"x": 1270,
+"y": 471,
+"w": 276.09375,
+"h": 15
+},
+{
+"size": 13,
+"text": "Mainnet health 39,777.07 health collateral",
+"x": 30,
+"y": 500,
+"w": 254.828125,
+"h": 16
+},
+{
+"size": 13,
+"text": "83,193.22 dispute ledger epoch network",
+"x": 650,
+"y": 500,
+"w": 246.765625,
+"h": 16
+},
+{
+"size": 13,
+"text": "58,690.73 withdraw vault fee dispute",
+"x": 1270,
+"y": 500,
+"w": 227.484375,
+"h": 16
+},
+{
+"size": 14,
+"text": "Vault liquidation 68,820.05 validator",
+"x": 30,
+"y": 530,
+"w": 237.40625,
+"h": 17
+},
+{
+"size": 14,
+"text": "Claim 23,251.41 testnet reward pending",
+"x": 650,
+"y": 530,
+"w": 260.125,
+"h": 17
+},
+{
+"size": 14,
+"text": "Feed 19,957.71 status status amount mainnet",
+"x": 1270,
+"y": 530,
+"w": 293.625,
+"h": 17
+},
+{
+"size": 16,
+"text": "25,033.41 validator release timeout amount",
+"x": 30,
+"y": 562,
+"w": 325.484375,
+"h": 20
+},
+{
+"size": 16,
+"text": "Signer 79,645.19 epoch price deposit",
+"x": 650,
+"y": 562,
+"w": 280.0625,
+"h": 20
+},
+{
+"size": 16,
+"text": "Escrow reward factor 72,128.32 reward",
+"x": 1270,
+"y": 562,
+"w": 294.375,
+"h": 20
+},
+{
+"size": 18,
+"text": "Window block claim vault total 24,401.00",
+"x": 30,
+"y": 598,
+"w": 348.375,
+"h": 21
+},
+{
+"size": 18,
+"text": "Ledger device total buyer 1,337.08 dispute",
+"x": 650,
+"y": 598,
+"w": 359.5625,
+"h": 21
+},
+{
+"size": 18,
+"text": "63,076.21 escrow reward oracle balance",
+"x": 1270,
+"y": 598,
+"w": 342.75,
+"h": 21
+},
+{
+"size": 20,
+"text": "Total window feed 81,586.91 balance window",
+"x": 30,
+"y": 636,
+"w": 425.875,
+"h": 24
+},
+{
+"size": 20,
+"text": "Dispute fee deposit 42,761.14 amount",
+"x": 650,
+"y": 636,
+"w": 352.796875,
+"h": 24
+},
+{
+"size": 20,
+"text": "Ledger balance 35,134.71 dispute refund",
+"x": 1270,
+"y": 636,
+"w": 381.078125,
+"h": 24
+},
+{
+"size": 24,
+"text": "Window epoch deposit 3,446.32 health",
+"x": 30,
+"y": 677,
+"w": 446.140625,
+"h": 29
+},
+{
+"size": 24,
+"text": "Testnet withdraw 72,679.48 network timeout",
+"x": 650,
+"y": 677,
+"w": 507.46875,
+"h": 29
+},
+{
+"size": 24,
+"text": "Release feed fee oracle 23,679.28 liquidation",
+"x": 1270,
+"y": 677,
+"w": 511.3125,
+"h": 29
+},
+{
+"size": 28,
+"text": "Balance feed oracle 72,868.32 settled",
+"x": 30,
+"y": 724,
+"w": 501.5,
+"h": 34
+},
+{
+"size": 28,
+"text": "Reward mainnet device 80,972.47 claim",
+"x": 650,
+"y": 724,
+"w": 527.84375,
+"h": 34
+},
+{
+"size": 28,
+"text": "Liquidation ledger 67,151.24 vault buyer",
+"x": 1270,
+"y": 724,
+"w": 518.546875,
+"h": 34
+}
+],
+"body": [
+{
+"size": 9,
+"body": 9,
+"xHeight": 5
+},
+{
+"size": 10,
+"body": 11,
+"xHeight": 6
+},
+{
+"size": 11,
+"body": 11,
+"xHeight": 6
+},
+{
+"size": 12,
+"body": 12,
+"xHeight": 7
+},
+{
+"size": 13,
+"body": 13,
+"xHeight": 7
+},
+{
+"size": 14,
+"body": 14,
+"xHeight": 8
+},
+{
+"size": 16,
+"body": 16,
+"xHeight": 9
+},
+{
+"size": 18,
+"body": 17,
+"xHeight": 10
+},
+{
+"size": 20,
+"body": 20,
+"xHeight": 11
+},
+{
+"size": 24,
+"body": 24,
+"xHeight": 14
+},
+{
+"size": 28,
+"body": 27,
+"xHeight": 16
+}
+]
+},
+{
+"variant": {
+"id": "v4-light-dark-400",
+"fg": "#e5e7eb",
+"bg": "#0a0a0a",
+"w": 400
+},
+"fontOk": true,
+"file": "v4-light-dark-400.png",
+"boxes": [
+{
+"size": 9,
+"text": "Claim testnet 25,705.73 fee price deposit",
+"x": 30,
+"y": 12,
+"w": 174.25,
+"h": 11
+},
+{
+"size": 9,
+"text": "Pending oracle amount 15,700.59 settled",
+"x": 650,
+"y": 12,
+"w": 172.765625,
+"h": 11
+},
+{
+"size": 9,
+"text": "Ratio ledger status ratio 32,659.29 vault",
+"x": 1270,
+"y": 12,
+"w": 169.84375,
+"h": 11
+},
+{
+"size": 10,
+"text": "Proof timeout 38,409.11 block deposit",
+"x": 30,
+"y": 36,
+"w": 177.078125,
+"h": 12
+},
+{
+"size": 10,
+"text": "Buyer ratio confirmed escrow 4,390.61",
+"x": 650,
+"y": 36,
+"w": 182.65625,
+"h": 12
+},
+{
+"size": 10,
+"text": "Reward timeout 30,374.59 mainnet deposit",
+"x": 1270,
+"y": 36,
+"w": 202.03125,
+"h": 12
+},
+{
+"size": 11,
+"text": "84,871.35 proof release escrow signer",
+"x": 30,
+"y": 62,
+"w": 198.578125,
+"h": 14
+},
+{
+"size": 11,
+"text": "Proof 89,868.31 deposit validator status",
+"x": 650,
+"y": 62,
+"w": 206.09375,
+"h": 14
+},
+{
+"size": 11,
+"text": "Liquidation 5,302.51 withdraw proof",
+"x": 1270,
+"y": 62,
+"w": 185.6875,
+"h": 14
+},
+{
+"size": 12,
+"text": "Deposit 3,493.52 vault feed confirmed",
+"x": 30,
+"y": 89,
+"w": 218.53125,
+"h": 15
+},
+{
+"size": 12,
+"text": "Oracle ratio signer health 60,499.03",
+"x": 650,
+"y": 89,
+"w": 204.859375,
+"h": 15
+},
+{
+"size": 12,
+"text": "Feed amount preprod 36,314.98 factor",
+"x": 1270,
+"y": 89,
+"w": 217.71875,
+"h": 15
+},
+{
+"size": 13,
+"text": "57,613.20 health balance dispute feed",
+"x": 30,
+"y": 118,
+"w": 231.8125,
+"h": 16
+},
+{
+"size": 13,
+"text": "Validator confirmed 21,119.05 status",
+"x": 650,
+"y": 118,
+"w": 218.59375,
+"h": 16
+},
+{
+"size": 13,
+"text": "73,502.68 fee reward reward pending window",
+"x": 1270,
+"y": 118,
+"w": 282.484375,
+"h": 16
+},
+{
+"size": 14,
+"text": "51,426.45 window escrow balance pending",
+"x": 30,
+"y": 148,
+"w": 286.515625,
+"h": 17
+},
+{
+"size": 14,
+"text": "51,887.39 total amount preprod liquidation",
+"x": 650,
+"y": 148,
+"w": 276.78125,
+"h": 17
+},
+{
+"size": 14,
+"text": "Network confirmed 71,110.51 release buyer",
+"x": 1270,
+"y": 148,
+"w": 280.0625,
+"h": 17
+},
+{
+"size": 16,
+"text": "Buyer refund buyer reward 78,143.10 signer",
+"x": 30,
+"y": 180,
+"w": 326.625,
+"h": 20
+},
+{
+"size": 16,
+"text": "Timeout signer ratio dispute 43,809.89",
+"x": 650,
+"y": 180,
+"w": 293.953125,
+"h": 20
+},
+{
+"size": 16,
+"text": "Device 19,055.28 release pending factor",
+"x": 1270,
+"y": 180,
+"w": 304.25,
+"h": 20
+},
+{
+"size": 18,
+"text": "Ledger ledger pending pending 7,846.44",
+"x": 30,
+"y": 216,
+"w": 347.328125,
+"h": 21
+},
+{
+"size": 18,
+"text": "Buyer seller 22,194.91 escrow settled",
+"x": 650,
+"y": 216,
+"w": 313.9375,
+"h": 21
+},
+{
+"size": 18,
+"text": "Deposit factor deposit 35,659.02 seller",
+"x": 1270,
+"y": 216,
+"w": 330.078125,
+"h": 21
+},
+{
+"size": 20,
+"text": "Epoch 55,521.65 total feed confirmed",
+"x": 30,
+"y": 254,
+"w": 352.59375,
+"h": 24
+},
+{
+"size": 20,
+"text": "Buyer release window factor 22,020.55",
+"x": 650,
+"y": 254,
+"w": 371.125,
+"h": 24
+},
+{
+"size": 20,
+"text": "Balance 42,110.80 block status signer",
+"x": 1270,
+"y": 254,
+"w": 353.140625,
+"h": 24
+},
+{
+"size": 24,
+"text": "Claim amount 62,089.50 pending epoch",
+"x": 30,
+"y": 295,
+"w": 455.0625,
+"h": 29
+},
+{
+"size": 24,
+"text": "Escrow epoch confirmed 83,625.77 confirmed",
+"x": 650,
+"y": 295,
+"w": 525.984375,
+"h": 29
+},
+{
+"size": 24,
+"text": "Ratio 51,838.28 fee mainnet claim reward",
+"x": 1270,
+"y": 295,
+"w": 466.53125,
+"h": 29
+},
+{
+"size": 28,
+"text": "Balance pending 45,619.75 refund settled",
+"x": 30,
+"y": 342,
+"w": 547.8125,
+"h": 34
+},
+{
+"size": 28,
+"text": "Release status 8,704.72 pending refund",
+"x": 650,
+"y": 342,
+"w": 525.765625,
+"h": 34
+},
+{
+"size": 28,
+"text": "Status ledger 38,174.94 device epoch",
+"x": 1270,
+"y": 342,
+"w": 495.5625,
+"h": 34
+},
+{
+"size": 9,
+"text": "Confirmed validator 34,356.89 validator",
+"x": 30,
+"y": 394,
+"w": 168.96875,
+"h": 11
+},
+{
+"size": 9,
+"text": "Network vault proof epoch mainnet 9,638.15",
+"x": 650,
+"y": 394,
+"w": 187.953125,
+"h": 11
+},
+{
+"size": 9,
+"text": "38,484.62 mainnet ledger ratio balance",
+"x": 1270,
+"y": 394,
+"w": 167.5625,
+"h": 11
+},
+{
+"size": 10,
+"text": "Vault collateral window 56,931.84 vault",
+"x": 30,
+"y": 418,
+"w": 183.921875,
+"h": 12
+},
+{
+"size": 10,
+"text": "Fee 23,176.80 escrow buyer vault settled",
+"x": 650,
+"y": 418,
+"w": 192.328125,
+"h": 12
+},
+{
+"size": 10,
+"text": "80,566.51 fee refund window claim ratio",
+"x": 1270,
+"y": 418,
+"w": 188.5625,
+"h": 12
+},
+{
+"size": 11,
+"text": "Factor factor network confirmed 48,507.78",
+"x": 30,
+"y": 444,
+"w": 222.1875,
+"h": 14
+},
+{
+"size": 11,
+"text": "Mainnet 3,319.49 withdraw network window",
+"x": 650,
+"y": 444,
+"w": 229.046875,
+"h": 14
+},
+{
+"size": 11,
+"text": "Status 43,574.85 refund pending status",
+"x": 1270,
+"y": 444,
+"w": 204.96875,
+"h": 14
+},
+{
+"size": 12,
+"text": "Balance timeout claim 5,794.31 withdraw",
+"x": 30,
+"y": 471,
+"w": 230.296875,
+"h": 15
+},
+{
+"size": 12,
+"text": "Deposit 25,612.27 amount balance pending",
+"x": 650,
+"y": 471,
+"w": 244.828125,
+"h": 15
+},
+{
+"size": 12,
+"text": "Liquidation confirmed 56,505.06 status",
+"x": 1270,
+"y": 471,
+"w": 221.9375,
+"h": 15
+},
+{
+"size": 13,
+"text": "Status device pending amount 82,110.91",
+"x": 30,
+"y": 500,
+"w": 244.265625,
+"h": 16
+},
+{
+"size": 13,
+"text": "Block 28,226.90 release timeout oracle",
+"x": 650,
+"y": 500,
+"w": 240.5625,
+"h": 16
+},
+{
+"size": 13,
+"text": "6,689.68 buyer escrow timeout feed health",
+"x": 1270,
+"y": 500,
+"w": 264.21875,
+"h": 16
+},
+{
+"size": 14,
+"text": "25,959.55 dispute device liquidation",
+"x": 30,
+"y": 530,
+"w": 238.765625,
+"h": 17
+},
+{
+"size": 14,
+"text": "Refund seller status reward 46,174.55",
+"x": 650,
+"y": 530,
+"w": 246.71875,
+"h": 17
+},
+{
+"size": 14,
+"text": "9,616.74 testnet epoch settled validator",
+"x": 1270,
+"y": 530,
+"w": 259.15625,
+"h": 17
+},
+{
+"size": 16,
+"text": "Timeout 77,319.85 preprod confirmed total",
+"x": 30,
+"y": 562,
+"w": 320.0625,
+"h": 20
+},
+{
+"size": 16,
+"text": "31,505.59 window oracle mainnet amount",
+"x": 650,
+"y": 562,
+"w": 313.875,
+"h": 20
+},
+{
+"size": 16,
+"text": "Signer 54,909.07 withdraw seller refund",
+"x": 1270,
+"y": 562,
+"w": 303.28125,
+"h": 20
+},
+{
+"size": 18,
+"text": "Preprod fee 10,852.18 withdraw buyer",
+"x": 30,
+"y": 598,
+"w": 320,
+"h": 21
+},
+{
+"size": 18,
+"text": "Release settled pending testnet 61,660.23",
+"x": 650,
+"y": 598,
+"w": 356.390625,
+"h": 21
+},
+{
+"size": 18,
+"text": "Reward 53,297.72 status reward epoch",
+"x": 1270,
+"y": 598,
+"w": 330.3125,
+"h": 21
+},
+{
+"size": 20,
+"text": "Seller buyer 63,193.62 dispute withdraw",
+"x": 30,
+"y": 636,
+"w": 377.296875,
+"h": 24
+},
+{
+"size": 20,
+"text": "Claim 4,165.07 seller amount status",
+"x": 650,
+"y": 636,
+"w": 331.875,
+"h": 24
+},
+{
+"size": 20,
+"text": "Refund block pending 3,511.53 oracle",
+"x": 1270,
+"y": 636,
+"w": 352.3125,
+"h": 24
+},
+{
+"size": 24,
+"text": "Reward vault 43,978.26 liquidation epoch",
+"x": 30,
+"y": 677,
+"w": 469.8125,
+"h": 29
+},
+{
+"size": 24,
+"text": "3,916.95 block pending preprod block",
+"x": 650,
+"y": 677,
+"w": 428.203125,
+"h": 29
+},
+{
+"size": 24,
+"text": "Claim pending validator settled 27,996.89",
+"x": 1270,
+"y": 677,
+"w": 469.40625,
+"h": 29
+},
+{
+"size": 28,
+"text": "Proof settled deposit settled 2,471.14",
+"x": 30,
+"y": 724,
+"w": 486.46875,
+"h": 34
+},
+{
+"size": 28,
+"text": "25,440.23 oracle ledger escrow testnet",
+"x": 650,
+"y": 724,
+"w": 522.0625,
+"h": 34
+},
+{
+"size": 28,
+"text": "Total health status block 17,881.24 window",
+"x": 1270,
+"y": 724,
+"w": 560.59375,
+"h": 34
+}
+],
+"body": [
+{
+"size": 9,
+"body": 9,
+"xHeight": 5
+},
+{
+"size": 10,
+"body": 11,
+"xHeight": 6
+},
+{
+"size": 11,
+"body": 11,
+"xHeight": 6
+},
+{
+"size": 12,
+"body": 12,
+"xHeight": 7
+},
+{
+"size": 13,
+"body": 13,
+"xHeight": 7
+},
+{
+"size": 14,
+"body": 14,
+"xHeight": 8
+},
+{
+"size": 16,
+"body": 16,
+"xHeight": 9
+},
+{
+"size": 18,
+"body": 17,
+"xHeight": 10
+},
+{
+"size": 20,
+"body": 20,
+"xHeight": 11
+},
+{
+"size": 24,
+"body": 24,
+"xHeight": 14
+},
+{
+"size": 28,
+"body": 27,
+"xHeight": 16
+}
+]
+},
+{
+"variant": {
+"id": "v5-gray500-dark-400",
+"fg": "#6b7280",
+"bg": "#0a0a0a",
+"w": 400
+},
+"fontOk": true,
+"file": "v5-gray500-dark-400.png",
+"boxes": [
+{
+"size": 9,
+"text": "Collateral 69,035.30 vault refund status",
+"x": 30,
+"y": 12,
+"w": 167.890625,
+"h": 11
+},
+{
+"size": 9,
+"text": "19,250.64 price escrow testnet confirmed",
+"x": 650,
+"y": 12,
+"w": 177.15625,
+"h": 11
+},
+{
+"size": 9,
+"text": "Price deposit 24,555.28 oracle price",
+"x": 1270,
+"y": 12,
+"w": 154.171875,
+"h": 11
+},
+{
+"size": 10,
+"text": "Oracle withdraw deposit epoch 36,445.22",
+"x": 30,
+"y": 36,
+"w": 198.921875,
+"h": 12
+},
+{
+"size": 10,
+"text": "Escrow collateral collateral 89,695.03",
+"x": 650,
+"y": 36,
+"w": 176.9375,
+"h": 12
+},
+{
+"size": 10,
+"text": "Timeout testnet timeout escrow 13,212.74",
+"x": 1270,
+"y": 36,
+"w": 195.796875,
+"h": 12
+},
+{
+"size": 11,
+"text": "Epoch 44,400.58 ratio withdraw claim",
+"x": 30,
+"y": 62,
+"w": 197.59375,
+"h": 14
+},
+{
+"size": 11,
+"text": "Collateral factor dispute 38,225.20 vault",
+"x": 650,
+"y": 62,
+"w": 208.5625,
+"h": 14
+},
+{
+"size": 11,
+"text": "67,472.97 status block ratio collateral",
+"x": 1270,
+"y": 62,
+"w": 193.5,
+"h": 14
+},
+{
+"size": 12,
+"text": "55,962.04 block dispute signer total",
+"x": 30,
+"y": 89,
+"w": 204.03125,
+"h": 15
+},
+{
+"size": 12,
+"text": "6,884.60 reward liquidation seller release",
+"x": 650,
+"y": 89,
+"w": 233.84375,
+"h": 15
+},
+{
+"size": 12,
+"text": "Feed total vault refund preprod 37,864.22",
+"x": 1270,
+"y": 89,
+"w": 235.34375,
+"h": 15
+},
+{
+"size": 13,
+"text": "Block escrow factor 10,195.42 status",
+"x": 30,
+"y": 118,
+"w": 223.375,
+"h": 16
+},
+{
+"size": 13,
+"text": "Confirmed escrow network 59,892.55 seller",
+"x": 650,
+"y": 118,
+"w": 269.59375,
+"h": 16
+},
+{
+"size": 13,
+"text": "59,504.24 vault fee signer proof confirmed",
+"x": 1270,
+"y": 118,
+"w": 264.515625,
+"h": 16
+},
+{
+"size": 14,
+"text": "15,440.30 mainnet deposit liquidation",
+"x": 30,
+"y": 148,
+"w": 247.140625,
+"h": 17
+},
+{
+"size": 14,
+"text": "Status price escrow 68,507.57 refund",
+"x": 650,
+"y": 148,
+"w": 246.6875,
+"h": 17
+},
+{
+"size": 14,
+"text": "Dispute 29,306.26 health seller dispute",
+"x": 1270,
+"y": 148,
+"w": 259.03125,
+"h": 17
+},
+{
+"size": 16,
+"text": "Network confirmed confirmed 31,522.17",
+"x": 30,
+"y": 180,
+"w": 301.171875,
+"h": 20
+},
+{
+"size": 16,
+"text": "Dispute amount mainnet testnet 14,323.74",
+"x": 650,
+"y": 180,
+"w": 317.21875,
+"h": 20
+},
+{
+"size": 16,
+"text": "Balance epoch factor preprod 20,393.52",
+"x": 1270,
+"y": 180,
+"w": 306.46875,
+"h": 20
+},
+{
+"size": 18,
+"text": "Preprod ratio 35,491.68 validator vault",
+"x": 30,
+"y": 216,
+"w": 324.15625,
+"h": 21
+},
+{
+"size": 18,
+"text": "Withdraw dispute buyer vault 76,642.02",
+"x": 650,
+"y": 216,
+"w": 340.28125,
+"h": 21
+},
+{
+"size": 18,
+"text": "Claim 50,804.77 preprod oracle price",
+"x": 1270,
+"y": 216,
+"w": 316.75,
+"h": 21
+},
+{
+"size": 20,
+"text": "Pending epoch 5,745.58 status timeout",
+"x": 30,
+"y": 254,
+"w": 368.1875,
+"h": 24
+},
+{
+"size": 20,
+"text": "Validator 19,843.93 vault collateral",
+"x": 650,
+"y": 254,
+"w": 324.671875,
+"h": 24
+},
+{
+"size": 20,
+"text": "Balance confirmed 78,295.97 network network",
+"x": 1270,
+"y": 254,
+"w": 442.40625,
+"h": 24
+},
+{
+"size": 24,
+"text": "86,349.46 timeout block release proof",
+"x": 30,
+"y": 295,
+"w": 434.796875,
+"h": 29
+},
+{
+"size": 24,
+"text": "Epoch epoch device status 20,808.56 device",
+"x": 650,
+"y": 295,
+"w": 510.953125,
+"h": 29
+},
+{
+"size": 24,
+"text": "15,243.47 status network escrow pending",
+"x": 1270,
+"y": 295,
+"w": 473.578125,
+"h": 29
+},
+{
+"size": 28,
+"text": "Withdraw collateral mainnet 78,360.18",
+"x": 30,
+"y": 342,
+"w": 501.390625,
+"h": 34
+},
+{
+"size": 28,
+"text": "Preprod validator seller window 29,088.58",
+"x": 650,
+"y": 342,
+"w": 559.390625,
+"h": 34
+},
+{
+"size": 28,
+"text": "Feed refund amount seller 45,810.83 buyer",
+"x": 1270,
+"y": 342,
+"w": 567.296875,
+"h": 34
+},
+{
+"size": 9,
+"text": "Window proof timeout factor 14,308.54",
+"x": 30,
+"y": 394,
+"w": 166.171875,
+"h": 11
+},
+{
+"size": 9,
+"text": "Liquidation proof oracle 53,221.17 ratio",
+"x": 650,
+"y": 394,
+"w": 163.546875,
+"h": 11
+},
+{
+"size": 9,
+"text": "Validator status block preprod 23,893.53",
+"x": 1270,
+"y": 394,
+"w": 173.234375,
+"h": 11
+},
+{
+"size": 10,
+"text": "Vault window refund factor 18,867.92",
+"x": 30,
+"y": 418,
+"w": 175.125,
+"h": 12
+},
+{
+"size": 10,
+"text": "Dispute epoch 45,734.99 reward ledger",
+"x": 650,
+"y": 418,
+"w": 187.53125,
+"h": 12
+},
+{
+"size": 10,
+"text": "Withdraw ledger timeout buyer 22,734.63",
+"x": 1270,
+"y": 418,
+"w": 196.765625,
+"h": 12
+},
+{
+"size": 11,
+"text": "Withdraw claim 15,436.18 release testnet",
+"x": 30,
+"y": 444,
+"w": 210.96875,
+"h": 14
+},
+{
+"size": 11,
+"text": "Ratio 3,837.33 pending confirmed epoch",
+"x": 650,
+"y": 444,
+"w": 210.859375,
+"h": 14
+},
+{
+"size": 11,
+"text": "79,063.03 factor oracle withdraw withdraw",
+"x": 1270,
+"y": 444,
+"w": 223.375,
+"h": 14
+},
+{
+"size": 12,
+"text": "75,112.77 epoch mainnet price validator",
+"x": 30,
+"y": 471,
+"w": 221.90625,
+"h": 15
+},
+{
+"size": 12,
+"text": "Vault timeout pending 65,913.74 collateral",
+"x": 650,
+"y": 471,
+"w": 236.484375,
+"h": 15
+},
+{
+"size": 12,
+"text": "Price status 65,211.61 amount oracle",
+"x": 1270,
+"y": 471,
+"w": 204.984375,
+"h": 15
+},
+{
+"size": 13,
+"text": "Testnet pending 25,385.24 mainnet device",
+"x": 30,
+"y": 500,
+"w": 261.96875,
+"h": 16
+},
+{
+"size": 13,
+"text": "Preprod timeout network 69,691.81 proof",
+"x": 650,
+"y": 500,
+"w": 250.265625,
+"h": 16
+},
+{
+"size": 13,
+"text": "Mainnet block 69,523.45 ledger proof",
+"x": 1270,
+"y": 500,
+"w": 232.25,
+"h": 16
+},
+{
+"size": 14,
+"text": "Withdraw feed 1,124.20 balance pending",
+"x": 30,
+"y": 530,
+"w": 267.21875,
+"h": 17
+},
+{
+"size": 14,
+"text": "Epoch liquidation oracle timeout 70,579.50",
+"x": 650,
+"y": 530,
+"w": 281.640625,
+"h": 17
+},
+{
+"size": 14,
+"text": "Claim 13,799.33 factor testnet dispute",
+"x": 1270,
+"y": 530,
+"w": 249.828125,
+"h": 17
+},
+{
+"size": 16,
+"text": "Validator deposit ratio feed 9,976.26",
+"x": 30,
+"y": 562,
+"w": 274.234375,
+"h": 20
+},
+{
+"size": 16,
+"text": "73,942.86 deposit health status release",
+"x": 650,
+"y": 562,
+"w": 298.796875,
+"h": 20
+},
+{
+"size": 16,
+"text": "Device amount mainnet fee validator 70,510.86",
+"x": 1270,
+"y": 562,
+"w": 353.359375,
+"h": 20
+},
+{
+"size": 18,
+"text": "Preprod 28,399.54 window ratio network",
+"x": 30,
+"y": 598,
+"w": 347.953125,
+"h": 21
+},
+{
+"size": 18,
+"text": "Health balance settled mainnet 80,269.81",
+"x": 650,
+"y": 598,
+"w": 351.59375,
+"h": 21
+},
+{
+"size": 18,
+"text": "37,683.21 block buyer balance oracle",
+"x": 1270,
+"y": 598,
+"w": 315.5625,
+"h": 21
+},
+{
+"size": 20,
+"text": "Ratio 90,381.48 testnet ledger reward",
+"x": 30,
+"y": 636,
+"w": 354.40625,
+"h": 24
+},
+{
+"size": 20,
+"text": "40,313.42 deposit total collateral factor",
+"x": 650,
+"y": 636,
+"w": 368.734375,
+"h": 24
+},
+{
+"size": 20,
+"text": "Device epoch 8,986.97 epoch testnet",
+"x": 1270,
+"y": 636,
+"w": 353.8125,
+"h": 24
+},
+{
+"size": 24,
+"text": "Proof signer 46,514.03 withdraw signer",
+"x": 30,
+"y": 677,
+"w": 444.90625,
+"h": 29
+},
+{
+"size": 24,
+"text": "Deposit validator fee withdraw 3,967.91",
+"x": 650,
+"y": 677,
+"w": 444.703125,
+"h": 29
+},
+{
+"size": 24,
+"text": "47,686.43 escrow confirmed testnet seller",
+"x": 1270,
+"y": 677,
+"w": 478.609375,
+"h": 29
+},
+{
+"size": 28,
+"text": "Network settled status 39,470.03 settled",
+"x": 30,
+"y": 724,
+"w": 538.453125,
+"h": 34
+},
+{
+"size": 28,
+"text": "Status testnet 86,757.80 vault testnet",
+"x": 650,
+"y": 724,
+"w": 489.9375,
+"h": 34
+},
+{
+"size": 28,
+"text": "Confirmed timeout 17,218.96 factor liquidation",
+"x": 1270,
+"y": 724,
+"w": 604.3125,
+"h": 34
+}
+],
+"body": [
+{
+"size": 9,
+"body": 9,
+"xHeight": 5
+},
+{
+"size": 10,
+"body": 11,
+"xHeight": 6
+},
+{
+"size": 11,
+"body": 11,
+"xHeight": 6
+},
+{
+"size": 12,
+"body": 12,
+"xHeight": 7
+},
+{
+"size": 13,
+"body": 13,
+"xHeight": 7
+},
+{
+"size": 14,
+"body": 14,
+"xHeight": 8
+},
+{
+"size": 16,
+"body": 16,
+"xHeight": 9
+},
+{
+"size": 18,
+"body": 17,
+"xHeight": 10
+},
+{
+"size": 20,
+"body": 20,
+"xHeight": 11
+},
+{
+"size": 24,
+"body": 24,
+"xHeight": 14
+},
+{
+"size": 28,
+"body": 27,
+"xHeight": 16
+}
+]
+},
+{
+"variant": {
+"id": "v6-ink-white-300",
+"fg": "#111827",
+"bg": "#ffffff",
+"w": 300
+},
+"fontOk": true,
+"file": "v6-ink-white-300.png",
+"boxes": [
+{
+"size": 9,
+"text": "Network buyer collateral buyer 67,575.95",
+"x": 30,
+"y": 12,
+"w": 171.234375,
+"h": 11
+},
+{
+"size": 9,
+"text": "Oracle ratio ledger seller 23,177.61",
+"x": 650,
+"y": 12,
+"w": 141.375,
+"h": 11
+},
+{
+"size": 9,
+"text": "Deposit device fee 22,252.13 total refund",
+"x": 1270,
+"y": 12,
+"w": 171.421875,
+"h": 11
+},
+{
+"size": 10,
+"text": "Block ratio preprod 40,990.86 balance",
+"x": 30,
+"y": 36,
+"w": 178.21875,
+"h": 12
+},
+{
+"size": 10,
+"text": "Dispute preprod 75,290.60 fee timeout",
+"x": 650,
+"y": 36,
+"w": 179.3125,
+"h": 12
+},
+{
+"size": 10,
+"text": "Confirmed confirmed buyer vault 22,861.38",
+"x": 1270,
+"y": 36,
+"w": 202.46875,
+"h": 12
+},
+{
+"size": 11,
+"text": "32,087.14 collateral total window fee",
+"x": 30,
+"y": 62,
+"w": 184.171875,
+"h": 14
+},
+{
+"size": 11,
+"text": "Feed 19,302.32 claim validator seller",
+"x": 650,
+"y": 62,
+"w": 185.671875,
+"h": 14
+},
+{
+"size": 11,
+"text": "Proof 82,219.09 network oracle pending",
+"x": 1270,
+"y": 62,
+"w": 205.015625,
+"h": 14
+},
+{
+"size": 12,
+"text": "Buyer factor validator 79,603.76 device",
+"x": 30,
+"y": 89,
+"w": 217.984375,
+"h": 15
+},
+{
+"size": 12,
+"text": "Dispute epoch block window 85,488.02",
+"x": 650,
+"y": 89,
+"w": 221.828125,
+"h": 15
+},
+{
+"size": 12,
+"text": "Vault block pending 64,204.49 timeout",
+"x": 1270,
+"y": 89,
+"w": 216.359375,
+"h": 15
+},
+{
+"size": 13,
+"text": "Withdraw fee 35,043.15 release block",
+"x": 30,
+"y": 118,
+"w": 225.390625,
+"h": 16
+},
+{
+"size": 13,
+"text": "Deposit deposit device feed 82,764.42",
+"x": 650,
+"y": 118,
+"w": 234.28125,
+"h": 16
+},
+{
+"size": 13,
+"text": "Oracle collateral collateral 16,323.34",
+"x": 1270,
+"y": 118,
+"w": 217.796875,
+"h": 16
+},
+{
+"size": 14,
+"text": "Feed seller 68,890.24 claim factor epoch",
+"x": 30,
+"y": 148,
+"w": 266.46875,
+"h": 17
+},
+{
+"size": 14,
+"text": "Dispute balance 79,585.17 signer pending",
+"x": 650,
+"y": 148,
+"w": 270.03125,
+"h": 17
+},
+{
+"size": 14,
+"text": "Total buyer signer health 66,324.45 proof",
+"x": 1270,
+"y": 148,
+"w": 269.453125,
+"h": 17
+},
+{
+"size": 16,
+"text": "18,776.72 withdraw price block withdraw",
+"x": 30,
+"y": 180,
+"w": 302.1875,
+"h": 20
+},
+{
+"size": 16,
+"text": "Seller ratio amount refund 6,557.47",
+"x": 650,
+"y": 180,
+"w": 259.40625,
+"h": 20
+},
+{
+"size": 16,
+"text": "13,954.06 release validator refund ledger",
+"x": 1270,
+"y": 180,
+"w": 303.6875,
+"h": 20
+},
+{
+"size": 18,
+"text": "Proof 40,379.44 collateral liquidation",
+"x": 30,
+"y": 216,
+"w": 306.515625,
+"h": 21
+},
+{
+"size": 18,
+"text": "53,301.99 balance epoch claim release",
+"x": 650,
+"y": 216,
+"w": 325.265625,
+"h": 21
+},
+{
+"size": 18,
+"text": "86,824.79 status timeout buyer feed deposit",
+"x": 1270,
+"y": 216,
+"w": 368.625,
+"h": 21
+},
+{
+"size": 20,
+"text": "Epoch 85,802.39 proof liquidation seller",
+"x": 30,
+"y": 254,
+"w": 370.5,
+"h": 24
+},
+{
+"size": 20,
+"text": "Amount vault settled ledger 10,854.94",
+"x": 650,
+"y": 254,
+"w": 351.53125,
+"h": 24
+},
+{
+"size": 20,
+"text": "Device amount proof 61,307.09 device",
+"x": 1270,
+"y": 254,
+"w": 355.078125,
+"h": 24
+},
+{
+"size": 24,
+"text": "74,106.09 health refund ledger signer",
+"x": 30,
+"y": 295,
+"w": 413.3125,
+"h": 29
+},
+{
+"size": 24,
+"text": "Confirmed window validator 81,484.84",
+"x": 650,
+"y": 295,
+"w": 431.125,
+"h": 29
+},
+{
+"size": 24,
+"text": "Proof 68,354.80 reward oracle timeout",
+"x": 1270,
+"y": 295,
+"w": 429.421875,
+"h": 29
+},
+{
+"size": 28,
+"text": "Reward claim balance ratio 69,831.40",
+"x": 30,
+"y": 342,
+"w": 485.6875,
+"h": 34
+},
+{
+"size": 28,
+"text": "50,716.46 claim validator preprod balance",
+"x": 650,
+"y": 342,
+"w": 541.484375,
+"h": 34
+},
+{
+"size": 28,
+"text": "Collateral 51,342.02 release amount liquidation",
+"x": 1270,
+"y": 342,
+"w": 606.90625,
+"h": 34
+},
+{
+"size": 9,
+"text": "Reward confirmed 43,212.23 device release",
+"x": 30,
+"y": 394,
+"w": 184.125,
+"h": 11
+},
+{
+"size": 9,
+"text": "Settled network 39,188.31 amount status",
+"x": 650,
+"y": 394,
+"w": 167.515625,
+"h": 11
+},
+{
+"size": 9,
+"text": "Dispute ratio escrow 6,025.33 oracle",
+"x": 1270,
+"y": 394,
+"w": 153.234375,
+"h": 11
+},
+{
+"size": 10,
+"text": "Timeout epoch claim deposit 17,500.87",
+"x": 30,
+"y": 418,
+"w": 180.375,
+"h": 12
+},
+{
+"size": 10,
+"text": "Reward reward 36,998.68 device mainnet",
+"x": 650,
+"y": 418,
+"w": 193.421875,
+"h": 12
+},
+{
+"size": 10,
+"text": "Timeout 32,185.71 withdraw window testnet",
+"x": 1270,
+"y": 418,
+"w": 201.609375,
+"h": 12
+},
+{
+"size": 11,
+"text": "Total 71,214.70 withdraw claim seller",
+"x": 30,
+"y": 444,
+"w": 185.265625,
+"h": 14
+},
+{
+"size": 11,
+"text": "Device 62,023.72 deposit factor status",
+"x": 650,
+"y": 444,
+"w": 197.328125,
+"h": 14
+},
+{
+"size": 11,
+"text": "Oracle mainnet signer 45,911.90 dispute",
+"x": 1270,
+"y": 444,
+"w": 203.578125,
+"h": 14
+},
+{
+"size": 12,
+"text": "53,002.42 price ledger factor window",
+"x": 30,
+"y": 471,
+"w": 210.296875,
+"h": 15
+},
+{
+"size": 12,
+"text": "Ratio 18,474.77 escrow collateral validator",
+"x": 650,
+"y": 471,
+"w": 232.171875,
+"h": 15
+},
+{
+"size": 12,
+"text": "Confirmed settled mainnet device 48,109.69",
+"x": 1270,
+"y": 471,
+"w": 244.859375,
+"h": 15
+},
+{
+"size": 13,
+"text": "Deposit validator 36,281.23 validator",
+"x": 30,
+"y": 500,
+"w": 219.390625,
+"h": 16
+},
+{
+"size": 13,
+"text": "Signer 43,744.23 timeout deposit liquidation",
+"x": 650,
+"y": 500,
+"w": 266.140625,
+"h": 16
+},
+{
+"size": 13,
+"text": "Testnet 59,351.86 price feed block balance",
+"x": 1270,
+"y": 500,
+"w": 258.640625,
+"h": 16
+},
+{
+"size": 14,
+"text": "Confirmed settled 35,728.09 device balance",
+"x": 30,
+"y": 530,
+"w": 287.984375,
+"h": 17
+},
+{
+"size": 14,
+"text": "Buyer 31,786.51 window amount block withdraw",
+"x": 650,
+"y": 530,
+"w": 311.5,
+"h": 17
+},
+{
+"size": 14,
+"text": "Vault health 71,980.46 price window amount",
+"x": 1270,
+"y": 530,
+"w": 288.234375,
+"h": 17
+},
+{
+"size": 16,
+"text": "Network refund release 4,760.49 collateral",
+"x": 30,
+"y": 562,
+"w": 316.796875,
+"h": 20
+},
+{
+"size": 16,
+"text": "35,931.03 confirmed collateral block",
+"x": 650,
+"y": 562,
+"w": 268.765625,
+"h": 20
+},
+{
+"size": 16,
+"text": "Device fee collateral dispute 62,430.30",
+"x": 1270,
+"y": 562,
+"w": 291.328125,
+"h": 20
+},
+{
+"size": 18,
+"text": "Reward factor 87,519.50 status vault",
+"x": 30,
+"y": 598,
+"w": 299.421875,
+"h": 21
+},
+{
+"size": 18,
+"text": "Amount window 53,664.59 pending block",
+"x": 650,
+"y": 598,
+"w": 348.25,
+"h": 21
+},
+{
+"size": 18,
+"text": "Escrow validator ratio 21,989.66 status",
+"x": 1270,
+"y": 598,
+"w": 320.828125,
+"h": 21
+},
+{
+"size": 20,
+"text": "Preprod 27,882.50 oracle fee refund ratio",
+"x": 30,
+"y": 636,
+"w": 382.78125,
+"h": 24
+},
+{
+"size": 20,
+"text": "Withdraw factor ledger withdraw 46,705.11",
+"x": 650,
+"y": 636,
+"w": 391.953125,
+"h": 24
+},
+{
+"size": 20,
+"text": "Oracle mainnet status ledger 31,071.47",
+"x": 1270,
+"y": 636,
+"w": 357.671875,
+"h": 24
+},
+{
+"size": 24,
+"text": "Ratio ratio 43,377.25 escrow total network",
+"x": 30,
+"y": 677,
+"w": 466.453125,
+"h": 29
+},
+{
+"size": 24,
+"text": "Testnet ratio 23,277.62 ratio mainnet",
+"x": 650,
+"y": 677,
+"w": 405.5625,
+"h": 29
+},
+{
+"size": 24,
+"text": "Confirmed claim confirmed 11,970.24 collateral",
+"x": 1270,
+"y": 677,
+"w": 520.71875,
+"h": 29
+},
+{
+"size": 28,
+"text": "Epoch dispute 26,404.02 block settled",
+"x": 30,
+"y": 724,
+"w": 500.984375,
+"h": 34
+},
+{
+"size": 28,
+"text": "Ledger amount signer 71,007.53 proof",
+"x": 650,
+"y": 724,
+"w": 492,
+"h": 34
+},
+{
+"size": 28,
+"text": "Ledger liquidation signer confirmed 64,716.48",
+"x": 1270,
+"y": 724,
+"w": 596.359375,
+"h": 34
+}
+],
+"body": [
+{
+"size": 9,
+"body": 9,
+"xHeight": 5
+},
+{
+"size": 10,
+"body": 11,
+"xHeight": 6
+},
+{
+"size": 11,
+"body": 11,
+"xHeight": 6
+},
+{
+"size": 12,
+"body": 12,
+"xHeight": 7
+},
+{
+"size": 13,
+"body": 13,
+"xHeight": 7
+},
+{
+"size": 14,
+"body": 14,
+"xHeight": 8
+},
+{
+"size": 16,
+"body": 16,
+"xHeight": 9
+},
+{
+"size": 18,
+"body": 17,
+"xHeight": 10
+},
+{
+"size": 20,
+"body": 20,
+"xHeight": 11
+},
+{
+"size": 24,
+"body": 24,
+"xHeight": 14
+},
+{
+"size": 28,
+"body": 27,
+"xHeight": 16
+}
+]
+},
+{
+"variant": {
+"id": "v7-blue-dark-400",
+"fg": "#3b82f6",
+"bg": "#0a0a0a",
+"w": 400
+},
+"fontOk": true,
+"file": "v7-blue-dark-400.png",
+"boxes": [
+{
+"size": 9,
+"text": "Total block dispute ratio 27,845.17 vault",
+"x": 30,
+"y": 12,
+"w": 166.4375,
+"h": 11
+},
+{
+"size": 9,
+"text": "Settled health 22,456.97 refund feed",
+"x": 650,
+"y": 12,
+"w": 156.34375,
+"h": 11
+},
+{
+"size": 9,
+"text": "Proof feed mainnet 84,632.45 deposit",
+"x": 1270,
+"y": 12,
+"w": 161.609375,
+"h": 11
+},
+{
+"size": 10,
+"text": "Balance signer signer escrow 57,588.46",
+"x": 30,
+"y": 36,
+"w": 188.703125,
+"h": 12
+},
+{
+"size": 10,
+"text": "Feed seller signer oracle release 37,288.25",
+"x": 650,
+"y": 36,
+"w": 202.71875,
+"h": 12
+},
+{
+"size": 10,
+"text": "Epoch claim health settled 7,529.42",
+"x": 1270,
+"y": 36,
+"w": 167.75,
+"h": 12
+},
+{
+"size": 11,
+"text": "Epoch pending 48,676.42 preprod testnet",
+"x": 30,
+"y": 62,
+"w": 217.21875,
+"h": 14
+},
+{
+"size": 11,
+"text": "Withdraw health 4,431.20 timeout timeout",
+"x": 650,
+"y": 62,
+"w": 217.296875,
+"h": 14
+},
+{
+"size": 11,
+"text": "Confirmed dispute network reward 37,329.86",
+"x": 1270,
+"y": 62,
+"w": 235.265625,
+"h": 14
+},
+{
+"size": 12,
+"text": "Dispute collateral 41,088.21 epoch window",
+"x": 30,
+"y": 89,
+"w": 241.03125,
+"h": 15
+},
+{
+"size": 12,
+"text": "80,168.39 total proof preprod window",
+"x": 650,
+"y": 89,
+"w": 212.046875,
+"h": 15
+},
+{
+"size": 12,
+"text": "Deposit deposit total 23,088.03 withdraw",
+"x": 1270,
+"y": 89,
+"w": 233.625,
+"h": 15
+},
+{
+"size": 13,
+"text": "Fee withdraw collateral 66,239.72 epoch",
+"x": 30,
+"y": 118,
+"w": 249.75,
+"h": 16
+},
+{
+"size": 13,
+"text": "Liquidation 20,179.39 refund liquidation",
+"x": 650,
+"y": 118,
+"w": 240.1875,
+"h": 16
+},
+{
+"size": 13,
+"text": "Factor 76,734.20 block amount mainnet",
+"x": 1270,
+"y": 118,
+"w": 243.46875,
+"h": 16
+},
+{
+"size": 14,
+"text": "Timeout 63,944.91 escrow liquidation",
+"x": 30,
+"y": 148,
+"w": 247.765625,
+"h": 17
+},
+{
+"size": 14,
+"text": "Epoch signer 9,735.26 pending amount",
+"x": 650,
+"y": 148,
+"w": 259.640625,
+"h": 17
+},
+{
+"size": 14,
+"text": "44,911.86 refund network fee ledger pending",
+"x": 1270,
+"y": 148,
+"w": 296.9375,
+"h": 17
+},
+{
+"size": 16,
+"text": "76,841.63 signer claim status mainnet",
+"x": 30,
+"y": 180,
+"w": 283.9375,
+"h": 20
+},
+{
+"size": 16,
+"text": "Refund 22,320.36 validator preprod ledger",
+"x": 650,
+"y": 180,
+"w": 322.15625,
+"h": 20
+},
+{
+"size": 16,
+"text": "Reward 36,264.53 claim claim preprod",
+"x": 1270,
+"y": 180,
+"w": 291.453125,
+"h": 20
+},
+{
+"size": 18,
+"text": "Refund validator 47,487.76 fee liquidation",
+"x": 30,
+"y": 216,
+"w": 350.421875,
+"h": 21
+},
+{
+"size": 18,
+"text": "Device 81,561.24 ledger preprod proof",
+"x": 650,
+"y": 216,
+"w": 325.9375,
+"h": 21
+},
+{
+"size": 18,
+"text": "Claim 21,526.05 liquidation price proof",
+"x": 1270,
+"y": 216,
+"w": 326.609375,
+"h": 21
+},
+{
+"size": 20,
+"text": "Total health release 27,015.39 amount",
+"x": 30,
+"y": 254,
+"w": 355.234375,
+"h": 24
+},
+{
+"size": 20,
+"text": "Release status seller 71,430.24 validator",
+"x": 650,
+"y": 254,
+"w": 379.90625,
+"h": 24
+},
+{
+"size": 20,
+"text": "Validator reward 22,066.13 buyer collateral",
+"x": 1270,
+"y": 254,
+"w": 402.0625,
+"h": 24
+},
+{
+"size": 24,
+"text": "29,437.12 testnet device refund confirmed",
+"x": 30,
+"y": 295,
+"w": 477.03125,
+"h": 29
+},
+{
+"size": 24,
+"text": "Release balance status ledger 77,404.79",
+"x": 650,
+"y": 295,
+"w": 458.609375,
+"h": 29
+},
+{
+"size": 24,
+"text": "64,888.15 dispute collateral collateral",
+"x": 1270,
+"y": 295,
+"w": 419,
+"h": 29
+},
+{
+"size": 28,
+"text": "Preprod escrow 62,800.31 factor claim",
+"x": 30,
+"y": 342,
+"w": 510.796875,
+"h": 34
+},
+{
+"size": 28,
+"text": "Mainnet 28,148.92 collateral factor epoch",
+"x": 650,
+"y": 342,
+"w": 546.765625,
+"h": 34
+},
+{
+"size": 28,
+"text": "Mainnet signer deposit 44,948.71 ratio",
+"x": 1270,
+"y": 342,
+"w": 507.28125,
+"h": 34
+},
+{
+"size": 9,
+"text": "Claim seller 49,668.65 proof buyer factor",
+"x": 30,
+"y": 394,
+"w": 175.125,
+"h": 11
+},
+{
+"size": 9,
+"text": "53,304.23 timeout proof reward ratio",
+"x": 650,
+"y": 394,
+"w": 156.8125,
+"h": 11
+},
+{
+"size": 9,
+"text": "Preprod withdraw 35,309.32 refund escrow",
+"x": 1270,
+"y": 394,
+"w": 185.09375,
+"h": 11
+},
+{
+"size": 10,
+"text": "Testnet settled ratio balance 82,717.79",
+"x": 30,
+"y": 418,
+"w": 180.40625,
+"h": 12
+},
+{
+"size": 10,
+"text": "Dispute ledger 89,431.08 feed block validator",
+"x": 650,
+"y": 418,
+"w": 214.609375,
+"h": 12
+},
+{
+"size": 10,
+"text": "Balance 26,114.13 health pending liquidation",
+"x": 1270,
+"y": 418,
+"w": 205.703125,
+"h": 12
+},
+{
+"size": 11,
+"text": "Status feed device health validator 18,014.29",
+"x": 30,
+"y": 444,
+"w": 231.734375,
+"h": 14
+},
+{
+"size": 11,
+"text": "Withdraw seller 15,527.44 confirmed dispute",
+"x": 650,
+"y": 444,
+"w": 230.890625,
+"h": 14
+},
+{
+"size": 11,
+"text": "Price window 66,188.49 collateral seller",
+"x": 1270,
+"y": 444,
+"w": 205.109375,
+"h": 14
+},
+{
+"size": 12,
+"text": "Signer epoch 31,333.78 health health",
+"x": 30,
+"y": 471,
+"w": 210.390625,
+"h": 15
+},
+{
+"size": 12,
+"text": "Block 79,400.83 settled timeout signer",
+"x": 650,
+"y": 471,
+"w": 218.96875,
+"h": 15
+},
+{
+"size": 12,
+"text": "Ratio preprod device 46,151.85 claim",
+"x": 1270,
+"y": 471,
+"w": 206.15625,
+"h": 15
+},
+{
+"size": 13,
+"text": "Factor pending 66,953.76 feed validator",
+"x": 30,
+"y": 500,
+"w": 245.609375,
+"h": 16
+},
+{
+"size": 13,
+"text": "Timeout release balance 55,517.96 dispute",
+"x": 650,
+"y": 500,
+"w": 260.71875,
+"h": 16
+},
+{
+"size": 13,
+"text": "Feed price 69,723.68 health seller seller",
+"x": 1270,
+"y": 500,
+"w": 245.984375,
+"h": 16
+},
+{
+"size": 14,
+"text": "Claim release balance 70,061.80 signer",
+"x": 30,
+"y": 530,
+"w": 258.796875,
+"h": 17
+},
+{
+"size": 14,
+"text": "Epoch 17,051.75 fee confirmed validator",
+"x": 650,
+"y": 530,
+"w": 261.515625,
+"h": 17
+},
+{
+"size": 14,
+"text": "Block price window 43,080.23 refund refund",
+"x": 1270,
+"y": 530,
+"w": 296.390625,
+"h": 17
+},
+{
+"size": 16,
+"text": "Refund health escrow device 84,565.36",
+"x": 30,
+"y": 562,
+"w": 300.515625,
+"h": 20
+},
+{
+"size": 16,
+"text": "Collateral liquidation 66,057.57 network",
+"x": 650,
+"y": 562,
+"w": 297.40625,
+"h": 20
+},
+{
+"size": 16,
+"text": "Dispute refund release refund 57,048.02",
+"x": 1270,
+"y": 562,
+"w": 304.953125,
+"h": 20
+},
+{
+"size": 18,
+"text": "19,692.64 liquidation liquidation collateral",
+"x": 30,
+"y": 598,
+"w": 351.21875,
+"h": 21
+},
+{
+"size": 18,
+"text": "18,485.86 liquidation liquidation block",
+"x": 650,
+"y": 598,
+"w": 319.90625,
+"h": 21
+},
+{
+"size": 18,
+"text": "Block 48,761.01 vault refund confirmed",
+"x": 1270,
+"y": 598,
+"w": 330.734375,
+"h": 21
+},
+{
+"size": 20,
+"text": "Refund seller 77,960.63 timeout seller",
+"x": 30,
+"y": 636,
+"w": 356.234375,
+"h": 24
+},
+{
+"size": 20,
+"text": "Release block 62,861.68 balance oracle",
+"x": 650,
+"y": 636,
+"w": 374.5625,
+"h": 24
+},
+{
+"size": 20,
+"text": "Preprod release proof feed 63,815.26",
+"x": 1270,
+"y": 636,
+"w": 351.859375,
+"h": 24
+},
+{
+"size": 24,
+"text": "Vault feed preprod 30,560.66 refund mainnet",
+"x": 30,
+"y": 677,
+"w": 512.125,
+"h": 29
+},
+{
+"size": 24,
+"text": "Release dispute balance 86,255.06 factor",
+"x": 650,
+"y": 677,
+"w": 470.890625,
+"h": 29
+},
+{
+"size": 24,
+"text": "Liquidation 47,057.76 release feed mainnet",
+"x": 1270,
+"y": 677,
+"w": 482.6875,
+"h": 29
+},
+{
+"size": 28,
+"text": "Reward 50,883.17 preprod device price",
+"x": 30,
+"y": 724,
+"w": 515.5,
+"h": 34
+},
+{
+"size": 28,
+"text": "Deposit epoch proof claim 22,136.07 testnet",
+"x": 650,
+"y": 724,
+"w": 580.75,
+"h": 34
+},
+{
+"size": 28,
+"text": "Deposit amount escrow 4,722.55 mainnet",
+"x": 1270,
+"y": 724,
+"w": 549.671875,
+"h": 34
+}
+],
+"body": [
+{
+"size": 9,
+"body": 9,
+"xHeight": 5
+},
+{
+"size": 10,
+"body": 11,
+"xHeight": 6
+},
+{
+"size": 11,
+"body": 11,
+"xHeight": 6
+},
+{
+"size": 12,
+"body": 12,
+"xHeight": 7
+},
+{
+"size": 13,
+"body": 13,
+"xHeight": 7
+},
+{
+"size": 14,
+"body": 14,
+"xHeight": 8
+},
+{
+"size": 16,
+"body": 16,
+"xHeight": 9
+},
+{
+"size": 18,
+"body": 17,
+"xHeight": 10
+},
+{
+"size": 20,
+"body": 20,
+"xHeight": 11
+},
+{
+"size": 24,
+"body": 24,
+"xHeight": 14
+},
+{
+"size": 28,
+"body": 27,
+"xHeight": 16
+}
+]
+},
+{
+"variant": {
+"id": "v8-red-dark-400",
+"fg": "#ef4444",
+"bg": "#0a0a0a",
+"w": 400
+},
+"fontOk": true,
+"file": "v8-red-dark-400.png",
+"boxes": [
+{
+"size": 9,
+"text": "Fee ledger 10,618.30 settled price validator",
+"x": 30,
+"y": 12,
+"w": 181.890625,
+"h": 11
+},
+{
+"size": 9,
+"text": "58,976.79 mainnet total withdraw balance",
+"x": 650,
+"y": 12,
+"w": 177.1875,
+"h": 11
+},
+{
+"size": 9,
+"text": "47,943.74 withdraw pending collateral",
+"x": 1270,
+"y": 12,
+"w": 161.921875,
+"h": 11
+},
+{
+"size": 10,
+"text": "Price ratio 72,798.33 claim factor withdraw",
+"x": 30,
+"y": 36,
+"w": 202.75,
+"h": 12
+},
+{
+"size": 10,
+"text": "59,954.33 collateral device proof ledger",
+"x": 650,
+"y": 36,
+"w": 189,
+"h": 12
+},
+{
+"size": 10,
+"text": "Reward validator 31,718.73 device timeout",
+"x": 1270,
+"y": 36,
+"w": 197.3125,
+"h": 12
+},
+{
+"size": 11,
+"text": "76,288.33 network mainnet ledger window",
+"x": 30,
+"y": 62,
+"w": 221.90625,
+"h": 14
+},
+{
+"size": 11,
+"text": "Mainnet ratio 42,616.84 settled validator",
+"x": 650,
+"y": 62,
+"w": 208.625,
+"h": 14
+},
+{
+"size": 11,
+"text": "Vault 34,721.50 testnet preprod fee balance",
+"x": 1270,
+"y": 62,
+"w": 226.625,
+"h": 14
+},
+{
+"size": 12,
+"text": "Mainnet 71,416.74 deposit preprod signer",
+"x": 30,
+"y": 89,
+"w": 232.921875,
+"h": 15
+},
+{
+"size": 12,
+"text": "Preprod collateral 62,161.35 settled",
+"x": 650,
+"y": 89,
+"w": 197.375,
+"h": 15
+},
+{
+"size": 12,
+"text": "Buyer ledger status pending 36,013.20",
+"x": 1270,
+"y": 89,
+"w": 218.6875,
+"h": 15
+},
+{
+"size": 13,
+"text": "2,276.42 price status status ledger",
+"x": 30,
+"y": 118,
+"w": 213.90625,
+"h": 16
+},
+{
+"size": 13,
+"text": "26,255.26 signer confirmed seller factor",
+"x": 650,
+"y": 118,
+"w": 247.046875,
+"h": 16
+},
+{
+"size": 13,
+"text": "Proof dispute health feed health 34,128.10",
+"x": 1270,
+"y": 118,
+"w": 256.171875,
+"h": 16
+},
+{
+"size": 14,
+"text": "Health price 47,939.55 balance testnet",
+"x": 30,
+"y": 148,
+"w": 255.40625,
+"h": 17
+},
+{
+"size": 14,
+"text": "61,903.47 status claim total amount timeout",
+"x": 650,
+"y": 148,
+"w": 287.9375,
+"h": 17
+},
+{
+"size": 14,
+"text": "Buyer ledger mainnet total 49,918.33",
+"x": 1270,
+"y": 148,
+"w": 242.890625,
+"h": 17
+},
+{
+"size": 16,
+"text": "Withdraw fee factor 23,865.95 claim preprod",
+"x": 30,
+"y": 180,
+"w": 339.390625,
+"h": 20
+},
+{
+"size": 16,
+"text": "Amount withdraw timeout seller 54,917.72",
+"x": 650,
+"y": 180,
+"w": 314.453125,
+"h": 20
+},
+{
+"size": 16,
+"text": "Release health 2,649.70 signer seller",
+"x": 1270,
+"y": 180,
+"w": 279.078125,
+"h": 20
+},
+{
+"size": 18,
+"text": "Reward testnet 2,480.82 reward factor",
+"x": 30,
+"y": 216,
+"w": 328.453125,
+"h": 21
+},
+{
+"size": 18,
+"text": "53,553.60 balance total epoch refund",
+"x": 650,
+"y": 216,
+"w": 319.203125,
+"h": 21
+},
+{
+"size": 18,
+"text": "Refund feed oracle 9,475.17 claim timeout",
+"x": 1270,
+"y": 216,
+"w": 354.625,
+"h": 21
+},
+{
+"size": 20,
+"text": "Pending release claim 78,543.55 escrow",
+"x": 30,
+"y": 254,
+"w": 381.859375,
+"h": 24
+},
+{
+"size": 20,
+"text": "61,499.90 epoch oracle release confirmed",
+"x": 650,
+"y": 254,
+"w": 400.25,
+"h": 24
+},
+{
+"size": 20,
+"text": "Pending seller 67,089.60 refund claim",
+"x": 1270,
+"y": 254,
+"w": 356.5625,
+"h": 24
+},
+{
+"size": 24,
+"text": "Signer withdraw 53,196.15 timeout pending",
+"x": 30,
+"y": 295,
+"w": 482.796875,
+"h": 29
+},
+{
+"size": 24,
+"text": "Network price 85,393.41 release epoch",
+"x": 650,
+"y": 295,
+"w": 445.140625,
+"h": 29
+},
+{
+"size": 24,
+"text": "Timeout 84,826.21 confirmed proof liquidation",
+"x": 1270,
+"y": 295,
+"w": 524.375,
+"h": 29
+},
+{
+"size": 28,
+"text": "Oracle 30,308.56 withdraw release feed",
+"x": 30,
+"y": 342,
+"w": 530.8125,
+"h": 34
+},
+{
+"size": 28,
+"text": "Total 38,842.65 testnet timeout timeout",
+"x": 650,
+"y": 342,
+"w": 521,
+"h": 34
+},
+{
+"size": 28,
+"text": "Ledger feed window 68,498.95 withdraw",
+"x": 1270,
+"y": 342,
+"w": 544.609375,
+"h": 34
+},
+{
+"size": 9,
+"text": "57,180.25 block escrow epoch seller proof",
+"x": 30,
+"y": 394,
+"w": 178.515625,
+"h": 11
+},
+{
+"size": 9,
+"text": "Deposit refund claim 61,096.49 price",
+"x": 650,
+"y": 394,
+"w": 156.75,
+"h": 11
+},
+{
+"size": 9,
+"text": "15,865.81 ledger deposit network validator",
+"x": 1270,
+"y": 394,
+"w": 179.125,
+"h": 11
+},
+{
+"size": 10,
+"text": "Collateral network 72,071.19 status oracle",
+"x": 30,
+"y": 418,
+"w": 194.921875,
+"h": 12
+},
+{
+"size": 10,
+"text": "34,947.01 ratio mainnet release device",
+"x": 650,
+"y": 418,
+"w": 181.078125,
+"h": 12
+},
+{
+"size": 10,
+"text": "Liquidation dispute total status 2,926.73",
+"x": 1270,
+"y": 418,
+"w": 188.671875,
+"h": 12
+},
+{
+"size": 11,
+"text": "Feed price 17,456.50 liquidation factor",
+"x": 30,
+"y": 444,
+"w": 197.484375,
+"h": 14
+},
+{
+"size": 11,
+"text": "Mainnet 50,995.44 feed dispute buyer",
+"x": 650,
+"y": 444,
+"w": 199.125,
+"h": 14
+},
+{
+"size": 11,
+"text": "Deposit mainnet proof 56,624.75 ledger",
+"x": 1270,
+"y": 444,
+"w": 206.3125,
+"h": 14
+},
+{
+"size": 12,
+"text": "Device signer claim price 60,896.72 withdraw",
+"x": 30,
+"y": 471,
+"w": 259.03125,
+"h": 15
+},
+{
+"size": 12,
+"text": "Escrow liquidation 12,664.28 feed validator",
+"x": 650,
+"y": 471,
+"w": 243.453125,
+"h": 15
+},
+{
+"size": 12,
+"text": "Device vault oracle 28,561.79 factor",
+"x": 1270,
+"y": 471,
+"w": 203.140625,
+"h": 15
+},
+{
+"size": 13,
+"text": "Seller 29,563.40 vault buyer factor testnet",
+"x": 30,
+"y": 500,
+"w": 259.53125,
+"h": 16
+},
+{
+"size": 13,
+"text": "41,544.04 status settled validator pending",
+"x": 650,
+"y": 500,
+"w": 257.515625,
+"h": 16
+},
+{
+"size": 13,
+"text": "Block preprod ratio 46,301.59 escrow",
+"x": 1270,
+"y": 500,
+"w": 229.65625,
+"h": 16
+},
+{
+"size": 14,
+"text": "Status 6,063.70 proof timeout release",
+"x": 30,
+"y": 530,
+"w": 249.140625,
+"h": 17
+},
+{
+"size": 14,
+"text": "Feed validator price 32,056.63 health",
+"x": 650,
+"y": 530,
+"w": 246.984375,
+"h": 17
+},
+{
+"size": 14,
+"text": "Preprod 30,234.93 release proof epoch",
+"x": 1270,
+"y": 530,
+"w": 261.953125,
+"h": 17
+},
+{
+"size": 16,
+"text": "Claim 3,864.51 network signer total",
+"x": 30,
+"y": 562,
+"w": 265.703125,
+"h": 20
+},
+{
+"size": 16,
+"text": "Claim refund 14,080.81 collateral ledger",
+"x": 650,
+"y": 562,
+"w": 297.921875,
+"h": 20
+},
+{
+"size": 16,
+"text": "Network confirmed testnet epoch 23,286.63",
+"x": 1270,
+"y": 562,
+"w": 336.0625,
+"h": 20
+},
+{
+"size": 18,
+"text": "Balance epoch confirmed collateral 45,947.86",
+"x": 30,
+"y": 598,
+"w": 390.375,
+"h": 21
+},
+{
+"size": 18,
+"text": "Epoch 53,486.46 release reward dispute",
+"x": 650,
+"y": 598,
+"w": 345.53125,
+"h": 21
+},
+{
+"size": 18,
+"text": "Liquidation claim pending pending 33,277.42",
+"x": 1270,
+"y": 598,
+"w": 381.171875,
+"h": 21
+},
+{
+"size": 20,
+"text": "Feed feed 29,416.62 testnet balance refund",
+"x": 30,
+"y": 636,
+"w": 411.125,
+"h": 24
+},
+{
+"size": 20,
+"text": "Price feed mainnet escrow block 3,178.52",
+"x": 650,
+"y": 636,
+"w": 391.265625,
+"h": 24
+},
+{
+"size": 20,
+"text": "Seller 16,415.49 timeout oracle ledger",
+"x": 1270,
+"y": 636,
+"w": 354.390625,
+"h": 24
+},
+{
+"size": 24,
+"text": "Deposit health 28,015.22 settled release",
+"x": 30,
+"y": 677,
+"w": 453.4375,
+"h": 29
+},
+{
+"size": 24,
+"text": "48,802.77 collateral confirmed withdraw",
+"x": 650,
+"y": 677,
+"w": 458.859375,
+"h": 29
+},
+{
+"size": 24,
+"text": "Deposit 10,474.65 withdraw amount vault",
+"x": 1270,
+"y": 677,
+"w": 467.265625,
+"h": 29
+},
+{
+"size": 28,
+"text": "Release vault validator 55,156.03 deposit",
+"x": 30,
+"y": 724,
+"w": 536.8125,
+"h": 34
+},
+{
+"size": 28,
+"text": "Buyer seller health 37,919.31 withdraw",
+"x": 650,
+"y": 724,
+"w": 502.40625,
+"h": 34
+},
+{
+"size": 28,
+"text": "Refund oracle oracle mainnet 86,482.24",
+"x": 1270,
+"y": 724,
+"w": 533.046875,
+"h": 34
+}
+],
+"body": [
+{
+"size": 9,
+"body": 9,
+"xHeight": 5
+},
+{
+"size": 10,
+"body": 11,
+"xHeight": 6
+},
+{
+"size": 11,
+"body": 11,
+"xHeight": 6
+},
+{
+"size": 12,
+"body": 12,
+"xHeight": 7
+},
+{
+"size": 13,
+"body": 13,
+"xHeight": 7
+},
+{
+"size": 14,
+"body": 14,
+"xHeight": 8
+},
+{
+"size": 16,
+"body": 16,
+"xHeight": 9
+},
+{
+"size": 18,
+"body": 17,
+"xHeight": 10
+},
+{
+"size": 20,
+"body": 20,
+"xHeight": 11
+},
+{
+"size": 24,
+"body": 24,
+"xHeight": 14
+},
+{
+"size": 28,
+"body": 27,
+"xHeight": 16
+}
+]
+}
+]

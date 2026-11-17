@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SL-T20 runtime negative</title>
+<style>
+  body { margin: 0; font-family: Arial, sans-serif; color: #fff; background: #0f172a; }
+  section { position: relative; height: 240px; margin: 24px; }
+  .noise { position: absolute; inset: 0; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  /* paper grain over a black radial vignette: a luminance-only gradient (FD14-F16, XRPL) */
+  .vignette { background: radial-gradient(118% 85% at 50% 40%, transparent 48%, rgba(0, 0, 0, 0.42) 100%); }
+  .vignette .noise { opacity: 0.055; }
+  /* grain over a flat colour */
+  .flat { background: #1e293b; }
+  .flat .noise { opacity: 0.1; }
+  /* noise too strong to be a grain */
+  .strong { background: linear-gradient(135deg, #7c3aed, #2563eb); }
+  .strong .noise { opacity: 0.6; }
+  /* a layer that takes the pointer is not an overlay */
+  .clickable { background: linear-gradient(135deg, #7c3aed, #2563eb); }
+  .clickable .noise { opacity: 0.1; pointer-events: auto; }
+</style>
+</head>
+<body>
+  <section class="vignette"><div class="noise"></div></section>
+  <section class="flat"><div class="noise"></div></section>
+  <section class="strong"><div class="noise"></div></section>
+  <section class="clickable"><div class="noise"></div></section>
+</body>
+</html>

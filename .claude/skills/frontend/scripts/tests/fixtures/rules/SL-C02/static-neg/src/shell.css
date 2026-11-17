@@ -1,0 +1,11 @@
+body {
+  min-height: 100vh;
+}
+
+.app-shell {
+  height: 100vh;
+}
+
+.hero {
+  padding-block: 6rem;
+}

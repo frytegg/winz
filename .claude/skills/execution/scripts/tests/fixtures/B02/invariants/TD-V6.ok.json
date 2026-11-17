@@ -1,0 +1,6 @@
+{
+ "base": "base2.json",
+ "note": "dev B (full) owns a manual task executed by A",
+ "ops": [],
+ "expect": []
+}

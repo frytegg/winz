@@ -1,0 +1,12 @@
+{
+ "base": "base.json",
+ "note": "two lanes with intersecting globs",
+ "ops": [
+  {
+   "op": "append",
+   "path": "/plan/lanes/@L5/globs",
+   "value": "docs2/**"
+  }
+ ],
+ "expect": []
+}

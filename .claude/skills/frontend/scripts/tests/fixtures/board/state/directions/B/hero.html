@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Direction B</title>
+<style>
+  :root { --ground: #f9fafb; --surface: #ffffff; --ink: #101418; --ink-muted: #4a5560; --accent: #b3400c; --on-accent: #ffffff; --border-input: #6b7785; --status-live: #166534; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--ground); color: var(--ink); }
+  body { font: 16px/1.5 system-ui, sans-serif; }
+  main { display: grid; grid-template-columns: 5fr 6fr; gap: 32px; padding: 32px; }
+  h1 { font-size: 40px; line-height: 1.15; margin: 0 0 16px; text-wrap: balance; }
+  .muted { color: var(--ink-muted); }
+  .ticket { background: var(--surface); border: 1px solid var(--border-input); border-radius: 2px; padding: 16px; display: grid; gap: 8px; }
+  .row { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--border-input); padding: 8px 0; font-family: ui-monospace, monospace; }
+  .live { color: var(--status-live); }
+  button { justify-self: start; background: var(--accent); color: var(--on-accent); border: 0; border-radius: 2px; padding: 8px 16px; font: inherit; min-height: 44px; }
+  @media (max-width: 720px) { main { grid-template-columns: 1fr; padding: 16px; } }
+</style>
+</head>
+<body>
+<main>
+  <section>
+    <h1 data-hero="h1">Settle withdrawals on time</h1>
+    <p data-hero="sentence">Treasury teams see when each Cardano withdrawal will settle, before they promise a date.</p>
+    <p class="muted">Example queue of Northwind Treasury, labelled testnet data.</p>
+  </section>
+  <section class="ticket" data-surface="product" aria-label="Withdrawal ticket">
+    <div class="row"><span class="muted">Withdrawal</span><span>W-1042</span></div>
+    <div class="row"><span class="muted">Block</span><span>2,871,334</span></div>
+    <div class="row"><span class="muted">Status</span><span class="live" data-status="live">live</span></div>
+    <button type="button">Queue the withdrawal</button>
+  </section>
+</main>
+</body>
+</html>

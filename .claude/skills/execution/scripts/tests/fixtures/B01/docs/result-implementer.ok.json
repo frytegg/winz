@@ -1,0 +1,31 @@
+{
+  "schema": "execution.result.implementer/1",
+  "role": "implementer",
+  "wave": "W01",
+  "task": "T001",
+  "attempt": 1,
+  "status": "built",
+  "branch": "main",
+  "head_sha": "1111111111111111111111111111111111111111",
+  "worktree_path": null,
+  "files_changed": [
+    "src/t1/index.ts"
+  ],
+  "commit_message_file": null,
+  "own_proof_run": {
+    "command": "node --test",
+    "exit_code": 0,
+    "output_tail": "ok"
+  },
+  "merge": {
+    "receipt_path": "local/results/W01/T001.merge.a1.json",
+    "outcome": "landed",
+    "landed_sha": "1111111111111111111111111111111111111111",
+    "exit_code": 0,
+    "error_code": null
+  },
+  "dx_rows": [],
+  "rebuttals": [],
+  "blocked": null,
+  "notes": ""
+}

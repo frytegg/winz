@@ -1,0 +1,18 @@
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.modal {
+  animation: fadeIn 200ms ease-in;
+}
+
+.popover[data-state="open"] {
+  transition: opacity 150ms ease-in;
+}

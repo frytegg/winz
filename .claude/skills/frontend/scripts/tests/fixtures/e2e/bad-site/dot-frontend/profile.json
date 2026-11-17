@@ -1,0 +1,19 @@
+{
+  "mode": "full",
+  "run_mode": "B",
+  "judged_surface": "site",
+  "stack": "static-html",
+  "hosting": "local",
+  "format": {"video": null},
+  "sponsors": ["cardano"],
+  "references": [
+    {"customer": "Harbor Line Logistics", "url": "https://harborline.invalid", "source": "research/_recommendation.md:13", "owner_confirmed": false}
+  ],
+  "paths": {
+    "design": "design",
+    "claims_ledger": "../research/claims.md",
+    "never_show": "never-show.json",
+    "feature_catalogue": "../research/features.json",
+    "research": "../research"
+  }
+}

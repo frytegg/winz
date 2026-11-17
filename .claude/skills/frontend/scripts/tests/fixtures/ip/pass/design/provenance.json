@@ -1,0 +1,9 @@
+{
+  "assets": [
+    {"path": "brand/mark.svg", "kind": "logo", "source": "Drawn for this project from the wordmark (FE-05 candidate 2)", "license": "Same licence as the repository", "ai": "assisted", "tool": "Claude with the /frontend skill"},
+    {"path": "design/fonts/TestSans-Regular.woff2", "kind": "font", "source": "Generated for the ip-check fixture", "license": "OFL-1.1", "licenseFile": "design/fonts/OFL.txt", "ai": "none"},
+    {"path": "public/hero.svg", "kind": "image", "source": "Drawn for this project", "license": "Same licence as the repository", "ai": "none"},
+    {"path": "public/testchain-horizontal.svg", "kind": "logo", "source": "Official Testchain brand kit, unaltered", "license": "Testchain trademark policy: standalone unaltered official logo", "ai": "none"},
+    {"path": "public/old-banner.png", "kind": "image", "source": "Removed in a later commit", "license": "Same licence as the repository", "ai": "none"}
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "schema": "execution.reference-class/1",
+  "source": "ARCHITECTURE.md 7.1 and 7.3: the owner's 355 logged agents (prior-art-planning F28) for build, verify and research; /harden's own sizing rule (local-skills-interlock F07); the other figures are assumptions marked as such, replaced by calibration (local/state.json calibration) after the first waves",
+  "classes": {
+    "build": {"p10_min": 6.2, "p50_min": 26.7, "p90_min": 46.0, "basis": "measured: 355 logged agents"},
+    "verify": {"p10_min": 1.6, "p50_min": 6.7, "p90_min": 31.1, "basis": "measured: 355 logged agents"},
+    "research": {"p10_min": 13.0, "p50_min": 24.9, "p90_min": 40.6, "basis": "measured: 355 logged agents"},
+    "manual": {"p10_min": 5.0, "p50_min": 15.0, "p90_min": 45.0, "basis": "assumption: one owner step on the laptop or the phone"},
+    "human_response": {"p10_min": 5.0, "p50_min": 30.0, "p90_min": 120.0, "basis": "MODULES.md 4: the owner's response latency inside awake windows, unless calibrated"}
+  },
+  "failure_probability": {
+    "basis": "assumption until calibrated: the share of attempts a verifier fails, per task kind (calibration keys fail.<kind>)",
+    "code": 0.2,
+    "test": 0.15,
+    "infra": 0.2,
+    "deploy": 0.2,
+    "tx": 0.2,
+    "research": 0.05,
+    "watch": 0.0,
+    "gate": 0.1,
+    "manual": 0.0,
+    "decision": 0.0
+  },
+  "build_complete": {
+    "basis": "ARCHITECTURE.md 7.3: build-complete = submission - (/harden P80 + fix wave + FE-21 sign-off + recording + /prose + README screenshots + submission steps + buffer). Each component's P80 is the lognormal 0.8 quantile of its p50/p90; the plan's own fix-phase and deliverable-phase tasks replace the defaults below when it has any.",
+    "harden": {"base_min": 60, "per_kloc_min": 20, "clamp_min": 120, "clamp_max": 600, "factor": 1.2},
+    "fix_wave": {"p50_min": 40.0, "p90_min": 90.0},
+    "deliverables": {
+      "fe21_signoff": {"p50_min": 15.0, "p90_min": 30.0},
+      "recording": {"p50_min": 90.0, "p90_min": 150.0},
+      "prose": {"p50_min": 30.0, "p90_min": 60.0},
+      "screenshots": {"p50_min": 10.0, "p90_min": 20.0},
+      "submission_steps": {"p50_min": 20.0, "p90_min": 40.0}
+    },
+    "buffer_min": 60.0
+  }
+}

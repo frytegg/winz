@@ -1,0 +1,14 @@
+{
+ "base": "base3.json",
+ "note": "README screenshots not after the slides task (the deck)",
+ "expect": [
+  "E_DELIVERABLE_ORDER"
+ ],
+ "ops": [
+  {
+   "op": "drop-dep",
+   "task": "@execution.ex-dlv-screenshots",
+   "dep": "#execution.ex-dlv-slides"
+  }
+ ]
+}

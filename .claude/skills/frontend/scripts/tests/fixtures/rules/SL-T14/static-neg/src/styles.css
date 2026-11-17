@@ -1,0 +1,13 @@
+.btn {
+  background: #7c3aed;
+}
+
+.btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* FD14-F22: defined, never used. */
+.cta-old:hover {
+  opacity: 0.8;
+}

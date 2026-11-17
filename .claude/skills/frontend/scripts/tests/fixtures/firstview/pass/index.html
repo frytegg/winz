@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Queue Clock</title>
+  <style>
+    body { margin: 0; font: 16px/1.4 system-ui, sans-serif; color: #111; background: #fff; }
+    header { padding: 12px 20px; font-weight: 600; }
+    main { padding: 0 20px; max-width: 1100px; margin: 0 auto; }
+    h1 { font-size: 36px; margin: 8px 0; }
+    .lede { font-size: 18px; margin: 0 0 8px; max-width: 640px; }
+    .meta { font-size: 14px; margin: 0 0 12px; }
+    .figure { font-size: 28px; font-weight: 700; }
+    .product { border: 1px solid #ccc; border-radius: 8px; padding: 16px; height: 320px; box-sizing: border-box; }
+    table { border-collapse: collapse; }
+    td { padding: 4px 12px 4px 0; }
+    @media (max-width: 600px) { h1 { font-size: 28px; } .product { height: 260px; } }
+  </style>
+</head>
+<body>
+  <header>Queue Clock</header>
+  <main>
+    <h1 data-hero="h1">See when your withdrawal clears</h1>
+    <p class="lede" data-hero="sentence">Lenders see where their withdrawal stands in the queue and when it becomes claimable.</p>
+    <p class="meta">Built on the Cardano blockchain, running on the preprod testnet.</p>
+    <p><span class="figure" data-metric data-source="testnet" data-as-of="2026-10-01T10:00:00Z">2,100,000 tADA</span> queued now</p>
+    <section class="product" data-surface="product" aria-label="Withdrawal queue">
+      <table>
+        <tr><td>Position 12</td><td>claimable at slot 41,200</td></tr>
+        <tr><td>Position 13</td><td>claimable at slot 41,260</td></tr>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

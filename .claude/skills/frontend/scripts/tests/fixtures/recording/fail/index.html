@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Recording fail fixture</title>
+<style>
+  body { margin: 0; font-family: Arial, sans-serif; color: #e5e7eb; background: linear-gradient(180deg, #0a0a0a 0%, #171727 100%); min-height: 1080px; }
+  main { padding: 32px 48px; }
+  h1 { font-size: 64px; margin: 0 0 12px; }
+  .tiny { font-size: 11px; }
+  .medium { font-size: 17px; }
+  .thin { font-size: 17px; font-weight: 300; }
+  .key-small { font-size: 20px; }
+  .proj { font-size: 18px; color: #888; }
+  .light { background: #fff; color: #999; font-size: 18px; padding: 12px 24px; }
+  .grain { width: 300px; height: 120px; background: #111; }
+  .hair { background: #fff; color: #111; border: 1px solid #eee; padding: 12px; font-size: 22px; }
+  .panel { background: #0a0a0a; padding: 12px; }
+  .card { background: #0d0d0d; width: 600px; height: 200px; }
+  .has-tip { position: relative; display: inline-block; font-size: 22px; }
+  .tip { display: none; position: absolute; left: 0; top: 32px; background: #fff; color: #111; font-size: 22px; white-space: nowrap; }
+  .has-tip:hover .tip { display: block; }
+  .blink { animation: blink 200ms steps(1) infinite; font-size: 22px; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .wide { width: 1500px; height: 20px; background: #222; }
+  .low { margin-top: 760px; font-size: 40px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Settlements clear in one block</h1>
+  <p class="tiny">Fees are estimated from the last 24 hours of blocks.</p>
+  <p class="medium">Treasury teams batch supplier payments here.</p>
+  <p class="thin">A thin caption that loses a step after encoding.</p>
+  <p class="key-small" data-rec-role="key">412 payments settled</p>
+  <p class="proj">Projector-washed secondary text on black.</p>
+  <p class="light">Low contrast on a light band.</p>
+  <div class="grain"></div>
+  <div class="hair">A table rule drawn as a faint hairline.</div>
+  <div class="panel"><div class="card"></div></div>
+  <span class="has-tip">Fee breakdown<span class="tip">Network fee 0.17 ADA, service fee 0</span></span>
+  <p><span class="blink">LIVE</span> <span title="Updated every block">status</span></p>
+  <p data-source="live">Batch total: 1,204,330.50 USDC</p>
+  <div class="wide"></div>
+  <p class="low" data-rec-role="key">Receipt hash 9f3c...a21b</p>
+</main>
+</body>
+</html>

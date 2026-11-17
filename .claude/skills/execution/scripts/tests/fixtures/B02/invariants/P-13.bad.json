@@ -1,0 +1,19 @@
+{
+ "base": "base.json",
+ "note": "a code task with a waived negative control",
+ "ops": [
+  {
+   "op": "set",
+   "path": "/plan/tasks/@engine/proof/negative_control",
+   "value": {
+    "kind": "not-applicable",
+    "description": "none",
+    "expect_nonzero": true,
+    "waived_reason": "nothing to falsify here, says the planner"
+   }
+  }
+ ],
+ "expect": [
+  "E_NEGATIVE_CONTROL"
+ ]
+}

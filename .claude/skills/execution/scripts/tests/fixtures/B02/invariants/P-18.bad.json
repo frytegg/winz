@@ -1,0 +1,34 @@
+{
+ "base": "base.json",
+ "note": "a required build task that is not an ancestor of the build gate",
+ "ops": [
+  {
+   "op": "drop-dep",
+   "task": "@execution.ex-converge",
+   "dep": "#cli"
+  },
+  {
+   "op": "drop-dep",
+   "task": "@execution.ex-replay",
+   "dep": "#cli"
+  },
+  {
+   "op": "drop-dep",
+   "task": "@execution.ex-gate-build",
+   "dep": "#cli"
+  },
+  {
+   "op": "drop-dep",
+   "task": "@execution.ex-readme",
+   "dep": "#cli"
+  },
+  {
+   "op": "drop-dep",
+   "task": "@execution.ex-hb-claims-verify",
+   "dep": "#cli"
+  }
+ ],
+ "expect": [
+  "E_BUILD_GATE"
+ ]
+}

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Console fixture</title>
+<link rel="preload" href="fonts/qa-block.otf" as="font" type="font/otf" crossorigin>
+<link rel="stylesheet" href="base.css">
+
+</head>
+<body>
+<main>
+  <h1>Console fixture</h1>
+  <p>Lenders see the withdrawal queue before they sign.</p>
+  <script>
+    console.error("qa fixture: the queue feed is missing");
+    window.addEventListener("load", function () { queueFeed.start(); });
+  </script>
+</main>
+</body>
+</html>

@@ -1,0 +1,20 @@
+.prose em {
+  font-family: 'Newsreader', Georgia, serif;
+  font-style: italic;
+}
+
+blockquote {
+  font-style: italic;
+}
+
+h1 {
+  font-family: 'Clash Display', sans-serif;
+}
+
+/* .hero-title em { font-family: 'Instrument Serif', serif; font-style: italic; } */
+
+/* FD14-F22: defined, never used. */
+.unused-hero em {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+}

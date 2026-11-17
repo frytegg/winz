@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Eased-in entrances</title>
+<style>
+  body { margin: 0; font-family: Arial, sans-serif; color: #111; padding: 48px; }
+  h1 { animation: rise 600ms ease-in both; }
+  .tip { display: inline-block; opacity: 0; transition: opacity 200ms ease-in; }
+  @keyframes rise { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+  <h1>Settlement in minutes</h1>
+  <span class="tip" role="tooltip">Opens on hover</span>
+</body>
+</html>

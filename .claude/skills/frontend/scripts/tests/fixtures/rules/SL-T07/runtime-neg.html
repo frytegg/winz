@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SL-T07 runtime negative</title>
+<style>
+  body { margin: 0; padding: 48px; background: #0a0a0a; font-family: Arial, sans-serif; color: #ededed; }
+  p { font-size: 16px; color: #d4d4d8; }
+  .caption { font-size: 13px; color: #71717a; }
+  .light { margin-top: 24px; padding: 16px; background: #ffffff; }
+  .light p { color: #6b7280; }
+  code { font-size: 14px; color: #52525b; }
+</style>
+</head>
+<body>
+  <h1>Collateral monitor</h1>
+  <p>Positions refresh every block from the indexer.</p>
+  <p>Ratios below the threshold move into the liquidation queue.</p>
+  <p>The queue settles in order of arrival, oldest first.</p>
+  <p>Keepers earn the spread between the oracle and the auction.</p>
+  <p>Each settlement links to its transaction on the explorer.</p>
+  <p>Simulated positions carry a label and an as-of time.</p>
+  <p>Ratios use the median of three oracle feeds.</p>
+  <p>Auctions start at the oracle price and step down each block.</p>
+  <p>Every keeper action is signed and logged.</p>
+  <p>The vault never lends more than its buffer allows.</p>
+  <p class="caption">Updated at block 1,204,331</p>
+  <div class="light"><p>A light card with grey text sits on a light ground, not on the dark one.</p></div>
+  <pre><code>queue.settle(position)</code></pre>
+</body>
+</html>

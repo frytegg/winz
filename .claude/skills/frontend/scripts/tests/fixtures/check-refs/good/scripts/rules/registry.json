@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "rules": [
+    {"id": "SL-T01", "sources": ["FD01-F01", "FD02 T01"]},
+    {"id": "SL-T02", "sources": ["FD02"]}
+  ]
+}

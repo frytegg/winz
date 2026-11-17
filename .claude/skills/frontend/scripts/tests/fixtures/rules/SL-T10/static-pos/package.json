@@ -1,0 +1,8 @@
+{
+  "name": "vaultline-web",
+  "private": true,
+  "dependencies": {
+    "lucide-react": "0.468.0",
+    "react": "19.0.0"
+  }
+}

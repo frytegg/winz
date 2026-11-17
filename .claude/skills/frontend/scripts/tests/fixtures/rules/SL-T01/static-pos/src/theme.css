@@ -1,0 +1,8 @@
+:root {
+  --primary: #8b5cf6;
+  --accent: #06b6d4;
+}
+
+.hero-glow {
+  background: linear-gradient(135deg, #8259ef 0%, #0031ff 100%);
+}

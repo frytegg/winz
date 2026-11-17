@@ -1,0 +1,40 @@
+{
+  "project": {"name": "Queue Clock", "name_status": "working", "source": "research/_recommendation.md:3"},
+  "sentences": {
+    "broken": "Stakers who request a withdrawal cannot tell when their ETH will be claimable.",
+    "did": "Queue Clock reads the withdrawal queue on chain and shows each request's position and expected claim time.",
+    "source": "research/_recommendation.md:12"
+  },
+  "hero": {
+    "h1": "Know when you can withdraw",
+    "sentence": "Queue Clock shows stakers where their withdrawal request stands and when it becomes claimable.",
+    "source": "research/_recommendation.md:12"
+  },
+  "gap": {
+    "text": "Withdrawal requests wait in a queue whose length nobody shows.",
+    "who_loses": "stakers who need liquidity on a date",
+    "how_much": "",
+    "source": "research/findings/_summary.md:40"
+  },
+  "sponsors": [
+    {"id": "cardano", "name": "Cardano", "strategy": "Primary track", "source": "research/findings/l5-customers.md:4"}
+  ],
+  "customers": [
+    {"name": "Aave", "category": "defi-lending", "url": "https://aave.com/", "url_source": "research/findings/l5-customers.md:14", "owner_confirmed": false},
+    {"name": "Morpho", "category": "defi-lending", "url": "", "url_source": "", "owner_confirmed": false}
+  ],
+  "use_case": {"text": "", "source": ""},
+  "features": [
+    {"id": "FR-001", "group": "G1", "title": "See where a withdrawal stands in the queue", "status": "testnet", "route": "/", "proof": "C-004", "source": "research/SPEC.md:31"},
+    {"id": "FR-005", "group": "G3", "title": "Check the proof behind every figure", "status": "planned", "route": null, "proof": null, "source": "research/SPEC.md:44"}
+  ],
+  "claims": {"path": "C:/Users/Utilisateur/Documents/Projects/queue-clock-private/claims.md", "ids": ["C-004", "C-007"]},
+  "never_show": [
+    {"class": "embargo", "pattern": "EXAMPLE-ADVISORY-0042", "regex": false, "until_utc": "2026-10-11T12:00:00Z", "source": "memory/project_example.md:12"}
+  ],
+  "judge_path": {"beats": ["The queue today", "One request followed to its claim"], "source": "research/45-RUNSHEET.md:8"},
+  "missing": [
+    {"field": "use_case.text", "action": "manual-task", "why": "No named institution or numbers in the spec or the recommendation."},
+    {"field": "gap.how_much", "action": "question", "why": "The summary names who loses but no amount."}
+  ]
+}

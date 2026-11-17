@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:frontend:schema:critique-receipt:1",
+  "title": "Critique receipt",
+  "description": "What feCritique (assets/wave-fragments/critique.js) returns and writes to <state>/critique/receipt.json (FE-20, ARCHITECTURE.md section 6). ok is true only when no step errored, the best-so-far passes every gate and the blind probes restate the brief's proposition on every probed viewport. checksum is 'fnv1a32:' plus 8 lowercase hex digits of the 32-bit FNV-1a hash (offset basis 0x811c9dc5, prime 0x01000193) over the UTF-16 code units of JSON.stringify of the receipt without its checksum key, keys in the order written; it catches a transcription error by the agent that writes the file.",
+  "type": "object",
+  "required": ["fragment", "version", "task", "ok", "mode", "rounds_max", "rounds_run", "stop_reason", "error", "baseline", "best", "rounds", "probes", "ui_copy", "receipt_path", "checksum"],
+  "additionalProperties": false,
+  "properties": {
+    "fragment": {"const": "feCritique"},
+    "version": {"const": 1},
+    "task": {"type": "string"},
+    "ok": {"type": "boolean"},
+    "mode": {"enum": ["full", "small"]},
+    "rounds_max": {"type": "integer", "minimum": 0},
+    "rounds_run": {"type": "integer", "minimum": 0},
+    "stop_reason": {"enum": ["round-cap", "no-issue-kept", "rejected-limit", "error"]},
+    "error": {"type": ["string", "null"]},
+    "baseline": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/snapshot"}]},
+    "best": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/snapshot"}]},
+    "rounds": {"type": "array", "items": {"$ref": "#/$defs/round"}},
+    "probes": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["pass", "min_match", "of", "measured_on", "viewports"],
+          "additionalProperties": false,
+          "properties": {
+            "pass": {"type": "boolean"},
+            "min_match": {"type": "integer", "minimum": 1},
+            "of": {"type": "integer", "minimum": 1},
+            "measured_on": {"type": "integer", "minimum": 0, "description": "Round whose first view the probes read."},
+            "viewports": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["viewport", "matched", "total", "answers"],
+                "additionalProperties": false,
+                "properties": {
+                  "viewport": {"type": "string"},
+                  "matched": {"type": "integer", "minimum": 0},
+                  "total": {"type": "integer", "minimum": 0},
+                  "answers": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": ["probe", "answer", "restates"],
+                      "additionalProperties": false,
+                      "properties": {
+                        "probe": {"type": "string"},
+                        "answer": {"type": "string"},
+                        "restates": {"type": "boolean"}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ui_copy": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["ok", "path"],
+          "additionalProperties": false,
+          "properties": {"ok": {"type": "boolean"}, "path": {"type": "string"}}
+        }
+      ]
+    },
+    "receipt_path": {"type": "string"},
+    "checksum": {"type": "string", "pattern": "^fnv1a32:[0-9a-f]{8}$"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"ok": {"const": true}}},
+      "then": {
+        "properties": {
+          "error": {"type": "null"},
+          "best": {"type": "object", "properties": {"gates": {"properties": {"ok": {"const": true}}}}},
+          "probes": {"type": "object", "properties": {"pass": {"const": true}}}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "snapshot": {
+      "type": "object",
+      "required": ["round", "sha", "ui_tree", "gates", "scores"],
+      "additionalProperties": false,
+      "properties": {
+        "round": {"type": "integer", "minimum": 0},
+        "sha": {"type": "string", "pattern": "^[0-9a-f]{7,64}$"},
+        "ui_tree": {"type": "string", "pattern": "^[0-9a-f]{7,64}$"},
+        "gates": {
+          "type": "object",
+          "required": ["ok", "counts", "failing"],
+          "additionalProperties": false,
+          "properties": {
+            "ok": {"type": "boolean"},
+            "counts": {
+              "type": "object",
+              "required": ["ok", "fail", "skipped"],
+              "additionalProperties": false,
+              "properties": {
+                "ok": {"type": "integer", "minimum": 0},
+                "fail": {"type": "integer", "minimum": 0},
+                "skipped": {"type": "integer", "minimum": 0}
+              }
+            },
+            "failing": {"type": "array", "items": {"type": "string"}}
+          }
+        },
+        "scores": {"type": "object", "additionalProperties": {"type": "number"}}
+      }
+    },
+    "issue": {
+      "type": "object",
+      "required": ["key", "mark", "category", "problem", "fix", "votes", "confirmed"],
+      "additionalProperties": false,
+      "properties": {
+        "key": {"type": "string"},
+        "mark": {"type": "string"},
+        "category": {"type": "string"},
+        "item": {"type": "string"},
+        "problem": {"type": "string"},
+        "fix": {"type": "string"},
+        "votes": {"type": "integer", "minimum": 0},
+        "confirmed": {"type": "boolean", "description": "A deterministic check measured a problem on the same mark."}
+      }
+    },
+    "round": {
+      "type": "object",
+      "required": ["round", "critics_asked", "critics_returned", "issues", "dropped", "candidate", "pairwise", "verdict", "reasons", "restored"],
+      "additionalProperties": false,
+      "properties": {
+        "round": {"type": "integer", "minimum": 1},
+        "critics_asked": {"type": "integer", "minimum": 0},
+        "critics_returned": {"type": "integer", "minimum": 0},
+        "issues": {"type": "array", "maxItems": 5, "items": {"$ref": "#/$defs/issue"}},
+        "dropped": {"type": "integer", "minimum": 0, "description": "Issues raised but not kept (one critic, no deterministic confirmation, over the cap, or tried twice)."},
+        "candidate": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/snapshot"}]},
+        "pairwise": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "required": ["ab", "ba", "consistent"],
+              "additionalProperties": false,
+              "properties": {
+                "ab": {"enum": ["A", "B", "tie", null], "description": "Verdict with A = best-so-far, B = candidate."},
+                "ba": {"enum": ["A", "B", "tie", null], "description": "Verdict with A = candidate, B = best-so-far."},
+                "consistent": {"type": "boolean", "description": "false when both verdicts name the same position (position bias)."}
+              }
+            }
+          ]
+        },
+        "verdict": {"enum": ["accepted", "rejected", "no-issue", "error"]},
+        "reasons": {"type": "array", "items": {"type": "string"}},
+        "restored": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "required": ["to", "ok"],
+              "additionalProperties": false,
+              "properties": {"to": {"type": "string"}, "ok": {"type": "boolean"}}
+            }
+          ]
+        }
+      }
+    }
+  }
+}

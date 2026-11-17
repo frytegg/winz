@@ -1,0 +1,6 @@
+{
+ "base": "base2.json",
+ "note": "a task of executor B that does not wait for EX-DEVB-CHECK",
+ "ops": [],
+ "expect": []
+}

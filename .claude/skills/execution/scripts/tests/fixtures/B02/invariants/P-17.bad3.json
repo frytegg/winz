@@ -1,0 +1,16 @@
+{
+ "base": "base.json",
+ "note": "a recording task without EX-HARDEN-REVIEW",
+ "expect": [
+  "E_DELIVERABLE_ORDER"
+ ],
+ "ops": [
+  {
+   "op": "set",
+   "path": "/plan/tasks/@execution.ex-dlv-record/depends_on",
+   "value": [
+    "#execution.ex-gate-build"
+   ]
+  }
+ ]
+}

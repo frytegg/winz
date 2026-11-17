@@ -1,0 +1,8 @@
+{
+  "session_id": "sess-orch-1",
+  "transcript_path": "C:/tmp/exec-test/t.jsonl",
+  "cwd": "<REPO>",
+  "hook_event_name": "StopFailure",
+  "error": "overloaded",
+  "error_details": "529 overloaded_error: the API is temporarily overloaded"
+}

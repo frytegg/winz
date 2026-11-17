@@ -1,0 +1,20 @@
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.toast[data-state="closed"] {
+  animation: fadeOut 150ms ease-in;
+}
+
+.modal {
+  animation: fadeIn 200ms ease-out;
+}
+
+.btn {
+  transition: transform 120ms ease-in-out;
+}

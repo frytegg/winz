@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "tool": "frontend-check",
+  "version": "1",
+  "at": "2026-10-01T10:00:00Z",
+  "target": {},
+  "counts": {"ok": 3, "fail": 0, "skipped": 0},
+  "gates": [
+    {"id": "render.console", "title": "No console errors on any route", "ifDropped": "a page that throws would pass", "state": "ok", "detail": "0 errors", "evidence": []},
+    {"id": "render.clipping", "title": "No clipped text", "ifDropped": "cut-off text would pass", "state": "ok", "detail": "0 clipped", "evidence": []},
+    {"id": "a11y.axe", "title": "axe finds no violation", "ifDropped": "an inaccessible page would pass", "state": "ok", "detail": "0 violations", "evidence": []}
+  ]
+}

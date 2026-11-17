@@ -1,0 +1,5966 @@
+{
+ "plan": {
+  "amendments": [],
+  "approved": null,
+  "created_utc": "2026-10-03T07:12:00Z",
+  "deadlines": [
+   {
+    "at_utc": "2026-10-03T11:15:00Z",
+    "gate_phase": "build",
+    "id": "DL-build-complete",
+    "irrecoverable": false,
+    "kind": "build-complete",
+    "source": "computed:schedule",
+    "title": "Build complete (computed)"
+   },
+   {
+    "at_utc": "2026-10-03T12:15:00Z",
+    "gate_phase": "deliverable",
+    "id": "DL-freeze-recording",
+    "irrecoverable": false,
+    "kind": "freeze",
+    "source": "profile.freezes code-for-recording",
+    "title": "Code frozen for the recording"
+   },
+   {
+    "at_utc": "2026-10-03T13:00:00Z",
+    "gate_phase": "deliverable",
+    "id": "DL-freeze-docs",
+    "irrecoverable": false,
+    "kind": "freeze",
+    "source": "profile.freezes docs",
+    "title": "Docs freeze"
+   },
+   {
+    "at_utc": "2026-10-03T13:45:00Z",
+    "gate_phase": "deliverable",
+    "id": "DL-push-freeze",
+    "irrecoverable": true,
+    "kind": "freeze",
+    "source": "profile.freezes push-tag",
+    "title": "Push and tag freeze"
+   },
+   {
+    "at_utc": "2026-10-03T13:45:00Z",
+    "gate_phase": "deliverable",
+    "id": "DL-submission",
+    "irrecoverable": true,
+    "kind": "submission",
+    "source": "C:/x/qc/private/event-brief.md#deadline",
+    "title": "Submission"
+   }
+  ],
+  "feature_groups": [
+   {
+    "id": "G1",
+    "title": "Request and ETA"
+   },
+   {
+    "id": "G2",
+    "title": "Queue health"
+   }
+  ],
+  "lanes": [
+   {
+    "contract": true,
+    "executor": "A",
+    "globs": [
+     "package.json",
+     "pnpm-lock.yaml",
+     "pnpm-workspace.yaml",
+     "tsconfig*.json",
+     ".gitattributes",
+     ".githooks/**",
+     ".github/workflows/**",
+     "src/contract/**"
+    ],
+    "id": "L0",
+    "title": "Contract"
+   },
+   {
+    "contract": false,
+    "executor": "A",
+    "globs": [
+     "src/engine/**",
+     "test/engine/**"
+    ],
+    "id": "L1",
+    "title": "Engine"
+   },
+   {
+    "contract": false,
+    "executor": "A",
+    "globs": [
+     "src/cli/**",
+     "test/cli/**"
+    ],
+    "id": "L2",
+    "title": "CLI"
+   },
+   {
+    "contract": false,
+    "executor": "A",
+    "globs": [
+     "src/views/**",
+     "test/views/**"
+    ],
+    "id": "L3",
+    "title": "Data views"
+   },
+   {
+    "contract": false,
+    "executor": "A",
+    "globs": [
+     "ui/**",
+     "design/**",
+     "brand/**",
+     ".execution/frontend/**"
+    ],
+    "id": "L4",
+    "title": "Frontend"
+   },
+   {
+    "contract": false,
+    "executor": "A",
+    "globs": [
+     "README.md",
+     "docs/**",
+     "RELEASE.md"
+    ],
+    "id": "L5",
+    "title": "Docs"
+   },
+   {
+    "contract": false,
+    "executor": "B",
+    "globs": [
+     "src/extra/**"
+    ],
+    "id": "L6",
+    "title": "Extras"
+   }
+  ],
+  "plan_version": 1,
+  "project": "queue-clock",
+  "protected": [
+   ".github/workflows/**",
+   ".githooks/**",
+   ".claude/**"
+  ],
+  "requirements": [
+   {
+    "feature_group": "G1",
+    "id": "FR-001",
+    "priority": "P1",
+    "required": true,
+    "source": "spec:C:/x/qc/private/SPEC.md#L16",
+    "status_expected": null,
+    "story": "US1",
+    "surface": "ui",
+    "text": "Look up a withdrawal request by id and show its place in the queue.",
+    "title": "Request lookup"
+   },
+   {
+    "feature_group": "G1",
+    "id": "FR-002",
+    "priority": "P1",
+    "required": true,
+    "source": "spec:C:/x/qc/private/SPEC.md#L16",
+    "status_expected": "simulated",
+    "story": "US1",
+    "surface": "ui",
+    "text": "Show the P10/P50/P90 finalization range of a request (rule 2.1).",
+    "title": "ETA range"
+   },
+   {
+    "feature_group": "G2",
+    "id": "FR-003",
+    "priority": "P2",
+    "required": true,
+    "source": "spec:C:/x/qc/private/SPEC.md#L16",
+    "status_expected": null,
+    "story": "US2",
+    "surface": "ui",
+    "text": "Show unfinalized ETH, count and buffer of the last frame.",
+    "title": "Queue health panel"
+   },
+   {
+    "feature_group": null,
+    "id": "FR-004",
+    "priority": "P1",
+    "required": true,
+    "source": "spec:C:/x/qc/private/SPEC.md#L16",
+    "status_expected": null,
+    "story": "US1",
+    "surface": "api",
+    "text": "Compute the decile ETA of rule 2.1 in decimal arithmetic.",
+    "title": "ETA engine"
+   },
+   {
+    "feature_group": null,
+    "id": "FR-005",
+    "priority": "P2",
+    "required": true,
+    "source": "spec:C:/x/qc/private/SPEC.md#L16",
+    "status_expected": null,
+    "story": "US3",
+    "surface": "cli",
+    "text": "Print the ETA of a request id from the command line.",
+    "title": "Command-line ETA"
+   },
+   {
+    "feature_group": "G1",
+    "id": "FR-006",
+    "priority": "P3",
+    "required": false,
+    "source": "spec:C:/x/qc/private/SPEC.md#L16",
+    "status_expected": "planned",
+    "story": "US1",
+    "surface": "ui",
+    "text": "Notify when a request finalizes (planned, shown as planned).",
+    "title": "Finalization notice"
+   },
+   {
+    "feature_group": "G2",
+    "id": "FR-007",
+    "priority": "P3",
+    "required": false,
+    "source": "spec:C:/x/qc/private/SPEC.md#L16",
+    "status_expected": null,
+    "story": "US2",
+    "surface": "ui",
+    "text": "Show the backtest of the replayed requests.",
+    "title": "Backtest table"
+   },
+   {
+    "feature_group": null,
+    "id": "SC-001",
+    "priority": "P1",
+    "required": true,
+    "source": "spec:C:/x/qc/private/SPEC.md#L16",
+    "status_expected": null,
+    "story": null,
+    "surface": "none",
+    "text": "Success criterion 1 of the spec.",
+    "title": "Fourteen frames read"
+   },
+   {
+    "feature_group": null,
+    "id": "SC-002",
+    "priority": "P1",
+    "required": true,
+    "source": "spec:C:/x/qc/private/SPEC.md#L16",
+    "status_expected": null,
+    "story": null,
+    "surface": "none",
+    "text": "Success criterion 2 of the spec.",
+    "title": "Worked example matches"
+   },
+   {
+    "feature_group": null,
+    "id": "SC-003",
+    "priority": "P1",
+    "required": true,
+    "source": "spec:C:/x/qc/private/SPEC.md#L16",
+    "status_expected": null,
+    "story": null,
+    "surface": "none",
+    "text": "Success criterion 3 of the spec.",
+    "title": "CLI exit codes"
+   },
+   {
+    "feature_group": null,
+    "id": "SC-004",
+    "priority": "P1",
+    "required": true,
+    "source": "spec:C:/x/qc/private/SPEC.md#L16",
+    "status_expected": null,
+    "story": null,
+    "surface": "none",
+    "text": "Success criterion 4 of the spec.",
+    "title": "Synthetic labels"
+   },
+   {
+    "feature_group": null,
+    "id": "SC-005",
+    "priority": "P1",
+    "required": true,
+    "source": "spec:C:/x/qc/private/SPEC.md#L16",
+    "status_expected": null,
+    "story": null,
+    "surface": "none",
+    "text": "Success criterion 5 of the spec.",
+    "title": "Median not mean"
+   },
+   {
+    "feature_group": null,
+    "id": "NFR-900",
+    "priority": "P1",
+    "required": true,
+    "source": "execution:standard",
+    "status_expected": null,
+    "story": null,
+    "surface": "none",
+    "text": "The plan of record is approved once by the owner from the French summary; later changes go through decisions and amendments.",
+    "title": "Plan approved by the owner"
+   },
+   {
+    "feature_group": null,
+    "id": "NFR-901",
+    "priority": "P1",
+    "required": true,
+    "source": "execution:standard",
+    "status_expected": null,
+    "story": null,
+    "surface": "none",
+    "text": "The product repository has LF line endings, the portable commit-msg hook refusing AI trailers and non-conventional headers, and a CI workflow running the offline gates.",
+    "title": "Repository bootstrapped with portable guards and CI"
+   },
+   {
+    "feature_group": null,
+    "id": "NFR-902",
+    "priority": "P1",
+    "required": true,
+    "source": "execution:standard",
+    "status_expected": null,
+    "story": null,
+    "surface": "none",
+    "text": "The README states only what exists, its verify commands run from a clean clone, and it carries no TODO (harden-ready H11).",
+    "title": "README factual and runnable"
+   },
+   {
+    "feature_group": null,
+    "id": "NFR-903",
+    "priority": "P1",
+    "required": true,
+    "source": "execution:standard",
+    "status_expected": null,
+    "story": null,
+    "surface": "none",
+    "text": "The completion check's build phase and the harden-ready gate pass for the commit handed to /harden.",
+    "title": "Build proven complete before /harden"
+   },
+   {
+    "feature_group": null,
+    "id": "NFR-904",
+    "priority": "P1",
+    "required": true,
+    "source": "execution:standard",
+    "status_expected": null,
+    "story": null,
+    "surface": "none",
+    "text": "/harden runs on a ready tree, the owner reviews and merges its branch, and the selected fixes land behind a regression gate.",
+    "title": "/harden reviewed and its selected fixes landed"
+   },
+   {
+    "feature_group": null,
+    "id": "NFR-905",
+    "priority": "P1",
+    "required": true,
+    "source": "execution:standard",
+    "status_expected": null,
+    "story": null,
+    "surface": "none",
+    "text": "Deliverables start after the build gate, /harden's review and the fix gate; README screenshots come last; submission, flip and tag close the run.",
+    "title": "Deliverables recorded and submitted in order"
+   },
+   {
+    "feature_group": null,
+    "id": "NFR-906",
+    "priority": "P2",
+    "required": true,
+    "source": "execution:standard",
+    "status_expected": null,
+    "story": null,
+    "surface": "none",
+    "text": "Claims ledger, DX journal, recon passes, demo audit, preflight, visibility calendar and the judge's fetch run on the event clock.",
+    "title": "/hackathon Phase B operations kept on schedule"
+   },
+   {
+    "feature_group": null,
+    "id": "NFR-907",
+    "priority": "P1",
+    "required": true,
+    "source": "execution:standard",
+    "status_expected": null,
+    "story": null,
+    "surface": "none",
+    "text": "Dev B runs his own orchestrator on the pinned version with the agents, the no-attribution guard and the repository hook, as a Notion member.",
+    "title": "Dev B set up with the same guards"
+   },
+   {
+    "feature_group": null,
+    "id": "NFR-908",
+    "priority": "P1",
+    "required": true,
+    "source": "frontend:standard",
+    "status_expected": null,
+    "story": null,
+    "surface": "none",
+    "text": "The judged UI is built through /frontend's templates and passes frontend-check at its mode's phase (build in full mode, small in small mode).",
+    "title": "Judged UI built and gated by /frontend"
+   }
+  ],
+  "schema": "execution.plan/1",
+  "spec": {
+   "path": "C:/x/qc/private/SPEC.md",
+   "sha256": "9b8f7d650dc7dd15480f063051f07262a3832b4d65d04154b594a2476352ce2d",
+   "validated_decision": "D-001"
+  },
+  "tasks": [
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-901"
+    ],
+    "deadline_utc": null,
+    "depends_on": [],
+    "description": "Bootstrap the product repository on branch main: write .gitattributes with the line '* text=auto eol=lf', commit the portable commit-msg hook that exec.py init wrote at .githooks/commit-msg (executable bit through git update-index --chmod=+x) so every clone refuses an AI-attribution trailer and a non-conventional header, and check core.longpaths. Commit with git commit -F from a message file.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 3,
+     "p50_min": 8,
+     "p90_min": 20,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T001",
+    "key": "execution.ex-boot",
+    "kind": "infra",
+    "lane": "L0",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "sonnet",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "code",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "setup",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "LF attributes set; the tracked executable hook refuses a trailer and a non-conventional header and accepts a conventional one"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "on the commit before the bootstrap, .gitattributes or the hook is absent: the proof fails",
+      "expect_nonzero": true,
+      "kind": "pre-implementation"
+     },
+     "spec": {
+      "cmd": "grep -qxF '* text=auto eol=lf' .gitattributes && git ls-files -s .githooks/commit-msg | grep -q '^100755' && f=$(mktemp) && printf 'feat: x\\n\\nCo-''Authored-By: X <x@example.invalid>\\n' > \"$f\" && ! sh .githooks/commit-msg \"$f\" && printf 'update x\\n' > \"$f\" && ! sh .githooks/commit-msg \"$f\" && printf 'feat: add x\\n' > \"$f\" && sh .githooks/commit-msg \"$f\"",
+      "cwd": ".",
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 60
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-BOOT",
+    "template_digest": "2ffb12d89f8453246334835feee8b3aa132284604a47e10f5731dd547de6edf1",
+    "title": "Bootstrap the product repository",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "verify": {
+     "effort": "medium",
+     "model": "sonnet"
+    },
+    "writes": [
+     ".gitattributes",
+     ".githooks/commit-msg"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "FR-004"
+    ],
+    "deadline_utc": null,
+    "depends_on": [],
+    "description": "Contract types and schemas: build exactly src/contract/**.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 6.2,
+     "p50_min": 26.7,
+     "p90_min": 46.0,
+     "source": "reference-class:build"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T002",
+    "key": "contract-types",
+    "kind": "code",
+    "lane": "L0",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {},
+    "phase": "contract",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "the contract-types tests pass"
+     },
+     "max_runtime_min": 3,
+     "negative_control": {
+      "description": "the tests fail on the parent commit",
+      "expect_nonzero": true,
+      "kind": "pre-implementation"
+     },
+     "spec": {
+      "cmd": "node --test test/contract-types",
+      "cwd": ".",
+      "install": true,
+      "shell": "bash"
+     },
+     "type": "command"
+    },
+    "proof_author": "test-designer",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": null,
+    "title": "Contract types and schemas",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "writes": [
+     "src/contract/**"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-901"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T001",
+     "T002"
+    ],
+    "description": "Write .github/workflows/offline-gates.yml: a GitHub Actions workflow that runs the offline gates of gates.json literally (install, typecheck, lint, tests), with no secret, on every push to main. It doubles as /harden's evidence (harden-ready H12).",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 5,
+     "p50_min": 15,
+     "p90_min": 35,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T003",
+    "key": "execution.ex-ci",
+    "kind": "infra",
+    "lane": "L0",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "sonnet",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "code",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "setup",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "summary": "the workflow's run for the landed commit concluded success"
+     },
+     "max_runtime_min": 5,
+     "negative_control": {
+      "description": "a run of another commit, or of a commit whose gates fail, must not satisfy the proof",
+      "expect_nonzero": true,
+      "kind": "forgery"
+     },
+     "spec": {
+      "require": "success",
+      "workflow": "offline-gates.yml"
+     },
+     "type": "ci"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [
+     "manifest"
+    ],
+    "story": null,
+    "template": "execution:EX-CI",
+    "template_digest": "9a6594707c02c19990aa30f42377e8c02af57202e3dcc91178afb96d521df894",
+    "title": "CI workflow running the offline gates",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "verify": {
+     "effort": "medium",
+     "model": "sonnet"
+    },
+    "writes": [
+     ".github/workflows/offline-gates.yml"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "FR-004",
+     "SC-005"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T002"
+    ],
+    "description": "ETA engine: build exactly src/engine/**.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 6.2,
+     "p50_min": 26.7,
+     "p90_min": 46.0,
+     "source": "reference-class:build"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T004",
+    "key": "engine",
+    "kind": "code",
+    "lane": "L1",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {},
+    "phase": "build",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "the engine tests pass"
+     },
+     "max_runtime_min": 3,
+     "negative_control": {
+      "description": "the tests fail on the parent commit",
+      "expect_nonzero": true,
+      "kind": "pre-implementation"
+     },
+     "spec": {
+      "cmd": "node --test test/engine",
+      "cwd": ".",
+      "install": true,
+      "shell": "bash"
+     },
+     "type": "command"
+    },
+    "proof_author": "test-designer",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": null,
+    "title": "ETA engine",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "writes": [
+     "src/engine/**"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "SC-001",
+     "SC-002"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T002"
+    ],
+    "description": "Engine acceptance tests: build exactly test/engine/**.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 6.2,
+     "p50_min": 26.7,
+     "p90_min": 46.0,
+     "source": "reference-class:build"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T005",
+    "key": "engine-tests",
+    "kind": "test",
+    "lane": "L1",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {},
+    "phase": "build",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "the engine-tests tests pass"
+     },
+     "max_runtime_min": 3,
+     "negative_control": {
+      "description": "the tests fail on the parent commit",
+      "expect_nonzero": true,
+      "kind": "pre-implementation"
+     },
+     "spec": {
+      "cmd": "node --test test/engine-tests",
+      "cwd": ".",
+      "install": true,
+      "shell": "bash"
+     },
+     "type": "command"
+    },
+    "proof_author": "test-designer",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": null,
+    "title": "Engine acceptance tests",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "writes": [
+     "test/engine/**"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "FR-002"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T004"
+    ],
+    "description": "ETA range data: build exactly src/views/eta/**.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 6.2,
+     "p50_min": 26.7,
+     "p90_min": 46.0,
+     "source": "reference-class:build"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T006",
+    "key": "eta-view",
+    "kind": "code",
+    "lane": "L3",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {},
+    "phase": "build",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "the eta-view tests pass"
+     },
+     "max_runtime_min": 3,
+     "negative_control": {
+      "description": "the tests fail on the parent commit",
+      "expect_nonzero": true,
+      "kind": "pre-implementation"
+     },
+     "spec": {
+      "cmd": "node --test test/eta-view",
+      "cwd": ".",
+      "install": true,
+      "shell": "bash"
+     },
+     "type": "command"
+    },
+    "proof_author": "test-designer",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": null,
+    "title": "ETA range data",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "writes": [
+     "src/views/eta/**"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "FR-001"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T004"
+    ],
+    "description": "Request lookup data: build exactly src/views/lookup/**.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 6.2,
+     "p50_min": 26.7,
+     "p90_min": 46.0,
+     "source": "reference-class:build"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T007",
+    "key": "lookup",
+    "kind": "code",
+    "lane": "L3",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {},
+    "phase": "build",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "the lookup tests pass"
+     },
+     "max_runtime_min": 3,
+     "negative_control": {
+      "description": "the tests fail on the parent commit",
+      "expect_nonzero": true,
+      "kind": "pre-implementation"
+     },
+     "spec": {
+      "cmd": "node --test test/lookup",
+      "cwd": ".",
+      "install": true,
+      "shell": "bash"
+     },
+     "type": "command"
+    },
+    "proof_author": "test-designer",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": null,
+    "title": "Request lookup data",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "writes": [
+     "src/views/lookup/**"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "FR-005",
+     "SC-003"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T004"
+    ],
+    "description": "Command-line ETA: build exactly src/cli/**.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 6.2,
+     "p50_min": 26.7,
+     "p90_min": 46.0,
+     "source": "reference-class:build"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T008",
+    "key": "cli",
+    "kind": "code",
+    "lane": "L2",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {},
+    "phase": "build",
+    "priority": "P2",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "the cli tests pass"
+     },
+     "max_runtime_min": 3,
+     "negative_control": {
+      "description": "the tests fail on the parent commit",
+      "expect_nonzero": true,
+      "kind": "pre-implementation"
+     },
+     "spec": {
+      "cmd": "node --test test/cli",
+      "cwd": ".",
+      "install": true,
+      "shell": "bash"
+     },
+     "type": "command"
+    },
+    "proof_author": "test-designer",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": null,
+    "title": "Command-line ETA",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "writes": [
+     "src/cli/**"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "FR-003",
+     "SC-004"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T002"
+    ],
+    "description": "Queue health data: build exactly src/views/health/**.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 6.2,
+     "p50_min": 26.7,
+     "p90_min": 46.0,
+     "source": "reference-class:build"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T009",
+    "key": "health-data",
+    "kind": "code",
+    "lane": "L3",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {},
+    "phase": "build",
+    "priority": "P2",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "the health-data tests pass"
+     },
+     "max_runtime_min": 3,
+     "negative_control": {
+      "description": "the tests fail on the parent commit",
+      "expect_nonzero": true,
+      "kind": "pre-implementation"
+     },
+     "spec": {
+      "cmd": "node --test test/health-data",
+      "cwd": ".",
+      "install": true,
+      "shell": "bash"
+     },
+     "type": "command"
+    },
+    "proof_author": "test-designer",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": null,
+    "title": "Queue health data",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "writes": [
+     "src/views/health/**"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "FR-007"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T004"
+    ],
+    "description": "Backtest data: build exactly src/views/backtest/**.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 6.2,
+     "p50_min": 26.7,
+     "p90_min": 46.0,
+     "source": "reference-class:build"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T010",
+    "key": "backtest",
+    "kind": "code",
+    "lane": "L3",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {},
+    "phase": "build",
+    "priority": "P3",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "the backtest tests pass"
+     },
+     "max_runtime_min": 3,
+     "negative_control": {
+      "description": "the tests fail on the parent commit",
+      "expect_nonzero": true,
+      "kind": "pre-implementation"
+     },
+     "spec": {
+      "cmd": "node --test test/backtest",
+      "cwd": ".",
+      "install": true,
+      "shell": "bash"
+     },
+     "type": "command"
+    },
+    "proof_author": "test-designer",
+    "release_utc": null,
+    "required": false,
+    "resources": [],
+    "story": null,
+    "template": null,
+    "title": "Backtest data",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "writes": [
+     "src/views/backtest/**"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-907"
+    ],
+    "deadline_utc": null,
+    "depends_on": [],
+    "description": "Dev B installs Claude Code at dev A's version, the toolchain, the four skills and the global guard, joins the repositories and the Notion workspace as a member, clones, runs exec.py init --executor B and agents install, starts the launcher and types /execution, then replies with the state repo commit SHA his orchestrator printed after its first sync (TWO-DEV.md 8.1).",
+    "effort": null,
+    "estimate": {
+     "p10_min": 30,
+     "p50_min": 60,
+     "p90_min": 120,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T011",
+    "key": "execution.ex-devb-setup",
+    "kind": "manual",
+    "manual": {
+     "bring_back": [
+      {
+       "description": "state repo commit after B's first sync",
+       "key": "T011-ready",
+       "kind": "sha",
+       "verify": {
+        "method": "regex",
+        "spec": "^[0-9a-f]{40}$"
+       }
+      }
+     ],
+     "decision_deadline_utc": null,
+     "latest_start_utc": "2026-10-03T07:45:00Z",
+     "options": [],
+     "options_source": null,
+     "steps": [
+      "Install Claude Code at the version dev A runs (claude --version, at least 2.1.286), set DISABLE_AUTOUPDATER=1 as a user environment variable, and log in.",
+      "Install Python 3.11 or newer (as python), Node 20 or newer, pnpm 10, git and gh; run gh auth login.",
+      "Copy the four skill folders dev A sends you into ~/.claude/skills/ (execution, frontend, harden, hackathon) and the global guard into ~/.claude/hooks/ (guard.py, py.sh) with its settings entry.",
+      "Accept the GitHub invitations to the product repository and the private state repository.",
+      "Accept the Notion workspace invitation as a member (not a guest), then connect the Notion connector in claude.ai.",
+      "Clone the product repository, cd into it, then run python ~/.claude/skills/execution/scripts/exec.py init --project queue-clock --executor B --state-remote <state repo url> and python ~/.claude/skills/execution/scripts/exec.py agents install.",
+      "Start the launcher from the repository root (~/.claude/skills/execution/assets/launcher/launch-exec.ps1 or .sh) and type /execution.",
+      "Reply « prêt » with the state repo commit SHA your orchestrator printed after its first sync."
+     ],
+     "where": "laptop"
+    },
+    "max_attempts": 2,
+    "model": null,
+    "owner": "devB",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "latest_start_rule": "cpm",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "ops",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "summary": "dev B's reply carries the state repo commit SHA after his first sync"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "a human setup",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "the mechanical proof is EX-DEVB-CHECK, which reads dev B's preflight and canary events"
+     },
+     "spec": {
+      "answer_key": "T011-ready",
+      "attest": "dev B ran the steps and his orchestrator pushed"
+     },
+     "type": "human-attest"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [
+     "human:devB"
+    ],
+    "story": null,
+    "template": "execution:EX-DEVB-SETUP",
+    "template_digest": "8a6f33397b99b5a5899dd33e421550a02c2f719137fe9da0d12cb2ff1c5f4094",
+    "title": "Set up dev B's machine (dev B)",
+    "tokens_est": {
+     "basis": "owner task: no agent tokens",
+     "usd_list": 0
+    },
+    "writes": []
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-907"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T011"
+    ],
+    "description": "After A's sync brought B's events, the checker requires B's newest preflight for the event ok with nothing open, a bound hooks canary, and (when required) an ok Notion token check, all after dev B's setup answer (TWO-DEV.md 8.3).",
+    "effort": "low",
+    "estimate": {
+     "p10_min": 1,
+     "p50_min": 3,
+     "p90_min": 10,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T012",
+    "key": "execution.ex-devb-check",
+    "kind": "gate",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "sonnet",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "verify",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "every check of dev B's setup is ok"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "the same command against a forged state copy whose B preflight line has ok false and a non-empty open list must exit 1",
+      "expect_nonzero": true,
+      "kind": "forgery"
+     },
+     "spec": {
+      "cmd": "python \"C:/Users/Utilisateur/.claude/skills/execution/assets/checks/devb_setup_check.py\" --state \"C:/x/qc/repo/.execution\" --executor B --require-notion true --json",
+      "cwd": ".",
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 60
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-DEVB-CHECK",
+    "template_digest": "c506ee3e1c48cbd5da7425320305633f565ea1cfdef6693f22d660e7f00dad82",
+    "title": "Check dev B's setup from his events",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 2.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": []
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "FR-004"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T002",
+     "T012"
+    ],
+    "description": "Extra data: build exactly src/extra/**.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 6.2,
+     "p50_min": 26.7,
+     "p90_min": 46.0,
+     "source": "reference-class:build"
+    },
+    "executor": "B",
+    "feature_group": null,
+    "id": "T013",
+    "key": "extra",
+    "kind": "code",
+    "lane": "L6",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {},
+    "phase": "build",
+    "priority": "P2",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "the health-data tests pass"
+     },
+     "max_runtime_min": 3,
+     "negative_control": {
+      "description": "the tests fail on the parent commit",
+      "expect_nonzero": true,
+      "kind": "pre-implementation"
+     },
+     "spec": {
+      "cmd": "node --test test/health-data",
+      "cwd": ".",
+      "install": true,
+      "shell": "bash"
+     },
+     "type": "command"
+    },
+    "proof_author": "test-designer",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": null,
+    "title": "Extra data (dev B)",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "writes": [
+     "src/extra/**"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-902"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T001",
+     "T004",
+     "T005",
+     "T006",
+     "T007",
+     "T008",
+     "T009",
+     "T013"
+    ],
+    "description": "Write README.md from what exists: what the project does, how to run it (every command in a ```bash verify block must run from a clean clone), the status label of each feature, no TODO, TBD or placeholder, every relative link pointing at a file of the repository.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 6,
+     "p50_min": 18,
+     "p90_min": 40,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T014",
+    "key": "execution.ex-readme",
+    "kind": "code",
+    "lane": "L5",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "plant": {
+      "ops": [
+       {
+        "op": "regex-replace",
+        "path": "README.md",
+        "pattern": "\\A",
+        "replacement": "**TODO** planted defect\n",
+        "target": "checkout"
+       }
+      ],
+      "version": 1
+     },
+     "presence": "in-person",
+     "prework_class": "code",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "build",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "README.md exists, has no TODO/TBD/placeholder, its relative links resolve and its verify blocks exit 0"
+     },
+     "max_runtime_min": 5,
+     "negative_control": {
+      "description": "a TODO line planted at the top of README.md must make the check fail",
+      "expect_nonzero": true,
+      "kind": "planted-defect",
+      "patch_path": "negative-controls/execution.ex-readme.plant.json"
+     },
+     "spec": {
+      "cmd": "python \"C:/Users/Utilisateur/.claude/skills/execution/assets/checks/plan_checks.py\" readme --repo . --readme README.md --run-verify",
+      "cwd": ".",
+      "install": true,
+      "shell": "bash",
+      "timeout_s": 900
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-README",
+    "template_digest": "5c26f1fe1a7e257577d0e82261897d6e9b1a0b6cb7b33b529e45513198f6d14b",
+    "title": "Factual README",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": [
+     "README.md"
+    ]
+   },
+   {
+    "anchor": {
+     "offset_min": -120,
+     "recurrence": {
+      "every_min": 60,
+      "until": "event.deadline"
+     },
+     "relative_to": "event.deadline"
+    },
+    "brief_refs": [],
+    "covers": [
+     "NFR-906"
+    ],
+    "deadline_utc": null,
+    "depends_on": [],
+    "description": "Fetch the repository exactly as a judge would (a fresh clone of the pushed main) and run the README's verify blocks; twice before submitting, an hour apart.",
+    "effort": "low",
+    "estimate": {
+     "p10_min": 1.6,
+     "p50_min": 6.7,
+     "p90_min": 31.1,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T015",
+    "key": "execution.ex-hb-judge-fetch",
+    "kind": "watch",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "sonnet",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "ops",
+    "priority": "P2",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "a fresh clone's README runs as written"
+     },
+     "max_runtime_min": 5,
+     "negative_control": {
+      "description": "a re-run of the README check",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "a watch re-running EX-README's checker, whose own control plants a TODO"
+     },
+     "spec": {
+      "cmd": "python \"C:/Users/Utilisateur/.claude/skills/execution/assets/checks/plan_checks.py\" readme --repo . --readme README.md --run-verify",
+      "cwd": ".",
+      "install": true,
+      "shell": "bash",
+      "timeout_s": 900
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-HB-JUDGE-FETCH",
+    "template_digest": "4227795b363a8f512062f65d597e9633441b90425d64f9fe69c103b71ccfa7e2",
+    "title": "The judge's fetch, run twice",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 2.0
+    },
+    "verify": {
+     "effort": "medium",
+     "model": "sonnet"
+    },
+    "writes": []
+   },
+   {
+    "anchor": {
+     "offset_min": -180,
+     "recurrence": null,
+     "relative_to": "event.deadline"
+    },
+    "brief_refs": [],
+    "covers": [
+     "NFR-906"
+    ],
+    "deadline_utc": null,
+    "depends_on": [],
+    "description": "Before the deliverables, run the adapted preflight: the generated completion check's build phase from a clean clone, which exits non-zero on any open or skipped gate (the shipped skeleton exits 0 on stale state).",
+    "effort": "low",
+    "estimate": {
+     "p10_min": 1.6,
+     "p50_min": 6.7,
+     "p90_min": 31.1,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T016",
+    "key": "execution.ex-hb-preflight",
+    "kind": "watch",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "sonnet",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "ops",
+    "priority": "P2",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "the build phase gates are all ok"
+     },
+     "max_runtime_min": 10,
+     "negative_control": {
+      "description": "a re-run of the build gates",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "a watch re-running the completion check, whose own tests plant a skipped gate"
+     },
+     "spec": {
+      "cmd": "node \"C:/x/qc/repo/.execution/completion-check.mjs\" --json --phase build",
+      "cwd": ".",
+      "install": true,
+      "shell": "bash",
+      "timeout_s": 1200
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-HB-PREFLIGHT",
+    "template_digest": "02e641fa638b6d2a4e460c48ed54c16667c972a6f3a86d9486bd51ef17e66e95",
+    "title": "Preflight that can say no",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 2.0
+    },
+    "verify": {
+     "effort": "medium",
+     "model": "sonnet"
+    },
+    "writes": []
+   },
+   {
+    "anchor": {
+     "offset_min": 0,
+     "recurrence": {
+      "every_min": 120,
+      "until": "event.deadline"
+     },
+     "relative_to": "event.start"
+    },
+    "brief_refs": [],
+    "covers": [
+     "NFR-906"
+    ],
+    "deadline_utc": null,
+    "depends_on": [],
+    "description": "Implementers write a DX row at the moment of friction, with the exact error text; this recurring check keeps C:/x/qc/private/dx-journal.md well-formed (/hackathon's columns).",
+    "effort": "low",
+    "estimate": {
+     "p10_min": 1,
+     "p50_min": 3,
+     "p90_min": 8,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T017",
+    "key": "execution.ex-hb-dx-journal",
+    "kind": "watch",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "sonnet",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "research",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "ops",
+    "priority": "P3",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "the DX journal exists with /hackathon's table header"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "a recurring check",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "a watch over a journal the agents fill; nothing to falsify"
+     },
+     "spec": {
+      "cmd": "python \"C:/Users/Utilisateur/.claude/skills/execution/assets/checks/plan_checks.py\" ledger --ledger \"C:/x/qc/private/dx-journal.md\" --kind dx",
+      "cwd": ".",
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 60
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": false,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-HB-DX-JOURNAL",
+    "template_digest": "54225813c90de3b10382ac64e771044a2ec3ce23b76dc4d2156a819f7a948c42",
+    "title": "Keep the DX journal",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 2.0
+    },
+    "verify": {
+     "effort": "low",
+     "model": "sonnet"
+    },
+    "writes": []
+   },
+   {
+    "anchor": {
+     "offset_min": -360,
+     "recurrence": null,
+     "relative_to": "event.deadline"
+    },
+    "brief_refs": [],
+    "covers": [
+     "NFR-906"
+    ],
+    "deadline_utc": null,
+    "depends_on": [],
+    "description": "Six hours before the deadline, audit the demo path the way /hackathon's demo audit says: what it audits, what to hunt for, and the command that makes our own checker fail; write the report to C:/x/qc/private/demo-audit.md with a severity per finding.",
+    "effort": "high",
+    "estimate": {
+     "p10_min": 13.0,
+     "p50_min": 24.9,
+     "p90_min": 40.6,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T018",
+    "key": "execution.ex-hb-demo-audit",
+    "kind": "research",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "research",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "recon",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "summary": "the demo audit report exists"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "an audit report",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "an audit report; its findings become tasks or decisions"
+     },
+     "spec": {
+      "min_bytes": 1,
+      "path": "C:/x/qc/private/demo-audit.md"
+     },
+     "type": "file"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-HB-DEMO-AUDIT",
+    "template_digest": "abea91ffead0ea690b30d5eb9b9444b10097bb9c93d77d5ca68a598dfad74b2d",
+    "title": "Demo audit at T-6h",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 8.0
+    },
+    "verify": {
+     "effort": "medium",
+     "model": "sonnet"
+    },
+    "writes": []
+   },
+   {
+    "anchor": {
+     "offset_min": 0,
+     "recurrence": null,
+     "relative_to": "event.start"
+    },
+    "brief_refs": [],
+    "covers": [
+     "NFR-906"
+    ],
+    "deadline_utc": null,
+    "depends_on": [],
+    "description": "At T0, open the claims ledger at C:/x/qc/private/claims-ledger.md in /hackathon's format: every claim a judge will read gets a row with its evidence and a status; verifiers add rows marked unverified.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 3,
+     "p50_min": 8,
+     "p90_min": 20,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T019",
+    "key": "execution.ex-hb-claims-open",
+    "kind": "research",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "sonnet",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "research",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "recon",
+    "priority": "P2",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "the claims ledger exists with /hackathon's table header"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "a file that exists",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "research housekeeping: the ledger's content is verified by EX-HB-CLAIMS-VERIFY"
+     },
+     "spec": {
+      "cmd": "python \"C:/Users/Utilisateur/.claude/skills/execution/assets/checks/plan_checks.py\" ledger --ledger \"C:/x/qc/private/claims-ledger.md\" --kind claims",
+      "cwd": ".",
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 60
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-HB-CLAIMS-OPEN",
+    "template_digest": "9f13646a7835869fb4804c254cccef65fbf1a142db6e3b9a3b9bf1212f2c5a5a",
+    "title": "Open the claims ledger",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 8.0
+    },
+    "verify": {
+     "effort": "medium",
+     "model": "sonnet"
+    },
+    "writes": []
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-906"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T004",
+     "T005",
+     "T006",
+     "T007",
+     "T008",
+     "T009",
+     "T013",
+     "T019"
+    ],
+    "description": "A verifier re-runs the evidence of every claims-ledger row and marks it verified or cut; no unverified row may remain before FE-20 renders figures (data-ledger attributes cite C-nnn rows).",
+    "effort": "low",
+    "estimate": {
+     "p10_min": 5,
+     "p50_min": 15,
+     "p90_min": 35,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T020",
+    "key": "execution.ex-hb-claims-verify",
+    "kind": "gate",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "sonnet",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "verify",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "no claims row is left unverified"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "a forged ledger copy with one unverified row must exit 1",
+      "expect_nonzero": true,
+      "kind": "forgery"
+     },
+     "spec": {
+      "cmd": "python \"C:/Users/Utilisateur/.claude/skills/execution/assets/checks/plan_checks.py\" ledger --ledger \"C:/x/qc/private/claims-ledger.md\" --kind claims --closed",
+      "cwd": ".",
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 60
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-HB-CLAIMS-VERIFY",
+    "template_digest": "dd3cd2751de521d151e7aadc503cd959a0800ae457e626abcd125e3d4773c22a",
+    "title": "Verify every claims-ledger row before the UI renders figures",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 2.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": []
+   },
+   {
+    "anchor": {
+     "offset_min": -90,
+     "recurrence": null,
+     "relative_to": "event.deadline"
+    },
+    "brief_refs": [],
+    "covers": [
+     "NFR-906"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T019"
+    ],
+    "description": "Before the submission, close the claims ledger: every row is verified or cut, none unverified, and every figure on a judge-facing surface cites a verified row.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 5,
+     "p50_min": 12,
+     "p90_min": 30,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T021",
+    "key": "execution.ex-hb-claims-close",
+    "kind": "research",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "sonnet",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "research",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "recon",
+    "priority": "P2",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "no claims row is left unverified"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "a ledger state",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "research housekeeping: the checker's own tests plant an unverified row"
+     },
+     "spec": {
+      "cmd": "python \"C:/Users/Utilisateur/.claude/skills/execution/assets/checks/plan_checks.py\" ledger --ledger \"C:/x/qc/private/claims-ledger.md\" --kind claims --closed",
+      "cwd": ".",
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 60
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-HB-CLAIMS-CLOSE",
+    "template_digest": "52a8c6b7a343c315f6f8a4069d449a541f7e32e5bebe5b14c39a9437c3519c63",
+    "title": "Close the claims ledger",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 8.0
+    },
+    "verify": {
+     "effort": "medium",
+     "model": "sonnet"
+    },
+    "writes": []
+   },
+   {
+    "anchor": {
+     "offset_min": 60,
+     "recurrence": {
+      "every_min": 240,
+      "until": "event.deadline"
+     },
+     "relative_to": "event.start"
+    },
+    "brief_refs": [],
+    "covers": [
+     "NFR-906"
+    ],
+    "deadline_utc": null,
+    "depends_on": [],
+    "description": "A reconnaissance pass on the cadence of /hackathon's table, mapped to the real clock: what the field, the sponsor and the other teams changed since the last pass; findings appended to C:/x/qc/private/recon/recon-log.md, with sources and UTC times.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 13.0,
+     "p50_min": 24.9,
+     "p90_min": 40.6,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T022",
+    "key": "execution.ex-hb-recon",
+    "kind": "research",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "research",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "recon",
+    "priority": "P3",
+    "proof": {
+     "expect": {
+      "summary": "the recon log exists and grew"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "research notes",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "research notes outside the repository; their claims enter the ledger only when verified"
+     },
+     "spec": {
+      "min_bytes": 1,
+      "path": "C:/x/qc/private/recon/recon-log.md"
+     },
+     "type": "file"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": false,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-HB-RECON",
+    "template_digest": "d9d374bfa84f8284bfdb36d7c15496b6ea3c54980d4d0c4a543f0063b2337f08",
+    "title": "Recon pass",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 8.0
+    },
+    "verify": {
+     "effort": "medium",
+     "model": "sonnet"
+    },
+    "writes": []
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-900"
+    ],
+    "deadline_utc": null,
+    "depends_on": [],
+    "description": "The owner reads the French approval summary (critical path, lanes, manual tasks with their times, decision gates, risks, P80 dates) and approves the plan once, or asks for a revision. Scope changes after approval go through a decision.",
+    "effort": null,
+    "estimate": {
+     "p10_min": 5,
+     "p50_min": 15,
+     "p90_min": 60,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T023",
+    "key": "execution.ex-approve",
+    "kind": "decision",
+    "manual": {
+     "bring_back": [
+      {
+       "description": "approve, or revise with the change in one sentence",
+       "key": "T023-approval",
+       "kind": "choice",
+       "verify": {
+        "method": "choice-in-options"
+       }
+      }
+     ],
+     "decision_deadline_utc": "2026-10-03T08:45:00Z",
+     "latest_start_utc": "2026-10-03T08:15:00Z",
+     "options": [
+      {
+       "consequence": "Le plan est figé (empreinte enregistrée) et les vagues démarrent.",
+       "id": "approve",
+       "label": "J'approuve le plan"
+      },
+      {
+       "consequence": "Le planificateur reprend le brouillon avec ta remarque ; rien ne démarre.",
+       "id": "revise",
+       "label": "À reprendre"
+      }
+     ],
+     "options_source": null,
+     "steps": [
+      "Read the approval summary in French (Notion row or the terminal): critical path, lanes, manual tasks with their latest starts, decision gates, risks and P80 dates.",
+      "Approve the plan, or say what must change before approval."
+     ],
+     "where": "phone"
+    },
+    "max_attempts": 1,
+    "model": null,
+    "owner": "devA",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "decision_kind": "approval",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "decision",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "summary": "a resolution block with the owner's verbatim quote and the approve option"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "an owner decision",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "an owner decision: the resolution block is the evidence, nothing to falsify by script"
+     },
+     "spec": {
+      "answer_key": "T023-approval",
+      "attest": "the owner resolved the plan approval decision with the approve option"
+     },
+     "type": "human-attest"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-APPROVE",
+    "template_digest": "16e6f6678200e3871b9d131ecb000bcd89279c703acd3840ef14c4cfa868b57a",
+    "title": "Approve the plan (owner)",
+    "tokens_est": {
+     "basis": "owner task: no agent tokens",
+     "usd_list": 0
+    },
+    "writes": []
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-908"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T023"
+    ],
+    "description": "Run brief.mjs to discover every input by glob from the workspace (the two sentences, the gap and who loses, sponsors and customers, the use case, the feature catalogue, the claims ledger, the never-show list, the judge's path) and write brief.json and brief.md in C:/x/qc/repo/.execution/frontend, every field with the path (and line) it came from. A missing input goes under missing with action manual-task; a field is never guessed. Before T0 it runs with --state <workspace.private_dir>/frontend and makes no visual.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 4,
+     "p50_min": 12,
+     "p90_min": 25,
+     "source": "template:frontend"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T024",
+    "key": "frontend.fe-00",
+    "kind": "code",
+    "lane": "L4",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {
+     "design": "design",
+     "estimate_basis": "/execution build class 6.2/26.7/46.0 min scaled by about 0.6: brief.mjs does the discovery and the agent checks sources. verify: /execution verify class 1.6/6.7/31.1 min (the proof reads files only).",
+     "executor": "A",
+     "mode": "small",
+     "plant": {
+      "ops": [
+       {
+        "op": "json-set",
+        "path": "brief.json",
+        "pointer": "/hero/source",
+        "target": "state",
+        "value": ""
+       }
+      ],
+      "version": 1
+     },
+     "prework_class": "research",
+     "references": "on",
+     "stack": "static-html",
+     "ui_root": "ui",
+     "verify_estimate": {
+      "p10_min": 1.6,
+      "p50_min": 6.7,
+      "p90_min": 31.1
+     }
+    },
+    "phase": "build",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "exit 0"
+     },
+     "max_runtime_min": 2,
+     "negative_control": {
+      "description": "Empty hero.source in C:/x/qc/repo/.execution/frontend/brief.json while hero.h1 stays non-empty: brief.complete must fail.",
+      "expect_nonzero": true,
+      "kind": "planted-defect",
+      "patch_path": "negative-controls/frontend.fe-00.plant.json"
+     },
+     "spec": {
+      "cmd": "node C:/x/skills/frontend/scripts/frontend-check.mjs --json --gates brief --profile \"C:/x/qc/repo/.execution/profile.json\" --state \"C:/x/qc/repo/.execution/frontend\" --out \"$EXEC_PROOF_OUT\"",
+      "cwd": ".",
+      "env_allowlist": [
+       "PATH",
+       "PATHEXT",
+       "SYSTEMROOT",
+       "TEMP",
+       "TMP",
+       "USERPROFILE",
+       "HOME",
+       "APPDATA",
+       "LOCALAPPDATA",
+       "PNPM_HOME",
+       "FRONTEND_CHROMIUM",
+       "EXEC_PROOF_OUT"
+      ],
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 120
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "frontend:FE-00",
+    "template_digest": "ca4aeb612b96f5f1c4937419cd8bb34bc9de19a54f5440d8361291af71af6c37",
+    "title": "Frontend brief",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": [
+     ".execution/frontend/brief.json",
+     ".execution/frontend/brief.md"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-908"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T024"
+    ],
+    "description": "The owner keeps, replaces or drops each reference URL the brief proposes from the sponsor's customers, so captures touch only confirmed official pages. The orchestrator records the answer in the profile's frontend.references (owner_confirmed), the list capture.mjs reads.",
+    "effort": null,
+    "estimate": {
+     "p10_min": 3,
+     "p50_min": 8,
+     "p90_min": 20,
+     "source": "template:frontend"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T025",
+    "key": "frontend.fe-01",
+    "kind": "manual",
+    "manual": {
+     "bring_back": [
+      {
+       "description": "One line per customer: keep <url> | replace <old url> -> <new url> | drop <customer>, plus any added site with its category. The orchestrator sets owner_confirmed in profile.frontend.references and records the reply.",
+       "key": "T025-refs",
+       "kind": "text",
+       "verify": {
+        "method": "regex",
+        "spec": "^(?:(?:keep|replace|drop|add) [^\\n]+\\n?)+$"
+       }
+      }
+     ],
+     "decision_deadline_utc": null,
+     "latest_start_utc": "2026-10-03T06:46:00Z",
+     "options": [],
+     "options_source": null,
+     "steps": [
+      "Open the customers section of C:/x/qc/repo/.execution/frontend/brief.md: one proposed URL per customer, with where it came from.",
+      "For each customer, keep the URL if it is the customer's official site and its page closest to what we build; otherwise reply with the right page, or drop the customer.",
+      "If fewer than two unrelated references remain in the category, add sites you know: bot walls stop some captures, so 6-8 candidates per category is safer than 2 (FD19).",
+      "Name any site you know refuses robots or needs a login: it is captured from your own screenshots or notes, never by changing how the capture identifies itself."
+     ],
+     "where": "phone"
+    },
+    "max_attempts": 2,
+    "model": null,
+    "owner": "devA",
+    "params": {
+     "design": "design",
+     "estimate_basis": "Owner minutes once the push is read; no agent reference class applies, and the wait for the owner is scheduled by /execution from the latest start.",
+     "executor": "A",
+     "latest_start_rule": "cpm",
+     "mode": "small",
+     "prework_class": "research",
+     "references": "on",
+     "stack": "static-html",
+     "ui_root": "ui",
+     "verify_estimate": {
+      "p10_min": 1,
+      "p50_min": 1,
+      "p90_min": 3
+     }
+    },
+    "phase": "manual",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "summary": "At least two entries with owner_confirmed true, each with an http(s) url and a non-empty source (in mode B the bare block's #/references)."
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "A references list whose entries all have owner_confirmed false: the proof must fail and FE-02 stay blocked.",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "owner checkpoint: its file proof is evaluated by exec.py; /frontend's control: A references list whose entries all have owner_confirmed false: the proof must fail and FE-02 stay blocked."
+     },
+     "spec": {
+      "json_checks": [
+       {
+        "check": "min-items",
+        "pointer": "",
+        "value": 2,
+        "where": {
+         "owner_confirmed": true
+        }
+       },
+       {
+        "check": "url",
+        "pointer": "/*/url"
+       },
+       {
+        "check": "non-empty",
+        "pointer": "/*/source"
+       }
+      ],
+      "json_pointer": "/frontend/references",
+      "path": "C:/x/qc/repo/.execution/profile.json"
+     },
+     "type": "file"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "frontend:FE-01",
+    "template_digest": "635dbc75f0a9090a5e2224953c753d721d327bf0745f4aa2df343614495d752c",
+    "title": "Confirm the reference sites (owner)",
+    "tokens_est": {
+     "basis": "owner task: no agent tokens",
+     "usd_list": 0
+    },
+    "writes": []
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-908"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T025"
+    ],
+    "description": "Capture one page of each confirmed reference site (2-4 sites) through capture-gate.mjs at the profile's viewports: viewport slices, a computed-style tally, the fonts that actually rendered, a reveal probe; robots.txt honoured, a stop on 401, 403, 407 or 429, no user-agent swap, stealth, proxy or retry after a block. Captures stay in C:/x/qc/private/frontend/captures, outside any git work tree, with a SHA-256 manifest. extract.mjs writes the pattern ledger (conventions, relationships, domain conventions, facts, each from at least two unrelated references, nothing of a site's expression), then the captures are purged with a deletion receipt. A bot-walled site falls back to the owner's own notes, never to a workaround.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 10,
+     "p50_min": 20,
+     "p90_min": 35,
+     "source": "template:frontend"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T026",
+    "key": "frontend.fe-02",
+    "kind": "research",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {
+     "design": "design",
+     "estimate_basis": "/execution research class 13.0/24.9/40.6 min scaled by about 1.2 for three or four sites at three viewports; small mode captures two sites. verify: /execution verify class 1.6/6.7/31.1 min (the proof reads files only).",
+     "executor": "A",
+     "external_writes": [
+      "C:/x/qc/private/frontend/captures/**"
+     ],
+     "mode": "small",
+     "plant": {
+      "ops": [
+       {
+        "op": "delete",
+        "path": "refs-index.json",
+        "pointer": "/receipts/0",
+        "target": "state"
+       }
+      ],
+      "version": 1
+     },
+     "prework_class": "research",
+     "references": "on",
+     "stack": "static-html",
+     "ui_root": "ui",
+     "verify_estimate": {
+      "p10_min": 1.6,
+      "p50_min": 6.7,
+      "p90_min": 31.1
+     }
+    },
+    "phase": "build",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "exit 0"
+     },
+     "max_runtime_min": 3,
+     "negative_control": {
+      "description": "Delete one capture receipt listed in C:/x/qc/repo/.execution/frontend/refs-index.json: refs.receipts must fail.",
+      "expect_nonzero": true,
+      "kind": "planted-defect",
+      "patch_path": "negative-controls/frontend.fe-02.plant.json"
+     },
+     "spec": {
+      "cmd": "node C:/x/skills/frontend/scripts/frontend-check.mjs --json --gates refs --profile \"C:/x/qc/repo/.execution/profile.json\" --state \"C:/x/qc/repo/.execution/frontend\" --out \"$EXEC_PROOF_OUT\"",
+      "cwd": ".",
+      "env_allowlist": [
+       "PATH",
+       "PATHEXT",
+       "SYSTEMROOT",
+       "TEMP",
+       "TMP",
+       "USERPROFILE",
+       "HOME",
+       "APPDATA",
+       "LOCALAPPDATA",
+       "PNPM_HOME",
+       "FRONTEND_CHROMIUM",
+       "EXEC_PROOF_OUT"
+      ],
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 180
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [
+     "browser"
+    ],
+    "story": null,
+    "template": "frontend:FE-02",
+    "template_digest": "a8d1f666f5e4e22adf33f48229ca2e91bdb70f81d0d9bf3119ef66c9873c2980",
+    "title": "Reference captures and pattern ledger",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 8.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": [
+     ".execution/frontend/refs-index.json",
+     ".execution/frontend/pattern-ledger.json",
+     ".execution/frontend/pattern-ledger.md",
+     ".execution/frontend/receipts/**"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-908"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T026"
+    ],
+    "description": "The feDirections wave fragment draws 2-3 genuinely different named directions (1-2 in small mode) under C:/x/qc/repo/.execution/frontend/directions/<A|B|C>/, each anchored in a different source (customer A, customer B, the protocol's domain, a utilitarian register), each a token plan (4-6 named colours with roles, type roles, radius and spacing, a motion budget, one signature element) plus one hero comp with the brief's real copy at 1440x900 and 390x844. Each direction is screened by the checker, by the similar-prompt test against a plan a fresh agent draws from a generic brief (written to C:/x/qc/repo/.execution/frontend/similar-prompt/, outside directions/), and against the ledger of past directions; one that fails is redrawn once with the findings. board.mjs writes the board the orchestrator publishes for H1. No visual before T0 when the event forbids designs.",
+    "effort": "high",
+    "estimate": {
+     "p10_min": 10,
+     "p50_min": 22,
+     "p90_min": 40,
+     "source": "template:frontend"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T027",
+    "key": "frontend.fe-03",
+    "kind": "code",
+    "lane": "L4",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {
+     "design": "design",
+     "estimate_basis": "/execution build class 6.2/26.7/46.0 min for directions drawn in parallel, plus a render and a screen per direction and one possible redraw; small mode draws one or two. verify: /execution verify class 1.6/6.7/31.1 min (the proof reads files only).",
+     "executor": "A",
+     "fragment": {
+      "file": "C:/x/skills/frontend/assets/wave-fragments/directions.js",
+      "function": "feDirections",
+      "input": {
+       "agents": {
+        "designer": {
+         "agentType": "execution-implementer",
+         "effort": "high",
+         "model": "opus"
+        },
+        "runner": {
+         "agentType": "execution-implementer",
+         "effort": "low",
+         "model": "sonnet"
+        }
+       },
+       "cwd": "{workdir}",
+       "mode": "small",
+       "profile": "C:/x/qc/repo/.execution/profile.json",
+       "references": "on",
+       "skill": "C:/x/skills/frontend",
+       "state": "C:/x/qc/repo/.execution/frontend",
+       "task": "T027"
+      },
+      "sha256": "d8ab4d2ff502c428e27e7064f801b523b334c6f69fcdcc6a1cf5a078c9c08624"
+     },
+     "mode": "small",
+     "plant": {
+      "ops": [
+       {
+        "glob": "directions/*/hero-mobile.png",
+        "op": "delete",
+        "target": "state"
+       }
+      ],
+      "version": 1
+     },
+     "prework_class": "design",
+     "references": "on",
+     "stack": "static-html",
+     "ui_root": "ui",
+     "verify_estimate": {
+      "p10_min": 1.6,
+      "p50_min": 6.7,
+      "p90_min": 31.1
+     }
+    },
+    "phase": "build",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "exit 0"
+     },
+     "max_runtime_min": 5,
+     "negative_control": {
+      "description": "Delete C:/x/qc/repo/.execution/frontend/directions/B/hero-mobile.png: directions.present must fail.",
+      "expect_nonzero": true,
+      "kind": "planted-defect",
+      "patch_path": "negative-controls/frontend.fe-03.plant.json"
+     },
+     "spec": {
+      "cmd": "node C:/x/skills/frontend/scripts/frontend-check.mjs --json --gates directions --profile \"C:/x/qc/repo/.execution/profile.json\" --state \"C:/x/qc/repo/.execution/frontend\" --out \"$EXEC_PROOF_OUT\"",
+      "cwd": ".",
+      "env_allowlist": [
+       "PATH",
+       "PATHEXT",
+       "SYSTEMROOT",
+       "TEMP",
+       "TMP",
+       "USERPROFILE",
+       "HOME",
+       "APPDATA",
+       "LOCALAPPDATA",
+       "PNPM_HOME",
+       "FRONTEND_CHROMIUM",
+       "EXEC_PROOF_OUT"
+      ],
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 300
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": "2026-10-03T07:45:00Z",
+    "required": true,
+    "resources": [
+     "browser"
+    ],
+    "story": null,
+    "template": "frontend:FE-03",
+    "template_digest": "c97c2478eb4afdae530dce3f6b5ebb922541d730622ee7a95f49a4556b0a8e68",
+    "title": "Directions: named token plans with hero comps",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": [
+     ".execution/frontend/directions/**",
+     ".execution/frontend/similar-prompt/**"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-900"
+    ],
+    "deadline_utc": null,
+    "depends_on": [],
+    "description": "The working name is not confirmed by the owner. The owner keeps it or gives the final name; the logo (FE-05) and every judge-facing text wait for this decision.",
+    "effort": null,
+    "estimate": {
+     "p10_min": 2,
+     "p50_min": 10,
+     "p90_min": 45,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T028",
+    "key": "execution.ex-name",
+    "kind": "decision",
+    "manual": {
+     "bring_back": [
+      {
+       "description": "keep, or rename followed by the new name",
+       "key": "T028-name",
+       "kind": "choice",
+       "verify": {
+        "method": "choice-in-options"
+       }
+      }
+     ],
+     "decision_deadline_utc": "2026-10-03T09:15:00Z",
+     "latest_start_utc": "2026-10-03T08:30:00Z",
+     "options": [
+      {
+       "consequence": "Le logo et les textes utilisent le nom actuel.",
+       "id": "keep",
+       "label": "Garder le nom de travail"
+      },
+      {
+       "consequence": "Le nouveau nom est enregistré avant le logo (FE-05).",
+       "id": "rename",
+       "label": "Renommer (donne le nom)"
+      }
+     ],
+     "options_source": null,
+     "steps": [
+      "Keep the working name queue-clock, or give the final name in one line."
+     ],
+     "where": "phone"
+    },
+    "max_attempts": 1,
+    "model": null,
+    "owner": "devA",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "decision_kind": "plan-task",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "decision",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "summary": "a resolution block naming the final project name"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "an owner decision",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "an owner decision: the resolution block is the evidence, nothing to falsify by script"
+     },
+     "spec": {
+      "answer_key": "T028-name",
+      "attest": "the owner kept or changed the project name"
+     },
+     "type": "human-attest"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-NAME",
+    "template_digest": "4d7bdce1daa6db1d848bb28de96c76570982318e76eac0d56dc3014e64c8d7cb",
+    "title": "Confirm the project name (owner)",
+    "tokens_est": {
+     "basis": "owner task: no agent tokens",
+     "usd_list": 0
+    },
+    "writes": []
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-908"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T027"
+    ],
+    "description": "The owner picks one of the directions on the board. The frontend lane waits; every other lane keeps running.",
+    "effort": null,
+    "estimate": {
+     "p10_min": 3,
+     "p50_min": 10,
+     "p90_min": 30,
+     "source": "template:frontend"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T029",
+    "key": "frontend.fe-04",
+    "kind": "decision",
+    "manual": {
+     "bring_back": [
+      {
+       "description": "The letter of the chosen direction (A, B or C) and at most one sentence of change. The orchestrator writes it to C:/x/qc/repo/.execution/frontend/choices.json as H1 with the UTC time and the channel.",
+       "key": "T029-pick",
+       "kind": "choice",
+       "verify": {
+        "method": "choice-in-options"
+       }
+      }
+     ],
+     "decision_deadline_utc": "2026-10-03T08:06:00Z",
+     "latest_start_utc": "2026-10-03T07:36:00Z",
+     "options": [],
+     "options_source": "C:/x/qc/repo/.execution/frontend/directions/",
+     "steps": [
+      "The orchestrator publishes the board from C:/x/qc/repo/.execution/frontend/directions/ to the profile's review surface (references/03-directions.md, 'Publishing the board (orchestrator only)') and pushes the link.",
+      "Look at each direction's hero at desktop and phone size, its token plan, what it is anchored in and its trade-off.",
+      "Pick one direction by its letter. You may add one change in one sentence; anything larger is a new FE-03 run, not a change.",
+      "Answer through the Notion decision field or a Remote Control reply; comments on a Claude Design canvas are not answers."
+     ],
+     "where": "phone"
+    },
+    "max_attempts": 2,
+    "model": null,
+    "owner": "devA",
+    "params": {
+     "decision_kind": "plan-task",
+     "design": "design",
+     "estimate_basis": "Owner minutes on the phone once the board is published; judges are near chance on close options, so the owner decides (FD17-F06, F16).",
+     "executor": "A",
+     "latest_start_rule": "cpm",
+     "mode": "small",
+     "prework_class": "none",
+     "references": "on",
+     "stack": "static-html",
+     "ui_root": "ui",
+     "verify_estimate": {
+      "p10_min": 1,
+      "p50_min": 1,
+      "p90_min": 3
+     }
+    },
+    "phase": "decision",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "summary": "pick names a direction folder that exists under C:/x/qc/repo/.execution/frontend/directions/ (A, B or C), answered_at is UTC and channel is notion, remote-control, ask-user-question or terminal."
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "A choices.json without H1, or with a pick that has no folder under C:/x/qc/repo/.execution/frontend/directions/: the proof must fail.",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "owner checkpoint: its file proof is evaluated by exec.py; /frontend's control: A choices.json without H1, or with a pick that has no folder under C:/x/qc/repo/.execution/frontend/directions/: the proof must fail."
+     },
+     "spec": {
+      "json_checks": [
+       {
+        "base": "C:/x/qc/repo/.execution/frontend/directions",
+        "check": "dir-exists",
+        "pointer": "/pick"
+       },
+       {
+        "check": "utc",
+        "pointer": "/answered_at"
+       },
+       {
+        "check": "enum",
+        "pointer": "/channel",
+        "values": [
+         "notion",
+         "remote-control",
+         "ask-user-question",
+         "terminal"
+        ]
+       }
+      ],
+      "json_pointer": "/H1",
+      "path": "C:/x/qc/repo/.execution/frontend/choices.json"
+     },
+     "type": "file"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "frontend:FE-04",
+    "template_digest": "cd084d5aafe4dc0047ca92a60b24f4dfa6e7905321cde0cf67be59adc65f6c43",
+    "title": "Pick a direction (H1, owner)",
+    "tokens_est": {
+     "basis": "owner task: no agent tokens",
+     "usd_list": 0
+    },
+    "writes": [
+     ".execution/frontend/choices.json"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-908"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T028",
+     "T029"
+    ],
+    "description": "brand.mjs draws 3-5 candidates (2-3 in small mode, wordmark only): the project name in an open-licensed face of the chosen direction (OFL.txt checked for a Reserved Font Name before any subset) with exactly one intervention, and a favicon mark derived from it on a 32-unit grid; a separate symbol only for a written reason. Each candidate is rendered at 16, 32, 180 and 512 px and as one-colour silhouettes on light and dark, and passes the mark lint (no gradient, no hexagon or cube, no <text>, strokes not thinner than viewBox/16, no struck-through initial). A model reviews defects only, at most 2-3 rounds, and never ranks; name and lookalike checks report only, never 'clear'.",
+    "effort": "high",
+    "estimate": {
+     "p10_min": 6,
+     "p50_min": 15,
+     "p90_min": 30,
+     "source": "template:frontend"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T030",
+    "key": "frontend.fe-05",
+    "kind": "code",
+    "lane": "L4",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {
+     "design": "design",
+     "estimate_basis": "/execution build class 6.2/26.7/46.0 min: a scripted pipeline plus at most 2-3 defect-review rounds; small mode draws two or three wordmarks. verify: /execution verify class 1.6/6.7/31.1 min (the proof reads files only).",
+     "executor": "A",
+     "mode": "small",
+     "plant": {
+      "ops": [
+       {
+        "glob": "brand/candidates/1/*16*",
+        "op": "delete",
+        "target": "state"
+       }
+      ],
+      "version": 1
+     },
+     "prework_class": "design",
+     "references": "on",
+     "stack": "static-html",
+     "ui_root": "ui",
+     "verify_estimate": {
+      "p10_min": 1.6,
+      "p50_min": 6.7,
+      "p90_min": 31.1
+     }
+    },
+    "phase": "build",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "exit 0"
+     },
+     "max_runtime_min": 4,
+     "negative_control": {
+      "description": "Delete the 16 px render of one candidate under C:/x/qc/repo/.execution/frontend/brand/candidates/: brand.candidates must fail.",
+      "expect_nonzero": true,
+      "kind": "planted-defect",
+      "patch_path": "negative-controls/frontend.fe-05.plant.json"
+     },
+     "spec": {
+      "cmd": "node C:/x/skills/frontend/scripts/frontend-check.mjs --json --gates brand.candidates --profile \"C:/x/qc/repo/.execution/profile.json\" --state \"C:/x/qc/repo/.execution/frontend\" --out \"$EXEC_PROOF_OUT\"",
+      "cwd": ".",
+      "env_allowlist": [
+       "PATH",
+       "PATHEXT",
+       "SYSTEMROOT",
+       "TEMP",
+       "TMP",
+       "USERPROFILE",
+       "HOME",
+       "APPDATA",
+       "LOCALAPPDATA",
+       "PNPM_HOME",
+       "FRONTEND_CHROMIUM",
+       "EXEC_PROOF_OUT"
+      ],
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 240
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": "2026-10-03T07:45:00Z",
+    "required": true,
+    "resources": [
+     "browser"
+    ],
+    "story": null,
+    "template": "frontend:FE-05",
+    "template_digest": "4768109ee91ab7820d58027ecb65017fbddff09e393ed765edef4e9a82472186",
+    "title": "Logo candidates, wordmark first",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": [
+     ".execution/frontend/brand/candidates/**"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-908"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T030"
+    ],
+    "description": "The owner picks one logo candidate; a model score never decides it (FD12-F09).",
+    "effort": null,
+    "estimate": {
+     "p10_min": 3,
+     "p50_min": 8,
+     "p90_min": 25,
+     "source": "template:frontend"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T031",
+    "key": "frontend.fe-06",
+    "kind": "decision",
+    "manual": {
+     "bring_back": [
+      {
+       "description": "The number of the chosen candidate and at most one sentence of change. The orchestrator writes it to C:/x/qc/repo/.execution/frontend/choices.json as H2 with the UTC time and the channel.",
+       "key": "T031-pick",
+       "kind": "choice",
+       "verify": {
+        "method": "choice-in-options"
+       }
+      }
+     ],
+     "decision_deadline_utc": "2026-10-03T08:26:00Z",
+     "latest_start_utc": "2026-10-03T08:01:00Z",
+     "options": [],
+     "options_source": "C:/x/qc/repo/.execution/frontend/brand/candidates/",
+     "steps": [
+      "The orchestrator publishes the logo board from C:/x/qc/repo/.execution/frontend/brand/candidates/ to the profile's review surface and pushes the link.",
+      "Judge each candidate first at 16 px and in one colour on light and dark, then at 180 and 512 px.",
+      "Pick one candidate by its number. You may add one change in one sentence.",
+      "Answer through the Notion decision field or a Remote Control reply; comments on a Claude Design canvas are not answers."
+     ],
+     "where": "phone"
+    },
+    "max_attempts": 2,
+    "model": null,
+    "owner": "devA",
+    "params": {
+     "decision_kind": "plan-task",
+     "design": "design",
+     "estimate_basis": "Owner minutes on the phone once the logo board is published.",
+     "executor": "A",
+     "latest_start_rule": "cpm",
+     "mode": "small",
+     "prework_class": "none",
+     "references": "on",
+     "stack": "static-html",
+     "ui_root": "ui",
+     "verify_estimate": {
+      "p10_min": 1,
+      "p50_min": 1,
+      "p90_min": 3
+     }
+    },
+    "phase": "decision",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "summary": "pick names a candidate folder that exists under C:/x/qc/repo/.execution/frontend/brand/candidates/, answered_at is UTC and channel is notion, remote-control, ask-user-question or terminal."
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "A choices.json without H2, or with a pick that has no folder under C:/x/qc/repo/.execution/frontend/brand/candidates/: the proof must fail.",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "owner checkpoint: its file proof is evaluated by exec.py; /frontend's control: A choices.json without H2, or with a pick that has no folder under C:/x/qc/repo/.execution/frontend/brand/candidates/: the proof must fail."
+     },
+     "spec": {
+      "json_checks": [
+       {
+        "base": "C:/x/qc/repo/.execution/frontend/brand/candidates",
+        "check": "dir-exists",
+        "pointer": "/pick"
+       },
+       {
+        "check": "utc",
+        "pointer": "/answered_at"
+       },
+       {
+        "check": "enum",
+        "pointer": "/channel",
+        "values": [
+         "notion",
+         "remote-control",
+         "ask-user-question",
+         "terminal"
+        ]
+       }
+      ],
+      "json_pointer": "/H2",
+      "path": "C:/x/qc/repo/.execution/frontend/choices.json"
+     },
+     "type": "file"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "frontend:FE-06",
+    "template_digest": "16f2a4747d6df5938c106e93b6156c9a5d06db83f354d0371bd0958383e6864d",
+    "title": "Pick the logo (H2, owner)",
+    "tokens_est": {
+     "basis": "owner task: no agent tokens",
+     "usd_list": 0
+    },
+    "writes": [
+     ".execution/frontend/choices.json"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-908"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T029",
+     "T031"
+    ],
+    "description": "tokens.mjs builds design/tokens.json from the direction picked at H1 and the mark picked at H2: colour from the brand hue in OKLCH (Leonardo, contrast targets 3, 4.5 and 7) with a token-pair contrast table; at most two families plus a monospace with a role, self-hosted under design/fonts with their licence files and provenance entries, tabular figures checked for any face that shows numbers; spacing, radius, shadow and motion tokens (ease-out; press 100-160 ms, tooltip 125-200, dropdown 150-250, modal 200-300). It generates the CSS custom properties under ui/src/styles, the Tailwind @theme mirror after namespace resets when Tailwind is used, and DESIGN.md; none of these views is edited by hand.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 6,
+     "p50_min": 15,
+     "p90_min": 30,
+     "source": "template:frontend"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T032",
+    "key": "frontend.fe-07",
+    "kind": "code",
+    "lane": "L4",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {
+     "design": "design",
+     "estimate_basis": "/execution build class 6.2/26.7/46.0 min scaled by about 0.75: tokens.mjs generates the views; the agent sets roles and usages. verify: /execution verify class 1.6/6.7/31.1 min (the proof reads files only).",
+     "executor": "A",
+     "mode": "small",
+     "plant": {
+      "ops": [
+       {
+        "op": "json-set",
+        "path": "design/tokens.json",
+        "pointer": "/color/tokens/0/usage",
+        "target": "checkout",
+        "value": ""
+       }
+      ],
+      "version": 1
+     },
+     "prework_class": "design",
+     "references": "on",
+     "stack": "static-html",
+     "ui_root": "ui",
+     "verify_estimate": {
+      "p10_min": 1.6,
+      "p50_min": 6.7,
+      "p90_min": 31.1
+     }
+    },
+    "phase": "build",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "exit 0"
+     },
+     "max_runtime_min": 2,
+     "negative_control": {
+      "description": "Give one colour token in design/tokens.json an empty usage: tokens.valid must fail.",
+      "expect_nonzero": true,
+      "kind": "planted-defect",
+      "patch_path": "negative-controls/frontend.fe-07.plant.json"
+     },
+     "spec": {
+      "cmd": "node C:/x/skills/frontend/scripts/frontend-check.mjs --json --gates tokens,ip.fonts,ip.hotlinks --profile \"C:/x/qc/repo/.execution/profile.json\" --root . --state \"C:/x/qc/repo/.execution/frontend\" --out \"$EXEC_PROOF_OUT\"",
+      "cwd": ".",
+      "env_allowlist": [
+       "PATH",
+       "PATHEXT",
+       "SYSTEMROOT",
+       "TEMP",
+       "TMP",
+       "USERPROFILE",
+       "HOME",
+       "APPDATA",
+       "LOCALAPPDATA",
+       "PNPM_HOME",
+       "FRONTEND_CHROMIUM",
+       "EXEC_PROOF_OUT"
+      ],
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 120
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": "2026-10-03T07:45:00Z",
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "frontend:FE-07",
+    "template_digest": "08d65c9ddf2e549f2bc275950a34057866b6933fa380756f705e275372569fca",
+    "title": "Tokens and their generated views",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": [
+     "design/tokens.json",
+     "design/DESIGN.md",
+     "design/fonts/**",
+     "design/provenance.json",
+     "ui/src/styles/**"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-908"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T003",
+     "T032"
+    ],
+    "description": "Scaffold the UI package at ui on the profile's stack (no starter-template leftovers, no prebuilt wallet-connect UI), import the generated token CSS, carry the mark picked at H2 in the header, and build the first-screen contract: an H1 of about 2-6 words and the sentence from brief.hero marked data-hero, one sourced live figure (data-metric with data-ledger or data-source and data-as-of), the sponsor named in text, and the product itself visible (data-surface=\"product\"), with nothing important behind hover. Write design/routes.json mapping every catalogue feature id to a route, and create one empty mount point per feature group under ui/src/sections/<group>/ so FE-1x tasks write only inside their own folder. Support record mode (?record=1) and, when the profile sets ready_flag, window.__FRONTEND_READY__.",
+    "effort": "high",
+    "estimate": {
+     "p10_min": 10,
+     "p50_min": 25,
+     "p90_min": 45,
+     "source": "template:frontend"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T033",
+    "key": "frontend.fe-08",
+    "kind": "code",
+    "lane": "L4",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {
+     "design": "design",
+     "estimate_basis": "/execution build class 6.2/26.7/46.0 min plus the scaffold and one install (manifest resource). verify: /execution verify class 1.6/6.7/31.1 min plus a build and a browser run.",
+     "executor": "A",
+     "mode": "small",
+     "plant": {
+      "ops": [
+       {
+        "glob": "ui/**",
+        "op": "regex-replace",
+        "pattern": "(data-hero=\"h1\"[^>]*>)[^<]*",
+        "replacement": "\\1PLANTED",
+        "target": "checkout"
+       }
+      ],
+      "version": 1
+     },
+     "prework_class": "design",
+     "references": "on",
+     "stack": "static-html",
+     "ui_root": "ui",
+     "verify_estimate": {
+      "p10_min": 3,
+      "p50_min": 9,
+      "p90_min": 35
+     }
+    },
+    "phase": "build",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "exit 0"
+     },
+     "max_runtime_min": 5,
+     "negative_control": {
+      "description": "Change the text of the element marked data-hero=\"h1\" so it no longer equals brief.hero.h1: firstview.contract must fail.",
+      "expect_nonzero": true,
+      "kind": "planted-defect",
+      "patch_path": "negative-controls/frontend.fe-08.plant.json"
+     },
+     "spec": {
+      "cmd": "node C:/x/skills/frontend/scripts/frontend-check.mjs --json --gates render,firstview --profile \"C:/x/qc/repo/.execution/profile.json\" --root . --state \"C:/x/qc/repo/.execution/frontend\" --serve \"ui\" --out \"$EXEC_PROOF_OUT\"",
+      "cwd": ".",
+      "env_allowlist": [
+       "PATH",
+       "PATHEXT",
+       "SYSTEMROOT",
+       "TEMP",
+       "TMP",
+       "USERPROFILE",
+       "HOME",
+       "APPDATA",
+       "LOCALAPPDATA",
+       "PNPM_HOME",
+       "FRONTEND_CHROMIUM",
+       "EXEC_PROOF_OUT"
+      ],
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 300
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": "2026-10-03T07:45:00Z",
+    "required": true,
+    "resources": [
+     "manifest",
+     "browser"
+    ],
+    "story": null,
+    "template": "frontend:FE-08",
+    "template_digest": "e2d6c803e9b46b0129489cdfaab8973753a7ddb7ea7c394d7ac34405fc2044b4",
+    "title": "App shell and first screen",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": [
+     "ui/**",
+     "design/routes.json"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-908"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T031",
+     "T033"
+    ],
+    "description": "From the mark picked at H2, brand.mjs writes brand/ (mark.svg in currentColor, mono, lockup, a README with the meaning, the font licence and the provenance), favicon.ico with one 32 px entry, icon.svg with a prefers-color-scheme rule that survives SVGO (inlineStyles false), apple-touch-icon 180, manifest icons 192 and 512 and a maskable 512 with a computed safe radius, og.png 1200x630, the head links (index.html for Vite or a static page; the app folder's file conventions for Next), the deletion of any template favicon, the provenance entries and the drift test (references/04-brand.md, steps 9 to 11). It touches no section. This template fills the gap between H2 and the build: ARCHITECTURE.md 12.1 names no task for the brand deliverables, yet --phase build gates them.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 4,
+     "p50_min": 10,
+     "p90_min": 20,
+     "source": "template:frontend"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T034",
+    "key": "frontend.fe-09",
+    "kind": "code",
+    "lane": "L4",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {
+     "design": "design",
+     "estimate_basis": "/execution build class 6.2/26.7/46.0 min scaled by about 0.45: the pipeline is scripted (FD12 measured 6.2 s for the whole Node pipeline). verify: /execution verify class 1.6/6.7/31.1 min plus a build and a browser run.",
+     "executor": "A",
+     "mode": "small",
+     "plant": {
+      "ops": [
+       {
+        "op": "regex-replace",
+        "path": "ui/public/icon.svg",
+        "pattern": "@media\\s*\\(prefers-color-scheme[^)]*\\)\\s*\\{(?:[^{}]|\\{[^{}]*\\})*\\}",
+        "replacement": "",
+        "target": "checkout"
+       }
+      ],
+      "version": 1
+     },
+     "prework_class": "design",
+     "references": "on",
+     "stack": "static-html",
+     "ui_root": "ui",
+     "verify_estimate": {
+      "p10_min": 3,
+      "p50_min": 9,
+      "p90_min": 35
+     }
+    },
+    "phase": "build",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "exit 0"
+     },
+     "max_runtime_min": 4,
+     "negative_control": {
+      "description": "Replace ui/public/icon.svg with a copy that has no prefers-color-scheme rule: brand.icon-dark must fail.",
+      "expect_nonzero": true,
+      "kind": "planted-defect",
+      "patch_path": "negative-controls/frontend.fe-09.plant.json"
+     },
+     "spec": {
+      "cmd": "node C:/x/skills/frontend/scripts/frontend-check.mjs --json --gates brand,ip.fonts,ip.provenance,ip.sponsor-marks --profile \"C:/x/qc/repo/.execution/profile.json\" --root . --state \"C:/x/qc/repo/.execution/frontend\" --serve \"ui\" --out \"$EXEC_PROOF_OUT\"",
+      "cwd": ".",
+      "env_allowlist": [
+       "PATH",
+       "PATHEXT",
+       "SYSTEMROOT",
+       "TEMP",
+       "TMP",
+       "USERPROFILE",
+       "HOME",
+       "APPDATA",
+       "LOCALAPPDATA",
+       "PNPM_HOME",
+       "FRONTEND_CHROMIUM",
+       "EXEC_PROOF_OUT"
+      ],
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 240
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": "2026-10-03T07:45:00Z",
+    "required": true,
+    "resources": [
+     "browser"
+    ],
+    "story": null,
+    "template": "frontend:FE-09",
+    "template_digest": "f5447da6454d118b583ff5989768ee156573e3281afa5e35b721de10369e35ee",
+    "title": "Brand files, favicon set and OG image",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": [
+     "brand/**",
+     "ui/public/**",
+     "ui/index.html",
+     "ui/src/app/**",
+     "ui/app/**",
+     "design/provenance.json"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "FR-001",
+     "FR-002",
+     "FR-003",
+     "FR-006",
+     "FR-007"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T006",
+     "T007",
+     "T009",
+     "T010",
+     "T033",
+     "T034"
+    ],
+    "description": "Build the surface of every feature of all (FR-001,FR-002,FR-003,FR-006,FR-007) inside ui/src/sections/all/: for each feature id a heading in the user's words, a visible surface marked data-feature, its status label (data-status live, testnet, simulated or planned) and its proof (a claims-ledger id, a middle-truncated transaction link checked by rendering, or a live value with its as-of time); transaction lifecycle, loading, empty and error states that say what to do; copy from the brief with verbs that say what happens; motion only for real state changes. Every rendered number carries data-ledger or data-source. No new dependency and no new asset file: provenance.json belongs to FE-07 and FE-09.",
+    "effort": "high",
+    "estimate": {
+     "p10_min": 10,
+     "p50_min": 30,
+     "p90_min": 55,
+     "source": "template:frontend"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T035",
+    "key": "frontend.fe-1x",
+    "kind": "code",
+    "lane": "L4",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {
+     "design": "design",
+     "estimate_basis": "/execution build class 6.2/26.7/46.0 min per feature group; small mode builds every feature on one page in one task. verify: /execution verify class 1.6/6.7/31.1 min plus a build and a browser run.",
+     "executor": "A",
+     "mode": "small",
+     "plant": {
+      "ops": [
+       {
+        "glob": "ui/**",
+        "op": "regex-replace",
+        "pattern": "data-feature=\"FR\\-001\"",
+        "replacement": "data-planted=\"x\"",
+        "target": "checkout"
+       }
+      ],
+      "version": 1
+     },
+     "prework_class": "design",
+     "references": "on",
+     "stack": "static-html",
+     "ui_root": "ui",
+     "verify_estimate": {
+      "p10_min": 3,
+      "p50_min": 9,
+      "p90_min": 35
+     }
+    },
+    "phase": "build",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "exit 0"
+     },
+     "max_runtime_min": 5,
+     "negative_control": {
+      "description": "Delete the data-feature root of one id of all: coverage.features must fail.",
+      "expect_nonzero": true,
+      "kind": "planted-defect",
+      "patch_path": "negative-controls/frontend.fe-1x.plant.json"
+     },
+     "spec": {
+      "cmd": "node C:/x/skills/frontend/scripts/frontend-check.mjs --json --gates coverage,render,tells --features FR-001,FR-002,FR-003,FR-006,FR-007 --profile \"C:/x/qc/repo/.execution/profile.json\" --root . --state \"C:/x/qc/repo/.execution/frontend\" --serve \"ui\" --out \"$EXEC_PROOF_OUT\"",
+      "cwd": ".",
+      "env_allowlist": [
+       "PATH",
+       "PATHEXT",
+       "SYSTEMROOT",
+       "TEMP",
+       "TMP",
+       "USERPROFILE",
+       "HOME",
+       "APPDATA",
+       "LOCALAPPDATA",
+       "PNPM_HOME",
+       "FRONTEND_CHROMIUM",
+       "EXEC_PROOF_OUT"
+      ],
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 300
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": "2026-10-03T07:45:00Z",
+    "required": true,
+    "resources": [
+     "browser"
+    ],
+    "story": null,
+    "template": "frontend:FE-1x",
+    "template_digest": "2f5f75a715b3355354bd6ff42a96dc26a87318ca64505538bcab8984e1588d0f",
+    "title": "Section for feature group all",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": [
+     "ui/**"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-908"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T020",
+     "T034",
+     "T035"
+    ],
+    "description": "The feCritique wave fragment measures the built UI (the build-phase gates, deterministic sub-scores, DOM-marked tiles at 1440x900 and 390x844), then runs at most rounds_max rounds (1 in small mode) of three fresh frontend-critic passes. An issue is kept only if two critics raise it or a deterministic check confirms it, at most five per round, each with a mark id, the measured problem and a concrete fix. A candidate replaces the best-so-far only when every gate still passes, no deterministic sub-score drops and it wins the pairwise comparison in both orders; otherwise the tree goes back to the best-so-far. It stops after two rejected candidates. Five blind frontend-probe readers per viewport must restate the brief's proposition (at least 4 of 5). The receipt is written to C:/x/qc/repo/.execution/frontend/critique/receipt.json and the rendered UI copy to C:/x/qc/repo/.execution/frontend/ui-copy.md for /prose.",
+    "effort": "high",
+    "estimate": {
+     "p10_min": 12,
+     "p50_min": 30,
+     "p90_min": 50,
+     "source": "template:frontend"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T036",
+    "key": "frontend.fe-20",
+    "kind": "gate",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {
+     "design": "design",
+     "estimate_basis": "Multi-agent: per round about 25-40 min (measure, three critics in parallel, one fix, measure, two pairwise judges, probes after an accept), up to rounds_max rounds, stopping early when no issue is kept. Each agent stays under about 20 min, so /execution's 60 min single-agent sizing rule does not apply to the total; small mode runs one round. verify: /execution verify class plus the receipt check and the full --phase build run.",
+     "executor": "A",
+     "fragment": {
+      "file": "C:/x/skills/frontend/assets/wave-fragments/critique.js",
+      "function": "feCritique",
+      "input": {
+       "agents": {
+        "critic": {
+         "agentType": "frontend-critic"
+        },
+        "implementer": {
+         "agentType": "execution-implementer",
+         "effort": "high",
+         "model": "opus"
+        },
+        "probe": {
+         "agentType": "frontend-probe"
+        },
+        "runner": {
+         "agentType": "execution-implementer",
+         "effort": "low",
+         "model": "sonnet"
+        }
+       },
+       "build": "",
+       "critique": {
+        "$from": "frontend.critique"
+       },
+       "cwd": "{workdir}",
+       "mode": "small",
+       "profile": "C:/x/qc/repo/.execution/profile.json",
+       "skill": "C:/x/skills/frontend",
+       "state": "C:/x/qc/repo/.execution/frontend",
+       "target": "--serve \"ui\"",
+       "task": "T036",
+       "ui_root": "ui"
+      },
+      "sha256": "c4a3ca0aa74a4ee5b724501e5b325822e6a0b82ffa29b1e6ccc5517429a7ad8b"
+     },
+     "mode": "small",
+     "plant": {
+      "ops": [
+       {
+        "op": "json-set",
+        "path": "critique/receipt.json",
+        "pointer": "/ok",
+        "target": "state",
+        "value": false
+       }
+      ],
+      "version": 1
+     },
+     "prework_class": "design",
+     "references": "on",
+     "stack": "static-html",
+     "ui_root": "ui",
+     "verify_estimate": {
+      "p10_min": 4,
+      "p50_min": 12,
+      "p90_min": 40
+     }
+    },
+    "phase": "build",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "exit 0"
+     },
+     "max_runtime_min": 10,
+     "negative_control": {
+      "description": "Set ok to false in C:/x/qc/repo/.execution/frontend/critique/receipt.json, or delete the file: the receipt check must exit 1.",
+      "expect_nonzero": true,
+      "kind": "forgery",
+      "patch_path": "negative-controls/frontend.fe-20.plant.json"
+     },
+     "spec": {
+      "cmd": "node C:/x/skills/frontend/scripts/critique.mjs --verify-receipt \"C:/x/qc/repo/.execution/frontend/critique/receipt.json\" --root . && node C:/x/skills/frontend/scripts/frontend-check.mjs --json --phase build --profile \"C:/x/qc/repo/.execution/profile.json\" --root . --state \"C:/x/qc/repo/.execution/frontend\" --serve \"ui\" --out \"$EXEC_PROOF_OUT\"",
+      "cwd": ".",
+      "env_allowlist": [
+       "PATH",
+       "PATHEXT",
+       "SYSTEMROOT",
+       "TEMP",
+       "TMP",
+       "USERPROFILE",
+       "HOME",
+       "APPDATA",
+       "LOCALAPPDATA",
+       "PNPM_HOME",
+       "FRONTEND_CHROMIUM",
+       "EXEC_PROOF_OUT"
+      ],
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 600
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": "2026-10-03T07:45:00Z",
+    "required": true,
+    "resources": [
+     "browser"
+    ],
+    "story": null,
+    "template": "frontend:FE-20",
+    "template_digest": "4477d93d186ad0cc876b9e200d70ccab3b0f14ebc467731a7efc5eb20716a54c",
+    "title": "Critique rounds and final gates",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 2.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": [
+     "ui/**",
+     ".execution/frontend/critique/**",
+     ".execution/frontend/ui-copy.md"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-903"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T001",
+     "T002",
+     "T003",
+     "T004",
+     "T005",
+     "T006",
+     "T007",
+     "T008",
+     "T009",
+     "T012",
+     "T013",
+     "T014",
+     "T020",
+     "T024",
+     "T026",
+     "T027",
+     "T030",
+     "T032",
+     "T033",
+     "T034",
+     "T035",
+     "T036"
+    ],
+    "description": "A fresh reviewer (plan as the contract, burden on done) compares HEAD with every approved requirement and records gaps; missing or partial work under an approved requirement becomes tasks through amend, anything wider a decision. The proof checks that the newest convergence result for HEAD has no missing or partial gap within scope.",
+    "effort": "high",
+    "estimate": {
+     "p10_min": 6.2,
+     "p50_min": 26.7,
+     "p90_min": 46.0,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T037",
+    "key": "execution.ex-converge",
+    "kind": "gate",
+    "manual": null,
+    "max_attempts": 3,
+    "model": "opus",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "verify",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "the newest convergence result for HEAD has no missing or partial gap within the approved scope"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "a forged reviewer result for HEAD with one missing gap must exit 1",
+      "expect_nonzero": true,
+      "kind": "forgery"
+     },
+     "spec": {
+      "cmd": "python \"C:/Users/Utilisateur/.claude/skills/execution/assets/checks/plan_checks.py\" convergence --state \"C:/x/qc/repo/.execution\" --task T037 --repo .",
+      "cwd": ".",
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 120
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-CONVERGE",
+    "template_digest": "7e1a7ad43f128724be1d5ce3f1b4db1a6cb25a8548205a10fdacbc210fd9fd6b",
+    "title": "Convergence pass for HEAD",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 2.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": []
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-903"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T001",
+     "T002",
+     "T003",
+     "T004",
+     "T005",
+     "T006",
+     "T007",
+     "T008",
+     "T009",
+     "T012",
+     "T013",
+     "T014",
+     "T020",
+     "T024",
+     "T026",
+     "T027",
+     "T030",
+     "T032",
+     "T033",
+     "T034",
+     "T035",
+     "T036"
+    ],
+    "description": "Verifier agents replay the proof of every done task on HEAD of a fresh clone (exec.py proof run --by replay); this task's own proof checks that each done task has such a run for HEAD with its current proof hash and its expectation met (harden-ready H13).",
+    "effort": "low",
+    "estimate": {
+     "p10_min": 5,
+     "p50_min": 15,
+     "p90_min": 45,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T038",
+    "key": "execution.ex-replay",
+    "kind": "gate",
+    "manual": null,
+    "max_attempts": 3,
+    "model": "sonnet",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "verify",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "every done task has a replay run of HEAD whose expectation is met"
+     },
+     "max_runtime_min": 2,
+     "negative_control": {
+      "description": "a forged state copy where one replay run has expectation.met false must exit 1",
+      "expect_nonzero": true,
+      "kind": "forgery"
+     },
+     "spec": {
+      "cmd": "python \"C:/Users/Utilisateur/.claude/skills/execution/assets/checks/plan_checks.py\" replay --state \"C:/x/qc/repo/.execution\" --repo .",
+      "cwd": ".",
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 300
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [
+     "disk-heavy"
+    ],
+    "story": null,
+    "template": "execution:EX-REPLAY",
+    "template_digest": "f41cc57af31eced2c46ba7ba6ce03f7099c7daa7961bf369968937ef74328484",
+    "title": "Replay every proof on a fresh clone of HEAD",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 2.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": []
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-903"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T001",
+     "T002",
+     "T003",
+     "T004",
+     "T005",
+     "T006",
+     "T007",
+     "T008",
+     "T009",
+     "T012",
+     "T013",
+     "T014",
+     "T020",
+     "T024",
+     "T026",
+     "T027",
+     "T030",
+     "T032",
+     "T033",
+     "T034",
+     "T035",
+     "T036",
+     "T037",
+     "T038"
+    ],
+    "description": "Run the generated completion check for the build phase from a clean clone with the gates.json install: every REQ gate, the TODO scan, never-show, the plan chain, the convergence pass, the harden-ready report for HEAD and the frontend build phase must be ok; a skipped gate is open.",
+    "effort": "low",
+    "estimate": {
+     "p10_min": 1.6,
+     "p50_min": 6.7,
+     "p90_min": 31.1,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T039",
+    "key": "execution.ex-gate-build",
+    "kind": "gate",
+    "manual": null,
+    "max_attempts": 3,
+    "model": "sonnet",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "verify",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "every build-phase gate is ok (none skipped)"
+     },
+     "max_runtime_min": 10,
+     "negative_control": {
+      "description": "the same command against a forged state copy where one REQ gate's receipt has verdict fail must exit 1",
+      "expect_nonzero": true,
+      "kind": "forgery"
+     },
+     "spec": {
+      "cmd": "node \"C:/x/qc/repo/.execution/completion-check.mjs\" --json --phase build",
+      "cwd": ".",
+      "install": true,
+      "shell": "bash",
+      "timeout_s": 1200
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-GATE-BUILD",
+    "template_digest": "2cfcf98c2027a37ff9c30de7f42eb05f0b158db1edd0ffaa113ea3cf71cde9ba",
+    "title": "Build-complete gate",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 2.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": []
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-904"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T038"
+    ],
+    "description": "When harden-ready H7 lists env files that a framework would load automatically, the owner moves them out of the repository; the event profile loads them by path (policy.secrets.env_file). Agents never move, read or rename env files.",
+    "effort": null,
+    "estimate": {
+     "p10_min": 2,
+     "p50_min": 5,
+     "p90_min": 20,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T040",
+    "key": "execution.ex-harden-park",
+    "kind": "manual",
+    "manual": {
+     "bring_back": [
+      {
+       "description": "fait (or done)",
+       "key": "T040-parked",
+       "kind": "text",
+       "verify": {
+        "method": "regex",
+        "spec": "^(fait|done)\\b"
+       }
+      }
+     ],
+     "decision_deadline_utc": null,
+     "latest_start_utc": "2026-10-03T10:28:00Z",
+     "options": [],
+     "options_source": null,
+     "steps": [
+      "Move each file harden-ready H7 listed out of the repository, for instance into C:/x/qc/private/env/; the event profile loads it by path (policy.secrets.env_file).",
+      "Reply « fait » once nothing is left; the orchestrator re-runs harden-ready --only H7."
+     ],
+     "where": "laptop"
+    },
+    "max_attempts": 2,
+    "model": null,
+    "owner": "devA",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "latest_start_rule": "cpm",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "manual",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "summary": "the owner's answer is verified and harden-ready H7 is ok"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "an owner action",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "an owner action checked mechanically by harden-ready H7, which opens no file"
+     },
+     "spec": {
+      "answer_key": "T040-parked",
+      "attest": "the owner moved the listed files out of the repository (harden-ready H7 is the mechanical check)"
+     },
+     "type": "human-attest"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [
+     "human:devA"
+    ],
+    "story": null,
+    "template": "execution:EX-HARDEN-PARK",
+    "template_digest": "80c860b38ede1ad3f24fcd6e4bfd20d325317b999cf5ba2ed7890d0df60c34ca",
+    "title": "Park auto-loaded env files outside the repository (owner)",
+    "tokens_est": {
+     "basis": "owner task: no agent tokens",
+     "usd_list": 0
+    },
+    "writes": []
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-904"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T039",
+     "T040"
+    ],
+    "description": "After the hand-over the owner types /harden, reviews .harden/report.md, merges the branch it names into main and pushes; /harden never merges or pushes. The task is done when the merge SHA is on origin/main.",
+    "effort": null,
+    "estimate": {
+     "p10_min": 15,
+     "p50_min": 40,
+     "p90_min": 120,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T041",
+    "key": "execution.ex-harden-review",
+    "kind": "manual",
+    "manual": {
+     "bring_back": [
+      {
+       "description": "the merge commit SHA on main",
+       "key": "T041-merge",
+       "kind": "sha",
+       "verify": {
+        "method": "sha-on-origin-main"
+       }
+      }
+     ],
+     "decision_deadline_utc": null,
+     "latest_start_utc": "2026-10-03T10:33:00Z",
+     "options": [],
+     "options_source": null,
+     "steps": [
+      "Open a new session at the repository root and type the command the hand-over printed (/harden, with its paths and --profile when given).",
+      "Read .harden/report.md, merge the branch named in its header into main and push.",
+      "Reply with the merge commit SHA, then type /execution --fix <repo>/.harden/report.md."
+     ],
+     "where": "laptop"
+    },
+    "max_attempts": 2,
+    "model": null,
+    "owner": "devA",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "latest_start_rule": "cpm",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "manual",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "summary": "the merge SHA is an ancestor of origin/main"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "an owner action",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "an owner action whose SHA is verified on origin/main by answers ingest"
+     },
+     "spec": {
+      "answer_key": "T041-merge",
+      "attest": "the owner merged the /harden branch; the SHA is on origin/main"
+     },
+     "type": "human-attest"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [
+     "human:devA"
+    ],
+    "story": null,
+    "template": "execution:EX-HARDEN-REVIEW",
+    "template_digest": "1c0ddc0d00ff30513a01bfea92d8c662dccb5a77ba332667b7140fb7cd98d6ba",
+    "title": "Review and merge the /harden branch (owner)",
+    "tokens_est": {
+     "basis": "owner task: no agent tokens",
+     "usd_list": 0
+    },
+    "writes": []
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-904"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T041"
+    ],
+    "description": "The owner picks which /harden report items become fix tasks: none, the blocking ones, the recommended ones, or a list (FIX-MODE.md 4). Unselected items are recorded with the reason.",
+    "effort": null,
+    "estimate": {
+     "p10_min": 5,
+     "p50_min": 15,
+     "p90_min": 60,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T042",
+    "key": "execution.ex-fix-select",
+    "kind": "decision",
+    "manual": {
+     "bring_back": [
+      {
+       "description": "none, blocking, recommended, or custom with the list",
+       "key": "T042-selection",
+       "kind": "choice",
+       "verify": {
+        "method": "choice-in-options"
+       }
+      }
+     ],
+     "decision_deadline_utc": "2026-10-03T11:44:00Z",
+     "latest_start_utc": "2026-10-03T10:44:00Z",
+     "options": [
+      {
+       "consequence": "Le contrôle de non-régression tourne, puis les livrables (H3 d'abord).",
+       "id": "none",
+       "label": "Aucun correctif"
+      },
+      {
+       "consequence": "Les éléments bloquants deviennent des tâches de correction, puis le contrôle de non-régression.",
+       "id": "blocking",
+       "label": "Corriger les éléments bloquants"
+      },
+      {
+       "consequence": "Les éléments recommandés deviennent des tâches de correction, puis le contrôle de non-régression.",
+       "id": "recommended",
+       "label": "Corriger la sélection recommandée"
+      },
+      {
+       "consequence": "Les identifiants que tu écris deviennent des tâches de correction.",
+       "id": "custom",
+       "label": "Ma sélection"
+      }
+     ],
+     "options_source": null,
+     "steps": [
+      "Read the French summary of the /harden report (items to review, blocking ones, recommended ones).",
+      "Answer none, blocking, recommended, or your list (for example T2:H-007, REV:H-003=revert)."
+     ],
+     "where": "phone"
+    },
+    "max_attempts": 1,
+    "model": null,
+    "owner": "devA",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "decision_kind": "fix-selection",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "latest_start_rule": "cpm",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "decision",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "summary": "a resolution block of kind fix-selection with the owner's verbatim quote"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "an owner decision",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "an owner decision: the resolution block is the evidence, nothing to falsify by script"
+     },
+     "spec": {
+      "answer_key": "T042-selection",
+      "attest": "the owner resolved the fix-selection decision"
+     },
+     "type": "human-attest"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-FIX-SELECT",
+    "template_digest": "be7249f8b8e4b0f3a3dcba45485b1de0d4e1e99345e8400bf23c9536fc729fa6",
+    "title": "Select the fixes after /harden (owner)",
+    "tokens_est": {
+     "basis": "owner task: no agent tokens",
+     "usd_list": 0
+    },
+    "writes": []
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-904"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T042"
+    ],
+    "description": "Run the completion check for the build and harden phases from a clean clone with the gates.json install: the build gates still pass, the harden-review task is done and every selected fix task is done. With no fix selected it runs as the placeholder gate. Deliverables and FE-21 wait for it.",
+    "effort": "low",
+    "estimate": {
+     "p10_min": 1.6,
+     "p50_min": 6.7,
+     "p90_min": 31.1,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T043",
+    "key": "execution.ex-fix-gate",
+    "kind": "gate",
+    "manual": null,
+    "max_attempts": 3,
+    "model": "sonnet",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "fix",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "every build and harden phase gate is ok (none skipped)"
+     },
+     "max_runtime_min": 10,
+     "negative_control": {
+      "description": "the same command against a forged state copy where one fix task's receipt has verdict fail must exit 1",
+      "expect_nonzero": true,
+      "kind": "forgery"
+     },
+     "spec": {
+      "cmd": "node \"C:/x/qc/repo/.execution/completion-check.mjs\" --json --phase build,harden",
+      "cwd": ".",
+      "install": true,
+      "shell": "bash",
+      "timeout_s": 1200
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-FIX-GATE",
+    "template_digest": "a11afd2d36afb22f3c151850d4aa501795e9a3ac06db64573fc910ef9208cc9a",
+    "title": "Regression gate after the fixes",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 2.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": []
+   },
+   {
+    "anchor": {
+     "offset_min": 0,
+     "recurrence": null,
+     "relative_to": "DL-freeze-recording"
+    },
+    "brief_refs": [],
+    "covers": [
+     "NFR-905"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T039",
+     "T041",
+     "T043"
+    ],
+    "description": "At the code-for-recording freeze, check that no commit after the freeze instant touches **, so the recorded demo is the code that ships.",
+    "effort": "low",
+    "estimate": {
+     "p10_min": 1,
+     "p50_min": 3,
+     "p90_min": 10,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T044",
+    "key": "execution.ex-freeze-recording",
+    "kind": "gate",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "sonnet",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "deliverable",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "no commit after the freeze instant touches the frozen globs"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "a forged commit dated after the freeze that touches a frozen glob must exit 1",
+      "expect_nonzero": true,
+      "kind": "forgery"
+     },
+     "spec": {
+      "cmd": "python \"C:/Users/Utilisateur/.claude/skills/execution/assets/checks/plan_checks.py\" freeze --repo . --globs \"**\" --at 2026-10-03T12:15:00Z",
+      "cwd": ".",
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 120
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-FREEZE-RECORDING",
+    "template_digest": "288a9eeaaec5637ad112fdc7cf996fd413b81b2b8acef3f07cec55098cb4b9cb",
+    "title": "Freeze the code for the recording",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 2.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": []
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-908"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T036",
+     "T041",
+     "T043"
+    ],
+    "description": "After /harden's review, the owner signs off the deployed preview at the size it will be recorded, before any recording task. A no reopens work as fix tasks; it is never recorded as a sign-off.",
+    "effort": null,
+    "estimate": {
+     "p10_min": 8,
+     "p50_min": 15,
+     "p90_min": 30,
+     "source": "template:frontend"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T045",
+    "key": "frontend.fe-21",
+    "kind": "manual",
+    "manual": {
+     "bring_back": [
+      {
+       "description": "signed off: yes, or no with a numbered list of changes, each naming the screen and what is wrong. The orchestrator writes it to C:/x/qc/repo/.execution/frontend/choices.json as H3 with the preview URL, the UTC time and the channel.",
+       "key": "T045-signoff",
+       "kind": "text",
+       "verify": {
+        "method": "regex",
+        "spec": "^(?i:oui|yes)\\b"
+       }
+      }
+     ],
+     "decision_deadline_utc": null,
+     "latest_start_utc": "2026-10-03T11:35:00Z",
+     "options": [],
+     "options_source": null,
+     "steps": [
+      "On the laptop, open the deployed preview with ?record=1 in a browser window of 1536x864 CSS px at 125% zoom, the recording setup (FD20).",
+      "Walk the judge's path from the brief: the first screen, then every feature section; each shows its status label (live, testnet, simulated or planned) and its proof.",
+      "Read the latest gate report under C:/x/qc/repo/.execution/frontend/gates/ and the critique receipt C:/x/qc/repo/.execution/frontend/critique/receipt.json: every gate ok, none skipped, probes passed.",
+      "Check that nothing on the never-show list appears in images or frames (the gates checked the rendered text).",
+      "Sign off, or list what must change before anything is recorded."
+     ],
+     "where": "laptop"
+    },
+    "max_attempts": 2,
+    "model": null,
+    "owner": "devA",
+    "params": {
+     "design": "design",
+     "estimate_basis": "Owner minutes at the laptop: one walk through the judge's path at recording size; the best measured judges still trail humans by about 14 points (FD17-F07).",
+     "executor": "A",
+     "latest_start_rule": "cpm",
+     "mode": "small",
+     "prework_class": "none",
+     "references": "on",
+     "stack": "static-html",
+     "ui_root": "ui",
+     "verify_estimate": {
+      "p10_min": 1,
+      "p50_min": 1,
+      "p90_min": 3
+     }
+    },
+    "phase": "deliverable",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "summary": "signed_off is true with an empty changes list, answered_at is UTC and channel is notion, remote-control, ask-user-question or terminal."
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "An H3 with signed_off false and a numbered list of changes: the proof must fail and every recording task stay blocked.",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "owner checkpoint: its file proof is evaluated by exec.py; /frontend's control: An H3 with signed_off false and a numbered list of changes: the proof must fail and every recording task stay blocked."
+     },
+     "spec": {
+      "json_checks": [
+       {
+        "check": "equals",
+        "pointer": "/signed_off",
+        "value": true
+       },
+       {
+        "check": "equals",
+        "pointer": "/changes",
+        "value": []
+       },
+       {
+        "check": "utc",
+        "pointer": "/answered_at"
+       },
+       {
+        "check": "enum",
+        "pointer": "/channel",
+        "values": [
+         "notion",
+         "remote-control",
+         "ask-user-question",
+         "terminal"
+        ]
+       }
+      ],
+      "json_pointer": "/H3",
+      "path": "C:/x/qc/repo/.execution/frontend/choices.json"
+     },
+     "type": "file"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "frontend:FE-21",
+    "template_digest": "73b6c1013209c9a652393099ee379a7ce3efd1d185b65426b81715d0b6b1f218",
+    "title": "Sign off the deployed preview at recording size (H3, owner)",
+    "tokens_est": {
+     "basis": "owner task: no agent tokens",
+     "usd_list": 0
+    },
+    "writes": [
+     ".execution/frontend/choices.json"
+    ]
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-905"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T039",
+     "T041",
+     "T043",
+     "T044",
+     "T045"
+    ],
+    "description": "The owner records the demo at recording size after FE-21's sign-off, from the frozen code, within the event's length limit.",
+    "effort": null,
+    "estimate": {
+     "p10_min": 30,
+     "p50_min": 60,
+     "p90_min": 120,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T046",
+    "key": "execution.ex-dlv-record",
+    "kind": "manual",
+    "manual": {
+     "bring_back": [
+      {
+       "description": "absolute path of the video file",
+       "key": "T046-video",
+       "kind": "file",
+       "verify": {
+        "method": "file-exists"
+       }
+      }
+     ],
+     "decision_deadline_utc": null,
+     "latest_start_utc": "2026-10-03T11:50:00Z",
+     "options": [],
+     "options_source": null,
+     "steps": [
+      "Record the demo at recording size from the frozen code, within the length limit of the event.",
+      "Reply with the absolute path of the video file."
+     ],
+     "where": "laptop"
+    },
+    "max_attempts": 2,
+    "model": null,
+    "owner": "devA",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "latest_start_rule": "cpm",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "deliverable",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "summary": "the video file exists at the path the owner gave"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "an owner deliverable",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "an owner deliverable whose file is checked by answers ingest (file-exists)"
+     },
+     "spec": {
+      "answer_key": "T046-video",
+      "attest": "the owner recorded the demo and gave its file path"
+     },
+     "type": "human-attest"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [
+     "human:devA"
+    ],
+    "story": null,
+    "template": "execution:EX-DLV-RECORD",
+    "template_digest": "af8c73da0dfcda3a2d6b39104fdcde327dab10f3cb1ae6355b310e4c7510373d",
+    "title": "Record the demo video (owner)",
+    "tokens_est": {
+     "basis": "owner task: no agent tokens",
+     "usd_list": 0
+    },
+    "writes": []
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-905"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T039",
+     "T041",
+     "T043",
+     "T046"
+    ],
+    "description": "After the recording, the owner types /prose on README.md and docs/ so the judge-facing text reads as written by the person who did the work, then merges its changes.",
+    "effort": null,
+    "estimate": {
+     "p10_min": 10,
+     "p50_min": 25,
+     "p90_min": 60,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T047",
+    "key": "execution.ex-dlv-prose",
+    "kind": "manual",
+    "manual": {
+     "bring_back": [
+      {
+       "description": "fait (or done)",
+       "key": "T047-prose",
+       "kind": "text",
+       "verify": {
+        "method": "regex",
+        "spec": "^(fait|done)\\b"
+       }
+      }
+     ],
+     "decision_deadline_utc": null,
+     "latest_start_utc": "2026-10-03T12:50:00Z",
+     "options": [],
+     "options_source": null,
+     "steps": [
+      "Type /prose on README.md and docs/ in the product repository.",
+      "Merge its changes (conventional commit), then reply « fait »."
+     ],
+     "where": "laptop"
+    },
+    "max_attempts": 2,
+    "model": null,
+    "owner": "devA",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "latest_start_rule": "cpm",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "deliverable",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "summary": "the owner confirms the /prose pass"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "an owner action",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "an owner action, nothing to falsify by script"
+     },
+     "spec": {
+      "answer_key": "T047-prose",
+      "attest": "the owner ran /prose on the README and docs and merged its changes"
+     },
+     "type": "human-attest"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [
+     "human:devA"
+    ],
+    "story": null,
+    "template": "execution:EX-DLV-PROSE",
+    "template_digest": "ddfb6311136bacaf38f4027189716455b377cfd818e292d8dc212608ce7194a9",
+    "title": "Run /prose on the README and docs (owner)",
+    "tokens_est": {
+     "basis": "owner task: no agent tokens",
+     "usd_list": 0
+    },
+    "writes": []
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-905"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T039",
+     "T041",
+     "T043",
+     "T044",
+     "T045",
+     "T046",
+     "T047"
+    ],
+    "description": "Take the README screenshots of the final UI (headless when Windows is not activated), store them under docs/screenshots/ and reference them from README.md. Last code change before the docs freeze and the tag.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 5,
+     "p50_min": 15,
+     "p90_min": 35,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T048",
+    "key": "execution.ex-dlv-screenshots",
+    "kind": "code",
+    "lane": "L5",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "sonnet",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "plant": {
+      "ops": [
+       {
+        "glob": "docs/screenshots/*",
+        "op": "delete",
+        "target": "checkout"
+       }
+      ],
+      "version": 1
+     },
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "deliverable",
+    "priority": "P2",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "README.md references screenshots that exist under docs/screenshots/ and has no TODO"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "deleting a referenced screenshot must make the check fail",
+      "expect_nonzero": true,
+      "kind": "planted-defect",
+      "patch_path": "negative-controls/execution.ex-dlv-screenshots.plant.json"
+     },
+     "spec": {
+      "cmd": "python \"C:/Users/Utilisateur/.claude/skills/execution/assets/checks/plan_checks.py\" readme --repo . --readme README.md --require-images docs/screenshots",
+      "cwd": ".",
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 120
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [
+     "browser"
+    ],
+    "story": null,
+    "template": "execution:EX-DLV-SCREENSHOTS",
+    "template_digest": "8c8c3d81795c9d8e7e8283e799375e72ef429d9830aee391992ed2bebbd066c9",
+    "title": "README screenshots, last",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": [
+     "docs/screenshots/**",
+     "README.md"
+    ]
+   },
+   {
+    "anchor": {
+     "offset_min": -60,
+     "recurrence": null,
+     "relative_to": "DL-submission"
+    },
+    "brief_refs": [],
+    "covers": [
+     "NFR-905"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T039",
+     "T041",
+     "T043",
+     "T048"
+    ],
+    "description": "The owner fills the submission form with the repository link, the video and the deck, and keeps the confirmation.",
+    "effort": null,
+    "estimate": {
+     "p10_min": 5,
+     "p50_min": 15,
+     "p90_min": 40,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T049",
+    "key": "execution.ex-dlv-form",
+    "kind": "manual",
+    "manual": {
+     "bring_back": [
+      {
+       "description": "soumis, with the confirmation",
+       "key": "T049-submitted",
+       "kind": "text",
+       "verify": {
+        "method": "owner-attest"
+       }
+      }
+     ],
+     "decision_deadline_utc": null,
+     "latest_start_utc": "2026-10-03T12:45:00Z",
+     "options": [],
+     "options_source": null,
+     "steps": [
+      "Fill the submission form with the repository link, the video and the deck.",
+      "Reply « soumis » with the confirmation text or link."
+     ],
+     "where": "laptop"
+    },
+    "max_attempts": 2,
+    "model": null,
+    "owner": "devA",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "deliverable",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "summary": "the owner confirms the submission"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "an owner deliverable",
+      "expect_nonzero": true,
+      "kind": "not-applicable",
+      "waived_reason": "an owner deliverable, nothing to falsify by script"
+     },
+     "spec": {
+      "answer_key": "T049-submitted",
+      "attest": "the owner submitted the form and kept the confirmation"
+     },
+     "type": "human-attest"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [
+     "human:devA"
+    ],
+    "story": null,
+    "template": "execution:EX-DLV-FORM",
+    "template_digest": "b7cf730a5875e9332c1dc0e6dc3cad0017777511897d6bbf8ce9f180094d51c7",
+    "title": "Submit the form (owner)",
+    "tokens_est": {
+     "basis": "owner task: no agent tokens",
+     "usd_list": 0
+    },
+    "writes": []
+   },
+   {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "NFR-905"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T039",
+     "T041",
+     "T043",
+     "T045",
+     "T048"
+    ],
+    "description": "Write RELEASE.md (the tag name, the submitted commit's date and what it contains), land it through exec.py merge, then tag the landed commit submission with an annotated tag and push the tag (never a force push). Before the push freeze.",
+    "effort": "low",
+    "estimate": {
+     "p10_min": 2,
+     "p50_min": 6,
+     "p90_min": 15,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T050",
+    "key": "execution.ex-dlv-tag",
+    "kind": "infra",
+    "lane": "L5",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "sonnet",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "deliverable",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "the tag points at the landed commit"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "before the tag task, the tag does not exist: the proof fails",
+      "expect_nonzero": true,
+      "kind": "pre-implementation"
+     },
+     "spec": {
+      "cmd": "test -f RELEASE.md && test \"$(git rev-parse 'submission^{commit}')\" = \"$(git rev-parse HEAD)\"",
+      "cwd": ".",
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 60
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-DLV-TAG",
+    "template_digest": "ec2582997e2fc10584b3015fdff0ad320531df1ce354557bb38c9f31d0bcb2a0",
+    "title": "Tag the submitted commit",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "verify": {
+     "effort": "medium",
+     "model": "sonnet"
+    },
+    "writes": [
+     "RELEASE.md"
+    ]
+   },
+   {
+    "anchor": {
+     "offset_min": 0,
+     "recurrence": null,
+     "relative_to": "DL-freeze-docs"
+    },
+    "brief_refs": [],
+    "covers": [
+     "NFR-905"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T039",
+     "T041",
+     "T043",
+     "T048"
+    ],
+    "description": "At the docs freeze, check that no commit after the freeze instant touches README.md,docs/**; the README screenshots land before it.",
+    "effort": "low",
+    "estimate": {
+     "p10_min": 1,
+     "p50_min": 3,
+     "p90_min": 10,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T051",
+    "key": "execution.ex-freeze-docs",
+    "kind": "gate",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "sonnet",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "deliverable",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "no commit after the freeze instant touches the frozen globs"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "a forged commit dated after the freeze that touches a frozen glob must exit 1",
+      "expect_nonzero": true,
+      "kind": "forgery"
+     },
+     "spec": {
+      "cmd": "python \"C:/Users/Utilisateur/.claude/skills/execution/assets/checks/plan_checks.py\" freeze --repo . --globs \"README.md,docs/**\" --at 2026-10-03T13:00:00Z",
+      "cwd": ".",
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 120
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-FREEZE-DOCS",
+    "template_digest": "53bbe3fd158e79c0f504f2fe66632021a97e22b81c77e9c6491b16f7b68fded9",
+    "title": "Freeze the documentation",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 2.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": []
+   },
+   {
+    "anchor": {
+     "offset_min": 0,
+     "recurrence": null,
+     "relative_to": "DL-push-freeze"
+    },
+    "brief_refs": [],
+    "covers": [
+     "NFR-905"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "T039",
+     "T041",
+     "T043",
+     "T050"
+    ],
+    "description": "At the push freeze (the submission deadline), check that no commit is dated after the freeze instant and that the submission tag exists; from then on every push is refused (policy.git.push_freeze_utc).",
+    "effort": "low",
+    "estimate": {
+     "p10_min": 1,
+     "p50_min": 3,
+     "p90_min": 10,
+     "source": "template:execution"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T052",
+    "key": "execution.ex-freeze-push-tag",
+    "kind": "gate",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "sonnet",
+    "owner": "agent",
+    "params": {
+     "ci_workflow": "offline-gates.yml",
+     "deliverables": "on",
+     "docs_globs": "README.md,docs/**",
+     "drive": "off",
+     "event_kind": "hackathon",
+     "flip": "off",
+     "item_templates": "off",
+     "notion_member": "true",
+     "presence": "in-person",
+     "prework_class": "none",
+     "recording_globs": "**",
+     "release_tag": "submission",
+     "slides": "off",
+     "validator_freeze": "off"
+    },
+    "phase": "deliverable",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "no commit after the push freeze"
+     },
+     "max_runtime_min": 1,
+     "negative_control": {
+      "description": "a forged commit dated after the freeze must exit 1",
+      "expect_nonzero": true,
+      "kind": "forgery"
+     },
+     "spec": {
+      "cmd": "python \"C:/Users/Utilisateur/.claude/skills/execution/assets/checks/plan_checks.py\" freeze --repo . --globs \"**\" --at 2026-10-03T13:45:00Z",
+      "cwd": ".",
+      "install": false,
+      "shell": "bash",
+      "timeout_s": 120
+     },
+     "type": "command"
+    },
+    "proof_author": "template",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": "execution:EX-FREEZE-PUSH-TAG",
+    "template_digest": "28561c4ec298b1753f468d22030980cd8bd5c8e838d4ac08562cef4002d8e32f",
+    "title": "Push and tag freeze",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 2.0
+    },
+    "verify": {
+     "effort": "high",
+     "model": "opus"
+    },
+    "writes": []
+   }
+  ],
+  "updated_utc": "2026-10-03T07:12:00Z"
+ },
+ "profile": {
+  "schema": "execution.profile/1",
+  "project": {
+   "name": "Queue Clock",
+   "slug": "queue-clock",
+   "name_owner_confirmed": false,
+   "product_repo": {
+    "path": "C:/x/qc/repo",
+    "remote_url": null,
+    "default_branch": "main"
+   },
+   "state_repo": {
+    "remote_url": null,
+    "private": true
+   }
+  },
+  "event": {
+   "kind": "hackathon",
+   "presence": "in-person",
+   "start_utc": "2026-10-03T07:45:00Z",
+   "deadline_utc": "2026-10-03T13:45:00Z",
+   "display_zones": [
+    {
+     "label": "SGT",
+     "iana": "Asia/Singapore",
+     "fallback_utc_offset_min": 480
+    },
+    {
+     "label": "Paris",
+     "iana": "Europe/Paris",
+     "fallback_utc_offset_min": 120
+    }
+   ],
+   "judging": {
+    "mode": "stage",
+    "readme_is_pitch": false,
+    "surfaces": [
+     "repo",
+     "video",
+     "live-room"
+    ]
+   },
+   "demo": {
+    "format": "recording",
+    "live_allowed": false,
+    "video": {
+     "max_s": 180,
+     "embed": "mp4"
+    }
+   },
+   "deliverables": [
+    {
+     "id": "repo",
+     "title": "Repository link",
+     "kind": "repo",
+     "due_utc": "2026-10-03T13:45:00Z",
+     "manual": false
+    },
+    {
+     "id": "video",
+     "title": "Recorded video (mp4, at most 180 s)",
+     "kind": "video",
+     "due_utc": "2026-10-03T13:45:00Z",
+     "manual": true
+    },
+    {
+     "id": "form",
+     "title": "Submission form",
+     "kind": "form",
+     "due_utc": "2026-10-03T13:45:00Z",
+     "manual": true
+    },
+    {
+     "id": "tag",
+     "title": "Tag on the submitted commit",
+     "kind": "tag",
+     "due_utc": "2026-10-03T13:45:00Z",
+     "manual": false
+    }
+   ],
+   "rubric": {
+    "tracks": [
+     {
+      "id": "main",
+      "name": "Main track",
+      "criteria": [
+       {
+        "name": "Technical depth",
+        "weight_pct": 30
+       },
+       {
+        "name": "Usefulness to the sponsor's users",
+        "weight_pct": 30
+       },
+       {
+        "name": "UX & Design",
+        "weight_pct": 20
+       },
+       {
+        "name": "Presentation",
+        "weight_pct": 20
+       }
+      ],
+      "source": "C:/x/qc/private/event-brief.md#rubric"
+     }
+    ]
+   },
+   "tracks": [
+    "main"
+   ],
+   "source": "C:/x/qc/private/event-brief.md (fictional rehearsal event, rendered 2026-10-03T07:12:00Z)"
+  },
+  "team": {
+   "devs": [
+    {
+     "id": "devA",
+     "name": "Dev A (owner)",
+     "executor": "A",
+     "setup": "full",
+     "notion_member": true,
+     "availability": [
+      {
+       "start_utc": "2026-10-03T07:02:00Z",
+       "end_utc": "2026-10-03T16:45:00Z",
+       "kind": "awake"
+      },
+      {
+       "start_utc": "2026-10-03T10:45:00Z",
+       "end_utc": "2026-10-03T11:15:00Z",
+       "kind": "talk"
+      }
+     ]
+    },
+    {
+     "id": "devB",
+     "name": "Dev B",
+     "executor": "B",
+     "setup": "full",
+     "notion_member": true,
+     "availability": []
+    }
+   ]
+  },
+  "channels": [
+   {
+    "name": "Organiser announcements",
+    "kind": "web",
+    "access": "manual-copy",
+    "url": null,
+    "cadence_min": 60
+   }
+  ],
+  "prework": {
+   "code": true,
+   "designs": false,
+   "until_utc": "2026-10-03T07:45:00Z"
+  },
+  "freezes": [
+   {
+    "id": "code-for-recording",
+    "kind": "code-for-recording",
+    "at_utc": "2026-10-03T12:15:00Z",
+    "globs": [
+     "**"
+    ]
+   },
+   {
+    "id": "docs",
+    "kind": "docs",
+    "at_utc": "2026-10-03T13:00:00Z",
+    "globs": [
+     "README.md",
+     "docs/**"
+    ]
+   },
+   {
+    "id": "push-tag",
+    "kind": "push-tag",
+    "at_utc": "2026-10-03T13:45:00Z",
+    "globs": [
+     "**"
+    ]
+   }
+  ],
+  "workspace": {
+   "private_dir": "C:/x/qc/private"
+  },
+  "paths": {
+   "never_show": "C:/x/qc/private/never-show.json",
+   "feature_catalogue": "C:/x/qc/repo/.execution/feature-catalogue.json",
+   "spec": "C:/x/qc/private/SPEC.md",
+   "research": "C:/x/qc/private/research",
+   "judge_facing": [
+    "README.md",
+    "docs/**/*.md"
+   ]
+  },
+  "phase_b": {
+   "claims_ledger": "C:/x/qc/private/claims-ledger.md",
+   "dx_journal": "C:/x/qc/private/dx-journal.md",
+   "run_sheet": "C:/x/qc/private/run-sheet.md",
+   "private": true
+  },
+  "machine": {
+   "max_lanes": 3,
+   "max_verifiers": 2,
+   "disk_floor_gb": 2.0,
+   "ram_floor_gb": 1.5,
+   "workspace_mode": "auto",
+   "lane_footprint_gb": 0.3,
+   "workflow_concurrency": 6,
+   "browser_slots": 1,
+   "scratch_root": "C:/x/qc/scratch"
+  },
+  "notion": {
+   "enabled": true,
+   "hub_page_id": null,
+   "databases": {
+    "tasks": null,
+    "waves": null
+   },
+   "views": {
+    "board": null,
+    "needs_dev_a": null,
+    "needs_dev_b": null,
+    "to_ingest": null,
+    "waves": null
+   },
+   "language": "fr",
+   "tool_suffix_match": true
+  },
+  "harden": {
+   "budget_min_p80": null,
+   "scope_paths": [],
+   "exclude_globs": [],
+   "profile_draft_path": null
+  },
+  "quota": {
+   "snapshot_path": "C:/x/qc/claude-config/usage-snapshot.json",
+   "max_age_s": 900,
+   "five_hour_critical_only_pct": 85,
+   "weekly_reserve_pct": 10
+  },
+  "heartbeat": {
+   "every_min": 20,
+   "minute_offset": 7
+  },
+  "event_tools": [],
+  "frontend": {
+   "mode": "small",
+   "run_mode": "A",
+   "judged_surface": "site",
+   "format": {
+    "stage": true,
+    "projector_zoom": 1.25,
+    "video": {
+     "max_s": 180,
+     "width": 1920,
+     "height": 1080,
+     "embed": "mp4"
+    },
+    "async_readme": false
+   },
+   "viewports": [
+    {
+     "name": "desktop",
+     "width": 1440,
+     "height": 900,
+     "dpr": 1
+    },
+    {
+     "name": "mobile",
+     "width": 390,
+     "height": 844,
+     "dpr": 2,
+     "isMobile": true,
+     "hasTouch": true
+    },
+    {
+     "name": "reflow",
+     "width": 320,
+     "height": 640,
+     "dpr": 1
+    }
+   ],
+   "record_mode": true,
+   "ready_flag": false,
+   "stack": "static-html",
+   "hosting": "local",
+   "external_requests": false,
+   "review_surface": "board",
+   "critique": {
+    "rounds_max": 1,
+    "critics": 3,
+    "probes": 5
+   },
+   "budget": {
+    "ui_hours": 2,
+    "tokens": null
+   },
+   "references": [
+    {
+     "customer": "Aave",
+     "url": "https://aave.com/",
+     "source": "C:/x/qc/private/customers.json#candidates/0",
+     "owner_confirmed": false
+    },
+    {
+     "customer": "Morpho",
+     "url": "https://morpho.org/",
+     "source": "C:/x/qc/private/customers.json#candidates/1",
+     "owner_confirmed": false
+    },
+    {
+     "customer": "EigenLayer",
+     "url": "https://www.eigencloud.xyz/",
+     "source": "C:/x/qc/private/customers.json#candidates/2",
+     "owner_confirmed": false
+    },
+    {
+     "customer": "Spark",
+     "url": "https://spark.finance/",
+     "source": "C:/x/qc/private/customers.json#candidates/3",
+     "owner_confirmed": false
+    },
+    {
+     "customer": "Euler",
+     "url": "https://www.euler.finance/",
+     "source": "C:/x/qc/private/customers.json#candidates/4",
+     "owner_confirmed": false
+    },
+    {
+     "customer": "Curve",
+     "url": "https://www.curve.finance/",
+     "source": "C:/x/qc/private/customers.json#candidates/5",
+     "owner_confirmed": false
+    }
+   ],
+   "sponsors": [
+    "lido"
+   ],
+   "tells": {
+    "score_max": null
+   },
+   "paths": {
+    "design": "design",
+    "claims_ledger": "C:/x/qc/private/claims-ledger.md",
+    "never_show": "C:/x/qc/private/never-show.json",
+    "feature_catalogue": "C:/x/qc/repo/.execution/feature-catalogue.json",
+    "spec": "C:/x/qc/private/SPEC.md",
+    "research": "C:/x/qc/private/research"
+   },
+   "workspace": {
+    "private_dir": "C:/x/qc/private"
+   }
+  }
+ },
+ "policy": {
+  "schema": "execution.policy/1",
+  "git": {
+   "commit": true,
+   "push": true,
+   "force": "never",
+   "history_rewrite": "never",
+   "push_freeze_utc": "2026-10-03T13:45:00Z",
+   "conventional_commits": true,
+   "attribution_trailers": "never"
+  },
+  "networks": {
+   "testnet": {
+    "allowed": true,
+    "chains": [
+     {
+      "chain": "ethereum",
+      "network": "hoodi",
+      "ceiling": "0.5",
+      "unit": "ETH",
+      "per": "wave"
+     }
+    ]
+   },
+   "mainnet": {
+    "mode": "read-only",
+    "setup_task": null,
+    "ceiling": null,
+    "unit": null,
+    "per_wave_ceiling": null,
+    "broadcast_patterns": [
+     "(?i)\\b(cast|forge)\\s+(send|script)\\b[^\\n]*\\bmainnet\\b",
+     "(?i)eth_sendRawTransaction[^\\n]*https?://[^\\s\"']*mainnet|https?://[^\\s\"']*mainnet[^\\n]*eth_sendRawTransaction"
+    ]
+   }
+  },
+  "deny_endpoints": [
+   {
+    "pattern": "wq-api.lido.fi",
+    "regex": false,
+    "reason": "The rehearsal uses frozen synthetic data only; the live withdrawal-queue API is out of scope (SPEC.md section 7)."
+   }
+  ],
+  "deny_commands": [
+   {
+    "pattern": "(?i)\\bp?npm\\s+publish\\b",
+    "reason": "Nothing is published from a rehearsal."
+   }
+  ],
+  "fences": {
+   "deny_read": [
+    "C:/x/qc/private/research/probes/**"
+   ],
+   "deny_write_outside_repo": true,
+   "allow_write_outside": [
+    "C:/x/qc/private/frontend/captures",
+    "C:/x/qc/scratch"
+   ]
+  },
+  "secrets": {
+   "env_file": null,
+   "agents_read_keys": false,
+   "loading": "in-process"
+  }
+ },
+ "statuses": {
+  "A": {
+   "schema": "execution.status/1",
+   "executor": "A",
+   "plan_version": 1,
+   "updated_utc": "1970-01-01T00:00:00Z",
+   "seq": 0,
+   "tasks": {}
+  },
+  "B": {
+   "schema": "execution.status/1",
+   "executor": "B",
+   "plan_version": 1,
+   "updated_utc": "1970-01-01T00:00:00Z",
+   "seq": 0,
+   "tasks": {}
+  }
+ },
+ "decisions": [
+  {
+   "schema": "execution.decision/1",
+   "record": "proposal",
+   "id": "D-001",
+   "at_utc": "2026-10-03T07:12:00Z",
+   "by": "exec@A",
+   "kind": "spec-validation",
+   "title": "Valider la spécification (9b8f7d65)",
+   "tasks": [],
+   "options": [
+    {
+     "id": "validate",
+     "label": "ok",
+     "consequence": "ok",
+     "effects": [
+      {
+       "op": "validate-spec"
+      }
+     ]
+    },
+    {
+     "id": "revise",
+     "label": "no",
+     "consequence": "no",
+     "effects": [
+      {
+       "op": "none"
+      }
+     ]
+    }
+   ],
+   "recommended": "validate",
+   "deadline_utc": null,
+   "dedup": "d9c7cec4943b2fe88c48f840a2219bb3211b820265e31ef480c20fc57d95c3f4",
+   "spec_sha256": "9b8f7d650dc7dd15480f063051f07262a3832b4d65d04154b594a2476352ce2d"
+  },
+  {
+   "schema": "execution.decision/1",
+   "record": "resolution",
+   "id": "D-001",
+   "at_utc": "2026-10-03T07:12:00Z",
+   "by": "devA",
+   "choice": "validate",
+   "source": "terminal",
+   "quote": "ok spec"
+  }
+ ],
+ "spec_text": "# Queue Clock spec\n\nFR-001 FR-002 FR-003 FR-004 FR-005 FR-006 FR-007\nSC-001 SC-002 SC-003 SC-004 SC-005\n",
+ "skills_present": {
+  "frontend.templates": true,
+  "frontend.checker": true,
+  "frontend.fragments": true
+ },
+ "gates_json": null
+}

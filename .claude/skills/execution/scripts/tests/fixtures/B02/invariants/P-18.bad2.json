@@ -1,0 +1,79 @@
+{
+ "base": "base.json",
+ "note": "a required build task that depends on the build gate",
+ "expect": [
+  "E_BUILD_GATE"
+ ],
+ "ops": [
+  {
+   "op": "append",
+   "path": "/plan/tasks",
+   "value": {
+    "anchor": null,
+    "brief_refs": [],
+    "covers": [
+     "FR-004",
+     "SC-005"
+    ],
+    "deadline_utc": null,
+    "depends_on": [
+     "#execution.ex-gate-build"
+    ],
+    "description": "ETA engine: build exactly src/engine/**.",
+    "effort": "medium",
+    "estimate": {
+     "p10_min": 6.2,
+     "p50_min": 26.7,
+     "p90_min": 46.0,
+     "source": "reference-class:build"
+    },
+    "executor": "A",
+    "feature_group": null,
+    "id": "T050",
+    "key": "late-build",
+    "kind": "code",
+    "lane": "L1",
+    "manual": null,
+    "max_attempts": 2,
+    "model": "opus",
+    "owner": "agent",
+    "params": {},
+    "phase": "build",
+    "priority": "P1",
+    "proof": {
+     "expect": {
+      "exit_code": 0,
+      "summary": "the engine tests pass"
+     },
+     "max_runtime_min": 3,
+     "negative_control": {
+      "description": "the tests fail on the parent commit",
+      "expect_nonzero": true,
+      "kind": "pre-implementation"
+     },
+     "spec": {
+      "cmd": "node --test test/engine",
+      "cwd": ".",
+      "install": true,
+      "shell": "bash"
+     },
+     "type": "command"
+    },
+    "proof_author": "test-designer",
+    "release_utc": null,
+    "required": true,
+    "resources": [],
+    "story": null,
+    "template": null,
+    "title": "Late build work",
+    "tokens_est": {
+     "basis": "reference class median list cost (ARCHITECTURE.md 7.1)",
+     "usd_list": 15.0
+    },
+    "writes": [
+     "src/engine/**"
+    ]
+   }
+  }
+ ]
+}

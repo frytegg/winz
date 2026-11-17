@@ -1,0 +1,16 @@
+{
+ "base": "base.json",
+ "note": "an amendment adding an id below the previous maximum",
+ "ops": [
+  {
+   "op": "approve"
+  },
+  {
+   "op": "amendment",
+   "added": [
+    "#execution.ex-freeze-push-tag"
+   ]
+  }
+ ],
+ "expect": []
+}

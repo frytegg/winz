@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+/* FD14-F05: a rethemed shadcn is not the tell. Defaults were: --radius: 0.625rem; --primary: oklch(0.205 0 0); */
+:root {
+  --radius: 0.25rem;
+  --background: oklch(0.98 0.01 85);
+  --foreground: oklch(0.22 0.02 260);
+  --primary: oklch(0.55 0.17 152);
+  --primary-foreground: oklch(0.99 0 0);
+  --muted: oklch(0.94 0.01 85);
+  --muted-foreground: oklch(0.5 0.02 260);
+  --border: oklch(0.88 0.01 85);
+}
+
+.dark {
+  --background: oklch(0.18 0.02 260);
+  --foreground: oklch(0.96 0.01 85);
+  --primary: oklch(0.72 0.15 152);
+}

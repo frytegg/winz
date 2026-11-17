@@ -1,0 +1,14 @@
+{
+ "base": "base.json",
+ "note": "--allow-skip in a proof spec",
+ "ops": [
+  {
+   "op": "set",
+   "path": "/plan/tasks/@engine/proof/spec/cmd",
+   "value": "node --test test/engine --allow-skip"
+  }
+ ],
+ "expect": [
+  "E_PROOF_KIND"
+ ]
+}

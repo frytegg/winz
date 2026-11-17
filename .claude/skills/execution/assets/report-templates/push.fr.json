@@ -1,0 +1,11 @@
+{
+  "schema": "execution.push-fr/1",
+  "description": "French push texts (each rendered to at most 200 characters). Placeholders are {{name}}; report.render_push fills them and fails on an unknown one. stuck: read by the Stop hook (HOOKS.md 4.3) with {{project}} only.",
+  "stuck": "execution BLOQUÉ : {{project}} a besoin de toi à l'ordinateur",
+  "wave_action": "{{project}} · {{wave}} : {{id}} {{what}} — avant {{latest}}{{more}}. Détails dans le hub.",
+  "manual": "{{project}} · {{id}} à faire : {{what}} — avant {{latest}} ({{where}}). Réponds ici ou dans le hub.",
+  "decision": "{{project}} · décision {{id}} : {{what}} — avant {{latest}}. Réponds par l'identifiant d'une option.",
+  "approval": "{{project}} : plan prêt ({{n_tasks}} tâches, fin de build P80 {{p80}}). Décision {{id}} : approve ou revise.",
+  "handover": "Build prouvé ({{final_sha8}}). Tape {{type_this_short}} avant {{harden_start_latest}}. Détails dans le hub.",
+  "notion_token": "Notion refuse le jeton : tape /login sur l'ordinateur, puis /mcp reconnect. Le build continue."
+}

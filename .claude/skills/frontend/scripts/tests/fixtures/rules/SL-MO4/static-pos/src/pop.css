@@ -1,0 +1,15 @@
+@keyframes pop {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.badge {
+  transform: scale(0);
+  transition: transform 200ms ease-out;
+}

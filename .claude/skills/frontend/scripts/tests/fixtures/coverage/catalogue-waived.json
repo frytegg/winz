@@ -1,0 +1,5 @@
+[
+  {"id": "FR-001", "group": "G1", "title": "See where a withdrawal stands in the queue", "priority": "P1", "status_expected": "testnet"},
+  {"id": "FR-003", "group": "G2", "title": "Export the queue from the command line", "priority": "P3"},
+  {"id": "FR-005", "group": "G2", "title": "A row whose waiver is not the owner's", "priority": "P3"}
+]

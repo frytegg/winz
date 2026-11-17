@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:frontend:schema:choices:1",
+  "title": "Owner choices (H1, H2, H3)",
+  "description": "choices.json in the state directory (scripts/CONTRACTS.md 6.3: H1, H2 and H3 answers with UTC times; v1.1 adds the optional canvas_url, type_release and published_at of the review canvas to H1 and H2, Q-F11). In mode A the orchestrator writes each answer from the decision or manual task (FE-04, FE-06, FE-21) after reading it through Notion or Remote Control; in mode B /frontend writes it from AskUserQuestion. Comments on a Claude Design canvas are not answers, so no such channel exists here. A key is absent until its checkpoint is answered.",
+  "type": "object",
+  "required": ["version"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"const": 1},
+    "H1": {
+      "type": "object",
+      "required": ["pick", "change", "answered_at", "by", "channel", "source"],
+      "additionalProperties": false,
+      "description": "Direction picked from {state}/directions/<A|B|C>/, or none with the owner's reason (DR-12). A none answer is valid here but leaves FE-04's proof failing, so a new round of directions follows.",
+      "properties": {
+        "pick": {"type": "string", "pattern": "^([A-C]|none)$"},
+        "reason": {"type": "string", "minLength": 1, "pattern": "\\S", "description": "Why the owner rejected every direction; required when pick is none."},
+        "change": {"$ref": "#/$defs/change"},
+        "answered_at": {"$ref": "#/$defs/utc"},
+        "by": {"$ref": "#/$defs/by"},
+        "channel": {"$ref": "#/$defs/channel"},
+        "source": {"$ref": "#/$defs/source"},
+        "canvas_url": {"$ref": "#/$defs/canvas_url"},
+        "type_release": {"$ref": "#/$defs/type_release"},
+        "published_at": {"$ref": "#/$defs/published_at"}
+      },
+      "if": {"properties": {"pick": {"const": "none"}}},
+      "then": {"required": ["reason"]}
+    },
+    "H2": {
+      "type": "object",
+      "required": ["pick", "change", "answered_at", "by", "channel", "source"],
+      "additionalProperties": false,
+      "description": "Logo candidate picked from {state}/brand/candidates/<n>/.",
+      "properties": {
+        "pick": {"type": ["string", "integer"], "pattern": "^[1-9][0-9]*$", "minimum": 1},
+        "change": {"$ref": "#/$defs/change"},
+        "answered_at": {"$ref": "#/$defs/utc"},
+        "by": {"$ref": "#/$defs/by"},
+        "channel": {"$ref": "#/$defs/channel"},
+        "source": {"$ref": "#/$defs/source"},
+        "canvas_url": {"$ref": "#/$defs/canvas_url"},
+        "type_release": {"$ref": "#/$defs/type_release"},
+        "published_at": {"$ref": "#/$defs/published_at"}
+      }
+    },
+    "H3": {
+      "type": "object",
+      "required": ["signed_off", "changes", "answered_at", "by", "channel", "source"],
+      "additionalProperties": false,
+      "description": "Sign-off of the deployed preview at recording size, after /harden's review and before any recording.",
+      "properties": {
+        "signed_off": {"type": "boolean"},
+        "changes": {"type": "array", "items": {"type": "string", "minLength": 1}, "description": "Numbered changes the owner asked for; empty when signed off."},
+        "url": {"type": "string", "format": "uri", "description": "The preview that was signed off."},
+        "answered_at": {"$ref": "#/$defs/utc"},
+        "by": {"$ref": "#/$defs/by"},
+        "channel": {"$ref": "#/$defs/channel"},
+        "source": {"$ref": "#/$defs/source"}
+      },
+      "if": {"properties": {"signed_off": {"const": false}}},
+      "then": {"properties": {"changes": {"minItems": 1}}},
+      "else": {"properties": {"changes": {"maxItems": 0}}}
+    }
+  },
+  "$defs": {
+    "utc": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "change": {"type": "string", "maxLength": 400, "description": "At most one sentence of change; empty when none."},
+    "by": {"type": "string", "minLength": 1, "description": "owner, or the developer id (devA, devB) who relayed the owner's answer."},
+    "channel": {"enum": ["notion", "remote-control", "ask-user-question", "terminal"]},
+    "source": {"type": "string", "minLength": 1, "description": "Where the answer is recorded, for example .execution/answers/T005.md or the Notion row."},
+    "canvas_url": {"type": "string", "format": "uri", "pattern": "^https://", "description": "v1.1 (Q-F11): the private review canvas the owner looked at for this checkpoint (a Claude Design artifact the orchestrator published), so the answer can be traced to what was shown. Optional; absent with review_surface board or terminal."},
+    "type_release": {"type": "string", "minLength": 1, "pattern": "\\S","description": "v1.1 (Q-F11): the release of the artifact type the canvas was made from (for example 1790818940-93cf), so a later re-read knows which canvas format it holds."},
+    "published_at": {"$ref": "#/$defs/utc", "description": "v1.1 (Q-F11): UTC time the canvas was published for the owner; before answered_at."}
+  }
+}

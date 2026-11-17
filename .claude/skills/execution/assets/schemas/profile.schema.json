@@ -1,0 +1,396 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.execution.invalid/profile.schema.json",
+  "title": ".execution/profile.json, the event profile (ARCHITECTURE.md 4.3)",
+  "description": "Built by `exec.py ingest` from drafts the orchestrator compiles from the workspace; never invents a field (a missing one is listed in ingest's data.missing). No secrets. Every path is absolute; paths a verifier needs from a clean checkout live outside the product repo. The frontend block is checked here only for the two fields /execution reads, and in full against /frontend's assets/schemas/profile-frontend.schema.json when that file exists (x-external); when it does not exist, plan-time commands stop with E_DEPENDENCY_MISSING and a decision for the owner.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "project", "event", "team", "channels", "prework", "freezes", "workspace", "paths", "phase_b", "machine", "notion", "harden", "quota", "heartbeat", "event_tools"],
+  "properties": {
+    "schema": {"const": "execution.profile/1"},
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "slug", "name_owner_confirmed", "product_repo", "state_repo"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 80},
+        "slug": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,40}$"},
+        "name_owner_confirmed": {"type": "boolean", "description": "false: plan instantiate turns 'project name' template dependencies into a decision task."},
+        "product_repo": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "remote_url", "default_branch"],
+          "properties": {
+            "path": {"$ref": "common.schema.json#/$defs/abs_path_or_null", "description": "null before T0 when the event forbids a pre-created repo."},
+            "remote_url": {"type": ["string", "null"]},
+            "default_branch": {"const": "main"}
+          }
+        },
+        "state_repo": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["remote_url", "private"],
+          "properties": {
+            "remote_url": {"type": ["string", "null"]},
+            "private": {"const": true}
+          }
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "presence", "start_utc", "deadline_utc", "display_zones", "judging", "demo", "deliverables", "rubric", "tracks", "source"],
+      "properties": {
+        "kind": {"enum": ["hackathon", "bounty", "grant", "project"]},
+        "presence": {"enum": ["in-person", "remote", "hybrid"]},
+        "start_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+        "deadline_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+        "display_zones": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["label", "iana", "fallback_utc_offset_min"],
+            "properties": {
+              "label": {"type": "string", "pattern": "^[A-Za-z]{2,12}$", "description": "SGT, Paris."},
+              "iana": {"type": "string", "pattern": "^[A-Za-z_]+(/[A-Za-z_+-]+){1,2}$"},
+              "fallback_utc_offset_min": {"type": "integer", "minimum": -720, "maximum": 840, "description": "Used, with a W_TZ_FALLBACK warning, only when zoneinfo has no tz database (stdlib-only machine without tzdata). Valid for the event window only: Paris is +120 until 2026-10-25T01:00:00Z."}
+              }
+          }
+        },
+        "judging": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "readme_is_pitch", "surfaces"],
+          "properties": {
+            "mode": {"enum": ["stage", "async", "hybrid"]},
+            "readme_is_pitch": {"type": "boolean"},
+            "surfaces": {"type": "array", "items": {"enum": ["repo", "hosted-link", "slides", "video", "readme", "live-room"]}}
+          }
+        },
+        "demo": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["format", "live_allowed", "video"],
+          "properties": {
+            "format": {"enum": ["live", "recording", "none"]},
+            "live_allowed": {"type": "boolean"},
+            "video": {
+              "anyOf": [
+                {"type": "null"},
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["max_s", "embed"],
+                  "properties": {
+                    "max_s": {"type": "integer", "minimum": 10},
+                    "embed": {"enum": ["pptx", "key", "mp4", "link"]}
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "deliverables": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "title", "kind", "due_utc", "manual"],
+            "properties": {
+              "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,40}$"},
+              "title": {"type": "string", "minLength": 1},
+              "kind": {"enum": ["repo", "link", "slides", "video", "form", "writeup", "flip", "tag", "other"]},
+              "due_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+              "manual": {"type": "boolean"}
+            }
+          }
+        },
+        "rubric": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tracks"],
+          "properties": {
+            "tracks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "name", "criteria", "source"],
+                "properties": {
+                  "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,40}$"},
+                  "name": {"type": "string", "minLength": 1},
+                  "criteria": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["name", "weight_pct"],
+                      "properties": {
+                        "name": {"type": "string", "minLength": 1},
+                        "weight_pct": {"type": "number", "minimum": 0, "maximum": 100}
+                      }
+                    }
+                  },
+                  "source": {"type": "string", "minLength": 1}
+                }
+              }
+            }
+          }
+        },
+        "tracks": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,40}$"}},
+        "source": {"type": "string", "minLength": 1, "description": "Where the event facts were read (organiser text path or URL, with the read date)."}
+      }
+    },
+    "team": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["devs"],
+      "properties": {
+        "devs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "name", "executor", "setup", "notion_member", "availability"],
+            "properties": {
+              "id": {"$ref": "common.schema.json#/$defs/dev"},
+              "name": {"type": "string", "minLength": 1},
+              "executor": {"$ref": "common.schema.json#/$defs/executor", "description": "The orchestrator that runs this dev's agent tasks; a human-only dev B is tracked by A's orchestrator (executor A)."},
+              "setup": {"enum": ["full", "human-only"]},
+              "notion_member": {"type": "boolean"},
+              "availability": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["start_utc", "end_utc", "kind"],
+                  "properties": {
+                    "start_utc": {"$ref": "common.schema.json#/$defs/utc"},
+                    "end_utc": {"$ref": "common.schema.json#/$defs/utc"},
+                    "kind": {"enum": ["awake", "sleep", "talk", "travel", "away"]}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "channels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "kind", "access", "url"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "kind": {"enum": ["discord", "telegram", "web", "email", "builderbase", "notion", "other"]},
+          "access": {"type": "string", "pattern": "^(manual-copy|fetch|mcp:[A-Za-z0-9_-]+)$"},
+          "url": {"type": ["string", "null"]},
+          "cadence_min": {"type": ["integer", "null"], "minimum": 15}
+        }
+      }
+    },
+    "prework": {
+      "description": "Authoritative for both skills (/frontend reads it; frontend.prework_designs only overrides).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "designs", "until_utc"],
+      "properties": {
+        "code": {"type": "boolean", "description": "true = code may exist before until_utc."},
+        "designs": {"type": "boolean"},
+        "until_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"}
+      }
+    },
+    "freezes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "at_utc", "globs"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,40}$"},
+          "kind": {"enum": ["validator", "contract", "code-for-recording", "docs", "push-tag"]},
+          "at_utc": {"$ref": "common.schema.json#/$defs/utc"},
+          "globs": {"$ref": "common.schema.json#/$defs/glob_list"}
+        }
+      }
+    },
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["private_dir"],
+      "properties": {
+        "private_dir": {"$ref": "common.schema.json#/$defs/abs_path", "description": "Outside every git work tree: captures, pre-T0 outputs, scratch."}
+      }
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["never_show", "feature_catalogue", "spec"],
+      "properties": {
+        "never_show": {"$ref": "common.schema.json#/$defs/abs_path"},
+        "feature_catalogue": {"$ref": "common.schema.json#/$defs/abs_path"},
+        "spec": {"$ref": "common.schema.json#/$defs/abs_path"},
+        "research": {"$ref": "common.schema.json#/$defs/abs_path_or_null"},
+        "judge_facing": {"$ref": "common.schema.json#/$defs/glob_list", "description": "Files a judge reads (TODO scan, never-show repo scope). Default: README.md, docs/**/*.md."}
+      }
+    },
+    "phase_b": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claims_ledger", "dx_journal", "run_sheet", "private"],
+      "properties": {
+        "claims_ledger": {"$ref": "common.schema.json#/$defs/abs_path_or_null"},
+        "dx_journal": {"$ref": "common.schema.json#/$defs/abs_path_or_null"},
+        "run_sheet": {"$ref": "common.schema.json#/$defs/abs_path_or_null"},
+        "private": {"type": "boolean", "description": "true: these files live outside the judge-visible repo."}
+      }
+    },
+    "machine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_lanes", "max_verifiers", "disk_floor_gb", "ram_floor_gb", "workspace_mode", "lane_footprint_gb", "workflow_concurrency", "browser_slots", "scratch_root"],
+      "properties": {
+        "max_lanes": {"type": "integer", "minimum": 1, "maximum": 6},
+        "max_verifiers": {"type": "integer", "minimum": 1, "maximum": 4},
+        "disk_floor_gb": {"type": "number", "minimum": 0.5},
+        "ram_floor_gb": {"type": "number", "minimum": 0.5},
+        "workspace_mode": {"enum": ["auto", "worktrees", "single-tree"]},
+        "lane_footprint_gb": {"type": "number", "minimum": 0},
+        "workflow_concurrency": {"type": "integer", "minimum": 1, "maximum": 16},
+        "browser_slots": {"type": "integer", "minimum": 1, "maximum": 2},
+        "scratch_root": {"$ref": "common.schema.json#/$defs/abs_path", "description": "Per-task scratch and clean checkouts: <scratch_root>/<project>/..., outside every repo; keep it short (e.g. C:/x): Windows paths are limited."},
+        "agent_command_budget_s": {"type": "integer", "minimum": 120, "maximum": 570, "description": "Wall-time budget of agent-invoked exec.py commands (merge, proof run, snapshot, proof verdict), under the Bash tool's 600 s ceiling. Default 540 (CLI.md 0.6)."}
+      }
+    },
+    "notion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "hub_page_id", "databases", "views", "language"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "hub_page_id": {"type": ["string", "null"]},
+        "databases": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tasks", "waves"],
+          "properties": {
+            "tasks": {"$ref": "#/$defs/notion_db"},
+            "waves": {"$ref": "#/$defs/notion_db"}
+          }
+        },
+        "views": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["board", "needs_dev_a", "needs_dev_b", "to_ingest", "waves"],
+          "properties": {
+            "board": {"type": ["string", "null"]},
+            "needs_dev_a": {"type": ["string", "null"]},
+            "needs_dev_b": {"type": ["string", "null"]},
+            "to_ingest": {"type": ["string", "null"]},
+            "waves": {"type": ["string", "null"]}
+          }
+        },
+        "language": {"const": "fr"},
+        "tool_suffix_match": {"const": true, "description": "Tools are matched by suffix (notion-create-pages ...), whatever the server prefix."}
+      }
+    },
+    "harden": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["budget_min_p80", "scope_paths", "exclude_globs", "profile_draft_path"],
+      "properties": {
+        "budget_min_p80": {"type": ["number", "null"], "minimum": 30, "description": "null: computed as harden's own rule (60 + 20 per in-scope KLOC, clamped 120-600) times 1.2."},
+        "scope_paths": {"$ref": "common.schema.json#/$defs/glob_list"},
+        "exclude_globs": {"$ref": "common.schema.json#/$defs/glob_list", "description": "Sources /harden cannot judge (e.g. Aiken validators), proposed for /harden <paths>."},
+        "profile_draft_path": {"$ref": "common.schema.json#/$defs/abs_path_or_null"}
+      }
+    },
+    "quota": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshot_path", "max_age_s", "five_hour_critical_only_pct", "weekly_reserve_pct"],
+      "properties": {
+        "snapshot_path": {"$ref": "common.schema.json#/$defs/abs_path"},
+        "max_age_s": {"type": "integer", "minimum": 60},
+        "five_hour_critical_only_pct": {"type": "number", "minimum": 50, "maximum": 100},
+        "weekly_reserve_pct": {"type": "number", "minimum": 0, "maximum": 50}
+      }
+    },
+    "heartbeat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["every_min", "minute_offset"],
+      "properties": {
+        "every_min": {"enum": [10, 12, 15, 20, 30], "description": "Divides 60, so the cron minutes {(offset + k*every_min) % 60} are evenly spaced (CLI.md heartbeat plan)."},
+        "minute_offset": {"type": "integer", "minimum": 1, "maximum": 59, "description": "Off-minute for the cron expression (taken modulo every_min)."}
+      }
+    },
+    "event_tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "kind", "consent", "cadence"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "kind": {"enum": ["hooks", "skill", "mcp", "other"]},
+          "consent": {"enum": ["owner-given", "pending", "refused"]},
+          "cadence": {"type": ["string", "null"]},
+          "notes": {"type": "string"}
+        }
+      }
+    },
+    "models": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "overrides": {
+          "type": "object",
+          "propertyNames": {"enum": ["orchestrator", "planner", "test-designer", "implementer-critical", "implementer", "integrator", "verifier", "reviewer", "convergence"]},
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["model", "effort"],
+            "properties": {
+              "model": {"$ref": "common.schema.json#/$defs/model"},
+              "effort": {"$ref": "common.schema.json#/$defs/effort"}
+            }
+          }
+        }
+      }
+    },
+    "frontend": {
+      "description": "/frontend's block (its CONTRACTS.md 6.1). Only mode and run_mode are checked here; full validation is external.",
+      "type": "object",
+      "required": ["mode", "run_mode"],
+      "properties": {
+        "mode": {"enum": ["full", "small"]},
+        "run_mode": {"const": "A"}
+      },
+      "x-external": {"skill": "frontend", "path": "assets/schemas/profile-frontend.schema.json", "on_missing": "decision"}
+    }
+  },
+  "$defs": {
+    "notion_db": {
+      "anyOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["database_id", "data_source_id"],
+          "properties": {
+            "database_id": {"type": "string", "minLength": 1},
+            "data_source_id": {"type": "string", "minLength": 1}
+          }
+        }
+      ]
+    }
+  }
+}

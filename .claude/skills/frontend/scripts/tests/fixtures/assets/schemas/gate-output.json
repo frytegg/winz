@@ -1,0 +1,13 @@
+{
+  "ok": false,
+  "tool": "frontend-check",
+  "version": "1",
+  "at": "2026-10-01T10:00:00Z",
+  "target": {"root": "C:/repo", "url": "http://127.0.0.1:4173/", "routes": 3, "viewports": ["desktop", "mobile"]},
+  "counts": {"ok": 1, "fail": 1, "skipped": 1},
+  "gates": [
+    {"id": "render.console", "title": "No console errors on any route", "ifDropped": "a page that throws in front of the jury would pass", "state": "ok", "detail": "0 errors on 3 routes x 2 viewports", "evidence": []},
+    {"id": "brand.icon-dark", "title": "icon.svg has a dark-mode rule", "ifDropped": "a dark favicon on a dark tab bar would pass", "state": "fail", "detail": "no prefers-color-scheme rule", "evidence": [{"file": "app/public/icon.svg", "line": 1, "value": "missing"}]},
+    {"id": "recording.g01", "title": "Key text legible after downscaling", "ifDropped": "an unreadable recording would pass", "state": "skipped", "detail": "profile has no video format"}
+  ]
+}

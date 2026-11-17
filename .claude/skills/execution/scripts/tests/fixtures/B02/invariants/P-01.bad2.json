@@ -1,0 +1,14 @@
+{
+ "base": "base.json",
+ "note": "a duplicate id",
+ "expect": [
+  "E_TASK_ID"
+ ],
+ "ops": [
+  {
+   "op": "set",
+   "path": "/plan/tasks/@engine-tests/id",
+   "value": "#engine"
+  }
+ ]
+}

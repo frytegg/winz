@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Eased-out entrances</title>
+<style>
+  body { margin: 0; font-family: Arial, sans-serif; color: #111; padding: 48px; }
+  h1 { animation: rise 300ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+  .toast { animation: leave 200ms ease-in forwards; }
+  .tip { display: inline-block; opacity: 0; transition: opacity 150ms ease-out; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes leave { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(8px); } }
+</style>
+</head>
+<body>
+  <h1>Settlement in minutes</h1>
+  <div class="toast" role="status">Saved. This toast leaves the way it came.</div>
+  <span class="tip" role="tooltip">Opens on hover</span>
+</body>
+</html>

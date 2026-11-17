@@ -1,0 +1,14 @@
+:root {
+  --background: #f4f1ea;
+  --accent: #0057b8;
+  --font-display: "IBM Plex Sans", system-ui, sans-serif;
+}
+
+body {
+  background: var(--background);
+}
+
+.alert {
+  background-color: #ffffff;
+  color: #ea580c;
+}

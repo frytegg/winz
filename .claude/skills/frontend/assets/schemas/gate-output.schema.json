@@ -1,0 +1,252 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:frontend:schema:gate-output:1",
+  "title": "Gate output (the proof format)",
+  "description": "What frontend-check --json and every check CLI print on stdout (scripts/CONTRACTS.md section 4). ok is true only when no gate is fail and no requested gate is skipped, unless the caller passed --allow-skip for that gate; a skipped gate never counts as passing. The process exits 0 if and only if every requested gate is ok.",
+  "type": "object",
+  "required": [
+    "ok",
+    "tool",
+    "version",
+    "at",
+    "target",
+    "counts",
+    "gates"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "tool": {
+      "type": "string",
+      "minLength": 1,
+      "description": "frontend-check, or the module CLI that printed the report (qa, coverage, slop-check, ...)."
+    },
+    "version": {
+      "const": "1"
+    },
+    "at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC time of the run, ISO 8601."
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "root": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Repository root the run read, or null for state-only gates."
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Base URL served or targeted, or null when no page was rendered."
+        },
+        "routes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "viewports": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      },
+      "description": "What the run targeted. lib/report.mjs writes {} when a module CLI passes no target, so each key is optional; frontend-check fills all four."
+    },
+    "counts": {
+      "type": "object",
+      "required": [
+        "ok",
+        "fail",
+        "skipped"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fail": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "advisory": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Present only when some gates are advisory: how many of the ok gates carry advisory: true (they are also counted in ok)."
+        }
+      }
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/gate"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "counts": {
+            "properties": {
+              "fail": {
+                "const": 0
+              }
+            }
+          },
+          "gates": {
+            "not": {
+              "contains": {
+                "required": [
+                  "state"
+                ],
+                "properties": {
+                  "state": {
+                    "const": "fail"
+                  }
+                }
+              }
+            },
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "gateId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$",
+      "description": "group.name as lib/report.mjs GATE_ID checks it: lowercase letters, digits and hyphens, at least one dot (render.console, brand.icon-dark, recording.g01)."
+    },
+    "gate": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "ifDropped",
+        "state",
+        "detail"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/gateId"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ifDropped": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What would be untrue if this gate were dropped."
+        },
+        "state": {
+          "enum": [
+            "ok",
+            "fail",
+            "skipped"
+          ]
+        },
+        "detail": {
+          "type": "string",
+          "description": "One line: the measured result, or why the gate was skipped."
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        },
+        "advisory": {
+          "const": true,
+          "description": "An ok that judged nothing binding: a gate that can only warn, or whose threshold is not calibrated yet (lib/report.mjs advise). It never fails a run; read it as a note, not as a passed check."
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "description": "Where a gate looked. The six keys of the contract are typed; detectors may add diagnostic keys such as rule.",
+      "properties": {
+        "route": {
+          "type": "string"
+        },
+        "viewport": {
+          "type": "string"
+        },
+        "selector": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "value": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "rule": {
+          "type": "string"
+        }
+      }
+    },
+    "gateReport": {
+      "description": "The bare report lib/report.mjs aggregate() returns when no tool is given: the same gates and counts without the header fields.",
+      "type": "object",
+      "required": [
+        "ok",
+        "counts",
+        "gates"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "counts": {
+          "$ref": "#/properties/counts"
+        },
+        "gates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/gate"
+          }
+        }
+      }
+    }
+  }
+}

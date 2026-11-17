@@ -1,0 +1,124 @@
+{
+  "project": {
+    "name": "Queue Clock",
+    "name_status": "working",
+    "source": "profile.json#project.name"
+  },
+  "sentences": {
+    "broken": "Withdrawal queues on Cardano lending pools hide when a withdrawal becomes claimable.",
+    "did": "We read the queue from the validator and show each position's claim time on preprod.",
+    "source": "research/findings/wave3/_recommendation.md:5; research/findings/wave3/_recommendation.md:6"
+  },
+  "hero": {
+    "h1": "See when your withdrawal clears",
+    "sentence": "Lenders see where their withdrawal stands in the queue and when it becomes claimable.",
+    "source": ""
+  },
+  "gap": {
+    "text": "Queue position is invisible to the lenders who wait in it",
+    "who_loses": "Lenders who exit during a run",
+    "how_much": "Not measured yet; the claims ledger holds the figure",
+    "source": "research/findings/wave3/_recommendation.md:16; research/findings/wave3/_recommendation.md:17; research/findings/wave3/_recommendation.md:18"
+  },
+  "sponsors": [
+    {
+      "id": "cardano",
+      "name": "Cardano",
+      "strategy": "",
+      "source": "profile.json#sponsors"
+    }
+  ],
+  "customers": [
+    {
+      "name": "Example Lender",
+      "category": "",
+      "url": "https://lender.example.invalid/",
+      "url_source": "research/findings/wave1/cardano-1-sponsor.md:11",
+      "owner_confirmed": false
+    }
+  ],
+  "use_case": {
+    "text": "Example Lender holds a withdrawal queue that its lenders cannot see.",
+    "source": "research/findings/wave1/cardano-1-sponsor.md:5"
+  },
+  "features": [
+    {
+      "id": "FR-001",
+      "group": "G1",
+      "title": "See where a withdrawal stands in the queue",
+      "status": "testnet",
+      "route": "/",
+      "proof": null,
+      "source": "feature-catalogue.json:2"
+    },
+    {
+      "id": "FR-002",
+      "group": "G1",
+      "title": "Estimate when a withdrawal becomes claimable",
+      "status": "planned",
+      "route": "/queue",
+      "proof": null,
+      "source": "feature-catalogue.json:3"
+    }
+  ],
+  "claims": {
+    "path": "research/findings/claims-ledger.md",
+    "ids": [
+      "C-001",
+      "A4"
+    ]
+  },
+  "never_show": [
+    {
+      "class": "embargo",
+      "pattern": "FIXTURE-ADVISORY-0042",
+      "regex": false,
+      "until_utc": "2999-01-01T00:00:00Z",
+      "source": "never-show.json:5"
+    },
+    {
+      "class": "undisclosed-security",
+      "pattern": "\\bfixture[- ]race\\b",
+      "regex": true,
+      "until_utc": null,
+      "source": "never-show.json:16"
+    },
+    {
+      "class": "never-public",
+      "pattern": "internal-endpoint.fixture.invalid",
+      "regex": false,
+      "until_utc": null,
+      "source": "never-show.json:27"
+    }
+  ],
+  "judge_path": {
+    "beats": [
+      "Open the deployed link and read the first screen.",
+      "Watch a queue position update on preprod.",
+      "Open the proof link behind the claim time."
+    ],
+    "source": "docs/45-RUNSHEET.md:5-8"
+  },
+  "missing": [
+    {
+      "field": "sponsors[cardano].strategy",
+      "action": "manual-task",
+      "why": "Read each sponsor's strategy from research/findings/wave1/cardano-1-sponsor.md and record it with file:line."
+    },
+    {
+      "field": "customers[Example Lender].category",
+      "action": "manual-task",
+      "why": "Record the category the jury will file this customer under (DeFi protocol, trading terminal, savings app, institutional desk), from the customer file with file:line."
+    },
+    {
+      "field": "features[].status",
+      "action": "manual-task",
+      "why": "No expected status for FR-002; \"planned\" is recorded until the plan or the owner gives live, testnet or simulated (BF-07)."
+    },
+    {
+      "field": "project.name_status",
+      "action": "manual-task",
+      "why": "Confirm whether \"Queue Clock\" is final; the mark (FE-05) waits until it is (BF-12)."
+    }
+  ]
+}
