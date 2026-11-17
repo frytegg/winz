@@ -174,21 +174,44 @@ select test.throws(
   '{23505}', 'chain_cursor rejects a duplicate name', 'chain_cursor_pkey'
 );
 
--- chain_txs: idempotency key, and one nonce per signer.
+-- chain_txs: idempotency key, and one nonce per signing key and chain. The fixture row holds
+-- nonce 7 of 0x4444... on chain 5042002, for the relayer role.
 select test.throws(
   $$insert into public.chain_txs (idempotency_key, signer, kind, to_address, data)
     values ('buy:pi_test_1', 'oracle', 'settle', '0x3333333333333333333333333333333333333333', '0x')$$,
   '{23505}', 'chain_txs rejects a duplicate idempotency_key', 'chain_txs_idempotency_key_key'
 );
 select test.throws(
-  $$insert into public.chain_txs (idempotency_key, signer, kind, to_address, data, nonce)
-    values ('buy:pi_test_2', 'relayer', 'buyFor', '0x3333333333333333333333333333333333333333', '0x', 7)$$,
-  '{23505}', 'chain_txs rejects a nonce already used by the signer', 'chain_txs_signer_nonce_key'
+  $$insert into public.chain_txs (idempotency_key, signer, kind, to_address, data, nonce, signer_address, chain_id)
+    values ('buy:pi_test_2', 'relayer', 'buyFor', '0x3333333333333333333333333333333333333333', '0x', 7,
+            '0x4444444444444444444444444444444444444444', 5042002)$$,
+  '{23505}', 'chain_txs rejects a duplicate (signer_address, chain_id, nonce)',
+  'chain_txs_address_chain_nonce_key'
+);
+select test.throws(
+  $$insert into public.chain_txs (idempotency_key, signer, kind, to_address, data, nonce, signer_address, chain_id)
+    values ('settle:0', 'oracle', 'settle', '0x3333333333333333333333333333333333333333', '0x', 7,
+            '0x4444444444444444444444444444444444444444', 5042002)$$,
+  '{23505}', 'chain_txs rejects the same nonce of the same key and chain for the other role',
+  'chain_txs_address_chain_nonce_key'
 );
 select test.lives(
-  $$insert into public.chain_txs (idempotency_key, signer, kind, to_address, data, nonce)
-    values ('settle:1', 'oracle', 'settle', '0x3333333333333333333333333333333333333333', '0x', 7)$$,
-  'chain_txs accepts the same nonce for the other signer'
+  $$insert into public.chain_txs (idempotency_key, signer, kind, to_address, data, nonce, signer_address, chain_id)
+    values ('buy:pi_test_5', 'relayer', 'buyFor', '0x3333333333333333333333333333333333333333', '0x', 7,
+            '0x5555555555555555555555555555555555555555', 5042002)$$,
+  'chain_txs accepts the same nonce for another address, in the same role (key rotation)'
+);
+select test.lives(
+  $$insert into public.chain_txs (idempotency_key, signer, kind, to_address, data, nonce, signer_address, chain_id)
+    values ('settle:1', 'oracle', 'settle', '0x3333333333333333333333333333333333333333', '0x', 7,
+            '0x6666666666666666666666666666666666666666', 5042002)$$,
+  'chain_txs accepts the same nonce for another address in the other role'
+);
+select test.lives(
+  $$insert into public.chain_txs (idempotency_key, signer, kind, to_address, data, nonce, signer_address, chain_id)
+    values ('buy:pi_test_6', 'relayer', 'buyFor', '0x3333333333333333333333333333333333333333', '0x', 7,
+            '0x4444444444444444444444444444444444444444', 1)$$,
+  'chain_txs accepts the same nonce of the same key on another chain'
 );
 select test.lives(
   $$insert into public.chain_txs (idempotency_key, signer, kind, to_address, data)

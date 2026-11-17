@@ -108,6 +108,12 @@ export interface ChainTx {
   value: bigint;
   payload: JsonObject;
   nonce: bigint | null;
+  /**
+   * Lowercase address of the key that signed the row, and the chain it was signed for. Set
+   * together with `nonce`: a nonce belongs to a key on a chain, not to a role.
+   */
+  signerAddress: Address | null;
+  chainId: number | null;
   txHash: Hex | null;
   status: TxStatus;
   attempts: number;

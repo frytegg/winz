@@ -133,6 +133,8 @@ export interface ChainTxSnapshot {
   kind: string;
   status: TxStatus;
   nonce: bigint | null;
+  signerAddress: string | null;
+  chainId: number | null;
   txHash: Hex | null;
   attempts: number;
   lastError: string | null;
@@ -152,6 +154,8 @@ export async function readChainTxs(db: Db): Promise<ChainTxSnapshot[]> {
       kind: string;
       status: TxStatus;
       nonce: bigint | null;
+      signer_address: string | null;
+      chain_id: number | null;
       tx_hash: string | null;
       attempts: number;
       last_error: string | null;
@@ -168,6 +172,8 @@ export async function readChainTxs(db: Db): Promise<ChainTxSnapshot[]> {
     kind: row.kind,
     status: row.status,
     nonce: row.nonce,
+    signerAddress: row.signer_address,
+    chainId: row.chain_id,
     txHash: row.tx_hash as Hex | null,
     attempts: row.attempts,
     lastError: row.last_error,
@@ -181,15 +187,21 @@ export async function readChainTxs(db: Db): Promise<ChainTxSnapshot[]> {
 
 /**
  * Why a row is not in one of the states the sender may leave behind, or `undefined` if it is.
- * `queued`: nothing assigned. `sent`: nonce, hash and signed bytes, the hash being the latest
- * attempt's. `mined` / `reverted`: also a block and a time. `failed`: no nonce, no hash.
+ * `queued`: nothing assigned. `sent`: nonce, signing address and chain, hash and signed bytes,
+ * the hash being the latest attempt's. `mined` / `reverted`: also a block and a time. `failed`: no nonce, no hash.
  */
 export function rowInconsistency(row: ChainTxSnapshot): string | undefined {
   const latest = row.senderState?.attempts[row.senderState.attempts.length - 1];
   switch (row.status) {
     case "queued":
-      if (row.nonce !== null || row.txHash !== null || row.sentAt !== null) {
-        return "queued row with a nonce, a hash or a sent time";
+      if (
+        row.nonce !== null ||
+        row.txHash !== null ||
+        row.sentAt !== null ||
+        row.signerAddress !== null ||
+        row.chainId !== null
+      ) {
+        return "queued row with a nonce, a signing key, a hash or a sent time";
       }
       if (row.senderState !== undefined) return "queued row with a signed transaction";
       return undefined;
@@ -202,6 +214,9 @@ export function rowInconsistency(row: ChainTxSnapshot): string | undefined {
     case "reverted":
       if (row.nonce === null || row.txHash === null || row.sentAt === null) {
         return `${row.status} row without nonce, hash or sent time`;
+      }
+      if (row.signerAddress === null || row.chainId === null) {
+        return `${row.status} row without its signing address or chain`;
       }
       if (!latest || !/^0x[0-9a-f]+$/.test(latest.raw)) {
         return `${row.status} row without its signed transaction`;
