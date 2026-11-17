@@ -119,7 +119,7 @@ Tous parallèles entre eux dès que F-05 est figé. Lot à lancer ensemble : C-0
   Fini quand : le contrat est déployé et vérifié sur Arc testnet, son adresse est dans la config, l'ABI est importée par le moteur.
 
 ### Tarification
-- [ ] **P-01** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : F-05 · PR-1, PR-2, PR-4, PR-5
+- [x] **P-01** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : F-05 · PR-1, PR-2, PR-4, PR-5
   `packages/pricing` : frais taker et maker, seuil de pause, coût marginal, `limits` (c_max, p_max, coût par vente, capacité), calcul du devis (`maxHedgeCost`), modèles de promo pour un événement.
   Fini quand : l'exemple de Joe de la section 4.3 est un test (p_max = 18 %, vente à 12 % ≈ 2,55 $), les cas limites de la section 15 passent, couverture ≥ 90 %.
 
