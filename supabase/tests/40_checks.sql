@@ -342,3 +342,22 @@ select test.count_is(
   $$select count(*) from public.instruments where active$$, 3,
   'instruments are active by default'
 );
+
+-- Order books shared between the engine and the web app (third migration).
+select test.throws(
+  $$update public.book_cache set source = 'guess'$$,
+  '{23514}', 'book_cache rejects an unknown source', 'book_cache_source_known'
+);
+select test.throws(
+  $$update public.book_cache set asks = '{}'::jsonb$$,
+  '{23514}', 'book_cache rejects asks that are not an array', 'book_cache_asks_is_array'
+);
+select test.throws(
+  $$insert into public.book_cache (symbol, observed_at, source) values ('GEMI-UNKNOWN', now(), 'ws')$$,
+  '{23503}', 'a book needs its instrument'
+);
+select test.throws(
+  $$insert into public.tracked_instruments (symbol, requested_at, expires_at)
+    values ('GEMI-NCAAF-2611212030-ARK-TEX-S-TEX13', now(), now() - interval '1 second')$$,
+  '{23514}', 'a tracking request cannot expire before it was made', 'tracked_instruments_expiry_after_request'
+);
