@@ -406,3 +406,10 @@ select test.throws(
     values ('GEMI-NCAAF-2611212030-ARK-TEX-S-TEX13', now(), now() - interval '1 second')$$,
   '{23514}', 'a tracking request cannot expire before it was made', 'tracked_instruments_expiry_after_request'
 );
+
+-- The resale result of a hedge surplus may be a loss (fifth migration).
+update public.engine_pnl set resale_result = -1250000 where event_ticker = 'NCAAF-2611212030-ARK-TEX-M';
+select test.ok(
+  (select resale_result from public.engine_pnl where event_ticker = 'NCAAF-2611212030-ARK-TEX-M') = -1250000,
+  'engine_pnl.resale_result accepts a negative amount'
+);
