@@ -18,6 +18,14 @@ const webEnvSchema = z.object({
   PRIVY_APP_SECRET: z.string().min(1),
   NEXT_PUBLIC_PRIVY_APP_ID: z.string().min(1),
   QUICKNODE_STREAMS_TOKEN: z.string().min(1),
+  /**
+   * Address of the deployed WinzEscrow on Arc testnet, shown in the collapsed "technical details"
+   * of a campaign. Optional: until the contract is deployed, `onchain` is null in the answers.
+   */
+  ARC_ESCROW_ADDRESS: z
+    .string()
+    .regex(/^0x[0-9a-fA-F]{40}$/, "an address: 0x followed by 40 hex digits")
+    .optional(),
 });
 
 export type WebEnv = z.infer<typeof webEnvSchema>;
