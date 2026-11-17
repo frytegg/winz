@@ -12,5 +12,22 @@ export {
   PermanentJobError,
   RetryLaterError,
 } from "./errors";
+export {
+  createCampaignCreationHandler,
+  createCloseSalesHandler,
+  createPurchaseHandler,
+  createSetPausedHandler,
+  JobStateError,
+  PURCHASE_MESSAGES,
+  registerJobHandlers,
+  resolveJobHandlerOptions,
+  startJobs,
+  type BookSource,
+  type JobHandlerDeps,
+  type JobHandlerOptions,
+  type JobsService,
+  type SaleRefusalReason,
+  type StartJobsOptions,
+} from "./handlers";
 export { JobWorker } from "./worker";
 export type { Clock, JobContext, JobHandler, JobWorkerConfig, JobWorkerOptions } from "./worker";
