@@ -147,7 +147,7 @@ Tous parallèles entre eux dès que F-05 est figé. Lot à lancer ensemble : C-0
   Fini quand : le même événement reçu par deux sources ne crée qu'une ligne, un arrêt de 5 minutes est rattrapé au redémarrage.
 
 ### Jobs
-- [ ] **J-01** · Qui : Agent `coder`, relu par A · Dép. : D-01
+- [x] **J-01** · Qui : Agent `coder`, relu par A · Dép. : D-01
   File de jobs sur Postgres : prise avec verrou, reprises avec attente, clé d'idempotence, journal des échecs.
   Fini quand : deux workers ne traitent jamais le même job, un job en échec est repris puis mis de côté après N essais.
 
