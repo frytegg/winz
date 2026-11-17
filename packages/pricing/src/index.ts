@@ -21,7 +21,7 @@ export {
 export { marginalTakerCost, marginalTakerFill } from "./marginal-cost";
 export type { TakerFill } from "./marginal-cost";
 
-export { QUOTE_REFUSAL_SALE_STATE, computeQuote, saleStateForQuote } from "./quote";
+export { QUOTE_REFUSAL_SALE_STATE, computeQuote, guaranteeCap, saleStateForQuote } from "./quote";
 export type {
   AcceptedQuote,
   MarketInput,
