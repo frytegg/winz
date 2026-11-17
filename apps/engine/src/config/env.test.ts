@@ -7,6 +7,7 @@ const valid = {
   DB_URL: "postgres://user:pass@localhost:5432/winz",
   ARC_RPC_URL: "https://example.quiknode.pro/abc",
   ARC_ESCROW_ADDRESS: "0x1111111111111111111111111111111111111111",
+  ARC_ESCROW_DEPLOY_BLOCK: "72727350",
   ARC_RELAYER_PRIVATE_KEY: `0x${"11".repeat(32)}`,
   ARC_ORACLE_PRIVATE_KEY: `0x${"22".repeat(32)}`,
   STRIPE_SECRET_KEY: "sk_test_123",
@@ -18,6 +19,7 @@ describe("loadEngineEnv", () => {
   it("applies defaults for Arc testnet and Gemini", () => {
     const env = loadEngineEnv(valid);
     expect(env.ARC_CHAIN_ID).toBe(5_042_002);
+    expect(env.ARC_ESCROW_DEPLOY_BLOCK).toBe(72_727_350n);
     expect(env.ARC_USDC_ADDRESS).toBe("0x3600000000000000000000000000000000000000");
     expect(env.GEMINI_API_URL).toBe("https://api.gemini.com");
     expect(env.APP_EXECUTION_VENUE).toBe("paper");
