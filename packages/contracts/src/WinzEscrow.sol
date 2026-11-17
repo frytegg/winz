@@ -124,8 +124,9 @@ contract WinzEscrow is IWinzEscrow, Ownable, EIP712, ReentrancyGuard {
         returns (uint64 id)
     {
         if (
-            merchant == address(0) || params.unitPrice == 0 || params.refundBps == 0
-                || params.refundBps > BPS_DENOMINATOR || params.salesClose <= block.timestamp
+            merchant == address(0) || merchant == address(this) || params.unitPrice == 0
+                || params.refundBps == 0 || params.refundBps > BPS_DENOMINATOR
+                || params.salesClose <= block.timestamp
         ) revert InvalidParams();
 
         id = ++campaignCount;

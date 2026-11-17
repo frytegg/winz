@@ -172,13 +172,13 @@ contract EscrowHandler is CommonBase, StdCheats, StdUtils {
 
         _recordTicket(ticketId, true);
         TicketGhost memory t = ticketGhost[ticketId];
-        if (treasuryBefore - usdc.balanceOf(treasury) != t.paid) {
+        if (!_fell(treasuryBefore, usdc.balanceOf(treasury), t.paid)) {
             _violate("buyFor: treasury did not pay `paid`");
         }
-        if (usdc.balanceOf(c.merchant) - merchantBefore != t.paid - t.refundable) {
+        if (!_rose(merchantBefore, usdc.balanceOf(c.merchant), t.paid - t.refundable)) {
             _violate("buyFor: merchant did not get paid - refundable");
         }
-        if (usdc.balanceOf(address(escrow)) - escrowBefore != t.refundable) {
+        if (!_rose(escrowBefore, usdc.balanceOf(address(escrow)), t.refundable)) {
             _violate("buyFor: escrow did not get refundable");
         }
         _count("buyFor");
@@ -247,7 +247,9 @@ contract EscrowHandler is CommonBase, StdCheats, StdUtils {
         escrow.chargeHedge(ids, amounts);
 
         if (amount > t.maxHedgeCost) _violate("chargeHedge: charged above the guarantee");
-        if (usdc.balanceOf(treasury) - treasuryBefore != amount) _violate("chargeHedge: treasury delta");
+        if (!_rose(treasuryBefore, usdc.balanceOf(treasury), amount)) {
+            _violate("chargeHedge: treasury delta");
+        }
         campaignGhost[t.campaignId].charged += amount;
         _count("chargeHedge");
     }
@@ -297,10 +299,10 @@ contract EscrowHandler is CommonBase, StdCheats, StdUtils {
         vm.prank(caller);
         escrow.payMerchant(id);
 
-        if (usdc.balanceOf(c.merchant) - merchantBefore != c.merchantDue) {
+        if (!_rose(merchantBefore, usdc.balanceOf(c.merchant), c.merchantDue)) {
             _violate("payMerchant: merchant delta");
         }
-        if (treasuryBefore - usdc.balanceOf(treasury) != c.merchantDue) {
+        if (!_fell(treasuryBefore, usdc.balanceOf(treasury), c.merchantDue)) {
             _violate("payMerchant: treasury delta");
         }
         merchantPaid += c.merchantDue;
@@ -328,7 +330,10 @@ contract EscrowHandler is CommonBase, StdCheats, StdUtils {
         escrow.refundBatch(id, ids);
 
         uint256 lockedAfter = escrow.getCampaign(id).lockedRefunds;
-        if (escrowBefore - usdc.balanceOf(address(escrow)) != lockedBefore - lockedAfter) {
+        if (
+            lockedAfter > lockedBefore
+                || !_fell(escrowBefore, usdc.balanceOf(address(escrow)), lockedBefore - lockedAfter)
+        ) {
             _violate("refundBatch: escrow outflow != lockedRefunds decrease");
         }
         _count("refundBatch");
@@ -345,7 +350,9 @@ contract EscrowHandler is CommonBase, StdCheats, StdUtils {
         vm.prank(caller);
         escrow.release(id);
 
-        if (usdc.balanceOf(c.merchant) - merchantBefore != expected) _violate("release: merchant delta");
+        if (!_rose(merchantBefore, usdc.balanceOf(c.merchant), expected)) {
+            _violate("release: merchant delta");
+        }
         _count("release");
     }
 
@@ -358,7 +365,9 @@ contract EscrowHandler is CommonBase, StdCheats, StdUtils {
         vm.prank(caller);
         escrow.emergencyClaim(ticketId);
 
-        if (usdc.balanceOf(t.buyer) - buyerBefore != t.refundable) _violate("emergencyClaim: buyer delta");
+        if (!_rose(buyerBefore, usdc.balanceOf(t.buyer), t.refundable)) {
+            _violate("emergencyClaim: buyer delta");
+        }
         _count("emergencyClaim");
     }
 
@@ -371,7 +380,7 @@ contract EscrowHandler is CommonBase, StdCheats, StdUtils {
         vm.prank(caller);
         escrow.emergencyReleaseBudget(id);
 
-        if (usdc.balanceOf(c.merchant) - merchantBefore != c.hedgeBudget - c.hedgeSpent) {
+        if (!_rose(merchantBefore, usdc.balanceOf(c.merchant), c.hedgeBudget - c.hedgeSpent)) {
             _violate("emergencyReleaseBudget: merchant delta");
         }
         _count("emergencyReleaseBudget");
@@ -518,7 +527,7 @@ contract EscrowHandler is CommonBase, StdCheats, StdUtils {
         vm.prank(oracle);
         escrow.chargeHedge(ids, amounts);
 
-        if (usdc.balanceOf(treasury) - treasuryBefore != sum) _violate("chargeAll: treasury delta");
+        if (!_rose(treasuryBefore, usdc.balanceOf(treasury), sum)) _violate("chargeAll: treasury delta");
         campaignGhost[id].charged += sum;
     }
 
@@ -529,6 +538,18 @@ contract EscrowHandler is CommonBase, StdCheats, StdUtils {
 
     function _count(string memory action) internal {
         ++calls[keccak256(bytes(action))];
+    }
+
+    /// @dev True when a balance or counter went from `b` up to `a` by exactly `expected`. A move in the
+    ///      wrong direction returns false instead of panicking on `a - b`: with fail_on_revert off,
+    ///      the invariant campaign would discard that revert and the violation would go unseen.
+    function _rose(uint256 b, uint256 a, uint256 expected) internal pure returns (bool) {
+        return a >= b && a - b == expected;
+    }
+
+    /// @dev True when it went from `b` down to `a` by exactly `expected`; see `_rose`.
+    function _fell(uint256 b, uint256 a, uint256 expected) internal pure returns (bool) {
+        return b >= a && b - a == expected;
     }
 
     function _violate(string memory what) internal {
