@@ -1,0 +1,17 @@
+{
+  "references": [
+    {"id": "R1", "customer": "Ledgerline Ltd", "url": "https://light.example/", "page": "/", "captured_at": "2026-10-01T10:00:00Z", "viewports": ["desktop", "mobile"], "receipt": "captures/light.example/index/gate-receipt.json", "purged": true},
+    {"id": "R2", "customer": "Nightdesk Inc", "url": "https://dark.example/", "page": "/", "captured_at": "2026-10-01T10:05:00Z", "viewports": ["desktop", "mobile"], "receipt": "captures/dark.example/index", "purged": true},
+    {"id": "R3", "customer": "Clearline", "url": "https://clear.example/", "page": "/", "captured_at": "2026-10-01T10:10:00Z", "viewports": ["desktop"], "receipt": "manual-notes", "purged": false}
+  ],
+  "patterns": [
+    {"id": "P1", "kind": "convention", "statement": "At most two filled calls to action above the fold", "values": {"R1": 2, "R2": 1}, "from": ["R1", "R2"], "not_borrowed": "button labels and colours"},
+    {"id": "P2", "kind": "relationship", "statement": "Body text near 16 to 18 px with the headline about three times larger", "values": {"R1": {"body": 16, "h1Ratio": 3.05}, "R2": {"body": 18, "h1Ratio": 3.56}}, "from": ["R1", "R2"], "not_borrowed": ["font families", "exact sizes"]},
+    {"id": "P3", "kind": "fact", "statement": "R1 shows a row of three figures with small labels below them", "values": {"count": 3, "labels": "below", "accent": "#2f5bd3"}, "from": ["R1"], "not_borrowed": "the figures, their wording and the accent colour"},
+    {"id": "P4", "kind": "domain", "statement": "Amounts use tabular figures and thousands separators", "values": {"R1": {"tabular": 1}, "R3": "owner's notes: tabular figures"}, "from": ["R1", "R3"], "not_borrowed": "currencies and amounts"}
+  ],
+  "excluded": [
+    "logos and wordmarks",
+    {"what": "R2 hero canvas animation", "why": "a signature visual of one site", "ref": "R2"}
+  ]
+}

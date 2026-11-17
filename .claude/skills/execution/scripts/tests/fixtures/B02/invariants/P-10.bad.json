@@ -1,0 +1,23 @@
+{
+ "base": "base.json",
+ "note": "two unjoined holders of wallet:hot; browser is serialized, not ordered",
+ "ops": [
+  {
+   "op": "set",
+   "path": "/plan/tasks/@lookup/resources",
+   "value": [
+    "wallet:hot"
+   ]
+  },
+  {
+   "op": "set",
+   "path": "/plan/tasks/@health-data/resources",
+   "value": [
+    "wallet:hot"
+   ]
+  }
+ ],
+ "expect": [
+  "E_RESOURCE_OVERLAP"
+ ]
+}

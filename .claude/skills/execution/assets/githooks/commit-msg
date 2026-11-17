@@ -1,0 +1,27 @@
+#!/bin/sh
+# /execution portable commit-msg hook, written into <repo>/.githooks/ by `exec.py init` (core.hooksPath=.githooks).
+# It refuses a message that carries an AI-attribution trailer or a "Generated with" line, and a message whose first
+# line is not a conventional-commit header. The trailer patterns are assembled from parts so that this file never
+# holds the literal trailer text itself.
+msg_file="$1"
+if [ ! -f "$msg_file" ]; then
+  echo "commit-msg: the message file is missing" >&2
+  exit 1
+fi
+co="Co""-Authored""-By"
+so="Signed""-off""-by"
+gen="Generated"" with"
+if grep -Eiq "($co|$so)[[:space:]]*:" "$msg_file"; then
+  echo "commit-msg: refused, the message carries an AI-attribution trailer (no attribution trailers in this repo)" >&2
+  exit 1
+fi
+if grep -Eiq "$gen[[:space:]]+\\[?claude" "$msg_file"; then
+  echo "commit-msg: refused, the message carries a generated-with line" >&2
+  exit 1
+fi
+first=$(grep -v '^#' "$msg_file" | grep -v '^[[:space:]]*$' | head -n 1)
+if ! printf '%s\n' "$first" | grep -Eq '^(feat|fix|refactor|test|docs|chore|perf|ci|build|revert)(\([^)]+\))?!?: [^[:space:]]'; then
+  echo "commit-msg: refused, the first line must be a conventional-commit header, e.g. 'feat(api): add the queue endpoint'" >&2
+  exit 1
+fi
+exit 0

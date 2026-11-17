@@ -1,0 +1,17 @@
+{
+  "waivers": [
+    {"rule": "SL-T02", "scope": "/ #title", "reason": "The heading treatment is the sponsor's documented display style", "evidence": "FD11-F19", "approved_by": "owner", "date": "2026-10-01"},
+    {"rule": "SL-T02", "scope": "/about h1", "reason": "Same heading style on the about page", "evidence": ["FD11-F19"], "approved_by": "owner", "date": "2026-10-01"},
+    {"rule": "SL-X02", "scope": "src/placeholder.js", "reason": "The fixture keeps one placeholder on purpose", "evidence": "tests/slop-check", "approved_by": "research", "date": "2026-10-01"},
+    {"rule": "SL-T09", "scope": "/", "reason": "The badge states the real testnet status with its contract link", "evidence": "claims ledger C-001", "approved_by": "owner", "date": "2026-10-01"},
+    {"rule": "SL-M04", "scope": "main #stats", "reason": "Every figure in the row carries a ledger id", "evidence": "claims ledger C-002", "approved_by": "owner", "date": "2026-10-01"},
+    {"rule": "SL-T01", "scope": "/ #hero-bg", "reason": "ClaimCo brand gradient behind the hero", "evidence": "FD21", "approved_by": "owner", "date": "2026-10-01"},
+    {"rule": "SL-T04", "scope": "/ #body-copy", "reason": "", "evidence": "", "approved_by": "research", "date": null},
+    {"rule": "SL-T02", "scope": "/pricing h1", "reason": "An old page", "evidence": "none", "approved_by": "owner", "date": "2026-09-01"}
+  ],
+  "category": [
+    {"rule": "SL-T04", "category": "defi-lending", "reason": "Lending dashboards set body text in Inter", "source": "FD11-F19"},
+    {"rule": "SL-C01", "category": "defi-lending", "reason": "Pill actions are the category's convention", "source": "pattern-ledger P-004"},
+    {"rule": "SL-G01", "category": "defi-lending", "reason": "Recorded to prove a rule without the category allowlist ignores it", "source": "tests/slop-check"}
+  ]
+}

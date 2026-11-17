@@ -1,0 +1,6 @@
+{
+ "base": "base2.json",
+ "note": "executor B used with no dev B (ok: base2 has dev B and its tasks)",
+ "ops": [],
+ "expect": []
+}

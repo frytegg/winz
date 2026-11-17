@@ -1,0 +1,286 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.execution.invalid/local-state.schema.json",
+  "title": "Machine-local run state: .execution/local/state.json (git-ignored)",
+  "description": "A cache, never the source of truth: everything in it can be rebuilt by `exec.py events replay --rebuild-state` from events.jsonl, the status files, the receipts and the decisions (the quota override included), except the Notion mirror map (rebuilt by one view-mode query of the board). Written only by exec.py under the state lock. Two sibling files have their own writers and schemas here: local/active (#/$defs/active_marker; written by hooks install/uninstall, handover and resume --takeover, session fields by the hooks) and local/hooks-state.json (#/$defs/hooks_state; written only by hook scripts).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "executor", "project", "run_state", "run_state_since_utc", "events_seq", "plan_sha256", "waves", "awaiting", "heartbeat", "watchers", "governor", "quota", "notion", "flags", "hooks", "calibration", "last_tick_utc", "settings_backup"],
+  "properties": {
+    "schema": {"const": "execution.local-state/1"},
+    "executor": {"$ref": "common.schema.json#/$defs/executor"},
+    "project": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,40}$"},
+    "run_state": {"$ref": "common.schema.json#/$defs/run_state"},
+    "run_state_since_utc": {"$ref": "common.schema.json#/$defs/utc"},
+    "previous_run_state": {"anyOf": [{"$ref": "common.schema.json#/$defs/run_state"}, {"type": "null"}]},
+    "events_seq": {"type": "integer", "minimum": 0},
+    "plan_sha256": {"anyOf": [{"$ref": "common.schema.json#/$defs/sha256"}, {"type": "null"}]},
+    "waves": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["wave", "status", "manifest", "run_id", "launched_utc", "finished_utc", "tasks"],
+        "properties": {
+          "wave": {"$ref": "common.schema.json#/$defs/wave_id"},
+          "status": {"enum": ["emitted", "launching", "launched", "launch-failed", "finished", "ingested", "abandoned"]},
+          "manifest": {"$ref": "common.schema.json#/$defs/state_rel_path"},
+          "run_id": {"type": ["string", "null"]},
+          "transcript_dir": {"$ref": "common.schema.json#/$defs/abs_path_or_null"},
+          "session_id": {"type": ["string", "null"], "description": "resumeFromRunId works only in this session."},
+          "launched_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+          "finished_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+          "tasks": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/task_id"}}
+        }
+      }
+    },
+    "awaiting": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "ref", "since_utc", "latest_utc"],
+        "properties": {
+          "kind": {"enum": ["manual", "decision"]},
+          "ref": {"type": "string", "pattern": "^(T[0-9]{3,}|D-[0-9]{3,})$"},
+          "since_utc": {"$ref": "common.schema.json#/$defs/utc"},
+          "latest_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"}
+        }
+      }
+    },
+    "heartbeat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cron_id", "cron_expr", "prompt", "recorded_utc", "session_id"],
+      "properties": {
+        "cron_id": {"type": ["string", "null"], "description": "Recorded by the orchestrator after CronCreate (exec.py cannot see crons; the Stop gate reads session_crons, and this record only when the array is absent)."},
+        "cron_expr": {"type": ["string", "null"]},
+        "prompt": {"type": "string"},
+        "recorded_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+        "session_id": {"type": ["string", "null"], "description": "CLAUDE_CODE_SESSION_ID at record time. Crons are session-scoped: the Stop gate counts this record only when it equals the marker's bound session_id; a re-key or a takeover clears the record."}
+      }
+    },
+    "watchers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "description", "started_utc"],
+        "properties": {
+          "kind": {"enum": ["ci", "chain", "monitor", "other"]},
+          "description": {"type": "string"},
+          "started_utc": {"$ref": "common.schema.json#/$defs/utc"},
+          "expires_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"}
+        }
+      }
+    },
+    "governor": {
+      "anyOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["at_utc", "disk_free_gb", "ram_free_gb", "commit_free_gb", "ac_power", "network", "harden_active", "decision"],
+          "properties": {
+            "at_utc": {"$ref": "common.schema.json#/$defs/utc"},
+            "disk_free_gb": {"type": ["number", "null"]},
+            "scratch_disk_free_gb": {"type": ["number", "null"]},
+            "ram_free_gb": {"type": ["number", "null"]},
+            "commit_free_gb": {"type": ["number", "null"]},
+            "ac_power": {"type": ["boolean", "null"]},
+            "network": {"type": ["boolean", "null"]},
+            "harden_active": {"type": "boolean"},
+            "decision": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["pause", "lanes", "verifiers", "browser_slots", "workspace_mode", "reasons"],
+              "properties": {
+                "pause": {"type": "boolean"},
+                "lanes": {"type": "integer", "minimum": 0},
+                "verifiers": {"type": "integer", "minimum": 0},
+                "browser_slots": {"type": "integer", "minimum": 0},
+                "workspace_mode": {"enum": ["worktrees", "single-tree"]},
+                "reasons": {"$ref": "common.schema.json#/$defs/string_list"}
+              }
+            }
+          }
+        }
+      ]
+    },
+    "quota": {
+      "anyOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["at_utc", "snapshot_age_s", "five_hour_pct", "five_hour_resets_utc", "seven_day_pct", "seven_day_resets_utc", "decision"],
+          "properties": {
+            "at_utc": {"$ref": "common.schema.json#/$defs/utc"},
+            "snapshot_age_s": {"type": ["integer", "null"]},
+            "five_hour_pct": {"type": ["number", "null"]},
+            "five_hour_resets_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+            "seven_day_pct": {"type": ["number", "null"]},
+            "seven_day_resets_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+            "decision": {"enum": ["normal", "critical-only", "pause", "unknown"]},
+            "pause_until_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+            "limit_evidence_utc": {"$ref": "common.schema.json#/$defs/utc_or_null", "description": "The newest stop.failure rate_limit event or null storm (CLI.md quota rule 1)."},
+            "override": {
+              "anyOf": [
+                {"type": "null"},
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["mode", "until_utc", "decision"],
+                  "properties": {
+                    "mode": {"enum": ["extra-usage", "critical-only"]},
+                    "until_utc": {"$ref": "common.schema.json#/$defs/utc"},
+                    "decision": {"$ref": "common.schema.json#/$defs/decision_id"}
+                  }
+                }
+              ],
+              "description": "Set by a resolved quota decision's quota-override effect; rebuilt from the decision by events replay."
+            }
+          }
+        }
+      ]
+    },
+    "notion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pages", "hashes", "pending_batches", "outbox_count", "last_ok_utc", "token_ok", "last_hub_text_sha256"],
+      "properties": {
+        "pages": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Row key (T012, D-003, wave:W03) -> Notion page id."},
+        "hashes": {"type": "object", "additionalProperties": {"$ref": "common.schema.json#/$defs/sha256"}, "description": "Row key -> sha256 of the orchestrator-owned properties last acknowledged."},
+        "pending_batches": {"type": "array", "items": {"type": "string"}},
+        "outbox_count": {"type": "integer", "minimum": 0},
+        "last_ok_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+        "token_ok": {"type": ["boolean", "null"]},
+        "last_hub_text_sha256": {"anyOf": [{"$ref": "common.schema.json#/$defs/sha256"}, {"type": "null"}]}
+      }
+    },
+    "flags": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mainnet_open", "push_frozen"],
+      "properties": {
+        "mainnet_open": {"type": "boolean", "description": "Derived: policy.mainnet.mode == after-setup AND the setup task is done. Read by the guard."},
+        "push_frozen": {"type": "boolean"}
+      }
+    },
+    "hooks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["installed_utc", "settings_path", "canary_ok_utc"],
+      "properties": {
+        "installed_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+        "settings_path": {"$ref": "common.schema.json#/$defs/abs_path_or_null"},
+        "canary_ok_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+        "permission_mode": {"type": ["string", "null"], "description": "Recorded by the binding canary from the PreToolUse payload (PF-20)."},
+        "probe_ok_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+        "agent_role_source": {"enum": ["settings", "agent-only", "none", null], "description": "agents probe-check: which hook layer resolved the custom agent types."},
+        "agent_session_scoped": {"type": "boolean", "description": "agents probe-check: workflow agents' payload session_id equals the bound session id (HOOKS.md 2.2). False until a probe passed: every agent in the repository is then guarded."}
+      }
+    },
+    "calibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ratios", "samples", "pct_per_agent_hour"],
+      "properties": {
+        "ratios": {"type": "object", "additionalProperties": {"type": "number", "exclusiveMinimum": 0}, "description": "kind -> geometric mean of actual/p50 over done tasks."},
+        "samples": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+        "pct_per_agent_hour": {"type": ["number", "null"], "description": "Weekly-window percent consumed per agent-hour, from snapshot deltas across waves."}
+      }
+    },
+    "stuck": {
+      "anyOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["at_utc", "reason", "source"],
+          "properties": {
+            "at_utc": {"$ref": "common.schema.json#/$defs/utc"},
+            "reason": {"type": "string"},
+            "source": {"enum": ["stop-gate", "stop-failure", "tick", "governor", "quota"]}
+          }
+        }
+      ]
+    },
+    "last_tick_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+    "settings_backup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["switchModelsOnFlag_present", "switchModelsOnFlag_value"],
+      "properties": {
+        "switchModelsOnFlag_present": {"type": "boolean"},
+        "switchModelsOnFlag_value": {}
+      }
+    }
+  },
+  "$defs": {
+    "active_marker": {
+      "description": "local/active: the run marker every hook checks first (one stat). session_id null with a bind_nonce = binding pending.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "executor", "project", "repo", "state_dir", "session_id", "bind_nonce", "previous_session_ids", "created_utc", "rekey_armed_until_utc"],
+      "properties": {
+        "schema": {"const": "execution.active/1"},
+        "executor": {"$ref": "common.schema.json#/$defs/executor"},
+        "project": {"type": "string"},
+        "repo": {"$ref": "common.schema.json#/$defs/abs_path"},
+        "state_dir": {"$ref": "common.schema.json#/$defs/abs_path"},
+        "session_id": {"type": ["string", "null"]},
+        "bind_nonce": {"type": ["string", "null"], "pattern": "^[0-9a-f]{16}$"},
+        "previous_session_ids": {"type": "array", "items": {"type": "string"}},
+        "created_utc": {"$ref": "common.schema.json#/$defs/utc"},
+        "rekey_armed_until_utc": {"$ref": "common.schema.json#/$defs/utc_or_null", "description": "Set by SessionEnd(reason clear) of the bound session; a SessionStart(source clear) before this instant re-keys session_id."}
+      }
+    },
+    "hooks_state": {
+      "description": "local/hooks-state.json, written only by hook scripts (atomic replace).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "consecutive_continuations", "last_continuation_utc", "last_digest_sha256", "stuck", "last_stop_utc"],
+      "properties": {
+        "schema": {"const": "execution.hooks-state/1"},
+        "consecutive_continuations": {"type": "integer", "minimum": 0, "maximum": 8},
+        "last_continuation_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+        "last_digest_sha256": {"anyOf": [{"$ref": "common.schema.json#/$defs/sha256"}, {"type": "null"}]},
+        "stuck": {
+          "anyOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["at_utc", "reason", "source"],
+              "properties": {
+                "at_utc": {"$ref": "common.schema.json#/$defs/utc"},
+                "reason": {"type": "string"},
+                "source": {"enum": ["stop-gate", "stop-failure"]}
+              }
+            }
+          ]
+        },
+        "last_stop_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+        "last_effort": {
+          "description": "The orchestrator session's own effort as its latest hook payload reports it (read by preflight PF-30). Not a task or agent effort, so it keeps xhigh and max.",
+          "enum": ["low", "medium", "high", "xhigh", "max"]
+        }
+      }
+    },
+    "hook_event": {
+      "description": "One file of local/hook-events/ (<utc compact>-<pid>-<n>.json, created with O_EXCL by a hook: never an append to a shared file); imported into events.jsonl by exec.py status, which then deletes the file.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ts", "hook", "session_id", "type", "data"],
+      "properties": {
+        "ts": {"$ref": "common.schema.json#/$defs/utc_precise"},
+        "hook": {"enum": ["stop-gate", "session-start", "session-end", "stop-failure", "pre-tool-guard", "user-prompt"]},
+        "session_id": {"type": "string"},
+        "agent_type": {"type": ["string", "null"]},
+        "type": {"enum": ["stop.allow", "stop.continue", "stop.stuck", "stop.failure", "session.start", "hooks.bound", "hooks.rekeyed", "hooks.canary", "guard.deny", "guard.attest", "error"]},
+        "data": {"type": "object"}
+      }
+    }
+  }
+}

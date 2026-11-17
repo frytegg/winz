@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Labelled diagram and a real screenshot</title>
+<style>
+  body { margin: 0; font-family: Arial, sans-serif; color: #111; }
+  .row { display: flex; gap: 32px; padding: 32px; }
+  .window { width: 520px; height: 320px; border: 1px solid #d4d4d8; border-radius: 12px; overflow: hidden; }
+  .bar { display: flex; gap: 8px; padding: 12px; background: #f4f4f5; }
+  .bar span { width: 12px; height: 12px; border-radius: 50%; }
+  .r { background: #ff5f56; } .y { background: #ffbd2e; } .g { background: #27c93f; }
+  .shot { display: block; width: 520px; height: 284px; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <svg width="600" height="400" viewBox="0 0 600 400" role="img" aria-label="Settlement flow diagram">
+      <rect x="20" y="40" width="140" height="60" rx="8" fill="#eef2ff"/>
+      <rect x="230" y="40" width="140" height="60" rx="8" fill="#eef2ff"/>
+      <rect x="440" y="40" width="140" height="60" rx="8" fill="#eef2ff"/>
+      <rect x="230" y="260" width="140" height="60" rx="8" fill="#eef2ff"/>
+      <line x1="160" y1="70" x2="230" y2="70" stroke="#333" stroke-width="2"/>
+      <line x1="370" y1="70" x2="440" y2="70" stroke="#333" stroke-width="2"/>
+      <line x1="300" y1="100" x2="300" y2="260" stroke="#333" stroke-width="2"/>
+      <polygon points="230,70 222,66 222,74" fill="#333"/>
+      <polygon points="440,70 432,66 432,74" fill="#333"/>
+      <polygon points="300,260 296,252 304,252" fill="#333"/>
+      <circle cx="90" cy="150" r="6" fill="#333"/>
+      <circle cx="510" cy="150" r="6" fill="#333"/>
+      <path d="M90 156 L 90 200" stroke="#333"/>
+      <path d="M510 156 L 510 200" stroke="#333"/>
+      <text x="90" y="75" text-anchor="middle">Wallet</text>
+      <text x="300" y="75" text-anchor="middle">Vault</text>
+      <text x="510" y="75" text-anchor="middle">Oracle</text>
+      <text x="300" y="295" text-anchor="middle">Ledger</text>
+    </svg>
+    <div class="window">
+      <div class="bar"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <img class="shot" alt="Console screenshot" src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='284'%3E%3Crect width='520' height='284' fill='%23e4e4e7'/%3E%3C/svg%3E">
+    </div>
+  </div>
+</body>
+</html>

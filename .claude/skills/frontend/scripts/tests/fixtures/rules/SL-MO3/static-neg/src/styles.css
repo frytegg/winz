@@ -1,0 +1,15 @@
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+body {
+  transition: background-color 600ms;
+}
+
+.btn {
+  transition: transform 150ms ease-out, opacity 150ms ease-out 400ms;
+}
+
+.drawer {
+  transition: transform 500ms cubic-bezier(0.32, 0.72, 0, 1);
+}

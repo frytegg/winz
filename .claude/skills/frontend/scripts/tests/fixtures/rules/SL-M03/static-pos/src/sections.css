@@ -1,0 +1,7 @@
+.section {
+  counter-increment: section;
+}
+
+.section h2::before {
+  content: counter(section, decimal-leading-zero) " ";
+}

@@ -1,0 +1,4 @@
+[
+  {"path": "/", "name": "home", "first": true, "features": ["FR-001"]},
+  {"path": "/queue", "name": "queue", "features": ["FR-002"], "states": ["empty"]}
+]

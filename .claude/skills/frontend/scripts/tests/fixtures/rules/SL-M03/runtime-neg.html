@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Numbered steps</title>
+<style>
+  body { margin: 0; font-family: Arial, sans-serif; color: #111; }
+  section { max-width: 1040px; margin: 0 auto; padding: 48px 24px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .num { display: block; font-size: 14px; color: #777; margin-bottom: 8px; }
+  h3 { margin: 0 0 8px; font-size: 22px; }
+</style>
+</head>
+<body>
+<section>
+  <h2>How it works</h2>
+  <div class="grid">
+    <div class="card"><h3>Connect</h3><span class="num">01</span><p>Link a wallet on preprod.</p></div>
+    <div class="card"><h3>Deposit</h3><span class="num">02</span><p>Lock test ADA in the vault.</p></div>
+    <div class="card"><h3>Withdraw</h3><span class="num">03</span><p>Redeem after the epoch ends.</p></div>
+  </div>
+</section>
+<section>
+  <h2>Release history</h2>
+  <ol class="grid" style="list-style: none; padding: 0;">
+    <li><span class="num">01</span><h3>Alpha</h3></li>
+    <li><span class="num">02</span><h3>Beta</h3></li>
+    <li><span class="num">03</span><h3>General availability</h3></li>
+  </ol>
+</section>
+</body>
+</html>

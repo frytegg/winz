@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.execution.invalid/never-show.schema.json",
+  "title": "Never-show list (one JSON file at profile.paths.never_show), /frontend's format",
+  "description": "Exact mirror of /frontend's assets/schemas/never-show.schema.json (its CONTRACTS.md 6.1b), which is canonical: note optional, the same id pattern, a non-blank source, and an embargo always carries a until_utc string. The only keyword left out is `format` (outside our validator's subset): nevershow.load compiles every regex entry itself and parses until_utc as an ISO instant ending in Z. execlib.nevershow validates against BOTH when /frontend's file exists and reports W_NEVER_SHOW_SCHEMA_DRIFT if they disagree on a document. Semantics: an entry whose until_utc is in the past is inactive; /execution scans scope repo|both (added lines and new commit messages of every merge, the tracked tree, and the whole history before the public flip); /frontend scans rendered text (scope rendered|both). regex false = literal substring; case_sensitive false = case-folded (NFKC + casefold) on both sides.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "entries"],
+  "properties": {
+    "version": {"const": 1},
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "class", "pattern", "regex", "case_sensitive", "until_utc", "scope", "source"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"},
+          "class": {"enum": ["do-not-carry", "undisclosed-security", "never-public", "embargo"]},
+          "pattern": {"type": "string", "minLength": 1},
+          "regex": {"type": "boolean"},
+          "case_sensitive": {"type": "boolean"},
+          "until_utc": {
+            "oneOf": [
+              {"type": "null"},
+              {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?Z$"}
+            ]
+          },
+          "scope": {"enum": ["rendered", "repo", "both"]},
+          "note": {"type": "string"},
+          "source": {"type": "string", "minLength": 1, "pattern": "\\S"}
+        },
+        "allOf": [
+          {
+            "description": "An embargo has an end date.",
+            "if": {"properties": {"class": {"const": "embargo"}}},
+            "then": {"properties": {"until_utc": {"type": "string"}}}
+          }
+        ]
+      }
+    }
+  },
+  "x-external": {"skill": "frontend", "path": "assets/schemas/never-show.schema.json", "on_missing": "warn", "relation": "canonical"}
+}

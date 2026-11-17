@@ -1,0 +1,311 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "SL-T01",
+      "family": "owner-tell",
+      "title": "Finds gradients (static and runtime)",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "scope": "fixture",
+      "falsePositives": "none",
+      "fix": "none",
+      "sources": [
+        "FIXTURE"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T02",
+      "family": "owner-tell",
+      "title": "Static detector that throws",
+      "tell": null,
+      "static": true,
+      "runtime": false,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "scope": "fixture",
+      "falsePositives": "none",
+      "fix": "none",
+      "sources": [
+        "FIXTURE"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T03",
+      "family": "owner-tell",
+      "title": "Static detector file missing",
+      "tell": null,
+      "static": true,
+      "runtime": false,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "scope": "fixture",
+      "falsePositives": "none",
+      "fix": "none",
+      "sources": [
+        "FIXTURE"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T04",
+      "family": "owner-tell",
+      "title": "Static detector returning a non-array",
+      "tell": null,
+      "static": true,
+      "runtime": false,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "scope": "fixture",
+      "falsePositives": "none",
+      "fix": "none",
+      "sources": [
+        "FIXTURE"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T05",
+      "family": "owner-tell",
+      "title": "Runtime detector using a fresh page",
+      "tell": null,
+      "static": false,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "scope": "fixture",
+      "falsePositives": "none",
+      "fix": "none",
+      "sources": [
+        "FIXTURE"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T06",
+      "family": "owner-tell",
+      "title": "Runtime detector that never settles",
+      "tell": null,
+      "static": false,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "scope": "fixture",
+      "falsePositives": "none",
+      "fix": "none",
+      "sources": [
+        "FIXTURE"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T07",
+      "family": "owner-tell",
+      "title": "Runtime detector that throws",
+      "tell": null,
+      "static": false,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "scope": "fixture",
+      "falsePositives": "none",
+      "fix": "none",
+      "sources": [
+        "FIXTURE"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T08",
+      "family": "owner-tell",
+      "title": "Static module without detect",
+      "tell": null,
+      "static": true,
+      "runtime": false,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "scope": "fixture",
+      "falsePositives": "none",
+      "fix": "none",
+      "sources": [
+        "FIXTURE"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T09",
+      "family": "owner-tell",
+      "title": "Runtime detector file missing",
+      "tell": null,
+      "static": false,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "scope": "fixture",
+      "falsePositives": "none",
+      "fix": "none",
+      "sources": [
+        "FIXTURE"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    }
+  ]
+}

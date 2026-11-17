@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Many dash labels</title>
+<style>
+  body { margin: 0; padding: 32px; font: 16px/1.5 Arial, sans-serif; color: #111; background: #fff; }
+  li { margin: 4px 0; }
+</style>
+</head>
+<body>
+  <main>
+    <h1>Settlement for escrowed trades</h1>
+    <p>The escrow holds both legs of a trade until each side has signed, then releases them together in one transaction.
+      Nobody can walk away with one leg, and nobody waits for a clearing house to reconcile the books at the end of the day.
+      The contract checks the signatures, the amounts and the deadline, and it refunds both parties when the deadline passes
+      without a second signature. Every step leaves a receipt that anyone can verify on the public ledger afterwards.</p>
+    <ul>
+      <li id="l01">SPEED &#8212; settles in one block</li>
+      <li id="l02">COST &#8212; one fee for both legs</li>
+      <li id="l03">SAFETY &#8212; refunds after the deadline</li>
+      <li id="l04">PROOF &#8212; a receipt per step</li>
+      <li id="l05">CUSTODY &#8212; nobody holds both legs</li>
+      <li id="l06">AUDIT &#8212; every signature on chain</li>
+      <li id="l07">LIMITS &#8212; set per trade</li>
+      <li id="l08">KEYS &#8212; never leave the wallet</li>
+      <li id="l09">FEES &#8212; shown before signing</li>
+      <li id="l10">ROUTES &#8212; one per asset pair</li>
+      <li id="l11">ALERTS &#8212; sent on each state change</li>
+      <li id="l12">EXPORT &#8212; trades as a CSV file</li>
+      <li id="l13">ACCESS &#8212; read-only for auditors</li>
+      <li id="l14">STATUS &#8212; live on the test network</li>
+    </ul>
+  </main>
+</body>
+</html>

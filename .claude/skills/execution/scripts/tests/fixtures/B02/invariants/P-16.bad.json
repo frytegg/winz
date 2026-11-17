@@ -1,0 +1,14 @@
+{
+ "base": "base.json",
+ "note": "a /frontend design task released before prework.until_utc",
+ "ops": [
+  {
+   "op": "set",
+   "path": "/plan/tasks/@frontend.fe-03/release_utc",
+   "value": null
+  }
+ ],
+ "expect": [
+  "E_PREWORK"
+ ]
+}

@@ -1,0 +1,43 @@
+{
+  "schema": "execution.decision/1",
+  "record": "proposal",
+  "id": "D-003",
+  "at_utc": "2026-10-03T07:12:00Z",
+  "by": "exec@A",
+  "kind": "cut",
+  "title": "Cut T007 to save the deadline",
+  "tasks": [
+    "T007"
+  ],
+  "options": [
+    {
+      "id": "cut",
+      "label": "Cut T007",
+      "consequence": "FR-004 is not shipped",
+      "effects": [
+        {
+          "op": "cut-tasks",
+          "tasks": [
+            "T007"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "keep",
+      "label": "Keep T007",
+      "consequence": "the red zone stays",
+      "effects": [
+        {
+          "op": "restore-tasks",
+          "tasks": [
+            "T007"
+          ]
+        }
+      ]
+    }
+  ],
+  "recommended": "cut",
+  "deadline_utc": null,
+  "dedup": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+}

@@ -1,0 +1,2130 @@
+{
+  "version": 1,
+  "created_at": "2026-10-01T09:13:15Z",
+  "description": "Calibration corpus of the /frontend checker (ARCHITECTURE.md section 5.2): the owner's past hackathon frontends (positives), pre-2023 human-designed controls that decide tier 1, current category exemplars that feed per-category allowlists, and synthetic positives from unguided model runs. Manifest only: nothing here was rendered, built, installed or captured.",
+  "conventions": {
+    "entry": "{id, set, name, made_by, label_owner, render: {type, url?, replay_url?, dir?, build_cmd?, routes}, source_root?, source_paths?, source_commit?, status, check, notes, evidence}; exemplars add category; synthetic entries add prompt, prompt_sha256, brief and, when held, hold_until.",
+    "set": "positive | control | exemplar | synthetic",
+    "made_by": "owner | teammate | generator | sponsor-template | human-designer | model. Positives carry the authorship their dossier states: FD14-F01 for its ten sub-corpora, FD10-F29's stated (unconfirmed) assumption for the two folders only FD10 lists; where git disagrees, notes and evidence say so.",
+    "label_owner": "null until labels.json is merged; then the entry verdict derived from the owner's screen labels: vibecoded | not | unsure (labelling-plan.md section 6).",
+    "status": "ready: can be rendered now. needs-build: a build or generation step must run first (it was not run). unavailable: cannot be rendered now, see notes.",
+    "render": "url: a live page. serve: a static folder served locally (scripts/lib/serve.mjs). build: run build_cmd in dir, then serve or start what it names. wayback: url is the memento URL; replay_url adds the if_ modifier (no toolbar) and is what a renderer loads, with requests outside web.archive.org blocked.",
+    "routes": "Shape of scripts/CONTRACTS.md section 6.2 routes.json, [{path, name, first?: true, viewport?}]; the first route is the labelled one. viewport names: desktop 1440x900 dpr 1, mobile 390x844 dpr 2 (touch), as CONTRACTS.md section 6.1; projector 1600x900 dpr 1 for the Monad projector mockups (their README).",
+    "paths": "Paths of the owner's repositories are absolute with forward slashes; paths inside the skill are relative to its root (~/.claude/skills/frontend). <scratch> in a build command is a folder outside any git work tree chosen by the build step, never the owner's tree.",
+    "source": "source_root is what the static layer reads: a local repository (with source_paths, the UI paths FD14's and FD10's scanners used, relative to it), a zip, a GitHub tree at the pinned commit for controls (fetch UI paths only, never clone: FD14-F24), or the synthetic output folder.",
+    "check": "The single network or local check behind status, with its UTC time. Bodies were never stored: only status, size, title and SHA-256."
+  },
+  "counts": {
+    "positive": {
+      "total": 12,
+      "ready": 8,
+      "needs-build": 4,
+      "unavailable": 0
+    },
+    "control": {
+      "total": 11,
+      "ready": 9,
+      "needs-build": 0,
+      "unavailable": 2
+    },
+    "exemplar": {
+      "total": 13,
+      "ready": 13,
+      "needs-build": 0,
+      "unavailable": 0
+    },
+    "synthetic": {
+      "total": 8,
+      "ready": 0,
+      "needs-build": 6,
+      "unavailable": 2
+    }
+  },
+  "requests": {
+    "positives": "6 GETs, one per deployment URL (2026-10-01T08:56Z)",
+    "controls": "14 requests to archive.org, at most 2 per site, 5 s apart: 1 CDX lookup (HTTP 503, run stopped), then after a 60 s pause 1 replay per site, plus a second replay for primer.style and demo.ghost.io after a network error",
+    "exemplars": "13 robots.txt requests, one per site, nothing else fetched",
+    "github_api": "repository and organisation metadata (homepage and website fields, paco README at its pin); no clone",
+    "user_agent": "Mozilla/5.0 (compatible; frontend-capture/1.0; calibration corpus check, ...): the skill's own token, no user-agent swap"
+  },
+  "entries": [
+    {
+      "id": "pos-xrpl-orma",
+      "set": "positive",
+      "name": "Orma, XRPL lending vault credit reader (XRPL Lending Protocol Hackathon, Paris, 12-13 Sept 2026, first place)",
+      "made_by": "teammate",
+      "label_owner": null,
+      "render": {
+        "type": "url",
+        "url": "https://ormaprotocol.vercel.app/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "portfolio",
+            "first": true
+          },
+          {
+            "path": "/facility",
+            "name": "facility"
+          },
+          {
+            "path": "/event",
+            "name": "event"
+          },
+          {
+            "path": "/methodology",
+            "name": "methodology"
+          },
+          {
+            "path": "/evidence",
+            "name": "evidence"
+          }
+        ]
+      },
+      "source_root": "C:/Users/Utilisateur/Documents/Coding/XRPL_Hackathon_2026",
+      "source_paths": [
+        "app/src",
+        "app/index.html"
+      ],
+      "source_commit": "9d2e6ba",
+      "status": "ready",
+      "check": {
+        "kind": "live-get",
+        "at": "2026-10-01T08:56:45.931Z",
+        "url": "https://ormaprotocol.vercel.app/",
+        "status": 200,
+        "final_url": "https://ormaprotocol.vercel.app/",
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 3656,
+        "sha256": "80b14d05a17d2d45cb449c0e20fc52e2b4072ec24d95192c525131dfc571493a",
+        "title": "Orma — credit opinions"
+      },
+      "notes": "Vite + React 19 SPA on Vercel. The page reads the Orma API (render.yaml: service orma-api on Render's free plan), so figures can render as unreachable while the API sleeps: freeze with HAR and record the render time. Offline alternative: app/dist (2026-09-13, the day of HEAD). Built mostly by teammate Andrea (45 of 63 app/src commits, 21 of 22 DESIGN.md commits) from a spec with explicit anti-slop bans (FD14-F18, F19): a disciplined teammate build, not the owner's own hand. Two dirty entries in the working tree, both outside app/ (FD14-F01).",
+      "evidence": [
+        "gh api repos/BuzzBallz/orma (2026-10-01): public, homepage https://ormaprotocol.vercel.app",
+        "XRPL_Hackathon_2026/app/vercel.json: framework vite, outputDirectory dist, rewrite of every path to /index.html",
+        "XRPL_Hackathon_2026/app/src/components/HeaderBar.tsx:54-57: routes /, /facility, /event, /methodology, /evidence",
+        "FD14-F01 and F19: git authors of app/src, Andrea 45 / Alexandre Lemiere 18",
+        "GET 2026-10-01T08:56:45.931Z: HTTP 200 text/html, 3,656 bytes, title \"Orma — credit opinions\""
+      ]
+    },
+    {
+      "id": "pos-bnb-holdover",
+      "set": "positive",
+      "name": "Holdover, BNB Chain tokenized-stock ratio board (BNB Hack: Tokenized Stocks Edition, submission due 11 Oct 2026)",
+      "made_by": "owner",
+      "label_owner": null,
+      "render": {
+        "type": "url",
+        "url": "https://holdover.fly.dev/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "board",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "C:/Users/Utilisateur/Documents/Coding/BNB/holdover",
+      "source_paths": [
+        "apps/web/src",
+        "brand"
+      ],
+      "source_commit": "1c2de70",
+      "status": "ready",
+      "check": {
+        "kind": "live-get",
+        "at": "2026-10-01T08:56:48.756Z",
+        "url": "https://holdover.fly.dev/",
+        "status": 200,
+        "final_url": "https://holdover.fly.dev/",
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 1080569,
+        "sha256": "0d808178853ccf7db2e29ab7d0ad81eddbe60947a50f25ac96e2aea56b09d2ee",
+        "title": "Holdover — who is still pricing the dead ratio"
+      },
+      "notes": "Server-rendered board (HTML from TypeScript template literals, plain CSS, no framework), one route that holds every section. Live data refreshes every 60 s (fly.toml APP_REFRESH_MS), so figures differ between renders: freeze with HAR. The hack is still running and the repository is private until submission, so the page may change before calibration: record the render date and the deployed commit if the page exposes one.",
+      "evidence": [
+        "BNB/holdover/README.md:33: \"Live: **<https://holdover.fly.dev>** — the board, reading BSC now\"",
+        "BNB/holdover/fly.toml:1: \"# The board: https://holdover.fly.dev\"",
+        "gh api repos/holdover/holdover (2026-10-01): private, no homepage",
+        "FD14-F01: sole author, 13 commits on apps/web/src and brand/",
+        "GET 2026-10-01T08:56:48.756Z: HTTP 200 text/html, 1,080,569 bytes, title \"Holdover — who is still pricing the dead ratio\""
+      ]
+    },
+    {
+      "id": "pos-hedera-scaffold",
+      "set": "positive",
+      "name": "Scaffold-HBAR SaucerSwap V2 template (Hedera Scaffold-HBAR template bounty, due 4 Oct 2026)",
+      "made_by": "sponsor-template",
+      "label_owner": null,
+      "render": {
+        "type": "build",
+        "dir": "C:/Users/Utilisateur/Documents/Coding/Hedera/scaffold-hbar-saucerswap-v2",
+        "build_cmd": "yarn next:build && yarn next:serve",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          },
+          {
+            "path": "/swap",
+            "name": "swap"
+          },
+          {
+            "path": "/positions",
+            "name": "positions"
+          },
+          {
+            "path": "/debug",
+            "name": "debug"
+          }
+        ]
+      },
+      "source_root": "C:/Users/Utilisateur/Documents/Coding/Hedera/scaffold-hbar-saucerswap-v2",
+      "source_paths": [
+        "packages/nextjs/app",
+        "packages/nextjs/components",
+        "packages/nextjs/styles"
+      ],
+      "source_commit": "96ac115",
+      "status": "needs-build",
+      "check": {
+        "kind": "local",
+        "at": "2026-10-01T09:13:15Z",
+        "deployment": "none found",
+        "build_output": "packages/nextjs/.next (2026-09-30), a Next server build, not a static folder",
+        "node_modules": true
+      },
+      "notes": "No deployment found: the repository is private with no homepage, and packages/nextjs/vercel.json holds only an installCommand. No dist, build or out folder; the .next build (2026-09-30) is served only by `next start`, which is running the project, so it was not used. node_modules present (root 2026-09-21, packages/nextjs 2026-09-23; Yarn 3.2.3). `yarn next:serve` runs `next start` on port 3000 (the package's own `start` script is `next dev`). Environment values were not inspected: no .env file was read. The bounty is due 2026-10-04 and HEAD moved past FD14's 8de47d0 (now 96ac115, 2026-10-01): render after the submission, or pin a commit and record it. The visual layer is inherited from hedera-dev/scaffold-hbar (DaisyUI, heroicons, the sponsor's purple-to-blue `.hedera-gradient`, FD14-F03 T1 \"tpl\"), which makes this the sponsor-allowlist test case (FD21).",
+      "evidence": [
+        "gh api repos/frytegg/scaffold-hbar-saucerswap-v2 (2026-10-01): private, no homepage",
+        "Hedera/scaffold-hbar-saucerswap-v2/package.json scripts: next:build = \"yarn workspace @sh/nextjs build\", next:serve = \"yarn workspace @sh/nextjs serve\"; packages/nextjs/package.json: serve = \"next start\", start = \"next dev\"",
+        "FD14-F01: owner sole committer of all repo commits, scaffolded from the sponsor template; FD14-F03: T1 rendered 7 times from the template's .hedera-gradient",
+        "git log -- packages/nextjs/{app,components,styles}: 27 commits, all Alexandre Lemiere (2026-10-01)"
+      ]
+    },
+    {
+      "id": "pos-monad-auramaxx-web",
+      "set": "positive",
+      "name": "AURAMAXX player app (Monad Blitz Paris, 19 Sept 2026)",
+      "made_by": "owner",
+      "label_owner": null,
+      "render": {
+        "type": "serve",
+        "dir": "C:/Users/Utilisateur/Documents/Coding/Monad_Blitz_Paris/auramaxx/web/dist",
+        "routes": [
+          {
+            "path": "/",
+            "name": "player",
+            "first": true,
+            "viewport": "mobile"
+          }
+        ]
+      },
+      "source_root": "C:/Users/Utilisateur/Documents/Coding/Monad_Blitz_Paris/auramaxx",
+      "source_paths": [
+        "web/src",
+        "web/index.html",
+        "web/regie.html",
+        "web/screen.html",
+        "web/calibrate.html"
+      ],
+      "source_commit": "d31f03c",
+      "status": "ready",
+      "check": {
+        "kind": "live-get",
+        "at": "2026-10-01T08:56:51.000Z",
+        "url": "https://auramaxx.onrender.com/",
+        "status": 503,
+        "final_url": "https://auramaxx.onrender.com/",
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 258535,
+        "sha256": "de51d9e8c76e727639a461c1cadf94c864c8c64c4a18a1b89155759631c279d1",
+        "title": "Render - Application loading",
+        "fallback": "web/dist (2026-09-19): index.html, regie.html, screen.html, calibrate.html, assets/"
+      },
+      "notes": "The live deployment answered the one GET with Render's 503 \"Application loading\" page: the free instance sleeps when idle (README.md:24). By the rule, the existing build is used instead: web/dist, built the day of HEAD. Served without its Node server the player page has no game state, so it renders its shell; a later render may use https://auramaxx.onrender.com/ after a wake-up request, recorded as such. The projector, console and camera pages need an operator key kept outside the repository and are not routes here. Phone UI, labelled at the mobile viewport. The page loads Anton and Space Grotesk from Google Fonts (the T19 half-pair of FD14-F03).",
+      "evidence": [
+        "gh api repos/frytegg/auramaxx-blitz (2026-10-01): public, homepage https://auramaxx.onrender.com/",
+        "Monad_Blitz_Paris/auramaxx/README.md:10-18: player at /, projector /screen.html?k=, console /regie.html?k=, camera /calibrate.html?k= (operator key)",
+        "GET 2026-10-01T08:56:51.000Z: HTTP 503 text/html, title \"Render - Application loading\" (server cloudflare)",
+        "FD14-F01: web/ by Alexandre Lemiere 32, martou12 9"
+      ]
+    },
+    {
+      "id": "pos-monad-auramaxx-mockups",
+      "set": "positive",
+      "name": "AURAMAXX static mockups, French (Monad Blitz Paris, 19 Sept 2026)",
+      "made_by": "teammate",
+      "label_owner": null,
+      "render": {
+        "type": "serve",
+        "dir": "C:/Users/Utilisateur/Documents/Coding/Monad_Blitz_Paris/auramaxx/frontend",
+        "routes": [
+          {
+            "path": "/telephone/onboarding.html",
+            "name": "phone-onboarding",
+            "first": true,
+            "viewport": "mobile"
+          },
+          {
+            "path": "/telephone/mise.html",
+            "name": "phone-bet",
+            "viewport": "mobile"
+          },
+          {
+            "path": "/projo/classement.html",
+            "name": "projector-leaderboard",
+            "viewport": "projector"
+          },
+          {
+            "path": "/projo/freeze.html",
+            "name": "projector-freeze",
+            "viewport": "projector"
+          },
+          {
+            "path": "/operateur/index.html",
+            "name": "operator-console"
+          }
+        ]
+      },
+      "source_root": "C:/Users/Utilisateur/Documents/Coding/Monad_Blitz_Paris/auramaxx",
+      "source_paths": [
+        "frontend"
+      ],
+      "source_commit": "d31f03c",
+      "status": "ready",
+      "check": {
+        "kind": "local",
+        "at": "2026-10-01T09:13:15Z",
+        "deployment": "none (static files)",
+        "build_output": "not needed: plain HTML, CSS and JS",
+        "node_modules": false
+      },
+      "notes": "Static HTML, CSS and JS with no build (frontend/README.md:4). The hub index.html calls itself \"pas un écran du produit\" and is not a route. Phone screens are 390x844 and projector screens 1600x900 by the README, hence the per-route viewports. Authorship as FD14-F01 states it: teammate martou12 (2 commits). The README says the pages were \"converti à partir des maquettes Cowork Design\", which suggests a generated origin the owner should confirm. FD14-F03: Space Grotesk with Anton, and 73.86 em dashes per 1,000 words of French copy.",
+      "evidence": [
+        "Monad_Blitz_Paris/auramaxx/frontend/README.md:4-5, 17, 24: no build; converted from Cowork Design mockups; telephone/ 390x844; projo/ 1600x900",
+        "Monad_Blitz_Paris/auramaxx/frontend/index.html:19: \"Sommaire de démo — pas un écran du produit\"",
+        "FD14-F01: frontend/ mockups by martou12 (2 commits)"
+      ]
+    },
+    {
+      "id": "pos-inflexion",
+      "set": "positive",
+      "name": "Inflexion, Uniswap v3 impermanent-loss market on Arbitrum (2026-06)",
+      "made_by": "owner",
+      "label_owner": null,
+      "render": {
+        "type": "url",
+        "url": "https://inflexion-ten.vercel.app/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "landing",
+            "first": true
+          },
+          {
+            "path": "/dashboard",
+            "name": "dashboard"
+          },
+          {
+            "path": "/protect",
+            "name": "protect"
+          },
+          {
+            "path": "/earn",
+            "name": "earn"
+          },
+          {
+            "path": "/markets",
+            "name": "markets"
+          },
+          {
+            "path": "/underwrite",
+            "name": "underwrite"
+          },
+          {
+            "path": "/data",
+            "name": "data"
+          }
+        ]
+      },
+      "source_root": "C:/Users/Utilisateur/Documents/Coding/inflexion",
+      "source_paths": [
+        "apps/web/app",
+        "apps/web/components",
+        "apps/web/lib",
+        "apps/web/tailwind.config.ts"
+      ],
+      "source_commit": "324edff",
+      "status": "ready",
+      "check": {
+        "kind": "live-get",
+        "at": "2026-10-01T08:56:53.474Z",
+        "url": "https://inflexion-ten.vercel.app/",
+        "status": 200,
+        "final_url": "https://inflexion-ten.vercel.app/",
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 49534,
+        "sha256": "0fd974ca18c687466e7bcc618c2f0f408b7d10497cfdf62dedc9dfb8edde4eb5",
+        "title": "Inflexion — hedge Uniswap v3 impermanent loss"
+      },
+      "notes": "Next.js 14 on Vercel. The app routes read a backend on Render's free plan (render.yaml:5, \"Free instances sleep after ~15 min idle\"), so app screens may show degraded states; the marketing page / is the labelled route. Display and body fonts load from the Fontshare CDN (FD14-F02). FD14-F03: the corpus's highest em-dash rate (17.72 per 1,000 words) and React Bits and Magic UI components.",
+      "evidence": [
+        "gh api repos/frytegg/inflexion (2026-10-01): public, homepage https://inflexion-ten.vercel.app",
+        "inflexion/README.md:16: \"| App | https://inflexion-ten.vercel.app |\"",
+        "FD14-F01: frytegg (the owner's GitHub account) 28, Alexandre 10",
+        "GET 2026-10-01T08:56:53.474Z: HTTP 200 text/html, 49,534 bytes, title \"Inflexion — hedge Uniswap v3 impermanent loss\""
+      ]
+    },
+    {
+      "id": "pos-sui-figma-export",
+      "set": "positive",
+      "name": "SuiShield, raw Figma Make export \"Insurance DApp Frontend Design\" (SUI hackathon, 28 Sept 2025)",
+      "made_by": "generator",
+      "label_owner": null,
+      "render": {
+        "type": "build",
+        "dir": "<scratch>/sui-figma-export",
+        "build_cmd": "unzip -q \"C:/Users/Utilisateur/Documents/Coding/Hackathon_SUI/Insurance DApp Frontend Design.zip\" -d \"<scratch>/sui-figma-export\" && cd \"<scratch>/sui-figma-export\" && npm install && npm run build -- --outDir \"<scratch>/sui-figma-export-build\" --emptyOutDir  # then serve <scratch>/sui-figma-export-build",
+        "routes": [
+          {
+            "path": "/",
+            "name": "landing",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "C:/Users/Utilisateur/Documents/Coding/Hackathon_SUI/Insurance DApp Frontend Design.zip",
+      "status": "needs-build",
+      "check": {
+        "kind": "local",
+        "at": "2026-10-01T09:13:15Z",
+        "deployment": "none",
+        "build_output": "none",
+        "node_modules": false,
+        "archive": "Insurance DApp Frontend Design.zip, 68 files"
+      },
+      "notes": "No deployment, no build output, no node_modules. The folder copy lacks its page components (FD14-F04), so the zip is the source: extract it into a scratch folder outside any git work tree, install, build with the output redirected (vite.config.ts:55 sets outDir build) and serve the result. Same Figma Make scaffold as the shipped SuiShield, whose landing page kept 215 of these 224 lines (FD14-F04): the pair shows what the owner's edits changed. Figma Make guard selector: Inter is requested but most likely never renders (FD14-F26).",
+      "evidence": [
+        "FD14-F04: export zip lists 68 files, LandingPage.tsx 224 lines, 215 shared with the shipped 231-line file",
+        "unzip -l (2026-10-01): package.json, vite.config.ts, index.html, src/components/{LandingPage,Header,Footer,Logo,WalletModal,InsuredQuestionnaire,InsurerOffers,OffersMarketplace}.tsx",
+        "Hackathon_SUI/Insurance DApp Frontend Design/vite.config.ts:55: outDir: 'build'"
+      ]
+    },
+    {
+      "id": "pos-sui-shipped",
+      "set": "positive",
+      "name": "SuiShield, shipped web app (SUI hackathon, 28 Sept 2025)",
+      "made_by": "generator",
+      "label_owner": null,
+      "render": {
+        "type": "build",
+        "dir": "C:/Users/Utilisateur/Documents/Coding/Hackathon_SUI/repo/web",
+        "build_cmd": "npm run build -- --outDir \"<scratch>/sui-shipped-build\" --emptyOutDir  # then serve <scratch>/sui-shipped-build",
+        "routes": [
+          {
+            "path": "/",
+            "name": "landing",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "C:/Users/Utilisateur/Documents/Coding/Hackathon_SUI/repo",
+      "source_paths": [
+        "web/src",
+        "web/index.html"
+      ],
+      "source_commit": "235257b",
+      "status": "needs-build",
+      "check": {
+        "kind": "local",
+        "at": "2026-10-01T09:13:15Z",
+        "deployment": "none found",
+        "build_output": "none",
+        "node_modules": true
+      },
+      "notes": "No deployment: gh api frytegg/sui-shield has an empty homepage and the repository has no deploy configuration. No dist or build folder; node_modules present (npm, 2025-09-28). The command redirects the output so the owner's tree gains no build/ folder (vite.config.ts:56 sets outDir build). The working tree has 3 uncommitted files inside web/src (FD14-F01). Views switch by state, not by URL (src/App.tsx:72), so / is the only addressable route; the shipped <title> is still the Figma file name (FD14-F26). A screen recording of the demo exists beside the repo (Hackathon_SUI/Enregistrement 2025-09-28 131005.mp4) and is not used.",
+      "evidence": [
+        "gh api repos/frytegg/SuiShield (2026-10-01): redirects to frytegg/sui-shield, public, empty homepage",
+        "Hackathon_SUI/repo/web/package.json: build = \"vite build\"; vite.config.ts:56: outDir: 'build'",
+        "FD14-F01 and F04: committer \"Votre Nom\", Figma Make export shipped with 96% of the landing page unchanged"
+      ]
+    },
+    {
+      "id": "pos-basebatches-spark",
+      "set": "positive",
+      "name": "SPARK, on-chain mini-games on Base (Base Batches, Oct 2025)",
+      "made_by": "generator",
+      "label_owner": null,
+      "render": {
+        "type": "serve",
+        "dir": "C:/Users/Utilisateur/Documents/Coding/BaseBatches/spark-onchain-app/apps/web/build",
+        "routes": [
+          {
+            "path": "/",
+            "name": "landing",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "C:/Users/Utilisateur/Documents/Coding/BaseBatches/spark-onchain-app",
+      "source_paths": [
+        "apps/web/src",
+        "apps/web/index.html"
+      ],
+      "source_commit": "b9b3de6",
+      "status": "ready",
+      "check": {
+        "kind": "local",
+        "at": "2026-10-01T09:13:15Z",
+        "deployment": "none found",
+        "build_output": "apps/web/build (2025-10-24): index.html, assets/, .well-known/",
+        "node_modules": true
+      },
+      "notes": "No deployment found: gh api frytegg/spark-base has an empty homepage, and apps/web/.vercel/project.json names a Vercel project (\"web\") but no URL is recorded anywhere in the repository. The existing build apps/web/build (2025-10-24, the day of HEAD; vite.config.ts:55 sets outDir build) is served as is. Screens switch by state (src/App.tsx:51-73), so / is the only route. Press Start 2P renders here (FD14-F26). FD14-F03: 10 full tells, the most of any project.",
+      "evidence": [
+        "gh api repos/frytegg/Spark_Base (2026-10-01): redirects to frytegg/spark-base, public, empty homepage",
+        "BaseBatches/spark-onchain-app/apps/web/.vercel/project.json: projectName \"web\" (ids not copied)",
+        "BaseBatches/spark-onchain-app/apps/web/vite.config.ts:55: outDir: 'build'",
+        "FD14-F01: Figma Make export, committer \"Votre Nom\""
+      ]
+    },
+    {
+      "id": "pos-ethdenver-agentfi",
+      "set": "positive",
+      "name": "AgentFi, AI-agent marketplace (ETHDenver, Feb 2026)",
+      "made_by": "teammate",
+      "label_owner": null,
+      "render": {
+        "type": "url",
+        "url": "https://agentfi-frontend.vercel.app/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "landing",
+            "first": true
+          },
+          {
+            "path": "/marketplace",
+            "name": "marketplace"
+          },
+          {
+            "path": "/dashboard",
+            "name": "dashboard"
+          },
+          {
+            "path": "/my-agents",
+            "name": "my-agents"
+          },
+          {
+            "path": "/dashboard/create",
+            "name": "create-agent"
+          }
+        ]
+      },
+      "source_root": "C:/Users/Utilisateur/Documents/Coding/ETHDenver/agentfi",
+      "source_paths": [
+        "frontend/src",
+        "frontend/tailwind.config.ts"
+      ],
+      "source_commit": "519fa8e",
+      "status": "ready",
+      "check": {
+        "kind": "live-get",
+        "at": "2026-10-01T08:56:56.740Z",
+        "url": "https://agentfi-frontend.vercel.app/",
+        "status": 200,
+        "final_url": "https://agentfi-frontend.vercel.app/",
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 10996,
+        "sha256": "c6a0eebf5e05eb07ee9a62d1a7cba2335d03e93bbef6f9479ec977b48125dba5",
+        "title": "AgentFi"
+      },
+      "notes": "Next.js 14 on Vercel; the repository moved from andreagnzz/agentfi to BuzzBallz/agentfi. Mostly a teammate's build (Andrea 71 of 85 frontend/src commits) from a stack-only brief (FD14-F19). FD14-F03: 5 full tells, two of them motion (a mounted DotGrid cursor effect, BlurText scroll reveals) that stills cannot show; the hero types an invented terminal session (FD14-F22).",
+      "evidence": [
+        "gh api repos/andreagnzz/agentfi (2026-10-01): redirects to BuzzBallz/agentfi, public, homepage https://agentfi-frontend.vercel.app",
+        "FD14-F01 and F19: frontend/src by Andrea 71, Alexandre Lemiere 14",
+        "GET 2026-10-01T08:56:56.740Z: HTTP 200 text/html, 10,996 bytes, title \"AgentFi\""
+      ]
+    },
+    {
+      "id": "pos-xrpl-tokena",
+      "set": "positive",
+      "name": "TOKENA (hackathon-rwa), XRPL Devnet MPT demo app (Nov 2025)",
+      "made_by": "owner",
+      "label_owner": null,
+      "render": {
+        "type": "build",
+        "dir": "C:/Users/Utilisateur/Documents/Coding/XRPL_Hackathon/hackathon-rwa",
+        "build_cmd": "npm run build && npm run start  # next start, port 3000",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          },
+          {
+            "path": "/mpt/create-issuance",
+            "name": "create-issuance"
+          },
+          {
+            "path": "/mpt/send",
+            "name": "send"
+          },
+          {
+            "path": "/mpt/balance",
+            "name": "balance"
+          },
+          {
+            "path": "/mpt/authorize",
+            "name": "authorize"
+          },
+          {
+            "path": "/mpt/clawback",
+            "name": "clawback"
+          },
+          {
+            "path": "/mpt/sales",
+            "name": "sales"
+          }
+        ]
+      },
+      "source_root": "C:/Users/Utilisateur/Documents/Coding/XRPL_Hackathon/hackathon-rwa",
+      "source_paths": [
+        "app",
+        "components",
+        "hooks",
+        "lib",
+        "styles"
+      ],
+      "source_commit": "9717098",
+      "status": "needs-build",
+      "check": {
+        "kind": "local",
+        "at": "2026-10-01T09:13:15Z",
+        "deployment": "none found",
+        "build_output": ".next (2025-11-08), a Next server build",
+        "node_modules": true
+      },
+      "notes": "Listed only by FD10-F29, which states the assumption that its folders are the owner's own frontends and asks the owner to confirm; made_by records that assumption. Git does not support it: the first commit is \"Initial commit: UI generated by v0\" by Valentin Bracq (2 of 6 commits, then 4 by \"Votre Nom\", the committer name on the SUI and BaseBatches repositories), and package.json is named \"my-v0-project\". If the owner agrees, made_by becomes generator (v0), the only v0 sample in the corpus. No deployment (gh api frytegg/tokena: no homepage). The .next build needs `next start`; node_modules present (npm, 2025-11-07); both package-lock.json and pnpm-lock.yaml exist. 4 uncommitted entries in the working tree.",
+      "evidence": [
+        "FD10-F29 limits: \"I assumed that these folders are the owner's own frontends and not forks. The owner should confirm.\"",
+        "git log (2026-10-01): 90b395f 2025-11-07 Valentin Bracq \"Initial commit: UI generated by v0\"; authors Valentin Bracq 2, Votre Nom 4",
+        "XRPL_Hackathon/hackathon-rwa/package.json:2: \"name\": \"my-v0-project\"",
+        "gh api repos/frytegg/TOKENA (2026-10-01): redirects to frytegg/tokena, public, no homepage"
+      ]
+    },
+    {
+      "id": "pos-monad-flashscope",
+      "set": "positive",
+      "name": "FlashScope, Monad flash-loan arbitrage dashboard (Monad, ETHDenver, Feb 2026)",
+      "made_by": "owner",
+      "label_owner": null,
+      "render": {
+        "type": "url",
+        "url": "https://monad-eth-denver.vercel.app/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "landing",
+            "first": true
+          },
+          {
+            "path": "/dashboard",
+            "name": "dashboard"
+          }
+        ]
+      },
+      "source_root": "C:/Users/Utilisateur/Documents/Coding/Monad_Hackathon/Monad_ETHDenver",
+      "source_paths": [
+        "frontend/src",
+        "frontend/index.html",
+        "frontend/tailwind.config.js"
+      ],
+      "source_commit": "12c74f4",
+      "status": "ready",
+      "check": {
+        "kind": "live-get",
+        "at": "2026-10-01T08:56:59.442Z",
+        "url": "https://monad-eth-denver.vercel.app/",
+        "status": 200,
+        "final_url": "https://monad-eth-denver.vercel.app/",
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 845,
+        "sha256": "c219f01ada71e56922ea2691d82e67013c6a7e95aa4fe5ee31325d3dce27144c",
+        "title": "FlashScope | Monad Flash Loan Arbitrage"
+      },
+      "notes": "Listed only by FD10-F29, which states the assumption that its folders are the owner's own frontends and asks the owner to confirm; made_by records that assumption. Git does not support it: frontend/ has 40 commits by Andrea and 5 by Alexandre Lemiere, so FD14-F01's method would record teammate. Vite + React + Tailwind + RainbowKit (README.md:23); frontend/dist (2026-02-18) exists as an offline alternative; no node_modules.",
+      "evidence": [
+        "FD10-F29 limits: \"I assumed that these folders are the owner's own frontends and not forks. The owner should confirm.\"",
+        "git log -- frontend (2026-10-01): Andrea 40, Alexandre Lemiere 5",
+        "gh api repos/BuzzBallz/FlashScope (2026-10-01): redirects to BuzzBallz/flashscope, public, homepage https://monad-eth-denver.vercel.app",
+        "Monad_Hackathon/Monad_ETHDenver/frontend/src/App.tsx:9-10: routes / and /dashboard",
+        "GET 2026-10-01T08:56:59.442Z: HTTP 200 text/html, 845 bytes, title \"FlashScope | Monad Flash Loan Arbitrage\""
+      ]
+    },
+    {
+      "id": "ctl-brios",
+      "set": "control",
+      "name": "brianlovin/briOS at ad7634440b (2022-12-18)",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "wayback",
+        "url": "https://web.archive.org/web/20221114154205/https://brianlovin.com/",
+        "replay_url": "https://web.archive.org/web/20221114154205if_/https://brianlovin.com/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "https://github.com/brianlovin/briOS/tree/ad7634440b",
+      "source_commit": "ad7634440b",
+      "status": "ready",
+      "check": {
+        "kind": "wayback-replay",
+        "at": "2026-10-01T08:59:56.228Z",
+        "request_url": "https://web.archive.org/web/20221115if_/https://brianlovin.com/",
+        "status": 200,
+        "final_url": "https://web.archive.org/web/20221114154205if_/https://brianlovin.com/",
+        "timestamp": "20221114154205",
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 55987,
+        "sha256": "a7b09f390823cc6df2226591ed6baeba2617903e404c107609e1ddbec8cbea3c",
+        "title": "Brian Lovin"
+      },
+      "notes": "Snapshot 2022-11-14 of the live site https://brianlovin.com (GitHub homepage field), not newer than the pinned commit. Stack at the pin: Next.js + Tailwind + Headless UI (framer-motion ^6.2.1 in dependencies, FD14-F25). Attribution: Brian Lovin, GitHub bio \"Product design @makenotion\", author of the pinned commit; grade A. Stack match with the positives: closest (React/Next + Tailwind).",
+      "evidence": [
+        "FD14-F24 row (pinned via commits?until=2023-01-01, verified 2026-09-30)",
+        "gh api repos/brianlovin/briOS (2026-10-01): homepage https://brianlovin.com",
+        "CDX lookup 2026-10-01T08:58:03.179Z: HTTP 503 (the run stopped every further request; the replay method below was used after a 60 s pause)",
+        "GET https://web.archive.org/web/20221115if_/https://brianlovin.com/ (2026-10-01T08:59:56.228Z): HTTP 200 text/html; charset=utf-8, 55,987 bytes, resolved to capture 20221114154205, title \"Brian Lovin\""
+      ]
+    },
+    {
+      "id": "ctl-tailwindcss",
+      "set": "control",
+      "name": "tailwindlabs/tailwindcss.com at e06877b28c (2022-12-29)",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "wayback",
+        "url": "https://web.archive.org/web/20221115152253/https://tailwindcss.com/",
+        "replay_url": "https://web.archive.org/web/20221115152253if_/https://tailwindcss.com/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "https://github.com/tailwindlabs/tailwindcss.com/tree/e06877b28c",
+      "source_commit": "e06877b28c",
+      "status": "ready",
+      "check": {
+        "kind": "wayback-replay",
+        "at": "2026-10-01T09:00:09.959Z",
+        "request_url": "https://web.archive.org/web/20221115if_/https://tailwindcss.com/",
+        "status": 200,
+        "final_url": "https://web.archive.org/web/20221115152253if_/https://tailwindcss.com/",
+        "timestamp": "20221115152253",
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 457058,
+        "sha256": "3048dcc7c84b3c46be721e79433de5d8b55c164f53469a028138b74b992b896b",
+        "title": "Tailwind CSS - Rapidly build modern websites without ever leaving your HTML."
+      },
+      "notes": "Snapshot 2022-11-15 of the live site https://tailwindcss.com (GitHub homepage field), not newer than the pinned commit. Stack at the pin: Next 12 + Tailwind 3.2.4 + Headless UI + framer-motion 2.9.5; Inter var as primary sans (FD14-F25); pin on branch master. Attribution: Tailwind Labs; co-owner Steve Schoger calls himself \"a visual designer\", nothing ties him to this site; grade C. Stack match with the positives: close (React/Next + Tailwind).",
+      "evidence": [
+        "FD14-F24 row (pinned via commits?until=2023-01-01, verified 2026-09-30)",
+        "gh api repos/tailwindlabs/tailwindcss.com (2026-10-01): homepage https://tailwindcss.com",
+        "GET https://web.archive.org/web/20221115if_/https://tailwindcss.com/ (2026-10-01T09:00:09.959Z): HTTP 200 text/html; charset=utf-8, 457,058 bytes, resolved to capture 20221115152253, title \"Tailwind CSS - Rapidly build modern websites without ever leaving your HTML.\""
+      ]
+    },
+    {
+      "id": "ctl-uniswap-interface",
+      "set": "control",
+      "name": "Uniswap/interface at b25da9de2d (2022-12-30)",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "wayback",
+        "url": "https://web.archive.org/web/20221116003857/https://app.uniswap.org/",
+        "replay_url": "https://web.archive.org/web/20221116003857if_/https://app.uniswap.org/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "https://github.com/Uniswap/interface/tree/b25da9de2d",
+      "source_commit": "b25da9de2d",
+      "status": "ready",
+      "check": {
+        "kind": "wayback-replay",
+        "at": "2026-10-01T09:00:16.435Z",
+        "request_url": "https://web.archive.org/web/20221115if_/https://app.uniswap.org/",
+        "status": 200,
+        "final_url": "https://web.archive.org/web/20221116003857if_/https://app.uniswap.org/",
+        "timestamp": "20221116003857",
+        "content_type": "text/html",
+        "bytes": 9777,
+        "sha256": "4023937774a5828bafc1d5fada5b19ce2bb7ffd5429dc2f07c069563888b7cef",
+        "title": "Uniswap Interface"
+      },
+      "notes": "Snapshot 2022-11-16 of the live site https://app.uniswap.org (GitHub homepage field), not newer than the pinned commit. The replayed HTML is the single-page-app shell (9,777 bytes): the page draws only if the archive holds its scripts, so check the render before labelling. Stack at the pin: React + styled-components + @fontsource/inter (FD14-F25). Attribution: Callil Capuozzo, \"Previously VP Design at Uniswap\", 62 commits; grade A. Stack match with the positives: React; crypto.",
+      "evidence": [
+        "FD14-F24 row (pinned via commits?until=2023-01-01, verified 2026-09-30)",
+        "gh api repos/Uniswap/interface (2026-10-01): homepage https://app.uniswap.org",
+        "GET https://web.archive.org/web/20221115if_/https://app.uniswap.org/ (2026-10-01T09:00:16.435Z): HTTP 200 text/html, 9,777 bytes, resolved to capture 20221116003857, title \"Uniswap Interface\""
+      ]
+    },
+    {
+      "id": "ctl-guardian-dcr",
+      "set": "control",
+      "name": "guardian/dotcom-rendering at 3c62ac445a (2022-12-31)",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "wayback",
+        "url": "https://web.archive.org/web/20221115235644/http://www.theguardian.com/uk",
+        "replay_url": "https://web.archive.org/web/20221115235644if_/http://www.theguardian.com/uk",
+        "routes": [
+          {
+            "path": "/uk",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "https://github.com/guardian/dotcom-rendering/tree/3c62ac445a",
+      "source_commit": "3c62ac445a",
+      "status": "ready",
+      "check": {
+        "kind": "wayback-replay",
+        "at": "2026-10-01T09:00:24.895Z",
+        "request_url": "https://web.archive.org/web/20221115if_/https://www.theguardian.com/uk",
+        "status": 200,
+        "final_url": "https://web.archive.org/web/20221115235644if_/http://www.theguardian.com/uk",
+        "timestamp": "20221115235644",
+        "content_type": "text/html; charset=UTF-8",
+        "bytes": 1467645,
+        "sha256": "180fd2cb208531a878bdeb6da61feec6b49d08888258ebfe24fabfcf28ad572f",
+        "title": "News, sport and opinion from the Guardian's UK edition | The Guardian"
+      },
+      "notes": "Snapshot 2022-11-15 of the live site https://www.theguardian.com (GitHub homepage field), not newer than the pinned commit. The UK front (captured over http) stands for the live site; which Guardian renderer served that front in Nov 2022 was not checked, while the static layer reads dotcom-rendering at the pin. Stack at the pin: React 18 + Emotion + @guardian/source-foundations. Attribution: Guardian in-house team led by creative director Alex Breuer, digital design director Ben Longden (Design Week 2018); grade B. Stack match with the positives: React, CSS-in-JS.",
+      "evidence": [
+        "FD14-F24 row (pinned via commits?until=2023-01-01, verified 2026-09-30)",
+        "gh api repos/guardian/dotcom-rendering (2026-10-01): homepage https://www.theguardian.com",
+        "GET https://web.archive.org/web/20221115if_/https://www.theguardian.com/uk (2026-10-01T09:00:24.895Z): HTTP 200 text/html; charset=UTF-8, 1,467,645 bytes, resolved to capture 20221115235644, title \"News, sport and opinion from the Guardian's UK edition | The Guardian\""
+      ]
+    },
+    {
+      "id": "ctl-radix-website",
+      "set": "control",
+      "name": "radix-ui/website at b315a1c941 (2022-12-14)",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "wayback",
+        "url": "https://web.archive.org/web/20221112171728/https://www.radix-ui.com/",
+        "replay_url": "https://web.archive.org/web/20221112171728if_/https://www.radix-ui.com/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "https://github.com/radix-ui/website/tree/b315a1c941",
+      "source_commit": "b315a1c941",
+      "status": "ready",
+      "check": {
+        "kind": "wayback-replay",
+        "at": "2026-10-01T09:00:32.015Z",
+        "request_url": "https://web.archive.org/web/20221115if_/https://www.radix-ui.com/",
+        "status": 200,
+        "final_url": "https://web.archive.org/web/20221112171728if_/https://www.radix-ui.com/",
+        "timestamp": "20221112171728",
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 418771,
+        "sha256": "d689b31a7b433760acf4ca52e98b08241908b9e97fc62c9be3625f2351b1a73d",
+        "title": "Primitives – Radix UI"
+      },
+      "notes": "Snapshot 2022-11-12 of the live site https://radix-ui.com (GitHub homepage field), not newer than the pinned commit. Stack at the pin: Next 10 + @modulz/design-system (Stitches). Attribution: Vlad Moroz, product designer, 3 of his 30 commits before the pin; grade C. Stack match with the positives: Next.",
+      "evidence": [
+        "FD14-F24 row (pinned via commits?until=2023-01-01, verified 2026-09-30)",
+        "gh api repos/radix-ui/website (2026-10-01): homepage https://radix-ui.com",
+        "GET https://web.archive.org/web/20221115if_/https://www.radix-ui.com/ (2026-10-01T09:00:32.015Z): HTTP 200 text/html; charset=utf-8, 418,771 bytes, resolved to capture 20221112171728, title \"Primitives – Radix UI\""
+      ]
+    },
+    {
+      "id": "ctl-hyper-site",
+      "set": "control",
+      "name": "vercel/hyper-site at 23d7799e24 (2022-11-27)",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "wayback",
+        "url": "https://web.archive.org/web/20221104063836/https://hyper.is/",
+        "replay_url": "https://web.archive.org/web/20221104063836if_/https://hyper.is/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "https://github.com/vercel/hyper-site/tree/23d7799e24",
+      "source_commit": "23d7799e24",
+      "status": "ready",
+      "check": {
+        "kind": "wayback-replay",
+        "at": "2026-10-01T09:00:39.044Z",
+        "request_url": "https://web.archive.org/web/20221101if_/https://hyper.is/",
+        "status": 200,
+        "final_url": "https://web.archive.org/web/20221104063836if_/https://hyper.is/",
+        "timestamp": "20221104063836",
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 139494,
+        "sha256": "b5e066c6f49074e352389925b9ac3120a206275238fa2fd9ab188cc629ce666c",
+        "title": "Hyper™"
+      },
+      "notes": "Snapshot 2022-11-04 of the live site https://hyper.is (GitHub homepage field), not newer than the pinned commit. Stack at the pin: Next + CSS modules + MDX. Attribution: Evil Rabbit, \"Founding Designer @vercel @nextjs\", 1 commit (2018); grade B. Stack match with the positives: Next.",
+      "evidence": [
+        "FD14-F24 row (pinned via commits?until=2023-01-01, verified 2026-09-30)",
+        "gh api repos/vercel/hyper-site (2026-10-01): homepage https://hyper.is",
+        "GET https://web.archive.org/web/20221101if_/https://hyper.is/ (2026-10-01T09:00:39.044Z): HTTP 200 text/html; charset=utf-8, 139,494 bytes, resolved to capture 20221104063836, title \"Hyper™\""
+      ]
+    },
+    {
+      "id": "ctl-paco",
+      "set": "control",
+      "name": "pacocoursey/paco at e011620d0f (2022-04-04)",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "wayback",
+        "url": "https://web.archive.org/web/20211023112300/https://paco.sh/",
+        "replay_url": "https://web.archive.org/web/20211023112300if_/https://paco.sh/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "https://github.com/pacocoursey/paco/tree/e011620d0f",
+      "source_commit": "e011620d0f",
+      "status": "ready",
+      "check": {
+        "kind": "wayback-replay",
+        "at": "2026-10-01T09:00:45.785Z",
+        "request_url": "https://web.archive.org/web/20211015if_/https://paco.sh/",
+        "status": 200,
+        "final_url": "https://web.archive.org/web/20211023112300if_/https://paco.sh/",
+        "timestamp": "20211023112300",
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 9628,
+        "sha256": "7d0e4bacf37daf1978054829800347fa5b766eb6045cfbcd12c7de80f9d0aba6",
+        "title": "Paco Coursey"
+      },
+      "notes": "Snapshot 2021-10-23 of the live site https://paco.sh (GitHub homepage field), not newer than the pinned commit. Snapshot window ends 2022-03-31: the README at the 2022-04-04 pin calls the repository \"my outdated personal site from 2020\", so a later capture would show another codebase; the snapshot's title \"Paco Coursey\" matches components/head.js:11 at the pin. Stack at the pin: Next + CSS modules + next-themes; repository archived. Attribution: README: \"Designed with a focus on minimalism, UI interactions, and typography.\"; grade B. Stack match with the positives: Next.",
+      "evidence": [
+        "FD14-F24 row (pinned via commits?until=2023-01-01, verified 2026-09-30)",
+        "gh api repos/pacocoursey/paco (2026-10-01): homepage https://paco.sh",
+        "GET https://web.archive.org/web/20211015if_/https://paco.sh/ (2026-10-01T09:00:45.785Z): HTTP 200 text/html; charset=utf-8, 9,628 bytes, resolved to capture 20211023112300, title \"Paco Coursey\""
+      ]
+    },
+    {
+      "id": "ctl-govuk-frontend",
+      "set": "control",
+      "name": "alphagov/govuk-frontend at aeba39acce (2022-12-29)",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "wayback",
+        "url": "https://web.archive.org/web/20221204160206/https://frontend.design-system.service.gov.uk/",
+        "replay_url": "https://web.archive.org/web/20221204160206if_/https://frontend.design-system.service.gov.uk/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "https://github.com/alphagov/govuk-frontend/tree/aeba39acce",
+      "source_commit": "aeba39acce",
+      "status": "ready",
+      "check": {
+        "kind": "wayback-replay",
+        "at": "2026-10-01T09:00:52.150Z",
+        "request_url": "https://web.archive.org/web/20221115if_/https://frontend.design-system.service.gov.uk/",
+        "status": 200,
+        "final_url": "https://web.archive.org/web/20221204160206if_/https://frontend.design-system.service.gov.uk/",
+        "timestamp": "20221204160206",
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 25323,
+        "sha256": "a7d4068117cf828d7b042b56d7a3bc6866eed6e5b8e6822f84b2e2c7648ba9bb",
+        "title": "GOV.UK Frontend"
+      },
+      "notes": "Snapshot 2022-12-04 of the live site https://frontend.design-system.service.gov.uk/ (GitHub homepage field), not newer than the pinned commit. Stack at the pin: Nunjucks + Sass. Attribution: README: \"maintained by a team at Government Digital Service\"; grade A. Stack match with the positives: no (Tailwind-class rules trivially silent).",
+      "evidence": [
+        "FD14-F24 row (pinned via commits?until=2023-01-01, verified 2026-09-30)",
+        "gh api repos/alphagov/govuk-frontend (2026-10-01): homepage https://frontend.design-system.service.gov.uk/",
+        "GET https://web.archive.org/web/20221115if_/https://frontend.design-system.service.gov.uk/ (2026-10-01T09:00:52.150Z): HTTP 200 text/html; charset=utf-8, 25,323 bytes, resolved to capture 20221204160206, title \"GOV.UK Frontend\""
+      ]
+    },
+    {
+      "id": "ctl-mozilla-protocol",
+      "set": "control",
+      "name": "mozilla/protocol at 2ff239d299 (2022-12-15)",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "wayback",
+        "url": "https://web.archive.org/web/20221122041435/https://protocol.mozilla.org/",
+        "replay_url": "https://web.archive.org/web/20221122041435if_/https://protocol.mozilla.org/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "https://github.com/mozilla/protocol/tree/2ff239d299",
+      "source_commit": "2ff239d299",
+      "status": "ready",
+      "check": {
+        "kind": "wayback-replay",
+        "at": "2026-10-01T09:00:58.527Z",
+        "request_url": "https://web.archive.org/web/20221115if_/https://protocol.mozilla.org/",
+        "status": 200,
+        "final_url": "https://web.archive.org/web/20221122041435if_/https://protocol.mozilla.org/",
+        "timestamp": "20221122041435",
+        "content_type": "text/html; charset=UTF-8",
+        "bytes": 110640,
+        "sha256": "2e89bd9785c89f66660e81931661597b29956d186d188a64302448b63fa1f3e2",
+        "title": "Mozilla Protocol | Mozilla Protocol"
+      },
+      "notes": "Snapshot 2022-11-22 of the live site https://protocol.mozilla.org/ (GitHub homepage field), not newer than the pinned commit. Stack at the pin: Nunjucks (Fractal) + Sass. Attribution: README: \"a design system for Mozilla and Firefox websites\"; grade A. Stack match with the positives: no (Tailwind-class rules trivially silent).",
+      "evidence": [
+        "FD14-F24 row (pinned via commits?until=2023-01-01, verified 2026-09-30)",
+        "gh api repos/mozilla/protocol (2026-10-01): homepage https://protocol.mozilla.org/",
+        "GET https://web.archive.org/web/20221115if_/https://protocol.mozilla.org/ (2026-10-01T09:00:58.527Z): HTTP 200 text/html; charset=UTF-8, 110,640 bytes, resolved to capture 20221122041435, title \"Mozilla Protocol | Mozilla Protocol\""
+      ]
+    },
+    {
+      "id": "ctl-primer-css",
+      "set": "control",
+      "name": "primer/css at 1b6694c409 (2022-12-30)",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "wayback",
+        "url": null,
+        "replay_url": null,
+        "routes": [
+          {
+            "path": "/css",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "https://github.com/primer/css/tree/1b6694c409",
+      "source_commit": "1b6694c409",
+      "status": "unavailable",
+      "check": {
+        "kind": "wayback-replay",
+        "attempts": [
+          {
+            "request_url": "https://web.archive.org/web/20221115if_/https://primer.style/css",
+            "at": null,
+            "status": null,
+            "error": "fetch failed",
+            "timestamp": null
+          },
+          {
+            "request_url": "https://web.archive.org/web/20220615if_/https://primer.style/css",
+            "at": null,
+            "status": null,
+            "error": "fetch failed",
+            "timestamp": null
+          }
+        ]
+      },
+      "notes": "Live site https://primer.style/css (GitHub homepage field). Both replay attempts allowed for this site ended in a network-level \"fetch failed\" with no HTTP status (most likely a redirect chain inside the replay; not diagnosed, because the per-site budget was spent). Next try, at most two requests: one CDX lookup for an exact 200 text/html capture in 2022, then one replay of that exact timestamp, or the trailing-slash form https://primer.style/css/. Stack at the pin: Sass. Attribution: README: \"The CSS implementation of GitHub's Primer Design System\"; grade A. Stack match with the positives: no (Tailwind-class rules trivially silent).",
+      "evidence": [
+        "FD14-F24 row (pinned via commits?until=2023-01-01, verified 2026-09-30)",
+        "gh api repos/primer/css (2026-10-01): homepage https://primer.style/css",
+        "https://web.archive.org/web/20221115if_/https://primer.style/css: fetch failed",
+        "https://web.archive.org/web/20220615if_/https://primer.style/css: fetch failed"
+      ]
+    },
+    {
+      "id": "ctl-ghost-casper",
+      "set": "control",
+      "name": "TryGhost/Casper at e1967f8546 (2022-12-16)",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "wayback",
+        "url": null,
+        "replay_url": null,
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "https://github.com/TryGhost/Casper/tree/e1967f8546",
+      "source_commit": "e1967f8546",
+      "status": "unavailable",
+      "check": {
+        "kind": "wayback-replay",
+        "attempts": [
+          {
+            "request_url": "https://web.archive.org/web/20221115if_/https://demo.ghost.io/",
+            "at": null,
+            "status": null,
+            "error": "fetch failed",
+            "timestamp": null
+          },
+          {
+            "request_url": "https://web.archive.org/web/20220615if_/https://demo.ghost.io/",
+            "at": null,
+            "status": null,
+            "error": "fetch failed",
+            "timestamp": null
+          }
+        ]
+      },
+      "notes": "Live site https://demo.ghost.io (GitHub homepage field). Both replay attempts allowed for this site ended in a network-level \"fetch failed\" with no HTTP status (most likely a redirect chain inside the replay; not diagnosed, because the per-site budget was spent). Next try, at most two requests: one CDX lookup for an exact 200 text/html capture in 2022, then one replay of that exact timestamp. Stack at the pin: Handlebars + CSS. Attribution: John O'Nolan, 100+ commits, bio \"Founder/CEO @TryGhost\" (no designer role stated); grade C. Stack match with the positives: no (Tailwind-class rules trivially silent).",
+      "evidence": [
+        "FD14-F24 row (pinned via commits?until=2023-01-01, verified 2026-09-30)",
+        "gh api repos/TryGhost/Casper (2026-10-01): homepage https://demo.ghost.io",
+        "https://web.archive.org/web/20221115if_/https://demo.ghost.io/: fetch failed",
+        "https://web.archive.org/web/20220615if_/https://demo.ghost.io/: fetch failed"
+      ]
+    },
+    {
+      "id": "ex-uniswap",
+      "set": "exemplar",
+      "name": "Uniswap (app)",
+      "category": "dex",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "url",
+        "url": "https://app.uniswap.org/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "status": "ready",
+      "check": {
+        "kind": "robots",
+        "at": "2026-10-01T09:02:32.043Z",
+        "url": "https://app.uniswap.org/robots.txt",
+        "status": 200,
+        "final_url": "https://app.uniswap.org/robots.txt",
+        "content_type": "text/plain; charset=utf-8",
+        "bytes": 162,
+        "sha256": "5a1a11fb25bd616072c00a504f7701b9be994e2681df0efb31185f7ea4fcd2ec",
+        "generic_agent": {
+          "/": {
+            "allowed": true,
+            "rule": "none"
+          }
+        },
+        "skill_tokens": {
+          "frontend-capture": {
+            "allowed": true,
+            "rule": "none"
+          },
+          "Claude-User": {
+            "allowed": true,
+            "rule": "none"
+          }
+        },
+        "ai_agent_groups": [],
+        "content_usage": [],
+        "crawl_delay": 0
+      },
+      "notes": "FD11-F17: uniswap.org redirects to app.uniswap.org; the H1 sits over a working swap widget, the one exemplar whose first viewport is the product. robots.txt (one request, 2026-10-01T09:02:32.043Z): for a generic agent /: allowed (no matching rule). Nothing was captured: any later capture goes through the FD19 capture gate (robots for frontend-capture and Claude-User, TDMRep, ai.txt, a recorded terms review, a stop on any bot wall). Exemplars feed per-category allowlists, never tiers (ARCHITECTURE.md section 5.2).",
+      "evidence": [
+        "FD11-F17 (captured 2026-09-30 19:36-19:38 UTC)",
+        "GET https://app.uniswap.org/robots.txt (2026-10-01T09:02:32.043Z): HTTP 200 text/plain; charset=utf-8, 162 bytes, sha256 5a1a11fb25bd6160…, parsed with parseRobots/robotsDecision from research/_scripts/fd19/capture-gate.mjs"
+      ]
+    },
+    {
+      "id": "ex-aave",
+      "set": "exemplar",
+      "name": "Aave",
+      "category": "lending",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "url",
+        "url": "https://aave.com/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "status": "ready",
+      "check": {
+        "kind": "robots",
+        "at": "2026-10-01T09:02:34.158Z",
+        "url": "https://aave.com/robots.txt",
+        "status": 200,
+        "final_url": "https://aave.com/robots.txt",
+        "content_type": "text/plain; charset=utf-8",
+        "bytes": 2101,
+        "sha256": "97cf9d59f6f26fcbce914ad65d558e8f27df9ffde1baa692ed22f6ed3c948078",
+        "generic_agent": {
+          "/": {
+            "allowed": true,
+            "rule": "allow: /"
+          }
+        },
+        "skill_tokens": {
+          "frontend-capture": {
+            "allowed": true,
+            "rule": "allow: /"
+          },
+          "Claude-User": {
+            "allowed": true,
+            "rule": "allow: /"
+          }
+        },
+        "ai_agent_groups": [
+          "gptbot",
+          "oai-searchbot",
+          "chatgpt-user",
+          "claudebot",
+          "claude-user",
+          "claude-searchbot",
+          "perplexitybot",
+          "perplexity-user",
+          "google-extended",
+          "applebot-extended",
+          "meta-externalagent",
+          "ccbot",
+          "amazonbot",
+          "cohere-ai"
+        ],
+        "content_usage": [],
+        "crawl_delay": 0
+      },
+      "notes": "FD11-F17, F19, F20: product label above the H1 (the tell 9 position), lavender ground (tell 1 family), a \"Simulated Rate\" label on one of three phone mockups. robots.txt (one request, 2026-10-01T09:02:34.158Z): for a generic agent /: allowed (allow: /); the file also names 14 AI agents, and Claude-User is allowed. Nothing was captured: any later capture goes through the FD19 capture gate (robots for frontend-capture and Claude-User, TDMRep, ai.txt, a recorded terms review, a stop on any bot wall). Exemplars feed per-category allowlists, never tiers (ARCHITECTURE.md section 5.2).",
+      "evidence": [
+        "FD11-F17; also a candidate customer of the shared fixture \"Queue Clock\" (execution ARCHITECTURE.md section 19)",
+        "GET https://aave.com/robots.txt (2026-10-01T09:02:34.158Z): HTTP 200 text/plain; charset=utf-8, 2101 bytes, sha256 97cf9d59f6f26fcb…, parsed with parseRobots/robotsDecision from research/_scripts/fd19/capture-gate.mjs"
+      ]
+    },
+    {
+      "id": "ex-morpho",
+      "set": "exemplar",
+      "name": "Morpho",
+      "category": "lending",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "url",
+        "url": "https://morpho.org/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "status": "ready",
+      "check": {
+        "kind": "robots",
+        "at": "2026-10-01T09:02:36.328Z",
+        "url": "https://morpho.org/robots.txt",
+        "status": 200,
+        "final_url": "https://morpho.org/robots.txt",
+        "content_type": "text/plain",
+        "bytes": 64,
+        "sha256": "537756f0e7f55a754273caf642b05d1876a1a7db2c752729433f386065e6ed65",
+        "generic_agent": {
+          "/": {
+            "allowed": true,
+            "rule": "none"
+          }
+        },
+        "skill_tokens": {
+          "frontend-capture": {
+            "allowed": true,
+            "rule": "none"
+          },
+          "Claude-User": {
+            "allowed": true,
+            "rule": "none"
+          }
+        },
+        "ai_agent_groups": [],
+        "content_usage": [],
+        "crawl_delay": 0
+      },
+      "notes": "FD11-F05, F17: exact live figures under monospace labels; the highest JPEG-complexity proxy of the ten (133 KiB) from its fine grid texture. robots.txt (one request, 2026-10-01T09:02:36.328Z): for a generic agent /: allowed (no matching rule). Nothing was captured: any later capture goes through the FD19 capture gate (robots for frontend-capture and Claude-User, TDMRep, ai.txt, a recorded terms review, a stop on any bot wall). Exemplars feed per-category allowlists, never tiers (ARCHITECTURE.md section 5.2).",
+      "evidence": [
+        "FD11-F17; also a Queue Clock candidate customer",
+        "GET https://morpho.org/robots.txt (2026-10-01T09:02:36.328Z): HTTP 200 text/plain, 64 bytes, sha256 537756f0e7f55a75…, parsed with parseRobots/robotsDecision from research/_scripts/fd19/capture-gate.mjs"
+      ]
+    },
+    {
+      "id": "ex-ondo",
+      "set": "exemplar",
+      "name": "Ondo Finance",
+      "category": "rwa",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "url",
+        "url": "https://ondo.finance/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "status": "ready",
+      "check": {
+        "kind": "robots",
+        "at": "2026-10-01T09:02:38.535Z",
+        "url": "https://ondo.finance/robots.txt",
+        "status": 200,
+        "final_url": "https://ondo.finance/robots.txt",
+        "content_type": "text/plain; charset=utf-8",
+        "bytes": 66,
+        "sha256": "8ab51e364e8fb65977edbc0ec34c61abfc9e1de85f93e6d44c90c6a262267142",
+        "generic_agent": {
+          "/": {
+            "allowed": true,
+            "rule": "allow: /"
+          }
+        },
+        "skill_tokens": {
+          "frontend-capture": {
+            "allowed": true,
+            "rule": "allow: /"
+          },
+          "Claude-User": {
+            "allowed": true,
+            "rule": "allow: /"
+          }
+        },
+        "ai_agent_groups": [],
+        "content_usage": [],
+        "crawl_delay": 0
+      },
+      "notes": "FD11-F17, F18: announcement bar, a city photograph, no explanatory sentence in the first viewport. robots.txt (one request, 2026-10-01T09:02:38.535Z): for a generic agent /: allowed (allow: /). Nothing was captured: any later capture goes through the FD19 capture gate (robots for frontend-capture and Claude-User, TDMRep, ai.txt, a recorded terms review, a stop on any bot wall). Exemplars feed per-category allowlists, never tiers (ARCHITECTURE.md section 5.2).",
+      "evidence": [
+        "FD11-F17",
+        "GET https://ondo.finance/robots.txt (2026-10-01T09:02:38.535Z): HTTP 200 text/plain; charset=utf-8, 66 bytes, sha256 8ab51e364e8fb659…, parsed with parseRobots/robotsDecision from research/_scripts/fd19/capture-gate.mjs"
+      ]
+    },
+    {
+      "id": "ex-chainlink",
+      "set": "exemplar",
+      "name": "Chainlink",
+      "category": "oracle",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "url",
+        "url": "https://chain.link/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "status": "ready",
+      "check": {
+        "kind": "robots",
+        "at": "2026-10-01T09:02:40.757Z",
+        "url": "https://chain.link/robots.txt",
+        "status": 200,
+        "final_url": "https://chain.link/robots.txt",
+        "content_type": "text/plain; charset=utf-8",
+        "bytes": 550,
+        "sha256": "d747b2d13af1ba882802b6679e8afda32763b9b23e2e3b86f243610b506fac16",
+        "generic_agent": {
+          "/": {
+            "allowed": true,
+            "rule": "none"
+          }
+        },
+        "skill_tokens": {
+          "frontend-capture": {
+            "allowed": true,
+            "rule": "none"
+          },
+          "Claude-User": {
+            "allowed": true,
+            "rule": "none"
+          }
+        },
+        "ai_agent_groups": [],
+        "content_usage": [],
+        "crawl_delay": 0
+      },
+      "notes": "FD11-F17, F19: no H1, a rotating word list, Inter on body text (tell 4 for body only), an institutional logo strip. robots.txt (one request, 2026-10-01T09:02:40.757Z): for a generic agent /: allowed (no matching rule). Nothing was captured: any later capture goes through the FD19 capture gate (robots for frontend-capture and Claude-User, TDMRep, ai.txt, a recorded terms review, a stop on any bot wall). Exemplars feed per-category allowlists, never tiers (ARCHITECTURE.md section 5.2).",
+      "evidence": [
+        "FD11-F17",
+        "GET https://chain.link/robots.txt (2026-10-01T09:02:40.757Z): HTTP 200 text/plain; charset=utf-8, 550 bytes, sha256 d747b2d13af1ba88…, parsed with parseRobots/robotsDecision from research/_scripts/fd19/capture-gate.mjs"
+      ]
+    },
+    {
+      "id": "ex-stripe",
+      "set": "exemplar",
+      "name": "Stripe",
+      "category": "payments",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "url",
+        "url": "https://stripe.com/en-fr",
+        "routes": [
+          {
+            "path": "/en-fr",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "status": "ready",
+      "check": {
+        "kind": "robots",
+        "at": "2026-10-01T09:02:42.831Z",
+        "url": "https://stripe.com/robots.txt",
+        "status": 200,
+        "final_url": "https://stripe.com/robots.txt",
+        "content_type": "text/plain; charset=utf-8",
+        "bytes": 643,
+        "sha256": "23166bdd2477d69a2fbd405ae5901154a36f5de79876de4616494458fb340002",
+        "generic_agent": {
+          "/": {
+            "allowed": true,
+            "rule": "none"
+          },
+          "/en-fr": {
+            "allowed": true,
+            "rule": "none"
+          }
+        },
+        "skill_tokens": {
+          "frontend-capture": {
+            "allowed": true,
+            "rule": "none"
+          },
+          "Claude-User": {
+            "allowed": true,
+            "rule": "none"
+          }
+        },
+        "ai_agent_groups": [],
+        "content_usage": [],
+        "crawl_delay": 0
+      },
+      "notes": "FD11-F17, F19: captured as /en-fr because stripe.com redirected a French IP there; live GDP counter above the H1, purple-to-orange ribbon. robots.txt allows both / and /en-fr. robots.txt (one request, 2026-10-01T09:02:42.831Z): for a generic agent /: allowed (no matching rule); /en-fr: allowed (no matching rule). Nothing was captured: any later capture goes through the FD19 capture gate (robots for frontend-capture and Claude-User, TDMRep, ai.txt, a recorded terms review, a stop on any bot wall). Exemplars feed per-category allowlists, never tiers (ARCHITECTURE.md section 5.2).",
+      "evidence": [
+        "FD11-F17",
+        "GET https://stripe.com/robots.txt (2026-10-01T09:02:42.831Z): HTTP 200 text/plain; charset=utf-8, 643 bytes, sha256 23166bdd2477d69a…, parsed with parseRobots/robotsDecision from research/_scripts/fd19/capture-gate.mjs"
+      ]
+    },
+    {
+      "id": "ex-hyperliquid",
+      "set": "exemplar",
+      "name": "Hyperliquid",
+      "category": "perps",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "url",
+        "url": "https://hyperliquid.xyz/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "status": "ready",
+      "check": {
+        "kind": "robots",
+        "at": "2026-10-01T09:02:45.111Z",
+        "url": "https://hyperliquid.xyz/robots.txt",
+        "status": 200,
+        "final_url": "https://hyperliquid.xyz/robots.txt",
+        "content_type": "text/plain",
+        "bytes": 23,
+        "sha256": "16ceb5ee3e0dc13aa9adf31a3ebbe45a1d965b8c2b9f72eaf84e5911e140ed95",
+        "generic_agent": {
+          "/": {
+            "allowed": true,
+            "rule": "allow: /"
+          }
+        },
+        "skill_tokens": {
+          "frontend-capture": {
+            "allowed": true,
+            "rule": "allow: /"
+          },
+          "Claude-User": {
+            "allowed": true,
+            "rule": "allow: /"
+          }
+        },
+        "ai_agent_groups": [],
+        "content_usage": [],
+        "crawl_delay": 0
+      },
+      "notes": "FD11-F17, F19: light serif display H1, a particle band, eight stacked progressive blurs. robots.txt (one request, 2026-10-01T09:02:45.111Z): for a generic agent /: allowed (allow: /). Nothing was captured: any later capture goes through the FD19 capture gate (robots for frontend-capture and Claude-User, TDMRep, ai.txt, a recorded terms review, a stop on any bot wall). Exemplars feed per-category allowlists, never tiers (ARCHITECTURE.md section 5.2).",
+      "evidence": [
+        "FD11-F17",
+        "GET https://hyperliquid.xyz/robots.txt (2026-10-01T09:02:45.111Z): HTTP 200 text/plain, 23 bytes, sha256 16ceb5ee3e0dc13a…, parsed with parseRobots/robotsDecision from research/_scripts/fd19/capture-gate.mjs"
+      ]
+    },
+    {
+      "id": "ex-ethena",
+      "set": "exemplar",
+      "name": "Ethena",
+      "category": "synthetic-dollar",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "url",
+        "url": "https://ethena.fi/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "status": "ready",
+      "check": {
+        "kind": "robots",
+        "at": "2026-10-01T09:02:47.853Z",
+        "url": "https://ethena.fi/robots.txt",
+        "status": 200,
+        "final_url": "https://ethena.fi/robots.txt",
+        "content_type": "text/plain",
+        "bytes": 674,
+        "sha256": "d5d654e7491becd9b553b6625333836ef2869b61a92751d2c1d1b1f738b9a175",
+        "generic_agent": {
+          "/": {
+            "allowed": true,
+            "rule": "allow: /"
+          }
+        },
+        "skill_tokens": {
+          "frontend-capture": {
+            "allowed": true,
+            "rule": "allow: /"
+          },
+          "Claude-User": {
+            "allowed": true,
+            "rule": "allow: /"
+          }
+        },
+        "ai_agent_groups": [
+          "oai-searchbot",
+          "chatgpt-user",
+          "claude-user",
+          "claude-searchbot",
+          "perplexitybot",
+          "gptbot",
+          "claudebot",
+          "anthropic-ai",
+          "ccbot",
+          "bytespider",
+          "meta-externalagent",
+          "amazonbot",
+          "diffbot",
+          "google-extended",
+          "applebot-extended"
+        ],
+        "content_usage": [],
+        "crawl_delay": 0
+      },
+      "notes": "FD11-F18, F19: gradient H1 (one hue, a lightness gradient) and a blurred-glass nav, tells 2 and 6 on an exemplar; no explanatory sentence. robots.txt (one request, 2026-10-01T09:02:47.853Z): for a generic agent /: allowed (allow: /); the file also names 15 AI agents, and Claude-User is allowed. Nothing was captured: any later capture goes through the FD19 capture gate (robots for frontend-capture and Claude-User, TDMRep, ai.txt, a recorded terms review, a stop on any bot wall). Exemplars feed per-category allowlists, never tiers (ARCHITECTURE.md section 5.2).",
+      "evidence": [
+        "FD11-F17",
+        "GET https://ethena.fi/robots.txt (2026-10-01T09:02:47.853Z): HTTP 200 text/plain, 674 bytes, sha256 d5d654e7491becd9…, parsed with parseRobots/robotsDecision from research/_scripts/fd19/capture-gate.mjs"
+      ]
+    },
+    {
+      "id": "ex-eigencloud",
+      "set": "exemplar",
+      "name": "EigenCloud (EigenLayer)",
+      "category": "restaking",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "url",
+        "url": "https://www.eigencloud.xyz/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "status": "ready",
+      "check": {
+        "kind": "robots",
+        "at": "2026-10-01T09:02:49.949Z",
+        "url": "https://www.eigencloud.xyz/robots.txt",
+        "status": 200,
+        "final_url": "https://www.eigencloud.xyz/robots.txt",
+        "content_type": "text/plain; charset=utf-8",
+        "bytes": 119,
+        "sha256": "4bf2321fc8f2696492282d37ed290f2d058d6e38e1b90e665d26489fde4ef7b9",
+        "generic_agent": {
+          "/": {
+            "allowed": true,
+            "rule": "none"
+          }
+        },
+        "skill_tokens": {
+          "frontend-capture": {
+            "allowed": true,
+            "rule": "none"
+          },
+          "Claude-User": {
+            "allowed": true,
+            "rule": "none"
+          }
+        },
+        "ai_agent_groups": [],
+        "content_usage": [],
+        "crawl_delay": 0
+      },
+      "notes": "FD11-F17: www.eigenlayer.xyz redirects to www.eigencloud.xyz after the rebrand; 3D block render. robots.txt (one request, 2026-10-01T09:02:49.949Z): for a generic agent /: allowed (no matching rule). Nothing was captured: any later capture goes through the FD19 capture gate (robots for frontend-capture and Claude-User, TDMRep, ai.txt, a recorded terms review, a stop on any bot wall). Exemplars feed per-category allowlists, never tiers (ARCHITECTURE.md section 5.2).",
+      "evidence": [
+        "FD11-F17; also a Queue Clock candidate customer",
+        "GET https://www.eigencloud.xyz/robots.txt (2026-10-01T09:02:49.949Z): HTTP 200 text/plain; charset=utf-8, 119 bytes, sha256 4bf2321fc8f26964…, parsed with parseRobots/robotsDecision from research/_scripts/fd19/capture-gate.mjs"
+      ]
+    },
+    {
+      "id": "ex-lido",
+      "set": "exemplar",
+      "name": "Lido",
+      "category": "liquid-staking",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "url",
+        "url": "https://lido.fi/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "status": "ready",
+      "check": {
+        "kind": "robots",
+        "at": "2026-10-01T09:02:52.066Z",
+        "url": "https://lido.fi/robots.txt",
+        "status": 200,
+        "final_url": "https://lido.fi/robots.txt",
+        "content_type": "text/plain",
+        "bytes": 68,
+        "sha256": "d87e8a83d14570d8103d490c64c67e4a44d59899c15aa2db0b1a2193d979fbe4",
+        "generic_agent": {
+          "/": {
+            "allowed": true,
+            "rule": "none"
+          }
+        },
+        "skill_tokens": {
+          "frontend-capture": {
+            "allowed": true,
+            "rule": "none"
+          },
+          "Claude-User": {
+            "allowed": true,
+            "rule": "none"
+          }
+        },
+        "ai_agent_groups": [],
+        "content_usage": [],
+        "crawl_delay": 0
+      },
+      "notes": "FD11-F17, F19: radial glows in pink and blue-violet at 20-25% opacity (tell 1 family), live APR and TVL. Also the Queue Clock fixture's own protocol. robots.txt (one request, 2026-10-01T09:02:52.066Z): for a generic agent /: allowed (no matching rule). Nothing was captured: any later capture goes through the FD19 capture gate (robots for frontend-capture and Claude-User, TDMRep, ai.txt, a recorded terms review, a stop on any bot wall). Exemplars feed per-category allowlists, never tiers (ARCHITECTURE.md section 5.2).",
+      "evidence": [
+        "FD11-F17; the shared fixture \"Queue Clock\" is built on Lido",
+        "GET https://lido.fi/robots.txt (2026-10-01T09:02:52.066Z): HTTP 200 text/plain, 68 bytes, sha256 d87e8a83d14570d8…, parsed with parseRobots/robotsDecision from research/_scripts/fd19/capture-gate.mjs"
+      ]
+    },
+    {
+      "id": "ex-spark",
+      "set": "exemplar",
+      "name": "Spark",
+      "category": "lending",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "url",
+        "url": "https://spark.finance/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "status": "ready",
+      "check": {
+        "kind": "robots",
+        "at": "2026-10-01T09:02:54.159Z",
+        "url": "https://spark.finance/robots.txt",
+        "status": 200,
+        "final_url": "https://spark.finance/robots.txt",
+        "content_type": "text/plain; charset=utf-8",
+        "bytes": 119,
+        "sha256": "530757d57c333dc8305aaf2645975e186a370d826ef54646b1c1f6eeee512645",
+        "generic_agent": {
+          "/": {
+            "allowed": true,
+            "rule": "allow: /"
+          }
+        },
+        "skill_tokens": {
+          "frontend-capture": {
+            "allowed": true,
+            "rule": "allow: /"
+          },
+          "Claude-User": {
+            "allowed": true,
+            "rule": "allow: /"
+          }
+        },
+        "ai_agent_groups": [],
+        "content_usage": [],
+        "crawl_delay": 0
+      },
+      "notes": "Queue Clock candidate customer. URL from the sparkdotfi GitHub organisation's website field; the Ethereum clear-signing registry (ERC-7730) entries for Spark name https://spark.fi/ instead, so the owner confirms which page is the customer reference (ARCHITECTURE.md section 3: proposed with a source, owner confirms). robots.txt (one request, 2026-10-01T09:02:54.159Z): for a generic agent /: allowed (allow: /). Nothing was captured: any later capture goes through the FD19 capture gate (robots for frontend-capture and Claude-User, TDMRep, ai.txt, a recorded terms review, a stop on any bot wall). Exemplars feed per-category allowlists, never tiers (ARCHITECTURE.md section 5.2).",
+      "evidence": [
+        "execution ARCHITECTURE.md section 19 (fixture \"Queue Clock\", candidate customers Aave, Morpho, EigenLayer, Spark, Euler, Curve)",
+        "GET https://spark.finance/robots.txt (2026-10-01T09:02:54.159Z): HTTP 200 text/plain; charset=utf-8, 119 bytes, sha256 530757d57c333dc8…, parsed with parseRobots/robotsDecision from research/_scripts/fd19/capture-gate.mjs"
+      ]
+    },
+    {
+      "id": "ex-euler",
+      "set": "exemplar",
+      "name": "Euler",
+      "category": "lending",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "url",
+        "url": "https://euler.finance/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "status": "ready",
+      "check": {
+        "kind": "robots",
+        "at": "2026-10-01T09:02:56.364Z",
+        "url": "https://euler.finance/robots.txt",
+        "status": 200,
+        "final_url": "https://euler.finance/robots.txt",
+        "content_type": "text/plain",
+        "bytes": 163,
+        "sha256": "02fb9a2783fa3e1b7ffb6896c9d709ec0d615f74a319d88d39bebaa5f18910d2",
+        "generic_agent": {
+          "/": {
+            "allowed": true,
+            "rule": "allow: /"
+          }
+        },
+        "skill_tokens": {
+          "frontend-capture": {
+            "allowed": true,
+            "rule": "allow: /"
+          },
+          "Claude-User": {
+            "allowed": true,
+            "rule": "allow: /"
+          }
+        },
+        "ai_agent_groups": [],
+        "content_usage": [],
+        "crawl_delay": 0
+      },
+      "notes": "Queue Clock candidate customer. The protocol domain comes from the euler-xyz organisation's repositories (euler-lite and euler-swap: https://app.euler.finance/; agent-skills: https://docs.euler.finance/); the organisation's own website field is the company site https://www.eulerlabs.com/. Owner confirms the customer page. robots.txt (one request, 2026-10-01T09:02:56.364Z): for a generic agent /: allowed (allow: /). Nothing was captured: any later capture goes through the FD19 capture gate (robots for frontend-capture and Claude-User, TDMRep, ai.txt, a recorded terms review, a stop on any bot wall). Exemplars feed per-category allowlists, never tiers (ARCHITECTURE.md section 5.2).",
+      "evidence": [
+        "execution ARCHITECTURE.md section 19",
+        "GET https://euler.finance/robots.txt (2026-10-01T09:02:56.364Z): HTTP 200 text/plain, 163 bytes, sha256 02fb9a2783fa3e1b…, parsed with parseRobots/robotsDecision from research/_scripts/fd19/capture-gate.mjs"
+      ]
+    },
+    {
+      "id": "ex-curve",
+      "set": "exemplar",
+      "name": "Curve",
+      "category": "dex",
+      "made_by": "human-designer",
+      "label_owner": null,
+      "render": {
+        "type": "url",
+        "url": "https://www.curve.finance/",
+        "routes": [
+          {
+            "path": "/",
+            "name": "home",
+            "first": true
+          }
+        ]
+      },
+      "status": "ready",
+      "check": {
+        "kind": "robots",
+        "at": "2026-10-01T09:02:58.498Z",
+        "url": "https://curve.finance/robots.txt",
+        "status": 200,
+        "final_url": "https://www.curve.finance/robots.txt",
+        "content_type": "text/plain; charset=utf-8",
+        "bytes": 23,
+        "sha256": "16ceb5ee3e0dc13aa9adf31a3ebbe45a1d965b8c2b9f72eaf84e5911e140ed95",
+        "generic_agent": {
+          "/": {
+            "allowed": true,
+            "rule": "allow: /"
+          }
+        },
+        "skill_tokens": {
+          "frontend-capture": {
+            "allowed": true,
+            "rule": "allow: /"
+          },
+          "Claude-User": {
+            "allowed": true,
+            "rule": "allow: /"
+          }
+        },
+        "ai_agent_groups": [],
+        "content_usage": [],
+        "crawl_delay": 0
+      },
+      "notes": "Queue Clock candidate customer. The curvefi organisation's website field is https://www.curve.finance/ and its curve-frontend repository's homepage is https://curve.finance/; curve.finance/robots.txt redirected to www.curve.finance. Owner confirms. robots.txt (one request, 2026-10-01T09:02:58.498Z): for a generic agent /: allowed (allow: /). Nothing was captured: any later capture goes through the FD19 capture gate (robots for frontend-capture and Claude-User, TDMRep, ai.txt, a recorded terms review, a stop on any bot wall). Exemplars feed per-category allowlists, never tiers (ARCHITECTURE.md section 5.2).",
+      "evidence": [
+        "execution ARCHITECTURE.md section 19",
+        "GET https://curve.finance/robots.txt (2026-10-01T09:02:58.498Z): HTTP 200 text/plain; charset=utf-8, 23 bytes, redirected to https://www.curve.finance/robots.txt, sha256 16ceb5ee3e0dc13a…, parsed with parseRobots/robotsDecision from research/_scripts/fd19/capture-gate.mjs"
+      ]
+    },
+    {
+      "id": "syn-holdover-1",
+      "set": "synthetic",
+      "name": "Unguided Opus 5.5 build from the BNB Holdover brief, run 1 of 2",
+      "made_by": "model",
+      "label_owner": null,
+      "render": {
+        "type": "serve",
+        "dir": "calibration/synthetic/out/syn-holdover-1",
+        "build_cmd": "generate: calibration/synthetic/prompts/syn-holdover-1.md (Generation protocol)",
+        "routes": [
+          {
+            "path": "/",
+            "name": "page",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "calibration/synthetic/out/syn-holdover-1",
+      "status": "needs-build",
+      "prompt": "calibration/synthetic/prompts/syn-holdover-1.md",
+      "prompt_sha256": "1284c10ed8040ae3ac71fa42f3b90102d051e39c9978632a55a1653766a270a4",
+      "brief": {
+        "source": "C:/Users/Utilisateur/Documents/Coding/BNB/research/design/SPEC.md",
+        "lines": "31-32",
+        "sha256": "b62cd1705ef80ee654647de24c9bbc628b244ecfda073b0f97fd9200aed7a32b"
+      },
+      "notes": "Not generated yet: generation happens later under the prompt file's protocol (one clean Opus 5.5 request per run, no system prompt, no skills, no selection). Its pair run 2 uses the identical prompt.",
+      "evidence": [
+        "C:/Users/Utilisateur/Documents/Coding/BNB/research/design/SPEC.md lines 31-32 (sha256 b62cd1705ef80ee6…, read 2026-10-01)",
+        "ARCHITECTURE.md section 5.2: synthetic positives from unguided Opus 5.5 runs on past briefs"
+      ]
+    },
+    {
+      "id": "syn-holdover-2",
+      "set": "synthetic",
+      "name": "Unguided Opus 5.5 build from the BNB Holdover brief, run 2 of 2",
+      "made_by": "model",
+      "label_owner": null,
+      "render": {
+        "type": "serve",
+        "dir": "calibration/synthetic/out/syn-holdover-2",
+        "build_cmd": "generate: calibration/synthetic/prompts/syn-holdover-2.md (Generation protocol)",
+        "routes": [
+          {
+            "path": "/",
+            "name": "page",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "calibration/synthetic/out/syn-holdover-2",
+      "status": "needs-build",
+      "prompt": "calibration/synthetic/prompts/syn-holdover-2.md",
+      "prompt_sha256": "1284c10ed8040ae3ac71fa42f3b90102d051e39c9978632a55a1653766a270a4",
+      "brief": {
+        "source": "C:/Users/Utilisateur/Documents/Coding/BNB/research/design/SPEC.md",
+        "lines": "31-32",
+        "sha256": "b62cd1705ef80ee654647de24c9bbc628b244ecfda073b0f97fd9200aed7a32b"
+      },
+      "notes": "Not generated yet: generation happens later under the prompt file's protocol (one clean Opus 5.5 request per run, no system prompt, no skills, no selection). Its pair run 1 uses the identical prompt.",
+      "evidence": [
+        "C:/Users/Utilisateur/Documents/Coding/BNB/research/design/SPEC.md lines 31-32 (sha256 b62cd1705ef80ee6…, read 2026-10-01)",
+        "ARCHITECTURE.md section 5.2: synthetic positives from unguided Opus 5.5 runs on past briefs"
+      ]
+    },
+    {
+      "id": "syn-t2049-1",
+      "set": "synthetic",
+      "name": "Unguided Opus 5.5 build from the TOKEN2049 Origins primary pitch brief, run 1 of 2",
+      "made_by": "model",
+      "label_owner": null,
+      "render": {
+        "type": "serve",
+        "dir": "calibration/synthetic/out/syn-t2049-1",
+        "build_cmd": "generate: calibration/synthetic/prompts/syn-t2049-1.md (Generation protocol)",
+        "routes": [
+          {
+            "path": "/",
+            "name": "page",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "calibration/synthetic/out/syn-t2049-1",
+      "status": "unavailable",
+      "prompt": "calibration/synthetic/prompts/syn-t2049-1.md",
+      "prompt_sha256": "2362cab4a82b571bdd7632e9323f76c536dc4c154f7821685d67fa27c682d6ba",
+      "brief": {
+        "source": "C:/Users/Utilisateur/Documents/Documents Perso/token2049/research/findings/wave3/_recommendation.md",
+        "lines": "153-154",
+        "sha256": "d81fd5ea8df64026e3cf9a722aad145dfa2c2ab37a9c50ebd7aa00121aba9174"
+      },
+      "hold_until": "2026-10-08T11:00:00Z",
+      "notes": "Held: TOKEN2049 Origins forbids code, designs and prototypes before kickoff (FD09-F27) and the project's recommendation forbids even a package.json before the start; generation waits until the event has ended (2026-10-08T11:00Z, organiser event data in FD09-F27), then the entry becomes needs-build. The prompt file and its outputs are gitignored (pre-event pitch).",
+      "evidence": [
+        "C:/Users/Utilisateur/Documents/Documents Perso/token2049/research/findings/wave3/_recommendation.md lines 153-154 (sha256 d81fd5ea8df64026…, read 2026-10-01)",
+        "ARCHITECTURE.md section 5.2: synthetic positives from unguided Opus 5.5 runs on past briefs"
+      ]
+    },
+    {
+      "id": "syn-t2049-2",
+      "set": "synthetic",
+      "name": "Unguided Opus 5.5 build from the TOKEN2049 Origins primary pitch brief, run 2 of 2",
+      "made_by": "model",
+      "label_owner": null,
+      "render": {
+        "type": "serve",
+        "dir": "calibration/synthetic/out/syn-t2049-2",
+        "build_cmd": "generate: calibration/synthetic/prompts/syn-t2049-2.md (Generation protocol)",
+        "routes": [
+          {
+            "path": "/",
+            "name": "page",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "calibration/synthetic/out/syn-t2049-2",
+      "status": "unavailable",
+      "prompt": "calibration/synthetic/prompts/syn-t2049-2.md",
+      "prompt_sha256": "2362cab4a82b571bdd7632e9323f76c536dc4c154f7821685d67fa27c682d6ba",
+      "brief": {
+        "source": "C:/Users/Utilisateur/Documents/Documents Perso/token2049/research/findings/wave3/_recommendation.md",
+        "lines": "153-154",
+        "sha256": "d81fd5ea8df64026e3cf9a722aad145dfa2c2ab37a9c50ebd7aa00121aba9174"
+      },
+      "hold_until": "2026-10-08T11:00:00Z",
+      "notes": "Held: TOKEN2049 Origins forbids code, designs and prototypes before kickoff (FD09-F27) and the project's recommendation forbids even a package.json before the start; generation waits until the event has ended (2026-10-08T11:00Z, organiser event data in FD09-F27), then the entry becomes needs-build. The prompt file and its outputs are gitignored (pre-event pitch).",
+      "evidence": [
+        "C:/Users/Utilisateur/Documents/Documents Perso/token2049/research/findings/wave3/_recommendation.md lines 153-154 (sha256 d81fd5ea8df64026…, read 2026-10-01)",
+        "ARCHITECTURE.md section 5.2: synthetic positives from unguided Opus 5.5 runs on past briefs"
+      ]
+    },
+    {
+      "id": "syn-orma-1",
+      "set": "synthetic",
+      "name": "Unguided Opus 5.5 build from the XRPL Orma brief, run 1 of 2",
+      "made_by": "model",
+      "label_owner": null,
+      "render": {
+        "type": "serve",
+        "dir": "calibration/synthetic/out/syn-orma-1",
+        "build_cmd": "generate: calibration/synthetic/prompts/syn-orma-1.md (Generation protocol)",
+        "routes": [
+          {
+            "path": "/",
+            "name": "page",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "calibration/synthetic/out/syn-orma-1",
+      "status": "needs-build",
+      "prompt": "calibration/synthetic/prompts/syn-orma-1.md",
+      "prompt_sha256": "aa5c5bbc8fe23dc941ce7b7938b6f0e9f96c51e4746dcefef2ed5d28e124ca3c",
+      "brief": {
+        "source": "C:/Users/Utilisateur/Documents/Coding/XRPL_Hackathon_2026/README.md",
+        "lines": "3-8",
+        "sha256": "bc2e214717e7be4bcf9767b47d2d003ad9323087d67bc1f5d8fff0c505e79da0"
+      },
+      "notes": "Not generated yet: generation happens later under the prompt file's protocol (one clean Opus 5.5 request per run, no system prompt, no skills, no selection). Its pair run 2 uses the identical prompt.",
+      "evidence": [
+        "C:/Users/Utilisateur/Documents/Coding/XRPL_Hackathon_2026/README.md lines 3-8 (sha256 bc2e214717e7be4b…, read 2026-10-01)",
+        "ARCHITECTURE.md section 5.2: synthetic positives from unguided Opus 5.5 runs on past briefs"
+      ]
+    },
+    {
+      "id": "syn-orma-2",
+      "set": "synthetic",
+      "name": "Unguided Opus 5.5 build from the XRPL Orma brief, run 2 of 2",
+      "made_by": "model",
+      "label_owner": null,
+      "render": {
+        "type": "serve",
+        "dir": "calibration/synthetic/out/syn-orma-2",
+        "build_cmd": "generate: calibration/synthetic/prompts/syn-orma-2.md (Generation protocol)",
+        "routes": [
+          {
+            "path": "/",
+            "name": "page",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "calibration/synthetic/out/syn-orma-2",
+      "status": "needs-build",
+      "prompt": "calibration/synthetic/prompts/syn-orma-2.md",
+      "prompt_sha256": "aa5c5bbc8fe23dc941ce7b7938b6f0e9f96c51e4746dcefef2ed5d28e124ca3c",
+      "brief": {
+        "source": "C:/Users/Utilisateur/Documents/Coding/XRPL_Hackathon_2026/README.md",
+        "lines": "3-8",
+        "sha256": "bc2e214717e7be4bcf9767b47d2d003ad9323087d67bc1f5d8fff0c505e79da0"
+      },
+      "notes": "Not generated yet: generation happens later under the prompt file's protocol (one clean Opus 5.5 request per run, no system prompt, no skills, no selection). Its pair run 1 uses the identical prompt.",
+      "evidence": [
+        "C:/Users/Utilisateur/Documents/Coding/XRPL_Hackathon_2026/README.md lines 3-8 (sha256 bc2e214717e7be4b…, read 2026-10-01)",
+        "ARCHITECTURE.md section 5.2: synthetic positives from unguided Opus 5.5 runs on past briefs"
+      ]
+    },
+    {
+      "id": "syn-hedera-1",
+      "set": "synthetic",
+      "name": "Unguided Opus 5.5 build from the Hedera Scaffold-HBAR template brief, run 1 of 2",
+      "made_by": "model",
+      "label_owner": null,
+      "render": {
+        "type": "serve",
+        "dir": "calibration/synthetic/out/syn-hedera-1",
+        "build_cmd": "generate: calibration/synthetic/prompts/syn-hedera-1.md (Generation protocol)",
+        "routes": [
+          {
+            "path": "/",
+            "name": "page",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "calibration/synthetic/out/syn-hedera-1",
+      "status": "needs-build",
+      "prompt": "calibration/synthetic/prompts/syn-hedera-1.md",
+      "prompt_sha256": "74162dad51a19757195073e3266aa4b96882b1b381c5a500514a5106dbe3f614",
+      "brief": {
+        "source": "C:/Users/Utilisateur/Documents/Coding/Hedera/research/findings/DOCS-PLAN.md",
+        "lines": "20-24",
+        "sha256": "b8198977afb1a6c3b8ffc2d1269f886d625ea7ed7066afb3b2631ac920d3fbe3"
+      },
+      "notes": "Not generated yet: generation happens later under the prompt file's protocol (one clean Opus 5.5 request per run, no system prompt, no skills, no selection). Its pair run 2 uses the identical prompt.",
+      "evidence": [
+        "C:/Users/Utilisateur/Documents/Coding/Hedera/research/findings/DOCS-PLAN.md lines 20-24 (sha256 b8198977afb1a6c3…, read 2026-10-01)",
+        "ARCHITECTURE.md section 5.2: synthetic positives from unguided Opus 5.5 runs on past briefs"
+      ]
+    },
+    {
+      "id": "syn-hedera-2",
+      "set": "synthetic",
+      "name": "Unguided Opus 5.5 build from the Hedera Scaffold-HBAR template brief, run 2 of 2",
+      "made_by": "model",
+      "label_owner": null,
+      "render": {
+        "type": "serve",
+        "dir": "calibration/synthetic/out/syn-hedera-2",
+        "build_cmd": "generate: calibration/synthetic/prompts/syn-hedera-2.md (Generation protocol)",
+        "routes": [
+          {
+            "path": "/",
+            "name": "page",
+            "first": true
+          }
+        ]
+      },
+      "source_root": "calibration/synthetic/out/syn-hedera-2",
+      "status": "needs-build",
+      "prompt": "calibration/synthetic/prompts/syn-hedera-2.md",
+      "prompt_sha256": "74162dad51a19757195073e3266aa4b96882b1b381c5a500514a5106dbe3f614",
+      "brief": {
+        "source": "C:/Users/Utilisateur/Documents/Coding/Hedera/research/findings/DOCS-PLAN.md",
+        "lines": "20-24",
+        "sha256": "b8198977afb1a6c3b8ffc2d1269f886d625ea7ed7066afb3b2631ac920d3fbe3"
+      },
+      "notes": "Not generated yet: generation happens later under the prompt file's protocol (one clean Opus 5.5 request per run, no system prompt, no skills, no selection). Its pair run 1 uses the identical prompt.",
+      "evidence": [
+        "C:/Users/Utilisateur/Documents/Coding/Hedera/research/findings/DOCS-PLAN.md lines 20-24 (sha256 b8198977afb1a6c3…, read 2026-10-01)",
+        "ARCHITECTURE.md section 5.2: synthetic positives from unguided Opus 5.5 runs on past briefs"
+      ]
+    }
+  ]
+}

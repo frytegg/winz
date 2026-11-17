@@ -1,0 +1,10 @@
+:root {
+  --background: #f4f1ea;
+  --accent: #d97757;
+  --font-display: "Fraunces", Georgia, serif;
+}
+
+body {
+  background: var(--background);
+  font-family: system-ui, sans-serif;
+}

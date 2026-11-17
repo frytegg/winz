@@ -1,0 +1,349 @@
+{
+  "schema": "execution.profile/1",
+  "project": {
+    "name": "Queue Clock",
+    "slug": "queue-clock",
+    "name_owner_confirmed": false,
+    "product_repo": {
+      "path": "C:/x/qc/repo",
+      "remote_url": null,
+      "default_branch": "main"
+    },
+    "state_repo": {
+      "remote_url": null,
+      "private": true
+    }
+  },
+  "event": {
+    "kind": "hackathon",
+    "presence": "in-person",
+    "start_utc": "2026-10-03T07:45:00Z",
+    "deadline_utc": "2026-10-03T13:45:00Z",
+    "display_zones": [
+      {
+        "label": "SGT",
+        "iana": "Asia/Singapore",
+        "fallback_utc_offset_min": 480
+      },
+      {
+        "label": "Paris",
+        "iana": "Europe/Paris",
+        "fallback_utc_offset_min": 120
+      }
+    ],
+    "judging": {
+      "mode": "stage",
+      "readme_is_pitch": false,
+      "surfaces": [
+        "repo",
+        "video",
+        "live-room"
+      ]
+    },
+    "demo": {
+      "format": "recording",
+      "live_allowed": false,
+      "video": {
+        "max_s": 180,
+        "embed": "mp4"
+      }
+    },
+    "deliverables": [
+      {
+        "id": "repo",
+        "title": "Repository link",
+        "kind": "repo",
+        "due_utc": "2026-10-03T13:45:00Z",
+        "manual": false
+      },
+      {
+        "id": "video",
+        "title": "Recorded video (mp4, at most 180 s)",
+        "kind": "video",
+        "due_utc": "2026-10-03T13:45:00Z",
+        "manual": true
+      },
+      {
+        "id": "form",
+        "title": "Submission form",
+        "kind": "form",
+        "due_utc": "2026-10-03T13:45:00Z",
+        "manual": true
+      },
+      {
+        "id": "tag",
+        "title": "Tag on the submitted commit",
+        "kind": "tag",
+        "due_utc": "2026-10-03T13:45:00Z",
+        "manual": false
+      }
+    ],
+    "rubric": {
+      "tracks": [
+        {
+          "id": "main",
+          "name": "Main track",
+          "criteria": [
+            {
+              "name": "Technical depth",
+              "weight_pct": 30
+            },
+            {
+              "name": "Usefulness to the sponsor's users",
+              "weight_pct": 30
+            },
+            {
+              "name": "UX & Design",
+              "weight_pct": 20
+            },
+            {
+              "name": "Presentation",
+              "weight_pct": 20
+            }
+          ],
+          "source": "C:/x/qc/private/event-brief.md#rubric"
+        }
+      ]
+    },
+    "tracks": [
+      "main"
+    ],
+    "source": "C:/x/qc/private/event-brief.md (fictional rehearsal event, rendered 2026-10-03T07:12:00Z)"
+  },
+  "team": {
+    "devs": [
+      {
+        "id": "devA",
+        "name": "Dev A (owner)",
+        "executor": "A",
+        "setup": "full",
+        "notion_member": true,
+        "availability": [
+          {
+            "start_utc": "2026-10-03T07:02:00Z",
+            "end_utc": "2026-10-03T16:45:00Z",
+            "kind": "awake"
+          },
+          {
+            "start_utc": "2026-10-03T10:45:00Z",
+            "end_utc": "2026-10-03T11:15:00Z",
+            "kind": "talk"
+          }
+        ]
+      }
+    ]
+  },
+  "channels": [
+    {
+      "name": "Organiser announcements",
+      "kind": "web",
+      "access": "manual-copy",
+      "url": null,
+      "cadence_min": 60
+    }
+  ],
+  "prework": {
+    "code": true,
+    "designs": false,
+    "until_utc": "2026-10-03T07:45:00Z"
+  },
+  "freezes": [
+    {
+      "id": "code-for-recording",
+      "kind": "code-for-recording",
+      "at_utc": "2026-10-03T12:15:00Z",
+      "globs": [
+        "**"
+      ]
+    },
+    {
+      "id": "docs",
+      "kind": "docs",
+      "at_utc": "2026-10-03T13:00:00Z",
+      "globs": [
+        "README.md",
+        "docs/**"
+      ]
+    },
+    {
+      "id": "push-tag",
+      "kind": "push-tag",
+      "at_utc": "2026-10-03T13:45:00Z",
+      "globs": [
+        "**"
+      ]
+    }
+  ],
+  "workspace": {
+    "private_dir": "C:/x/qc/private"
+  },
+  "paths": {
+    "never_show": "C:/x/qc/private/never-show.json",
+    "feature_catalogue": "C:/x/qc/repo/.execution/feature-catalogue.json",
+    "spec": "C:/x/qc/private/SPEC.md",
+    "research": "C:/x/qc/private/research",
+    "judge_facing": [
+      "README.md",
+      "docs/**/*.md"
+    ]
+  },
+  "phase_b": {
+    "claims_ledger": "C:/x/qc/private/claims-ledger.md",
+    "dx_journal": "C:/x/qc/private/dx-journal.md",
+    "run_sheet": "C:/x/qc/private/run-sheet.md",
+    "private": true
+  },
+  "machine": {
+    "max_lanes": 3,
+    "max_verifiers": 2,
+    "disk_floor_gb": 2.0,
+    "ram_floor_gb": 1.5,
+    "workspace_mode": "auto",
+    "lane_footprint_gb": 0.3,
+    "workflow_concurrency": 6,
+    "browser_slots": 1,
+    "scratch_root": "C:/x/qc/scratch"
+  },
+  "notion": {
+    "enabled": true,
+    "hub_page_id": null,
+    "databases": {
+      "tasks": null,
+      "waves": null
+    },
+    "views": {
+      "board": null,
+      "needs_dev_a": null,
+      "needs_dev_b": null,
+      "to_ingest": null,
+      "waves": null
+    },
+    "language": "en",
+    "tool_suffix_match": true
+  },
+  "harden": {
+    "budget_min_p80": null,
+    "scope_paths": [],
+    "exclude_globs": [],
+    "profile_draft_path": null
+  },
+  "quota": {
+    "snapshot_path": "C:/x/qc/claude-config/usage-snapshot.json",
+    "max_age_s": 900,
+    "five_hour_critical_only_pct": 85,
+    "weekly_reserve_pct": 10
+  },
+  "heartbeat": {
+    "every_min": 20,
+    "minute_offset": 7
+  },
+  "event_tools": [],
+  "frontend": {
+    "mode": "small",
+    "run_mode": "A",
+    "judged_surface": "site",
+    "format": {
+      "stage": true,
+      "projector_zoom": 1.25,
+      "video": {
+        "max_s": 180,
+        "width": 1920,
+        "height": 1080,
+        "embed": "mp4"
+      },
+      "async_readme": false
+    },
+    "viewports": [
+      {
+        "name": "desktop",
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      {
+        "name": "mobile",
+        "width": 390,
+        "height": 844,
+        "dpr": 2,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      {
+        "name": "reflow",
+        "width": 320,
+        "height": 640,
+        "dpr": 1
+      }
+    ],
+    "record_mode": true,
+    "ready_flag": false,
+    "stack": "static-html",
+    "hosting": "local",
+    "external_requests": false,
+    "review_surface": "board",
+    "critique": {
+      "rounds_max": 1,
+      "critics": 3,
+      "probes": 5
+    },
+    "budget": {
+      "ui_hours": 2,
+      "tokens": null
+    },
+    "references": [
+      {
+        "customer": "Aave",
+        "url": "https://aave.com/",
+        "source": "C:/x/qc/private/customers.json#candidates/0",
+        "owner_confirmed": false
+      },
+      {
+        "customer": "Morpho",
+        "url": "https://morpho.org/",
+        "source": "C:/x/qc/private/customers.json#candidates/1",
+        "owner_confirmed": false
+      },
+      {
+        "customer": "EigenLayer",
+        "url": "https://www.eigencloud.xyz/",
+        "source": "C:/x/qc/private/customers.json#candidates/2",
+        "owner_confirmed": false
+      },
+      {
+        "customer": "Spark",
+        "url": "https://spark.finance/",
+        "source": "C:/x/qc/private/customers.json#candidates/3",
+        "owner_confirmed": false
+      },
+      {
+        "customer": "Euler",
+        "url": "https://www.euler.finance/",
+        "source": "C:/x/qc/private/customers.json#candidates/4",
+        "owner_confirmed": false
+      },
+      {
+        "customer": "Curve",
+        "url": "https://www.curve.finance/",
+        "source": "C:/x/qc/private/customers.json#candidates/5",
+        "owner_confirmed": false
+      }
+    ],
+    "sponsors": [
+      "lido"
+    ],
+    "tells": {
+      "score_max": null
+    },
+    "paths": {
+      "design": "design",
+      "claims_ledger": "C:/x/qc/private/claims-ledger.md",
+      "never_show": "C:/x/qc/private/never-show.json",
+      "feature_catalogue": "C:/x/qc/repo/.execution/feature-catalogue.json",
+      "spec": "C:/x/qc/private/SPEC.md",
+      "research": "C:/x/qc/private/research"
+    },
+    "workspace": {
+      "private_dir": "C:/x/qc/private"
+    }
+  }
+}

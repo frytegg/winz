@@ -1,0 +1,23 @@
+{
+  "waivers": [
+    {
+      "rule": "SL-T09",
+      "scope": "/ status badge above [data-hero=\"h1\"]",
+      "reason": "The badge is the deployed contract's network status (testnet), linked to its explorer page: a real, checkable status the first screen must show, not a decorative label.",
+      "evidence": [
+        "rules/registry.json SL-T09 falsePositives: a real, checkable status linked to proof",
+        "claims ledger C-004: contract address on the testnet"
+      ],
+      "approved_by": "owner",
+      "date": "2026-10-06"
+    }
+  ],
+  "category": [
+    {
+      "rule": "SL-T08",
+      "category": "defi-staking",
+      "reason": "Deposit, wait in the queue and withdraw are the product's real three-step sequence, and the category's exemplars show such a sequence as one row.",
+      "source": "pattern-ledger P-04, drawn from R1 and R3"
+    }
+  ]
+}

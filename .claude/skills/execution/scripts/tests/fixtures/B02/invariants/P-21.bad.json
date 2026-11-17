@@ -1,0 +1,15 @@
+{
+ "base": "base.json",
+ "note": "a brief ref missing on this machine",
+ "expect": [],
+ "expect_warning": "W_BRIEF_REF_MISSING",
+ "ops": [
+  {
+   "op": "set",
+   "path": "/plan/tasks/@engine/brief_refs",
+   "value": [
+    "C:/x/qc/private/missing-reference.md"
+   ]
+  }
+ ]
+}

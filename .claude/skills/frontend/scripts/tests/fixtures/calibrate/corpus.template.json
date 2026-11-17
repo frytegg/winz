@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "description": "Calibration fixture corpus; {WAYBACK} is replaced by the fake Wayback server of the test.",
+  "entries": [
+    {
+      "id": "pos-a", "set": "positive", "name": "Positive A", "made_by": "owner", "label_owner": null,
+      "render": {"type": "serve", "dir": "sites/pos-a", "routes": [{"path": "/", "name": "home", "first": true}, {"path": "/about.html", "name": "about"}]},
+      "source_root": "src/pos-a", "source_paths": ["ui"], "status": "ready"
+    },
+    {
+      "id": "pos-b", "set": "positive", "name": "Positive B", "made_by": "teammate", "label_owner": null,
+      "render": {"type": "serve", "dir": "sites/pos-b", "routes": [{"path": "/", "name": "home", "first": true}]},
+      "source_root": "src/pos-b", "status": "ready"
+    },
+    {
+      "id": "syn-a", "set": "synthetic", "name": "Synthetic A", "made_by": "model", "label_owner": null,
+      "render": {"type": "serve", "dir": "sites/syn-a", "routes": [{"path": "/", "name": "page", "first": true}]},
+      "source_root": "src/syn-a", "status": "ready"
+    },
+    {
+      "id": "ctl-a", "set": "control", "name": "Control A", "made_by": "human-designer", "label_owner": null,
+      "render": {"type": "serve", "dir": "sites/ctl-a", "routes": [{"path": "/", "name": "home", "first": true}]},
+      "source_root": "https://github.com/example/ctl-a/tree/abc1234", "status": "ready"
+    },
+    {
+      "id": "ctl-wb", "set": "control", "name": "Control from the Wayback Machine", "made_by": "human-designer", "label_owner": null,
+      "render": {
+        "type": "wayback",
+        "url": "{WAYBACK}/web/20221114154205/https://ctl.example/",
+        "replay_url": "{WAYBACK}/web/20221114154205if_/https://ctl.example/",
+        "routes": [{"path": "/", "name": "home", "first": true}]
+      },
+      "status": "ready"
+    },
+    {
+      "id": "ctl-live", "set": "control", "name": "A live control", "made_by": "human-designer", "label_owner": null,
+      "render": {"type": "url", "url": "https://ctl-live.example/", "routes": [{"path": "/", "name": "home", "first": true}]},
+      "status": "ready"
+    },
+    {
+      "id": "pos-built", "set": "positive", "name": "Needs a build", "made_by": "owner", "label_owner": null,
+      "render": {"type": "build", "dir": "x", "build_cmd": "pnpm build", "routes": [{"path": "/", "name": "home", "first": true}]},
+      "status": "needs-build", "notes": "Not built yet. A second sentence that stays out of the reason."
+    },
+    {
+      "id": "pos-missing", "set": "positive", "name": "Ready but its folder is gone", "made_by": "owner", "label_owner": null,
+      "render": {"type": "serve", "dir": "sites/does-not-exist", "routes": [{"path": "/", "name": "home", "first": true}]},
+      "status": "ready"
+    },
+    {
+      "id": "ex-a", "set": "exemplar", "name": "Exemplar A", "category": "dex", "made_by": "human-designer", "label_owner": null,
+      "render": {"type": "url", "url": "https://ex-a.example/", "routes": [{"path": "/", "name": "home", "first": true}]},
+      "status": "ready", "check": {"kind": "robots", "skill_tokens": {"frontend-capture": {"allowed": true, "rule": "none"}}}
+    }
+  ]
+}

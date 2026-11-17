@@ -1,0 +1,13 @@
+{
+ "base": "base.json",
+ "note": "a submission deadline without DL-build-complete",
+ "ops": [
+  {
+   "op": "remove",
+   "path": "/plan/deadlines/@DL-build-complete"
+  }
+ ],
+ "expect": [
+  "E_DEADLINE"
+ ]
+}

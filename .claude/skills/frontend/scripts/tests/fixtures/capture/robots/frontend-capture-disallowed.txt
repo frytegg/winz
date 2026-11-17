@@ -1,0 +1,5 @@
+User-agent: frontend-capture
+Disallow: /
+
+User-agent: *
+Allow: /

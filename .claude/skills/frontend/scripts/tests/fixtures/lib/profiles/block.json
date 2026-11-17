@@ -1,0 +1,27 @@
+{
+  "judged_surface": "app",
+  "stack": "existing",
+  "hosting": "existing",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1536,
+      "height": 864
+    },
+    {
+      "name": "phone",
+      "width": 390,
+      "height": 844,
+      "dpr": 3,
+      "isMobile": true,
+      "hasTouch": true,
+      "colorScheme": "dark",
+      "reducedMotion": "reduce"
+    }
+  ],
+  "record_mode": true,
+  "paths": {
+    "claims_ledger": "claims.md"
+  },
+  "extra_field": 1
+}

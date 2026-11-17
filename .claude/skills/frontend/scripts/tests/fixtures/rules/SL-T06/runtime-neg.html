@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SL-T06 runtime negative</title>
+<style>
+  body { margin: 0; font-family: Arial, sans-serif; color: #111; background: linear-gradient(180deg, #e0e7ff, #fce7f3); }
+  /* a full-width frosted sticky bar (Linear, Vercel, GitHub) */
+  .bar { position: sticky; top: 0; height: 56px; background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); }
+  /* a floating frosted navigation pill */
+  nav { width: 480px; margin: 16px auto; padding: 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(8px); }
+  /* a legibility panel over an image */
+  .media { position: relative; width: 600px; height: 320px; margin: 24px; }
+  .media img { display: block; width: 600px; height: 320px; }
+  .caption { position: absolute; left: 24px; bottom: 24px; width: 320px; height: 120px; padding: 16px; box-sizing: border-box;
+    background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(6px); color: #fff; }
+  /* blur under an opaque fill renders nothing (FD14-F08, ETHDenver) */
+  .opaque { width: 360px; height: 160px; margin: 24px; padding: 16px; box-sizing: border-box; background: #241a0e; color: #fff; backdrop-filter: blur(12px); }
+</style>
+</head>
+<body>
+  <div class="bar">Holdover</div>
+  <nav aria-label="Main"><a href="#a">Docs</a> <a href="#b">Pricing</a></nav>
+  <div class="media">
+    <img alt="Validator map" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='320'%3E%3Crect width='600' height='320' fill='%2364748b'/%3E%3Ccircle cx='300' cy='160' r='90' fill='%23f8fafc'/%3E%3C/svg%3E">
+    <div class="caption">Validators by region, live</div>
+  </div>
+  <div class="opaque"><h3>Terminal</h3><p>The panel is opaque, so the blur never shows.</p></div>
+</body>
+</html>

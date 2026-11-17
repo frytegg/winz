@@ -1,0 +1,14 @@
+{
+ "base": "base.json",
+ "note": "a code task released at the push freeze",
+ "ops": [
+  {
+   "op": "set",
+   "path": "/plan/tasks/@engine/release_utc",
+   "value": "2026-10-03T13:45:00Z"
+  }
+ ],
+ "expect": [
+  "E_PUSH_FREEZE"
+ ]
+}

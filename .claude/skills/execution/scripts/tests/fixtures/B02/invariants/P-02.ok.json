@@ -1,0 +1,12 @@
+{
+ "base": "base.json",
+ "note": "T004 depending on T005 with no cycle",
+ "ops": [
+  {
+   "op": "append",
+   "path": "/plan/tasks/@engine-tests/depends_on",
+   "value": "#engine"
+  }
+ ],
+ "expect": []
+}

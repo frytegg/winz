@@ -1,0 +1,9 @@
+{
+ "base": "base.json",
+ "note": "the spec file edited after its validation",
+ "ops": [],
+ "expect": [
+  "E_SPEC_UNVALIDATED"
+ ],
+ "spec_text_after": "# Queue Clock spec\n\nFR-001 FR-002 FR-003 FR-004 FR-005 FR-006 FR-007\nSC-001 SC-002 SC-003 SC-004 SC-005\nFR-008 added later\n"
+}

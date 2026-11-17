@@ -1,0 +1,6 @@
+{
+ "base": "base.json",
+ "note": "a decision task without two options or an options source",
+ "ops": [],
+ "expect": []
+}

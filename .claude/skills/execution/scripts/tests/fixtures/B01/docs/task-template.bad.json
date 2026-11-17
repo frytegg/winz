@@ -1,0 +1,82 @@
+{
+  "schema": "execution.task-templates/1",
+  "library": "execution",
+  "version": "1.0.0",
+  "parameters": {
+    "mode": {
+      "type": "enum",
+      "enum": [
+        "full",
+        "small"
+      ],
+      "default": "small",
+      "description": "UI mode"
+    }
+  },
+  "templates": [
+    {
+      "id": "EX-BOOT",
+      "title": "Bootstrap the product repository",
+      "description": "Bootstrap.",
+      "kind": "infra",
+      "phase": "setup",
+      "include": true,
+      "covers": {
+        "rule": "nfr",
+        "nfr": {
+          "key": "bootstrap",
+          "title": "Repository bootstrap",
+          "text": "LF, main, hooks.",
+          "priority": "P1",
+          "required": true
+        }
+      },
+      "depends_on": [
+        {
+          "ref": "@spec-approved"
+        }
+      ],
+      "writes": [
+        ".gitattributes",
+        ".githooks/**"
+      ],
+      "resources": [
+        "manifest"
+      ],
+      "estimate": {
+        "default": {
+          "p10_min": 5,
+          "p50_min": 10,
+          "p90_min": 20
+        }
+      },
+      "model": "sonnet",
+      "effort": "medium",
+      "proof": {
+        "type": "command",
+        "spec": {
+          "cmd": "node --test",
+          "shell": "bash",
+          "cwd": ".",
+          "install": false
+        },
+        "expect": {
+          "summary": "the task's tests pass",
+          "exit_code": 0
+        },
+        "max_runtime_min": 2,
+        "negative_control": {
+          "kind": "pre-implementation",
+          "description": "fails on the parent commit",
+          "expect_nonzero": true
+        }
+      },
+      "brief_refs": [],
+      "manual": null,
+      "required": true,
+      "priority": "P1",
+      "prework_class": "code",
+      "max_attempts": 2
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "ts": "2026-10-03T07:12:00Z",
+  "actor": "exec:status@A",
+  "type": "run.state",
+  "data": {
+    "from": "RUNNING",
+    "to": "AWAITING_HUMAN",
+    "reason": "T004 posted"
+  },
+  "executor": "A",
+  "seq": 8
+}

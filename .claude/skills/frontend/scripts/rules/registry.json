@@ -1,0 +1,1838 @@
+{
+  "version": 1,
+  "generated": "2026-10-01",
+  "note": "Every rule is a candidate until calibrate.mjs and the owner set its tier (ARCHITECTURE.md 5.2).",
+  "rules": [
+    {
+      "id": "SL-T01",
+      "family": "owner-tell",
+      "title": "Purple-to-blue gradient",
+      "tell": 1,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 2,
+      "grade": "B",
+      "scope": "Visible gradient stops sweeping purple/violet/indigo (hue 250-300, saturation > 0.25) into blue/cyan; weighted on filled CTAs and heroes",
+      "falsePositives": "Sponsor or brand gradients inside hash-matched official files; data-viz ramps",
+      "fix": "Solid fills from the token plan; one accent",
+      "sources": [
+        "FD10 T01",
+        "FD14-F07",
+        "FD21"
+      ],
+      "allowlist": "sponsor-hash",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T02",
+      "family": "owner-tell",
+      "title": "Gradient hero text",
+      "tell": 2,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": true,
+      "weight": 2,
+      "grade": "B",
+      "scope": "background-clip:text with a gradient background-image, strongest on h1/h2 >= 32px",
+      "falsePositives": "A wordmark set as text; one documented display treatment in a real design system",
+      "fix": "Solid colour; hierarchy through size and weight",
+      "sources": [
+        "FD10 T02",
+        "FD14"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T03",
+      "family": "owner-tell",
+      "title": "Emojis in headings",
+      "tell": 3,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Extended_Pictographic characters in h1-h6, [role=heading], or emoji-prefixed nav items",
+      "falsePositives": "Emoji or chat products; quoted or user-generated content; flags in a country picker",
+      "fix": "Remove; icons only where they carry meaning",
+      "sources": [
+        "FD10 T03",
+        "FD14-F16"
+      ],
+      "allowlist": "category",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T04",
+      "family": "owner-tell",
+      "title": "Inter everywhere",
+      "tell": 4,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 2,
+      "grade": "B",
+      "scope": "Inter as the only rendered family (CDP rendered fonts), especially with a centred hero",
+      "falsePositives": "A deliberate UI type system; sponsor brand font; human controls use Inter (advisory until calibrated)",
+      "fix": "A display face from brand research, with a recorded reason",
+      "sources": [
+        "FD10 T04",
+        "FD16-F14",
+        "FD11-F19"
+      ],
+      "allowlist": "category",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T05",
+      "family": "owner-tell",
+      "title": "Colored border cards",
+      "tell": 5,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Left or top accent stripe >= 2px, > 1px wider than other sides, saturated, containing a heading. Static layer also: (b) all-side card borders tinted with a hue at rest, at any alpha, reported when 2+ cards carry one (status tokens such as warning, error or success and hairlines under OKLCH chroma 0.06 excluded); (c) gradient borders (a saturated gradient behind a 1-2px padded rounded wrapper, border-image, or a border-box gradient behind a transparent border)",
+      "falsePositives": "Callouts, active tabs, timelines, severity in dashboards; status colours, selected and focus states, one highlighted card, a grey gradient border",
+      "fix": "Remove the stripe; if it encodes status, add a label",
+      "sources": [
+        "FD10 T05",
+        "FD14-F23"
+      ],
+      "allowlist": "category",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T06",
+      "family": "owner-tell",
+      "title": "Glassmorphism cards",
+      "tell": 6,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 2,
+      "grade": "B",
+      "scope": "Card-sized elements with backdrop blur >= 2px and translucent background (skip sticky full-width bars)",
+      "falsePositives": "Frosted navigation bars; overlays on media",
+      "fix": "Opaque surfaces; glass only where layering is real",
+      "sources": [
+        "FD10 T06",
+        "FD14-F08"
+      ],
+      "allowlist": "category",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T07",
+      "family": "owner-tell",
+      "title": "Low-contrast dark mode",
+      "tell": 7,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Dark body (luminance < 0.2) with >= 12% of body text below 7:1",
+      "falsePositives": "Dark-first trading or IDE products with sparing secondary text",
+      "fix": "Lighter text steps on dark grounds; fewer grey levels",
+      "sources": [
+        "FD10 T07",
+        "FD14"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T08",
+      "family": "owner-tell",
+      "title": "Three icon boxes in a row",
+      "tell": 8,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 2,
+      "grade": "B",
+      "scope": "3 or 6 equal-width siblings each with an 8-48px svg in a filled 20-72px wrapper above a heading",
+      "falsePositives": "Very common on human sites; real triplets; pricing",
+      "fix": "Structure from content: one dominant feature with a real demo",
+      "sources": [
+        "FD10 T08",
+        "FD10-F12"
+      ],
+      "allowlist": "category",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T09",
+      "family": "owner-tell",
+      "title": "Badge above the headline",
+      "tell": 9,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 2,
+      "grade": "B",
+      "scope": "A pill, boxed or small-caps element within 220px above the h1",
+      "falsePositives": "A real, checkable status linked to proof (testnet contract, changelog); breadcrumbs",
+      "fix": "Delete, fold into the headline, or link it to proof",
+      "sources": [
+        "FD10 T09",
+        "FD11-F19"
+      ],
+      "allowlist": "category",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T10",
+      "family": "owner-tell",
+      "title": "Lucide icons everywhere",
+      "tell": 10,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "lucide-react dependency and imports; rendered svg.lucide count; decorative icons per heading",
+      "falsePositives": "A consciously chosen set used on actions",
+      "fix": "Fewer icons, on actions; custom glyphs for protocol concepts",
+      "sources": [
+        "FD10 T10",
+        "FD16"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T11",
+      "family": "owner-tell",
+      "title": "Untouched shadcn UI",
+      "tell": 11,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": true,
+      "weight": 2,
+      "grade": "B",
+      "scope": "shadcn default tokens (radius 0.625rem, primary oklch(0.205 0 0), dark background oklch(0.145 0 0)), registry-identical components, hover alpha 0.8/0.9",
+      "falsePositives": "shadcn with customised tokens; internal tools",
+      "fix": "Tokens from brand research first; then components",
+      "sources": [
+        "FD10 T11",
+        "FD16-F23",
+        "FD04-F25"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T12",
+      "family": "owner-tell",
+      "title": "Fade-in on scroll",
+      "tell": 12,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 2,
+      "grade": "B",
+      "scope": "Text hidden at rest (opacity < 0.1) that appears after scrolling; IntersectionObserver or whileInView reveals",
+      "falsePositives": "One orchestrated load moment; a scroll-driven diagram that explains the mechanism",
+      "fix": "Content visible by default; motion only where it explains",
+      "sources": [
+        "FD10 T12",
+        "FD03",
+        "FD06"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T13",
+      "family": "owner-tell",
+      "title": "Cursor-following beam",
+      "tell": 13,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "D",
+      "scope": "mousemove/pointermove listeners that change background, transform or custom properties along a synthetic mouse path",
+      "falsePositives": "Charts with crosshairs, maps, games, 3D viewers",
+      "fix": "Remove, or make hover reveal real protocol data",
+      "sources": [
+        "FD10 T13",
+        "FD03"
+      ],
+      "allowlist": "category",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T14",
+      "family": "owner-tell",
+      "title": "Buttons fade on hover",
+      "tell": 14,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "D",
+      "scope": "CTA hover changes only opacity or background alpha",
+      "falsePositives": "Ghost buttons; a design system that specifies it",
+      "fix": "A state change with intent: darken by token, press scale",
+      "sources": [
+        "FD10 T14",
+        "FD03",
+        "FD04-F25"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T15",
+      "family": "owner-tell",
+      "title": "Inconsistent spacing",
+      "tell": 15,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Distinct section paddings, off-scale margins and gaps (calibrated; AI pages can be more regular, FD17-F21)",
+      "falsePositives": "clamp() fluid spacing; optical tweaks; embeds",
+      "fix": "Spacing and section-rhythm tokens",
+      "sources": [
+        "FD10 T15",
+        "FD17-F21",
+        "FD14"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T16",
+      "family": "owner-tell",
+      "title": "Em dashes everywhere",
+      "tell": 16,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": true,
+      "weight": 2,
+      "grade": "B",
+      "scope": "U+2014 per 1,000 words of rendered innerText above the /prose PR-01 rate, minimum word count; 'WORD — fragment' labels",
+      "falsePositives": "Quoted text; proper names; non-English copy",
+      "fix": "Rewrite the copy; run /prose on the exported UI copy",
+      "sources": [
+        "FD10 T16",
+        "FD14-F06",
+        "FD04-F19"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T17",
+      "family": "owner-tell",
+      "title": "Generic buzzword copy",
+      "tell": 17,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 2,
+      "grade": "B",
+      "scope": "Promotional and LLM-register phrases in the UI copy whose sentence names no number or sponsor (static: a claim-like number, an amount, percentage, multiplier or count with a unit, never digits inside a name such as 0G or ERC-7857 or a bare year; runtime: any digit in the block), plus stock template phrases above 2.0 per 1,000 words of copy (static, 3+ hits in 300+ words); <design>/glossary.json removes per project the protocol words it lists (decentralized, decentralised, autonomous, ecosystem) from the stock list",
+      "falsePositives": "Quoting a sponsor tagline",
+      "fix": "Specific verbs and nouns",
+      "sources": [
+        "FD10 T17",
+        "FD14-F15",
+        "FD14-F23"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T18",
+      "family": "owner-tell",
+      "title": "Serif italic accents",
+      "tell": 18,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 2,
+      "grade": "B",
+      "scope": "The largest heading (>= 32px) mixes two families, roman and italic, or two paints; display text only",
+      "falsePositives": "Editorial or literary brands; prose emphasis (Emil Kowalski's blog sets prose em in serif italic)",
+      "fix": "One family with weight contrast, or no accent",
+      "sources": [
+        "FD10 T18",
+        "FD03-F31"
+      ],
+      "allowlist": "category",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T19",
+      "family": "owner-tell",
+      "title": "Space Grotesk + Instrument Serif",
+      "tell": 19,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 2,
+      "grade": "B",
+      "scope": "Rendered heading font, or >= 25% of text, in the dated reflex list (Space Grotesk, Instrument Serif, Fraunces, Bricolage Grotesque, Syne, Sora, Young Serif)",
+      "falsePositives": "Brand-mandated fonts with a recorded reason",
+      "fix": "Choose from brand research and record why",
+      "sources": [
+        "FD10 T19",
+        "FD16-F14"
+      ],
+      "allowlist": "category",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T20",
+      "family": "owner-tell",
+      "title": "Grain over a gradient",
+      "tell": 20,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "D",
+      "scope": "A full-size overlay (pointer-events none, opacity < 0.3) with a noise or feTurbulence image over a gradient",
+      "falsePositives": "Film, print or photographic brands",
+      "fix": "Flat surfaces or real imagery",
+      "sources": [
+        "FD10 T20",
+        "FD20"
+      ],
+      "allowlist": "category",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-M01",
+      "family": "missing-tell",
+      "title": "Cream + serif + clay ('tasteful default')",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Warm light ground near #F4F1EA/#FAF9F5, serif display, clay accent near #D97757",
+      "falsePositives": "Editorial, food and craft brands",
+      "fix": "Palette from research",
+      "sources": [
+        "FD10 M01",
+        "FD15"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-M02",
+      "family": "missing-tell",
+      "title": "ALL-CAPS tracked eyebrow above every heading",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "uppercase + letter-spacing >= 0.5px label directly above h2/h3, counted per section",
+      "falsePositives": "Krebs dropped all-caps headings for firing on clean sites",
+      "fix": "At most one eyebrow per three sections, or none",
+      "sources": [
+        "FD10 M02",
+        "FD01"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-M03",
+      "family": "missing-tell",
+      "title": "Numbered 01/02/03 markers",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 2,
+      "grade": "B",
+      "scope": "Ascending numbered markers beside headings that are not a real sequence",
+      "falsePositives": "A real sequence (a process, a flow)",
+      "fix": "Numbers only where order is information",
+      "sources": [
+        "FD10 M03"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-M04",
+      "family": "missing-tell",
+      "title": "Stat banner with invented numbers",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": true,
+      "weight": 2,
+      "grade": "B",
+      "scope": "3-6 siblings with >= 22px numeric text (not prices or ordinals) without data-ledger/data-source",
+      "falsePositives": "Real, sourced metrics",
+      "fix": "Real, linked data or none",
+      "sources": [
+        "FD10 M04",
+        "FD14"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-M05",
+      "family": "missing-tell",
+      "title": "Fake testimonials, avatars, 'Trusted by' walls",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Testimonial arrays with names, randomuser/pravatar images, 'Trusted by' logo rows without links",
+      "falsePositives": "Real partners with permission",
+      "fix": "Omit; cite real relations only",
+      "sources": [
+        "FD10 M05",
+        "FD09"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-M06",
+      "family": "missing-tell",
+      "title": "FAQ accordion with 3+ items",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 2,
+      "grade": "B",
+      "scope": "details/accordion block under a 'Frequently asked' heading",
+      "falsePositives": "Genuine support content",
+      "fix": "Answer inside the product narrative",
+      "sources": [
+        "FD10 M06"
+      ],
+      "allowlist": "category",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-M07",
+      "family": "missing-tell",
+      "title": "SaaS-card kit",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Many sibling cards with identical radius and rgba(0,0,0,0.1) shadow",
+      "falsePositives": "Real design systems with one radius",
+      "fix": "Radius and shadow by hierarchy; fewer containers",
+      "sources": [
+        "FD10 M07",
+        "FD15"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-M08",
+      "family": "missing-tell",
+      "title": "Near-black + zinc dark default",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 2,
+      "grade": "B",
+      "scope": "Neutral body background with luminance < 0.01 (#0a0a0a, oklch(0.145 0 0), zinc-950)",
+      "falsePositives": "Dark-first products",
+      "fix": "Ground and neutrals from brand research",
+      "sources": [
+        "FD10 M08",
+        "FD16"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-M09",
+      "family": "missing-tell",
+      "title": "Coloured glows, halos, blurred blobs",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 2,
+      "grade": "B",
+      "scope": ">= 2 decorative elements with blur >= 15px and saturation > 0.3",
+      "falsePositives": "Brand light effects in media products",
+      "fix": "Neutral elevation; no decorative blobs",
+      "sources": [
+        "FD10 M09"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-M10",
+      "family": "missing-tell",
+      "title": "Logo or text marquee",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Continuous translateX animation on a repeated row",
+      "falsePositives": "Real partner lists",
+      "fix": "Static, linked list",
+      "sources": [
+        "FD10 M10"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-M11",
+      "family": "missing-tell",
+      "title": "Bento grid",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Grid with more than 4 cells of unequal spans",
+      "falsePositives": "Content with real hierarchy",
+      "fix": "Use only when the content has that shape",
+      "sources": [
+        "FD10 M11"
+      ],
+      "allowlist": "category",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-M12",
+      "family": "missing-tell",
+      "title": "Centred hero + 'Get started' + 'Learn more'",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 2,
+      "grade": "B",
+      "scope": "Centred h1 with the two-CTA pair",
+      "falsePositives": "Common human convention",
+      "fix": "The hero shows the protocol working",
+      "sources": [
+        "FD10 M12",
+        "FD11"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-M13",
+      "family": "missing-tell",
+      "title": "Template chrome (arrow suffix, middle-dot meta, mono micro-labels)",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "'→' in button text; ' · ' joins; uppercase mono 10-11px labels",
+      "falsePositives": "Real metadata lines",
+      "fix": "Plain labels",
+      "sources": [
+        "FD10 M13",
+        "FD15"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-M14",
+      "family": "missing-tell",
+      "title": "Grid-line background, pulsing dot, blinking cursor",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Tiled 1px line gradients; pulse animations not bound to live data",
+      "falsePositives": "Blueprint products; real live indicators",
+      "fix": "Remove or bind to real state",
+      "sources": [
+        "FD10 M14"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-M15",
+      "family": "missing-tell",
+      "title": "Nested cards",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Bordered or filled container inside a container at 2+ levels",
+      "falsePositives": "Dashboards with real grouping",
+      "fix": "Flatten; use spacing",
+      "sources": [
+        "FD10 M15"
+      ],
+      "allowlist": "category",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-M16",
+      "family": "missing-tell",
+      "title": "Shape-assembled SVG illustrations, div-built fake screenshots",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Hero-sized inline SVG with many primitives; div 'window' mockups",
+      "falsePositives": "Diagrams, icons, logos",
+      "fix": "Real screenshots, a live demo or a protocol diagram",
+      "sources": [
+        "FD10 M16"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-M17",
+      "family": "missing-tell",
+      "title": "'Built for X' / 'Trusted by' headline formulas",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Phrase match on rendered headings",
+      "falsePositives": "A real audience statement",
+      "fix": "Say what the protocol does and for whom",
+      "sources": [
+        "FD10 M17"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-C01",
+      "family": "claude-era",
+      "title": "Pill buttons everywhere",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Most buttons with border-radius >= height/2",
+      "falsePositives": "A brand that uses pills deliberately",
+      "fix": "Radius by role from tokens",
+      "sources": [
+        "FD15"
+      ],
+      "allowlist": "category",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-C02",
+      "family": "claude-era",
+      "title": "100vh hero",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "First section height >= the viewport height (h-screen, min-h-screen, 100vh)",
+      "falsePositives": "Full-bleed product canvases",
+      "fix": "Hero sized to content; proof visible in the first viewport",
+      "sources": [
+        "FD15",
+        "FD01"
+      ],
+      "allowlist": "category",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-C03",
+      "family": "claude-era",
+      "title": "Everything centred",
+      "tell": null,
+      "static": false,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Share of centred text blocks across sections",
+      "falsePositives": "Short landing pages with one column",
+      "fix": "Alignment from the category's conventions",
+      "sources": [
+        "FD15"
+      ],
+      "allowlist": "category",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-G01",
+      "family": "generator",
+      "title": "Figma Make export signatures",
+      "tell": null,
+      "static": true,
+      "runtime": false,
+      "tier": "candidate",
+      "anchor": true,
+      "weight": 2,
+      "grade": "B",
+      "scope": "String-pinned imports (pkg@x.y.z), ImageWithFallback, Attributions.md, the :where(:not(:has([class*=' text-'])...)) guard, Figma file name as <title>",
+      "falsePositives": "None in shipped code",
+      "fix": "Treat the export as a wireframe; replace the visual layer",
+      "sources": [
+        "FD14-F26",
+        "FD14"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-G02",
+      "family": "generator",
+      "title": "Starter-template leftovers",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": true,
+      "weight": 3,
+      "grade": "A",
+      "scope": "'Create Next App' / 'Vite + React' titles, #aa3bff, Geist default import, default favicons by normalised hash; v0.app scaffolds (static): generator 'v0.app' metadata, an unused next/font binding (const _inter = Inter({subsets})), and 2+ of v0's placeholder and icon files in public/ (placeholder-logo.svg, placeholder-user.jpg, icon-light-32x32.png), matched by name",
+      "falsePositives": "None in shipped code; a single placeholder file is the project's own and is not reported",
+      "fix": "Replace with the project's own assets",
+      "sources": [
+        "FD16",
+        "FD12-F27"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-G03",
+      "family": "generator",
+      "title": "Prebuilt wallet-connect defaults",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": true,
+      "weight": 3,
+      "grade": "A",
+      "scope": "'Awesome DApp', 'awesome-dapp-url.tld', 'Powered by Mesh SDK', alert( in connect flows, default kit themes",
+      "falsePositives": "A kit fully themed from tokens",
+      "fix": "Own connect dialog on the chain's hooks",
+      "sources": [
+        "FD18"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-G04",
+      "family": "generator",
+      "title": "Effect-catalogue components",
+      "tell": null,
+      "static": true,
+      "runtime": false,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Imports or copies of React Bits, Magic UI, Aceternity components not bound to product state",
+      "falsePositives": "An effect that encodes real state (a 120 ms flash on a real value change)",
+      "fix": "Remove, or bind to real state",
+      "sources": [
+        "FD14",
+        "FD10-F09"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-X01",
+      "family": "invented",
+      "title": "Unsourced metric",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": true,
+      "weight": 3,
+      "grade": "A",
+      "scope": "Stat-styled numeric text (or data-metric) without data-ledger or data-source; numeric literals in hero copy; static: members of an array literal of the same file mapped into display-size elements (text-3xl and up, or 28px / 1.75rem and up), each reported at its literal. Numbers inside longer strings are left to the runtime layer",
+      "falsePositives": "Prices, dates, version numbers, ordinals",
+      "fix": "Render only numbers from the claims ledger or a labelled data source",
+      "sources": [
+        "FD01-F12",
+        "FD10",
+        "FD13",
+        "FD14-F22"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-X02",
+      "family": "invented",
+      "title": "Placeholder names and copy",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": true,
+      "weight": 3,
+      "grade": "A",
+      "scope": "Acme, John Doe, Jane Doe, lorem ipsum, TODO, example.com, [YOUR ...] in rendered text",
+      "falsePositives": "Test fixtures not rendered",
+      "fix": "Real content from the brief, or a visible 'not yet verified' state",
+      "sources": [
+        "FD13",
+        "FD10"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-MO1",
+      "family": "motion",
+      "title": "transition: all on interactive elements",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Computed transition-property 'all' on buttons and links",
+      "falsePositives": "Rare legitimate uses",
+      "fix": "Explicit properties",
+      "sources": [
+        "FD03",
+        "FD04"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-MO2",
+      "family": "motion",
+      "title": "ease-in on UI entrances",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Entrance animations with ease-in timing",
+      "falsePositives": "Exits along the same path",
+      "fix": "ease-out tokens",
+      "sources": [
+        "FD03"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-MO3",
+      "family": "motion",
+      "title": "UI durations of 500 ms or more",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Transitions and animations >= 500 ms on UI elements (not page-level or full-height sheets)",
+      "falsePositives": "Toasts ~400 ms; full-height sheets 500 ms",
+      "fix": "Role budgets: press <= 160, tooltip <= 200, dropdown <= 250, modal <= 300 ms",
+      "sources": [
+        "FD03"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-MO4",
+      "family": "motion",
+      "title": "Entrances from scale(0)",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "grade": "C",
+      "scope": "Keyframes or transitions starting at scale(0)",
+      "falsePositives": "None for UI",
+      "fix": "Start from scale(0.9) or more with opacity",
+      "sources": [
+        "FD03"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-MO5",
+      "family": "motion",
+      "title": "Motion without reduced-motion handling",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 2,
+      "grade": "B",
+      "scope": "Animations run unchanged under prefers-reduced-motion: reduce",
+      "falsePositives": "Opacity or colour only",
+      "fix": "Gentler motion under reduce; content visible",
+      "sources": [
+        "FD03",
+        "FD06"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    }
+  ]
+}

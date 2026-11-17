@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nightdesk fixture</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #0b0d12; color: #e6e6e6; font-family: Georgia, 'Times New Roman', serif; font-size: 18px; line-height: 28px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 20px 36px; }
+  header a { color: #e6e6e6; }
+  .brand { font-size: 24px; }
+  .hero { display: flex; align-items: center; gap: 36px; padding: 36px; }
+  .copy { width: 480px; }
+  h1 { font-size: 64px; line-height: 68px; font-weight: 400; margin: 0 0 20px; }
+  h2 { font-size: 40px; line-height: 44px; font-weight: 400; margin: 0 0 12px; }
+  p { margin: 0 0 12px; }
+  .cta { display: inline-block; padding: 12px 28px; border-radius: 9999px; background: #f0b90b; color: #0b0d12; font-weight: 700; text-decoration: none; }
+  canvas { display: block; width: 800px; height: 500px; }
+  section { padding: 36px; }
+  .row { display: flex; gap: 20px; }
+  .tile { width: 300px; padding: 20px; border-radius: 12px; background: #161a22; }
+  footer { padding: 36px; }
+  footer a { color: #e6e6e6; }
+</style>
+</head>
+<body>
+<header><span class="brand">Nightdesk</span><a href="/login">Log in</a></header>
+<main>
+  <section class="hero">
+    <div class="copy">
+      <h1>Quiet trading at night</h1>
+      <p>Nightdesk keeps a calm order book for desks that trade after hours, founded in 2019 and run from 3 cities.</p>
+      <a class="cta" href="/apply">Apply for access</a>
+    </div>
+    <canvas data-engine="fixture" width="800" height="500"></canvas>
+  </section>
+  <section>
+    <h2>What you get</h2>
+    <div class="row">
+      <div class="tile"><p>One book for every venue you trade on.</p></div>
+      <div class="tile"><p>Fills reported within 2 seconds of execution.</p></div>
+      <div class="tile"><p>Desk support from 9 pm to 6 am.</p></div>
+    </div>
+  </section>
+</main>
+<footer><a href="/legal/terms">Terms and conditions</a></footer>
+</body>
+</html>

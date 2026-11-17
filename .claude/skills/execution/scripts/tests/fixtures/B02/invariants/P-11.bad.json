@@ -1,0 +1,14 @@
+{
+ "base": "base.json",
+ "note": "p10 above p50",
+ "ops": [
+  {
+   "op": "set",
+   "path": "/plan/tasks/@engine/estimate/p10_min",
+   "value": 30
+  }
+ ],
+ "expect": [
+  "E_ESTIMATE"
+ ]
+}

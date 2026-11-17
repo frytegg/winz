@@ -1,0 +1,32 @@
+{
+ "e2": {},
+ "e3": {
+  "e3-animated-grain": {
+   "crf23_bytes_1s": 16596,
+   "cbr2M_bytes_1s": 34828,
+   "cbr2M_text_ssim": 0.9912,
+   "crf23_text_ssim": 0.9902,
+   "grain_hp_std_src": 0.582,
+   "grain_hp_std_cbr2M": 0.121,
+   "grain_hp_std_crf23": 0.127
+  },
+  "e3-no-grain": {
+   "crf23_bytes_1s": 15855,
+   "cbr2M_bytes_1s": 72005,
+   "cbr2M_text_ssim": 0.9972,
+   "crf23_text_ssim": 0.994,
+   "grain_hp_std_src": 0.349,
+   "grain_hp_std_cbr2M": 0.508,
+   "grain_hp_std_crf23": 0.134
+  },
+  "e3-static-grain": {
+   "crf23_bytes_1s": 23435,
+   "cbr2M_bytes_1s": 180479,
+   "cbr2M_text_ssim": 0.9958,
+   "crf23_text_ssim": 0.9906,
+   "grain_hp_std_src": 0.583,
+   "grain_hp_std_cbr2M": 0.831,
+   "grain_hp_std_crf23": 0.453
+  }
+ }
+}

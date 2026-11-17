@@ -1,0 +1,23 @@
+{
+ "base": "base2.json",
+ "note": "an ordered resource shared across executors without a path",
+ "ops": [
+  {
+   "op": "set",
+   "path": "/plan/tasks/@lookup/resources",
+   "value": [
+    "wallet:hot"
+   ]
+  },
+  {
+   "op": "set",
+   "path": "/plan/tasks/@extra/resources",
+   "value": [
+    "wallet:hot"
+   ]
+  }
+ ],
+ "expect": [
+  "E_RESOURCE_OVERLAP"
+ ]
+}

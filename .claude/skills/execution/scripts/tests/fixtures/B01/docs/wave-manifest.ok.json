@@ -1,0 +1,68 @@
+{
+  "schema": "execution.wave-manifest/1",
+  "wave": "W01",
+  "executor": "A",
+  "launching_utc": "2026-10-03T07:12:00Z",
+  "plan_version": 1,
+  "plan_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "created_utc": "2026-10-03T07:12:00Z",
+  "script_path": "C:/x/qc/repo/.execution/waves/W01.js",
+  "script_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "workflow_name": "queue-clock-w01",
+  "args": {
+    "now_utc": "2026-10-03T07:12:00Z",
+    "skip": []
+  },
+  "limits": {
+    "writers": 2,
+    "verifiers": 1,
+    "integrators": 1,
+    "browser_slots": 1,
+    "concurrency_env": 6
+  },
+  "lanes": [
+    {
+      "lane": "L1",
+      "workspace_mode": "single-tree",
+      "tasks": [
+        "T001"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "task": "T001",
+      "lane": "L1",
+      "attempt": 1,
+      "rerun": 0,
+      "kind": "code",
+      "chain": [
+        "implementer",
+        "verifier"
+      ],
+      "brief_path": "C:/x/qc/repo/.execution/briefs/T001.a1.md",
+      "inbox": "C:/x/qc/repo/.execution/local/inbox/W01",
+      "results": {
+        "implementer": "local/results/W01/T001.implementer.a1.json"
+      },
+      "agents": {
+        "implementer": {
+          "agentType": "execution-implementer",
+          "model": "sonnet",
+          "effort": "medium",
+          "isolation": null,
+          "label": "T001 implement",
+          "phase": "build",
+          "schema": "result-implementer"
+        }
+      },
+      "deps_in_wave": [],
+      "priority_rank": 0,
+      "critical": true,
+      "resources": []
+    }
+  ],
+  "fragments": [],
+  "launch": null,
+  "status": "launching"
+}

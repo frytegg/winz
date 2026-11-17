@@ -1,0 +1,121 @@
+{
+  "schema": "execution.plan-draft/1",
+  "project": "queue-clock",
+  "spec": {
+    "path": "C:/x/qc/private/SPEC.md",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "deadlines": [
+    {
+      "id": "DL-submission",
+      "title": "Submission",
+      "at_utc": "2026-10-03T13:45:00Z",
+      "kind": "submission",
+      "irrecoverable": true,
+      "gate_phase": "deliverable",
+      "source": "event-brief.md:12"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "FR-001",
+      "title": "Queue position",
+      "text": "Show the queue position.",
+      "priority": "P1",
+      "required": true,
+      "feature_group": null,
+      "surface": "api",
+      "status_expected": null,
+      "story": null,
+      "source": "spec:C:/x/qc/private/SPEC.md#L10"
+    }
+  ],
+  "feature_groups": [],
+  "lanes": [
+    {
+      "id": "L0",
+      "executor": "A",
+      "title": "Contract",
+      "globs": [
+        "package.json"
+      ],
+      "contract": true
+    },
+    {
+      "id": "L1",
+      "executor": "A",
+      "title": "Engine",
+      "globs": [
+        "src/**"
+      ],
+      "contract": false
+    }
+  ],
+  "protected": [
+    ".github/workflows/**"
+  ],
+  "tasks": [
+    {
+      "key": "engine-core",
+      "title": "Task T001",
+      "description": "Deliverable of T001.",
+      "feature_group": null,
+      "covers": [
+        "FR-001"
+      ],
+      "story": null,
+      "priority": "P1",
+      "required": true,
+      "phase": "build",
+      "kind": "code",
+      "owner": "agent",
+      "executor": "A",
+      "depends_on": [
+        "@@bad"
+      ],
+      "release_utc": null,
+      "deadline_utc": null,
+      "writes": [
+        "src/t1/**"
+      ],
+      "resources": [],
+      "estimate": {
+        "p10_min": 10,
+        "p50_min": 20,
+        "p90_min": 40,
+        "source": "reference-class:build"
+      },
+      "tokens_est": {
+        "usd_list": 1.5,
+        "basis": "reference class"
+      },
+      "model": "sonnet",
+      "effort": "medium",
+      "proof": {
+        "type": "command",
+        "spec": {
+          "cmd": "node --test",
+          "shell": "bash",
+          "cwd": ".",
+          "install": false
+        },
+        "expect": {
+          "summary": "the task's tests pass",
+          "exit_code": 0
+        },
+        "max_runtime_min": 2,
+        "negative_control": {
+          "kind": "pre-implementation",
+          "description": "fails on the parent commit",
+          "expect_nonzero": true
+        }
+      },
+      "proof_author": "template",
+      "brief_refs": [],
+      "manual": null,
+      "max_attempts": 2
+    }
+  ],
+  "instances": [],
+  "libraries": []
+}

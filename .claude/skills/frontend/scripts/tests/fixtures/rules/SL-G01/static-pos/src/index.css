@@ -1,0 +1,4 @@
+:where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) body {
+  letter-spacing: -0.01em;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;
+}

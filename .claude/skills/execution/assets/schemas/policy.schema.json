@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.execution.invalid/policy.schema.json",
+  "title": ".execution/policy.json, standing authorisations narrowed per project (ARCHITECTURE.md 4.4)",
+  "description": "Written by `exec.py ingest` (initial) and only through a resolved policy-exception decision afterwards. Enforced by the PreToolUse guard (hooks), by merge (commit, push, never-show) and by proof run (networks). A policy may only narrow the owner's standing authorisations: the constants below are the ceiling. The never-show list is not here: it is ONE file at profile.paths.never_show in /frontend's format.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "git", "networks", "deny_endpoints", "deny_commands", "fences", "secrets"],
+  "properties": {
+    "schema": {"const": "execution.policy/1"},
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "push", "force", "history_rewrite", "push_freeze_utc", "conventional_commits", "attribution_trailers"],
+      "properties": {
+        "commit": {"type": "boolean"},
+        "push": {"type": "boolean"},
+        "force": {"const": "never"},
+        "history_rewrite": {"const": "never"},
+        "push_freeze_utc": {"$ref": "common.schema.json#/$defs/utc_or_null", "description": "After this instant every push is refused (tag + push freeze at the deadline overrides the standing push authorisation)."},
+        "conventional_commits": {"const": true},
+        "attribution_trailers": {"const": "never"}
+      }
+    },
+    "networks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["testnet", "mainnet"],
+      "properties": {
+        "testnet": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["allowed", "chains"],
+          "properties": {
+            "allowed": {"type": "boolean"},
+            "chains": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["chain", "network", "ceiling", "unit", "per"],
+                "properties": {
+                  "chain": {"type": "string", "pattern": "^[a-z0-9-]{2,30}$"},
+                  "network": {"type": "string", "pattern": "^[a-z0-9-]{2,30}$"},
+                  "ceiling": {"$ref": "common.schema.json#/$defs/money"},
+                  "unit": {"type": "string", "pattern": "^[A-Za-z0-9]{1,12}$"},
+                  "per": {"enum": ["task", "wave"]}
+                }
+              }
+            }
+          }
+        },
+        "mainnet": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "setup_task", "ceiling", "unit", "per_wave_ceiling", "broadcast_patterns"],
+          "properties": {
+            "mode": {"enum": ["read-only", "after-setup"], "description": "read-only: no mainnet write ever (Origins). after-setup: writes stay manual until the owner's wallet-setup task is done, then run under the ceilings."},
+            "setup_task": {"anyOf": [{"$ref": "common.schema.json#/$defs/task_id"}, {"type": "null"}], "description": "The manual wallet-setup task whose done status opens mainnet (after-setup only)."},
+            "ceiling": {"anyOf": [{"$ref": "common.schema.json#/$defs/money"}, {"type": "null"}]},
+            "unit": {"type": ["string", "null"]},
+            "per_wave_ceiling": {"anyOf": [{"$ref": "common.schema.json#/$defs/money"}, {"type": "null"}]},
+            "broadcast_patterns": {
+              "description": "Command patterns (Python regex, searched in Bash/PowerShell command text) that sign or broadcast on mainnet; denied by the guard while mainnet is closed.",
+              "type": "array",
+              "items": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    },
+    "deny_endpoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["pattern", "regex", "reason"],
+        "properties": {
+          "pattern": {"type": "string", "minLength": 1},
+          "regex": {"type": "boolean"},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "deny_commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["pattern", "reason"],
+        "properties": {
+          "pattern": {"type": "string", "minLength": 1, "description": "Python regex searched in the command text."},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "fences": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deny_read", "deny_write_outside_repo", "allow_write_outside"],
+      "properties": {
+        "deny_read": {
+          "description": "Absolute globs (forward slashes) agents may not read, e.g. <research>/probes/**.",
+          "type": "array",
+          "items": {"type": "string", "pattern": "^([A-Za-z]:/|/)[^\\\\\\x00-\\x1f]*$"}
+        },
+        "deny_write_outside_repo": {"type": "boolean"},
+        "allow_write_outside": {
+          "description": "Absolute directories agents may write outside the product repo (scratch root, the state dir is always allowed for result inboxes).",
+          "type": "array",
+          "items": {"$ref": "common.schema.json#/$defs/abs_path"}
+        }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["env_file", "agents_read_keys", "loading"],
+      "properties": {
+        "env_file": {"$ref": "common.schema.json#/$defs/abs_path_or_null", "description": "Outside every repo; never read or named by an agent. exec.py hands its path to the proofs and gates of tx and wallet tasks as the variable EXEC_ENV_FILE (set in the gates.py config's env, added to that task's env_allowlist); the project's programs load it in process from that variable (e.g. node --env-file=\"$EXEC_ENV_FILE\"), so no command ever names the file (CLI.md proof run)."},
+        "agents_read_keys": {"const": false},
+        "loading": {"const": "in-process"}
+      }
+    }
+  }
+}

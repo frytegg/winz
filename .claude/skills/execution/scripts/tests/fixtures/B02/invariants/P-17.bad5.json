@@ -1,0 +1,14 @@
+{
+ "base": "base.json",
+ "note": "README screenshots not after EX-DLV-PROSE",
+ "expect": [
+  "E_DELIVERABLE_ORDER"
+ ],
+ "ops": [
+  {
+   "op": "drop-dep",
+   "task": "@execution.ex-dlv-screenshots",
+   "dep": "#execution.ex-dlv-prose"
+  }
+ ]
+}

@@ -1,0 +1,1055 @@
+# Dependency hygiene
+> Code T16 · slug dependency-hygiene · verified 2026-09-23 · counts: verified 2 / corrected 15 / downgraded 1 / dropped 0
+
+## Summary
+
+These are evidence-based dependency-hygiene rules for a hardening pass on a finished, working project. Every source was reopened on 2026-09-23 by direct fetch. The WebSearch budget was already exhausted, so no source was found by search. Five PDFs (He et al. FSE 2025, Miller et al. ICSE 2025, ICSE 2026 and FSE 2023, plus the arXiv full texts of Soto-Valero, Jafari and Latendresse) were downloaded and text-extracted, so quotes and numbers were checked word for word. Venues and years were cross-checked against Crossref.
+
+**Standards and tool documentation (versions as verified):**
+
+- **OWASP Top 10:2025**, A03 Software Supply Chain Failures.
+- **OpenSSF:**
+  - Concise Guide for Evaluating OSS: first published 2023-11-21, restructured 2025-04-23.
+  - Scorecard `docs/checks.md`.
+  - npm Best Practices Guide v1.1. *Correction:* its repository has been archived and read-only since 9 Oct 2023. best.openssf.org still links to it, but it is not a 2024 document.
+- **Python:** PEP 751 (Final, 31 Mar 2025) and PEP 792 (Final, 8 Jul 2025).
+- **npm CLI v11 docs.**
+- **pnpm docs** (current, v11):
+  - `minimumReleaseAge`: added in v10.16.0. Default is 1440 minutes since v11, and 0 before.
+  - `trustPolicy`: added in v10.21.0, default off.
+  - `blockExoticSubdeps`: added in v10.26.0, current default `true`.
+  - Dependency install scripts are disabled by default since v10.
+- **Build and analysis tools:**
+  - maven-dependency-plugin 3.11.0.
+  - DepClean 2.2.0.
+  - Cargo Book and cargo-deny.
+  - uv and pip docs.
+  - `go mod tidy -diff`, which needs Go 1.23 or later.
+- **Update bots:**
+  - Dependabot options reference. *New fact:* Dependabot now applies a 3-day default cooldown to version updates even when `cooldown` is not configured. Security updates are exempt.
+  - Renovate docs.
+- **Industry report:** Black Duck OSSRA 2026, based on 947 commercial codebases audited Nov 2024 to Oct 2025.
+
+**Peer-reviewed research base:**
+
+- **Soto-Valero et al., EMSE 2021.** 75.1% of 723,444 Maven dependency relationships are bloated. *Correction:* this headline is dominated by transitive bloat (57%). Only 2.7% of relationships are unused *direct* declarations, and 36% of artifacts have at least one.
+- **Jafari et al., IEEE TSE (early access 2021, vol. 48, 2022).** Covers 1,146 JS projects:
+  - 80% have two or more dependency smells.
+  - The unused-dependency smell appears in 79.8% of projects and the missing-dependency smell in 63.6% (both measured with depcheck).
+  - 26.5% of projects have no lockfile.
+- **Latendresse et al., ASE 2022.** Covers 100 JS projects, where "production" means the bundler output. Less than 1% of installed dependencies ship to production. 59% of declared runtime dependencies do not ship. Most security alerts target non-production dependencies.
+- **Kula et al., EMSE 2017.** 81.5% of more than 4,600 projects keep outdated dependencies, and 69% of interviewed developers were unaware of their vulnerable ones.
+- **Pashchenko et al., ESEM 2018.** About 20% of vulnerable dependencies are not deployed, and 81% can be fixed by updating.
+- **He, Vasilescu, Kästner, FSE 2025, "Pinning Is Futile"** (Distinguished Paper). The paper explicitly recommends committing a lockfile for applications instead of pinning in the manifest.
+- **R. He et al., IEEE TSE 2023** (not 2022). Dependabot reduces technical lag, but 11.3% of projects dropped it.
+- **Miller et al., ICSE 2025** (Distinguished Paper). 15% of widely used npm packages became abandoned within six years.
+- **Abandabot, ICSE 2026.** Identifies four context factors, from 22 interviews and an evaluation with 124 maintainers.
+- **Miller et al., ESEC/FSE 2023.** Interviews with 33 developers.
+- **Ochoa et al., EMSE 2022.** 83.4% of Maven upgrades comply with SemVer, and 7.9% of clients are affected by breaking changes.
+- **BUMP, SANER 2024.** 571 breaking updates from 153 Java projects.
+- **Spracklen et al., USENIX Security 2025.** Package hallucination rates of at least 5.2% for commercial LLMs and 21.7% for open-source LLMs.
+- **Zimmermann et al., USENIX Security 2019.**
+
+**Incident record, each verified against a primary source:**
+
+- **left-pad (2016):** npm postmortem.
+- **event-stream (2018):** npm postmortem.
+- **colors/faker (2022):** Snyk.
+- **xz (2024):** Russ Cox timeline and Andres Freund's oss-security report.
+  - *Correction:* the backdoored binary test files *were* committed to git. Only the activating `build-to-host.m4` existed solely in the release tarballs.
+- **tj-actions (2025):** CISA.
+- **Shai-Hulud (2025):** CISA.
+
+**Practitioner voices.** These come from Lobsters threads (vote and comment counts verified) and engineering blogs. Pushback on update bots, the trivial-package dogma and pinning is kept.
+
+**Core decision logic for the skill:**
+
+1. **Reconcile declared and used dependencies.** Remove unused ones, declare phantom ones and fix the dev/prod split. Prove it with a production-only install and a smoke run.
+2. **Make installs reproducible.** Commit the lockfile, use frozen installs, lint lockfile sources and pin CI to immutable refs.
+3. **Triage risk by scope and reachability**, not by raw alert counts.
+4. **Decide remove, replace, vendor or keep per dependency** using necessity, maintenance status, the four Abandabot factors, alternatives and licence. Report replacement decisions to a human rather than making them automatically.
+5. **Upgrade in small, tested commits of one dependency each.** Never do a bulk refresh or regenerate the lockfile.
+
+**Several detection commands were fixed in verification:**
+
+- ripgrep lookaheads need `-P`.
+- .NET 10 introduced the `dotnet package list` form. Earlier SDKs use `dotnet list package`.
+- `eslint-plugin-depend` is deprecated in favour of `@e18e/eslint-plugin`.
+- `module-replacements` moved to the e18e GitHub organisation.
+- lockfile-lint supports only npm and yarn lockfiles.
+- pnpm is already frozen by default in CI.
+- Use `gh pr list --app dependabot` to list Dependabot's pull requests.
+
+## Findings
+
+### T16-F14 — Pin third-party CI actions, reusable workflows and container base images to immutable references (full commit SHA / image digest), add a version comment, and keep the pins updated with a bot
+- **Grade:** A · **Verdict:** CORRECTED. The researcher's rationale said the tj-actions compromise "leaked CI secrets from every repository that used it by tag", which overclaims. CISA scopes exposure to workflows that ran the malicious commit between 2025-03-12 00:00 UTC and 2025-03-15 12:00 UTC, and tells owners of *public* repositories to check for exposed keys. The ripgrep lookahead also needed `-P`.
+- **Rationale:**
+  - Tags are mutable.
+  - During the tj-actions/changed-files compromise, workflows that ran the malicious commit exposed their CI secrets, and those secrets had to be rotated.
+  - GitHub states that a full-length SHA is currently the only way to use an action as an immutable release.
+- **Evidence:**
+  - [Secure use reference (GitHub Actions)](https://docs.github.com/en/actions/reference/security/secure-use) — GitHub Docs, 2026 — official_docs
+    - Quote: "Pinning an action to a full-length commit SHA is currently the only way to use an action as an immutable release."
+    - The page also says tags can be moved or deleted if a bad actor gains access to the repository.
+    - Verified. The page also documents repository and organisation policies that can enforce SHA pinning.
+  - [Supply Chain Compromise of Third-Party tj-actions/changed-files (CVE-2025-30066) and reviewdog/action-setup](https://www.cisa.gov/news-events/alerts/2025/03/18/supply-chain-compromise-third-party-tj-actionschanged-files-cve-2025-30066-and-reviewdogaction) — CISA, 2025-03-18 (revised 2025-03-26) — incident_report
+    - Compromise window: "between 2025-03-12 00:00 UTC to 2025-03-15 12:00 UTC".
+    - Disclosure of "valid access keys, GitHub Personal Access Tokens (PATs), npm tokens, and private RSA keys".
+    - Recommendation: "Rotate all identified secrets immediately as they should be considered compromised."
+    - Verified.
+  - [OpenSSF Scorecard checks](https://github.com/ossf/scorecard/blob/main/docs/checks.md) — OpenSSF, 2026 — standard
+    - Pinned-Dependencies is rated Medium risk. It defines a pinned dependency as "a dependency that is explicitly set to a specific hash instead of allowing a mutable version or range of versions".
+    - The check examines Dockerfiles, shell scripts and GitHub workflows.
+    - Verified.
+  - [Renovate upgrade best practices](https://docs.renovatebot.com/upgrade-best-practices/) — Renovate, 2025 — official_docs — `config:best-practices` includes `docker:pinDigests` and `helpers:pinGitHubActionDigests`. Verified.
+- **Detect:**
+  - Actions pinned by anything other than a full SHA: `rg -nP 'uses:\s*[^@\s]+@(?![0-9a-f]{40}\b)' .github/workflows`. The `-P` flag is required, because ripgrep's default engine has no lookahead.
+  - Base images without a digest: `rg -n '^FROM\s+[^@\s]+(\s|$)' --glob 'Dockerfile*'`.
+  - Piped installers: `rg -n 'curl .*\|\s*(ba)?sh' .github scripts`.
+  - Scorecard `Pinned-Dependencies`.
+  - Remediation: resolve the tag's current SHA with `git ls-remote https://github.com/<owner>/<action> refs/tags/<tag>`, pin that SHA, and add a `# vX.Y.Z` comment.
+- **Tools:** ripgrep (with `-P`), OpenSSF Scorecard, Renovate `helpers:pinGitHubActionDigests`, Dependabot `github-actions` ecosystem, `git ls-remote`, the GitHub SHA-pinning enforcement policy.
+- **Applies to:** Any repository with CI/CD workflows or container images.
+- **When not to apply / counterpoints:**
+  - SHA pins without update automation freeze vulnerable versions and hide which release is in use. Always pair them with a bot and version comments.
+  - First-party `actions/*` actions carry lower risk but use the same mechanism.
+  - Pinning an action's SHA does not pin what that action downloads at runtime.
+- **Fix risk:** low
+
+### T16-F04 — Applications (and, by project choice, libraries) commit a lockfile that matches the manifest; CI and deployment install in frozen/locked mode that fails on drift; never delete and regenerate a lockfile as "cleanup"
+- **Grade:** A · **Verdict:** CORRECTED. Changes:
+  - The OpenSSF npm guide is v1.1 in a repository archived on 9 Oct 2023, not a 2024 document.
+  - The ripgrep lookahead needed `-P`.
+  - pnpm's `--frozen-lockfile` already defaults to true in CI when a lockfile exists.
+  - `go mod tidy -diff` needs Go 1.23 or later.
+  - Strengthened with a direct recommendation from He et al. (FSE 2025) and Jafari's prevalence figure.
+- **Rationale:**
+  - Without a lockfile, two installs of the same commit can resolve different trees. This is how colors/faker-style sabotage reaches a project on its next build.
+  - Official package-manager docs converge on committing lockfiles for applications, and Python standardised a hashed lockfile format (PEP 751) in 2025.
+  - Regenerating a lockfile silently changes every transitive version at once.
+- **Evidence:**
+  - [Pinning Is Futile](https://www.cs.cmu.edu/~ckaestne/pdf/fse25.pdf) — He, Vasilescu, Kästner, FSE 2025 (Proc. ACM Softw. Eng. 2, FSE013; Distinguished Paper Award per [Kästner's publications page](https://www.cs.cmu.edu/~ckaestne/publications.html)) — peer_reviewed
+    - "Instead of pinning, application developers should freeze their entire dependency graph with a shared lock file."
+    - 44.21% of GitHub repositories in their dataset committed `package-lock.json`.
+    - Verified in the PDF.
+  - [package-lock.json](https://docs.npmjs.com/cli/v11/configuring-npm/package-lock-json) — npm docs v11 — official_docs
+    - "This file is intended to be committed into source repositories".
+    - It lets "teammates, deployments, and continuous integration" install "exactly the same dependencies".
+    - "package-lock.json cannot be published".
+    - Verified.
+  - [npm ci](https://docs.npmjs.com/cli/v11/commands/npm-ci) — npm docs v11 — official_docs
+    - "If dependencies in the package lock do not match those in `package.json`, `npm ci` will exit with an error, instead of updating the package lock."
+    - "It will never write to `package.json` or any of the package-locks".
+    - Verified.
+  - [pnpm install --frozen-lockfile](https://pnpm.io/cli/install) — pnpm — official_docs
+    - "If true, pnpm doesn't generate a lockfile and fails to install if the lockfile is out of sync with the manifest".
+    - The default is `true` in CI when a lockfile is present.
+    - Verified. *Added.*
+  - [pnpm Supply Chain Security](https://pnpm.io/supply-chain-security) — pnpm, 2026 — official_docs — "you should always lock your dependencies with a lockfile. Commit your lockfile to your repository to avoid unexpected updates." Verified.
+  - [npm Best Practices Guide](https://github.com/ossf/package-manager-best-practices/blob/main/published/npm.md) — OpenSSF, v1.1 (repository archived 2023-10-09, still linked from best.openssf.org) — standard
+    - "Developers should declare and commit a lockfile for all their projects."
+    - For libraries, the lockfile "should be ignored for tests running in CI (e.g. via `npm install --no-package-lock`)".
+    - Verified. The year was corrected.
+  - [Change in Guidance on Committing Lockfiles](https://blog.rust-lang.org/2023/08/29/committing-lockfiles/) — Ed Page for the Cargo team, 2023 — official_docs
+    - Old guidance: commit `Cargo.lock` for binaries but not libraries. New guidance: "do what is best for their project".
+    - Encourages "regular testing against their latest dependencies".
+    - Verified.
+  - [PEP 751](https://peps.python.org/pep-0751/) — Python, Final 2025-03-31 — standard
+    - Requirements files are "not secure by default (e.g. file hash support is entirely an opt-in feature…)".
+    - In `pylock.toml`, the archive hashes table "MUST contain at least one entry".
+    - Verified.
+  - [uv: Locking and syncing](https://docs.astral.sh/uv/concepts/projects/sync/) — Astral — official_docs — `uv lock --check`. With `--locked`, "If the lockfile is not up-to-date, uv will raise an error instead of updating the lockfile." Verified.
+  - [pip secure installs](https://pip.pypa.io/en/stable/topics/secure-installs/) — PyPA — official_docs — with `--require-hashes`, "Requirements must be pinned (either to a URL, filesystem path or using `==`)" and hashes are required for all requirements. Verified. *Added.*
+  - [Dependency Smells in JavaScript Projects](https://arxiv.org/abs/2010.14573) — Jafari et al., IEEE TSE (vol. 48, 2022) — peer_reviewed — "No package-lock" is one of 7 smells, found in 304 of 1,146 projects (26.5%). Verified in the full text.
+- **Detect:**
+  - Committed lockfiles: `git ls-files | grep -E '(package-lock.json|pnpm-lock.yaml|yarn.lock|uv.lock|poetry.lock|pylock(\.[^.]+)?\.toml|Cargo.lock|go.sum|packages.lock.json)'`.
+  - Check that `.gitignore` does not exclude the lockfile.
+  - Non-frozen installs in CI or Docker: `rg -nP 'npm install|pip install -r|uv sync(?!.*--locked)' .github Dockerfile*`. Replace them with `npm ci`, `uv sync --locked`, `uv lock --check`, or pnpm's `--frozen-lockfile`. pnpm already defaults to frozen in CI; flag only an explicit `--no-frozen-lockfile`.
+  - Python requirements files: `pip install --require-hashes -r requirements.txt`.
+  - Go 1.23 and later: `go mod tidy -diff` must print nothing.
+- **Tools:** `npm ci`, pnpm `--frozen-lockfile`, `uv lock --check`, `uv sync --locked`, `pip --require-hashes`, `go mod tidy -diff`, git.
+- **Applies to:** Applications and services in all ecosystems; libraries by project choice.
+- **When not to apply / counterpoints:**
+  - Libraries are the contested case, because npm lockfiles are not published.
+    - The archived OpenSSF guide says to ignore the lockfile in library CI.
+    - The Cargo team says commit it and add scheduled latest-dependency testing.
+    - Snyk (Liran Tal, 2019) suggests libraries avoid lockfiles.
+  - In Go, `go.mod` together with minimal version selection plays the lockfile role, and `go.sum` holds only checksums. This is debated on Lobsters.
+  - Lockfile merge conflicts are a real cost, but no source found argues that they outweigh reproducibility for applications.
+- **Fix risk:** low
+
+### T16-F01 — Remove declared dependencies that nothing uses (no source, config, script, build step or deployment artefact), only after (a) a detector flags it, (b) a manual check of config, scripts, Dockerfiles, CI and dynamic loading finds no use, and (c) clean install + build + tests + production start/smoke pass; one dependency per commit
+- **Grade:** A · **Verdict:** CORRECTED. Changes:
+  - The 75.1% Maven figure was presented as if it measured unused *declared* dependencies. In the paper, 57% of relationships are bloated-transitive and 15.4% bloated-inherited. Only 2.7% are bloated-direct, and 36% of artifacts have at least one bloated-direct dependency.
+  - Latendresse's "59% not used in production" means "not shipped in the bundler output" for bundled JS projects.
+  - Maven analyzer limits corrected to what the docs actually list.
+  - Jafari prevalence data added.
+- **Rationale:**
+  - Unused declared dependencies are common: 79.8% of JS projects and 36% of Maven artifacts have at least one.
+  - They add install size, attack surface, audit noise and maintenance work.
+  - Once verified, removing them is low-controversy: maintainers merged 18 of 21 answered removal pull requests.
+  - OWASP 2025 lists removing unused dependencies as a supply-chain prevention measure.
+- **Evidence:**
+  - [A Comprehensive Study of Bloated Dependencies in the Maven Ecosystem](https://arxiv.org/abs/2001.07808) — Soto-Valero, Harrand, Monperrus, Baudry, Empirical Software Engineering 26 (2021) — peer_reviewed
+    - Quote: "75.1% of the analyzed dependency relationships are bloated" (9,639 artifacts, 723,444 relationships).
+    - Breakdown: "19,673 (2.7%) are bloated-direct … 111,649 (15.4%) are bloated-inherited … 412,288 (57%) are bloated-transitive".
+    - "3,472 (36%) have at least one bloated-direct dependency". The paper also gives 23.8% elsewhere, an internal inconsistency.
+    - "18/21 answered pull requests were accepted and merged by developers, removing 131 dependencies in total."
+    - Verified in the full text.
+  - [Dependency Smells in JavaScript Projects](https://arxiv.org/abs/2010.14573) — Jafari, Costa, Abdalkareem, Shihab, Tsantalis, IEEE TSE (vol. 48, 2022) — peer_reviewed
+    - Unused dependency found in 915 of 1,146 projects (79.8%), detected with depcheck.
+    - "Unused dependencies unnecessarily increase installation size and maintenance effort required for dependencies."
+    - Verified in the full text.
+  - [Not All Dependencies are Equal](https://arxiv.org/abs/2207.14711) — Latendresse, Mujahid, Costa, Shihab, ASE 2022 — peer_reviewed
+    - "59% of the installed dependencies configured as runtime dependencies are not used in production". The body defines this as 510 of 863 runtime dependencies "not shipped to the production bundle" across 100 projects.
+    - Verified in the full text.
+  - [OWASP Top 10:2025 A03 Software Supply Chain Failures](https://top10.owasp.org/2025/A03_2025-Software_Supply_Chain_Failures) — OWASP, 2025 — standard
+    - "Reduce attack surface by removing unused dependencies, unnecessary features, components, files, and documentation."
+    - Highest average incidence rate, 5.19%. "exactly 50% respondents ranking it #1".
+    - Verified.
+  - [Knip — Handling Issues](https://knip.dev/guides/handling-issues) — Knip — official_docs
+    - "Dependencies added conditionally in configuration files may not be detected by Knip."
+    - "Reach for `ignore*` options only as a last resort, and never before reading Configuring project files."
+    - Verified.
+  - [Knip issue types](https://knip.dev/reference/issue-types) — Knip — official_docs — both "Unused dependencies" and "Unused devDependencies" use the key `dependencies`. Verified. *Added.*
+  - [depcheck (archived)](https://github.com/depcheck/depcheck) — depcheck maintainers — official_docs
+    - Archived 16 June 2025: "Depcheck is no longer actively maintained".
+    - Recommends knip as "a more actively maintained and feature-rich alternative".
+    - Verified.
+  - [cargo-machete](https://github.com/bnjbvr/cargo-machete) — bnjbvr — official_docs
+    - Described as detecting unused dependencies "in a fast (yet imprecise) way".
+    - Code generated by build.rs and renamed crates cause false positives.
+    - `--with-metadata` "may modify the `Cargo.lock` files".
+    - Verified.
+  - [cargo-udeps](https://github.com/est31/cargo-udeps) — est31 — official_docs
+    - "needs Rust nightly to actually run". Usage: `cargo +nightly udeps`.
+    - Known issue: "Some unused crates might not be detected."
+    - Verified. `--all-targets` is not documented in the README. *Added.*
+  - [Maven dependency:analyze](https://maven.apache.org/plugins/maven-dependency-plugin/analyze-mojo.html) (plugin 3.11.0) and [maven-dependency-analyzer](https://maven.apache.org/shared/maven-dependency-analyzer/) — Apache Maven — official_docs
+    - Reports "used and undeclared" and "unused and declared" dependencies. Works "at bytecode level".
+    - "Certain dependencies that are known to be used and loaded by reflection are always ignored. This includes `org.slf4j:slf4j-simple`".
+    - The analyzer misses "constants, annotations with source-only retention, and links in Javadoc. This can lead to incorrect results when these are the only uses of a dependency."
+    - Verified. The researcher's "runtime-only dependencies" limit is not stated there.
+  - [DepClean](https://github.com/ASSERT-KTH/depclean) — ASSERT-KTH — official_docs — `mvn se.kth.castor:depclean-maven-plugin:2.2.0:depclean`, run after `mvn test-compile`. Verified. *Added.*
+  - [cmd/go: go mod tidy](https://pkg.go.dev/cmd/go#hdr-Add_missing_and_remove_unused_modules) — Go team — official_docs
+    - "adds any missing modules necessary to build the current module's packages and dependencies, and it removes unused modules".
+    - `-diff` prints the changes and "exits with a non-zero code if the diff is not empty".
+    - The flag is new in [Go 1.23](https://go.dev/doc/go1.23).
+    - Verified.
+- **Detect:**
+  - **JS/TS:** `npx knip --include dependencies`. The `dependencies` key covers unused dependencies and devDependencies. Do not use depcheck, which is archived.
+  - **Python:** `deptry .` rules DEP002 (unused) and DEP005 (stdlib package declared as a dependency).
+  - **Rust:** `cargo machete --with-metadata` as a fast pass, which may touch `Cargo.lock`. Then confirm each hit with `cargo +nightly udeps`.
+  - **Go 1.23 and later:** `go mod tidy -diff`.
+  - **Maven:** `mvn dependency:analyze -DfailOnWarning=true`, or `mvn test-compile se.kth.castor:depclean-maven-plugin:2.2.0:depclean`.
+  - **Gradle:** `./gradlew buildHealth`.
+  - **Manual check per flagged dependency:** `rg -n '<pkg>'` across config files (`*.config.*`, `.babelrc`, tsconfig, pyproject `[tool.*]`), package.json scripts, Dockerfiles, CI YAML and docs. Look for string-based loading: `require(variable)`, importlib, `Class.forName`, plugin names in config and entry points.
+- **Tools:** knip, deptry, cargo-machete, cargo-udeps, `go mod tidy -diff`, `mvn dependency:analyze`, DepClean, dependency-analysis-gradle-plugin (`buildHealth`).
+- **Applies to:** All ecosystems; applications and libraries.
+- **When not to apply / counterpoints:**
+  - Static detectors produce false positives. Common cases:
+    - Reflection or name-based loading: JDBC drivers, logging bindings, ORM dialects, and Babel, ESLint or PostCSS plugins named in config.
+    - Code generated by build scripts, and renamed crates.
+    - CLI binaries used only in scripts or CI.
+    - `@types/*` packages, and peer dependencies that plugins require.
+    - Dependencies used only in Docker or deployment steps.
+  - For libraries, optional and peer dependencies exist for consumers and look unused locally.
+  - Jafari's 79.8% came from depcheck, which has these same blind spots, so treat it as an upper bound.
+  - Maven's headline 75.1% mostly measures transitive bloat, which is fixed with exclusions, not by deleting declared dependencies.
+  - No published false-positive rates were found for knip, deptry, cargo-machete or cargo-udeps.
+- **Fix risk:** medium
+
+### T16-F08 — Scan all dependencies (including transitive) for known vulnerabilities; triage by scope (runtime vs dev/build) and, where supported, reachability; fix by moving to the lowest fixed version within range, one dependency per commit; never run bulk "force" fixes in a hardening pass
+- **Grade:** A · **Verdict:** CORRECTED. Changes:
+  - The .NET command needs the SDK-appropriate form: `dotnet package list` on .NET 10 or later, `dotnet list package` on .NET 9 or earlier.
+  - Added OSV-Scanner's warning that Rust call analysis runs dependency `build.rs` scripts.
+  - Added the OSSRA methodology.
+- **Rationale:**
+  - Vulnerable dependencies are near-universal, and developers are often unaware of them.
+  - Raw alert lists overcount: non-deployed, dev-only and unreachable code dominate them.
+  - Triage by scope and reachability keeps the pass focused.
+  - `npm audit fix --force` is documented to install semver-major changes.
+- **Evidence:**
+  - [Do Developers Update Their Library Dependencies?](https://arxiv.org/abs/1709.04621) — Kula, German, Ouni, Ishio, Inoue, Empirical Software Engineering 2017 — peer_reviewed
+    - "81.5% of the studied systems still keep their outdated dependencies" (more than 4,600 GitHub projects).
+    - "69% of the interviewees claim that they were unaware of their vulnerable dependencies."
+    - Verified in the abstract.
+  - [Vulnerable Open Source Dependencies: Counting Those That Matter](https://arxiv.org/abs/1808.09753) — Pashchenko, Plate, Ponta, Sabetta, Massacci, ESEM 2018 — peer_reviewed
+    - Studies 200 Java libraries used at SAP: "about 20% of the dependencies affected by a known vulnerability are not deployed".
+    - "The vast majority (81%) of vulnerable dependencies may be fixed by simply updating to a new version".
+    - Verified in the abstract.
+  - [Not All Dependencies are Equal](https://arxiv.org/abs/2207.14711) — Latendresse et al., ASE 2022 — peer_reviewed — "most security alerts target dependencies not used in production, making them highly unlikely to be a risk". Verified.
+  - [2026 OSSRA](https://www.blackduck.com/resources/analyst-reports/open-source-security-risk-analysis.html) — Black Duck, 2026 — industry_report
+    - 87% of codebases have at least one vulnerability.
+    - Mean 581 vulnerabilities per codebase, up 107% from 280.
+    - Mean 1,180 components.
+    - Based on 947 commercial codebases, Nov 2024 to Oct 2025.
+    - Verified on the landing page.
+  - [Go vulnerability management](https://go.dev/doc/security/vuln/) — Go team — official_docs — govulncheck "only surfaces vulnerabilities that actually affect you, based on which functions in your code are transitively calling vulnerable functions." Verified.
+  - [OSV-Scanner: scan source](https://google.github.io/osv-scanner/usage/scan-source) — Google — official_docs
+    - Command: `osv-scanner scan source -r <dir>`.
+    - Go call analysis is on by default. Rust is experimental (`--call-analysis=rust`), and "Running call analysis for Rust will execute build scripts (`build.rs`) in your dependencies".
+    - Verified.
+  - [pip-audit](https://github.com/pypa/pip-audit) — PyPA — official_docs — "pip-audit is not a static code analyzer. It analyzes dependency trees, not code". Services: PyPI, OSV, ESMS. Verified.
+  - [npm audit](https://docs.npmjs.com/cli/v11/commands/npm-audit) — npm docs v11 — official_docs
+    - `--force` lets audit fix "install modules outside your stated dependency range (including SemVer-major changes)".
+    - `--audit-level` sets the minimum severity for a non-zero exit.
+    - Omitted dependency types are skipped in the report.
+    - Verified.
+  - [actions/dependency-review-action](https://github.com/actions/dependency-review-action) — GitHub — official_docs — `fail-on-severity` defaults to `low`. `fail-on-scopes` takes `runtime`, `development` or `unknown`, with default `runtime`. Verified.
+  - [npm audit: Broken by Design](https://overreacted.io/npm-audit-broken-by-design/) — Dan Abramov, 2021-07-07 — engineering_blog
+    - The `npm audit` reports he reviewed for Create React App "all appear to be false positives in the context of a build tool dependency like Create React App."
+    - The noise trains developers to ignore warnings.
+    - Verified.
+- **Detect:**
+  - **Polyglot:** `osv-scanner scan source -r .`. Add `--call-analysis=all` only in a sandbox, because Rust analysis executes `build.rs`.
+  - **Go:** `govulncheck ./...`.
+  - **Python:** `pip-audit -r requirements.txt`, or run it against the environment.
+  - **Node:** runtime triage with `npm audit --omit=dev --audit-level=high`, then a separate full audit for build-chain awareness.
+  - **Rust:** `cargo deny check advisories`.
+  - **.NET:** `dotnet package list --vulnerable --include-transitive` on .NET 10 or later, or `dotnet list package --vulnerable --include-transitive` on earlier SDKs.
+  - **PR CI:** dependency-review-action with `fail-on-scopes: runtime`.
+- **Tools:** osv-scanner, govulncheck, pip-audit, npm audit, cargo-deny, `dotnet package list --vulnerable` (or `dotnet list package` on older SDKs), actions/dependency-review-action.
+- **Applies to:** All ecosystems.
+- **When not to apply / counterpoints:**
+  - Reachability analysis is production-grade only for Go. Rust is experimental and runs untrusted build scripts.
+  - Where reachability analysis is unavailable, "not reachable" cannot be proven, because reflection and dynamic dispatch escape static analysis. Critical vulnerabilities in runtime dependencies still deserve upgrades.
+  - Dev and build dependencies do matter against install-time malware that steals credentials (CISA, Shai-Hulud).
+  - OSSRA figures come from commercial, often M&A-audit, codebases, which is a selection bias.
+- **Fix risk:** medium
+
+### T16-F06 — Version-constraint policy by artifact type: applications resolve exact versions via the committed lockfile (manifest pins optional); libraries use compatible ranges for runtime deps, no upper caps unless a version is known broken, no exact pins consumers cannot override; both: no `*`/`latest`/unbounded `>=`, no git-branch/URL specifiers
+- **Grade:** B · **Verdict:** VERIFIED. Strengthened with a nuance and a quote from the paper:
+  - The FSE 2025 harm finding applies specifically to projects with about 498 or more direct and transitive dependencies, which is 26% of the repositories in the dataset.
+  - The paper itself recommends committing a lockfile.
+- **Rationale:**
+  - Constraints that are too tight in libraries create conflicts downstream users cannot fix.
+  - Constraints that are too loose let unreviewed code in on every re-resolve.
+  - Jafari et al. catalogue both failure modes.
+  - He et al. show that pinning only direct dependencies raises maintenance cost and can even increase exposure to malicious updates in large npm graphs. The whole-tree lockfile is what actually freezes versions.
+- **Evidence:**
+  - [Pinning Is Futile](https://www.cs.cmu.edu/~ckaestne/pdf/fse25.pdf) — He, Vasilescu, Kästner, FSE 2025, Distinguished Paper — peer_reviewed
+    - "pinning direct dependencies not only (as expected) increases the cost of maintaining vulnerable and outdated dependencies, but also (surprisingly) even increases the risk of exposure to malicious package updates in larger dependency graphs due to the specifics of npm's dependency resolution mechanism."
+    - The effect is "futile and can be even harmful for projects with 498 direct and transitive dependencies (affecting 26% of GitHub repositories in our dataset)".
+    - "application developers should freeze their entire dependency graph with a shared lock file".
+    - Verified in the PDF.
+  - [Should you Pin your JavaScript Dependencies?](https://docs.renovatebot.com/dependency-pinning/) — Renovate — official_docs
+    - "Any apps (web or Node.js) that aren't require()'d by other packages should pin all types of dependencies for greatest reliability/predictability".
+    - "Browser or dual browser/node.js libraries that are consumed/required()'d by others should keep using SemVer ranges for dependencies but can use pinned dependencies for devDependencies".
+    - "Use a lock file".
+    - A section is titled 'Downside of pinned dependencies - upgrade "noise"'.
+    - Verified.
+  - [install_requires vs requirements files](https://packaging.python.org/en/latest/discussions/install-requires-vs-requirements/) — PyPA — official_docs — "It is not considered best practice to use `install_requires` to pin dependencies to specific versions, or to specify sub-dependencies". Verified.
+  - [Should You Use Upper Bound Version Constraints?](https://iscinumpy.dev/post/bound-version-constraints/) — Henry Schreiner, 2021-12-09 (updated 2026) — engineering_blog
+    - "users cannot fix an over restrictive cap".
+    - "you are roughly as likely to get a breakage…from a minor or patch release of a library than from a major version".
+    - Verified.
+  - [Semantic Versioning Will Not Save You](https://hynek.me/articles/semver-will-not-save-you/) — Hynek Schlawack, 2021-03-02 — engineering_blog
+    - "Don't ever pin major versions, unless you know they're broken."
+    - Applications should "Pin your dependencies and their transitive dependencies to their exact versions."
+    - Verified.
+  - [Dependency Smells in JavaScript Projects](https://arxiv.org/abs/2010.14573) — Jafari et al., IEEE TSE — peer_reviewed
+    - Catalogues pinned (52.2% of projects), URL (10.2%), restrictive (9.2%) and permissive (3.6%) constraints.
+    - Practitioner P10: "[It] creates technical debt in dependencies."
+    - On branch URLs: "any new change to the master branch will be fetched".
+    - Verified in the full text.
+  - [cargo-deny bans configuration](https://embarkstudios.github.io/cargo-deny/checks/bans/cfg.html) — Embark Studios — official_docs — `wildcards` takes `deny`, `warn` (default) or `allow`. Verified.
+- **Detect:**
+  - **npm:** `jq -r '(.dependencies//{}),(.devDependencies//{}) | to_entries[] | select(.value|test("^(\\*|latest|x|>=|git|github:|https?:|file:)")) | "\(.key) \(.value)"' package.json`.
+  - **Python library:** in `[project].dependencies`, flag `==` pins and `<` caps.
+  - **Python application:** confirm that `uv.lock`, `poetry.lock` or `pylock.toml` exists.
+  - **Rust:** `cargo deny check bans` with `wildcards = "deny"`.
+  - **Go:** version constraints do not apply because of minimal version selection. Check for `replace` directives that point at local paths.
+- **Tools:** jq, cargo-deny, ripgrep, Renovate `rangeStrategy`.
+- **Applies to:** npm/pnpm/yarn, Python, Rust, Maven/Gradle ranges; Go only for `replace` directives.
+- **When not to apply / counterpoints:**
+  - There is a real conflict. CISA (Shai-Hulud, 2025) advised pinning "npm package dependency versions to known safe releases", and Snyk (colors/faker) says "Pin your dependencies, either in your `package.json` or by using a lockfile".
+  - He et al. show that pinning direct dependencies in the manifest alone is futile under npm-style resolution. The reconciliation is that the lockfile freezes the tree.
+  - The He et al. result is npm-specific: it comes from simulating npm resolution. Python's flat resolution differs, and Schreiner and Jafari note that pins in Python break co-installability.
+- **Fix risk:** medium
+
+### T16-F02 — Declare explicitly every package the code imports directly; no reliance on transitive ("phantom"/"used-undeclared") packages; declare with a constraint that admits the currently resolved version
+- **Grade:** B · **Verdict:** CORRECTED. Changes:
+  - Added Jafari's prevalence figure (missing dependency in 63.6% of projects).
+  - Two counterpoints were unsourced and are now labelled as reasoning: meta-packages that re-export sub-packages, and stdlib names that coincide with PyPI names confusing deptry.
+  - Added the Go 1.23 requirement.
+- **Rationale:**
+  - A phantom dependency can disappear or jump a major version whenever the direct dependency that brings it in changes.
+  - It breaks consumers when it comes only from devDependencies.
+  - Several tools flag it as a distinct defect.
+- **Evidence:**
+  - [Phantom dependencies](https://rushjs.io/pages/advanced/phantom_deps/) — Rush (Microsoft) — official_docs
+    - "A 'phantom dependency' occurs when a project uses a package that is not defined in its package.json file."
+    - "The glob package is coming from our devDependencies, which means it only gets installed for developers who work on the my-library project."
+    - Verified.
+  - [Knip — Handling Issues](https://knip.dev/guides/handling-issues) — Knip — official_docs — "An unlisted dependency is usually a transitive dependency that's imported or referenced directly… You should not rely on transitive dependencies for various reasons, including control, security and stability." Verified.
+  - [deptry Rules and Violations](https://deptry.com/rules-violations/) — deptry — official_docs
+    - DEP003: "Python modules that are imported within a project, where the corresponding dependencies are in the dependency tree, but not as direct dependencies."
+    - DEP001: missing dependencies.
+    - Verified.
+  - [Dependency Analysis Gradle Plugin](https://github.com/autonomousapps/dependency-analysis-gradle-plugin) — autonomousapps — official_docs
+    - Reports "used transitive dependencies, which it is advisable you declare directly".
+    - Reports "dependencies declared on the wrong configuration (`api` vs `implementation` vs `compileOnly`, etc.)".
+    - Task: `./gradlew buildHealth`.
+    - Verified in the README.
+  - [Dependency Smells in JavaScript Projects](https://arxiv.org/abs/2010.14573) — Jafari et al., IEEE TSE — peer_reviewed
+    - "Missing dependencies can cause runtime errors or crashes when executing the code that relies on the dependency."
+    - Found in 729 of 1,146 projects (63.6%), detected with depcheck.
+    - Verified in the full text.
+  - [pipdeptree](https://github.com/tox-dev/pipdeptree) — tox-dev — official_docs — `pipdeptree --reverse --packages <pkg>`. Verified. *Added.*
+- **Detect:**
+  - **JS/TS:** `npx knip --include unlisted,unresolved,binaries`.
+  - **Python:** `deptry .` rules DEP001 and DEP003.
+  - **Maven:** `mvn dependency:analyze` ("used and undeclared").
+  - **Gradle:** `./gradlew buildHealth`.
+  - **Go 1.23 and later:** `go mod tidy -diff` (look at additions).
+  - **Resolved version to declare:** `npm ls <pkg> --all`, `pnpm why <pkg>`, `cargo tree -i <crate>`, `pipdeptree --reverse --packages <pkg>`.
+- **Tools:** knip, deptry, `mvn dependency:analyze`, dependency-analysis-gradle-plugin, `go mod tidy`, `npm ls`, `pnpm why`, `cargo tree -i`, pipdeptree.
+- **Applies to:** All ecosystems; critical for published libraries and monorepo workspaces.
+- **When not to apply / counterpoints:**
+  - *Unsourced reasoning:*
+    - Frameworks that re-export sub-packages as meta-packages may be better imported through the meta-package, to avoid a second pin that can drift.
+    - Module and distribution names differ in Python, so deptry may need its package-module mapping configured.
+  - Jafari's 63.6% relies on depcheck, which also flags false "missing" dependencies from config-loaded plugins.
+- **Fix risk:** low
+
+### T16-F03 — Classify every dependency by where it runs (runtime vs dev/build/test; api vs implementation in JVM), move misclassified entries, and prove it with a production-only install plus starting/smoke-testing the artefact
+- **Grade:** B · **Verdict:** CORRECTED. Changes:
+  - The Abramov source was misrepresented. He does *not* propose moving packages to devDependencies as the fix. He quotes it as a common suggestion and calls it "flawed", because `npm audit` still warns on devDependencies unless you know to use `--production`.
+  - The Latendresse 28.2% figure was re-read. In the body's Finding 4, 28.2% *of the dependencies shipped to production bundles* are declared as devDependencies. The abstract's wording differs, and both describe bundled JS projects.
+- **Rationale:**
+  - The dev/prod declaration often does not match what actually ships.
+  - When a dev-only package is used at runtime in a non-bundled service or a published library, production installs and consumers break (Rush, deptry DEP004).
+  - When build tools are declared as runtime dependencies, images grow and vulnerability alerts become noise.
+  - Most alerts target dependencies that never reach production (ASE 2022).
+- **Evidence:**
+  - [Not All Dependencies are Equal](https://arxiv.org/abs/2207.14711) — Latendresse, Mujahid, Costa, Shihab, ASE 2022 — peer_reviewed
+    - "less than 1% of the installed dependencies are released to production".
+    - "59% of the installed dependencies configured as runtime dependencies are not used in production, and 28.2% of the dependencies configured as development dependencies are used in production" (abstract).
+    - The body's Finding 4 reads: "28.2% of production dependencies are development dependencies".
+    - "most security alerts target dependencies not used in production".
+    - Verified in the full text. "Production" means the bundler output of 100 JS projects, and 51 of them ship no dependencies at all.
+  - [deptry Rules and Violations](https://deptry.com/rules-violations/) — deptry — official_docs — DEP004: "Dependencies specified as development ones that should be included as regular dependencies." Verified.
+  - [Knip production and strict mode](https://knip.dev/features/production-mode) and [Knip CLI](https://knip.dev/reference/cli) — Knip — official_docs
+    - `--strict`: "Isolate workspaces and consider only direct dependencies. Implies production mode."
+    - "In production mode, only `dependencies` (not `devDependencies`) are considered when finding unused or unlisted dependencies."
+    - Verified.
+  - [npm audit: Broken by Design](https://overreacted.io/npm-audit-broken-by-design/) — Dan Abramov, 2021 — engineering_blog
+    - He quotes the common advice "Move dependency to `devDependencies` if it doesn't run in production" and then says "this solution is flawed": "`npm audit` still warns for development dependencies by default. You have to *know* to run `npm audit --production`".
+    - Verified. The quote was corrected.
+  - [npm ci](https://docs.npmjs.com/cli/v11/commands/npm-ci) — npm docs v11 — official_docs — `--omit`: "Dependency types to omit from the installation tree on disk." Verified.
+- **Detect:**
+  - **Python:** `deptry .` rule DEP004.
+  - **JS/TS:** `npx knip --production --strict`. Any unlisted item then means runtime code imports a devDependency.
+  - **JVM:** Gradle `buildHealth` (wrong configuration).
+  - **Behavioural proof:** in a clean container, run the production-only install (`npm ci --omit=dev` or the equivalent), then run the real start command or smoke test.
+- **Tools:** deptry, knip, dependency-analysis-gradle-plugin, `npm ci --omit=dev`.
+- **Applies to:** Node/TS services, Python, JVM; any project that ships a production image or publishes a package.
+- **When not to apply / counterpoints:**
+  - For bundled front-ends, which is the setting of the ASE 2022 study, the dependencies/devDependencies split mostly affects tooling, audit scoping and image size, not runtime correctness.
+  - Frameworks may need "dev-looking" packages at build time inside the image.
+  - "Dev-only" does not mean risk-free: install-time malware (Shai-Hulud) steals developer and CI credentials whatever section the package sits in.
+- **Fix risk:** medium
+
+### T16-F07 — Find packages resolved at more than one version and converge them where an in-range upgrade of the dependent allows; use why/invert tools to find the holder of the old version; do not force convergence with overrides outside a dependent's declared range
+- **Grade:** B · **Verdict:** CORRECTED. Changes:
+  - *Software Engineering at Google* ch. 21 is authored by Titus Winters (book edited by Winters, Manshreck and Wright).
+  - Google's policy says untangling diamond conflicts "can take days or weeks", not "weeks".
+  - The .NET command form was fixed.
+- **Rationale:**
+  - Duplicate versions increase build time and binary size, and older copies can keep vulnerabilities fixed in newer ones.
+  - In Java, diamond conflicts can put two versions on the classpath with a random one used at runtime.
+  - Google enforces a One Version Rule for these reasons.
+- **Evidence:**
+  - [The One Version Rule](https://opensource.google/documentation/reference/thirdparty/oneversion) — Google Open Source — official_docs
+    - "There may only be one version of a package in //third_party."
+    - "In Java, this shows up as both versions of Foo being present on project A's classpath and a random version being used at runtime." Untangling "can take days or weeks".
+    - Verified.
+  - [cargo tree](https://doc.rust-lang.org/cargo/commands/cargo-tree.html) — The Cargo Book — official_docs — `-d`: "It can be beneficial for build times and executable sizes to avoid building that same package multiple times. This flag can help identify the offending packages." Verified.
+  - [cargo-deny bans configuration](https://embarkstudios.github.io/cargo-deny/checks/bans/cfg.html) — Embark Studios — official_docs
+    - `multiple-versions` takes `deny`, `warn` (default) or `allow`.
+    - `skip` and `skip-tree` exist for temporary exceptions. `skip-tree` is "a very big hammer, and should be used with care."
+    - Verified.
+  - [npm dedupe](https://docs.npmjs.com/cli/v11/commands/npm-dedupe) — npm docs v11 — official_docs
+    - "Using `npm find-dupes` will run the command in `--dry-run` mode."
+    - Dedupe "will never update the semver values of direct dependencies".
+    - Verified.
+  - [pnpm dedupe](https://pnpm.io/cli/dedupe) — pnpm — official_docs — `--check`: "Exits with a non-zero status code if changes are possible." Verified.
+  - [Software Engineering at Google, ch. 21 Dependency Management](https://abseil.io/resources/swe-book/html/ch21.html) — Titus Winters (in Winters, Manshreck, Wright, eds., O'Reilly 2020; free online edition) — book
+    - "All else being equal, prefer source control problems over dependency-management problems."
+    - Describes the diamond dependency problem.
+    - Verified on the online edition.
+  - [npm package.json overrides](https://docs.npmjs.com/cli/v11/configuring-npm/package-json) — npm docs v11 — official_docs
+    - Overrides serve "replacing the version of a dependency with a known security issue, replacing an existing dependency with a fork, or making sure that the same version of a package is used everywhere".
+    - "Overrides are only considered in the root `package.json` file".
+    - Verified.
+  - [pip check](https://pip.pypa.io/en/stable/cli/pip_check/) — PyPA — official_docs — "Verify installed packages have compatible dependencies". Exits 1 on broken requirements. Verified. *Added.*
+- **Detect:**
+  - **Rust:** `cargo tree -d`, then `cargo tree -i <crate>`; `cargo deny check bans`.
+  - **npm:** `npm find-dupes`, then `npm ls <pkg> --all`.
+  - **pnpm:** `pnpm dedupe --check`, then `pnpm why <pkg>`.
+  - **Python:** there is one version per environment, so duplicates show up as conflicts. Use `pip check` and `pipdeptree`, which prints conflict warnings.
+  - **.NET:** `dotnet package list --include-transitive` on .NET 10 or later, or `dotnet list package --include-transitive` on earlier SDKs.
+  - **Unexplained pins:** flag any `overrides`, `resolutions`, pnpm overrides, `[patch]` or Go `replace` entry that has no comment explaining why, and re-check that it is still needed.
+- **Tools:** `cargo tree -d`, cargo-deny, `npm find-dupes`, `pnpm dedupe --check`, `pnpm why`, `pip check`, pipdeptree.
+- **Applies to:** All ecosystems; highest value for Rust, Go and JVM binaries and for front-end bundles.
+- **When not to apply / counterpoints:**
+  - Duplicates across semver-major lines are often unavoidable until the upstream dependent upgrades.
+  - npm's nested node_modules tolerates duplicates by design.
+  - Google's rule targets a monorepo with a single build graph.
+  - Forcing a single version with overrides can put a dependent outside its tested range.
+  - Deduplication changes transitive versions, and therefore behaviour.
+- **Fix risk:** medium
+
+### T16-F09 — Ensure a sustained, low-noise update mechanism: a configured bot (Dependabot/Renovate) with grouping, cooldown/minimum release age, periodic lockfile maintenance and automerge only for green minor/patch — or, where a bot is judged too noisy, scheduled CI running a reachability-based vulnerability check plus tests against latest dependencies
+- **Grade:** B · **Verdict:** CORRECTED. Changes:
+  - The Dependabot study is IEEE TSE vol. 49, **2023**, not 2022.
+  - Dependabot now applies a **3-day default cooldown** to version updates even when none is configured, and it does not apply to security updates.
+  - The stale-PR command is `gh pr list --app dependabot`.
+- **Rationale:**
+  - Without an update mechanism, technical lag accumulates.
+  - Bot adoption measurably reduces lag, but untuned bots cause notification fatigue: 11.3% of projects dropped Dependabot.
+  - The rule therefore requires tuning, not just the presence of a bot.
+- **Evidence:**
+  - [Automating Dependency Updates in Practice: An Exploratory Study on GitHub Dependabot](https://arxiv.org/abs/2206.07230) — Runzhi He, Hao He, Yuxia Zhang, Minghui Zhou, IEEE TSE 49 (2023) — peer_reviewed
+    - "projects do reduce technical lag after Dependabot adoption".
+    - "developers tend to configure Dependabot toward reducing the number of notifications".
+    - "11.3% of projects have deprecated Dependabot in favor of other alternatives".
+    - Verified in the abstract. Year corrected via Crossref.
+  - [Renovate upgrade best practices](https://docs.renovatebot.com/upgrade-best-practices/) — Renovate — official_docs
+    - `config:best-practices` extends `config:recommended`, `docker:pinDigests`, `helpers:pinGitHubActionDigests`, `:configMigration`, `:pinDevDependencies`, `abandonments:recommended`, `security:minimumReleaseAgeNpm` and `:maintainLockFilesWeekly`.
+    - For automerge, set `minimumReleaseAge` to `"14 days"`.
+    - Verified.
+  - [Dependabot options reference](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference) — GitHub Docs, 2026 — official_docs
+    - `cooldown` takes `default-days` and `semver-major/minor/patch-days`. "If not specified, Dependabot applies a default cooldown of 3 days", and "This default cooldown does not apply to security updates".
+    - `open-pull-requests-limit`: "If five pull requests with version updates are open, no further pull requests are raised".
+    - Verified. The default cooldown was newly found.
+  - [OpenSSF Scorecard checks](https://github.com/ossf/scorecard/blob/main/docs/checks.md) — OpenSSF — standard — Dependency-Update-Tool is rated High risk, but "can determine only whether the dependency update tool is enabled; it does not ensure that the tool is run or that the tool's pull requests are merged." Verified.
+  - [Technology Radar: Dependency drift fitness function](https://www.thoughtworks.com/radar/techniques/dependency-drift-fitness-function) — Thoughtworks — industry_report — Adopt ring (Oct 2020; Trial Nov 2019). "Fitness functions are executable functions that inform us if our applications and architecture are objectively moving away from their desired characteristics." Verified.
+  - [Turn Dependabot Off](https://words.filippo.io/dependabot/) — Filippo Valsorda, 2026-02-20 — engineering_blog
+    - "Dependabot is a noise machine. It makes you feel like you're doing work, but you're actually discouraging more useful work."
+    - Recommends a scheduled govulncheck plus tests against the latest dependencies.
+    - Verified.
+  - [gh pr list](https://cli.github.com/manual/gh_pr_list) — GitHub CLI — official_docs — `--app`: "Filter by GitHub App author". Example: `gh pr list --app dependabot`. Verified. *Added.*
+- **Detect:**
+  - Look for `.github/dependabot.yml`, `renovate.json` or `.renovaterc`, or scheduled workflows that test against the latest dependencies.
+  - Scorecard `Dependency-Update-Tool`.
+  - Stale open bot PRs, as evidence the bot is ignored: `gh pr list --app dependabot --state open`.
+  - Check the config for groups, a cooldown or `minimumReleaseAge`, lock-file maintenance, and automerge gated on required checks.
+- **Tools:** Dependabot, Renovate, OpenSSF Scorecard, gh CLI.
+- **Applies to:** Any repository expected to live beyond the current release.
+- **When not to apply / counterpoints:**
+  - Valsorda (2026) and the Lobsters thread (107 votes) dissent: bots can be net-negative noise, especially in Go with good reachability tooling. A Renovate maintainer partly agreed.
+  - Counter-voice in the same thread: in corporate settings, deferring updates means "often is never".
+  - Scorecard checks only that a bot is enabled.
+- **Fix risk:** low
+
+### T16-F10 — Harden the install path against malicious releases: minimum release age / cooldown (with an explicit exclude path for urgent security fixes), dependency lifecycle scripts disabled by default with an allowlist, and fail on trust/provenance downgrades where available
+- **Grade:** B · **Verdict:** CORRECTED. Changes:
+  - *xz:* the researcher said the payload "shipped via release tarballs rather than the git repository". In fact the backdoored binary test files were committed to git; only the activating `build-to-host.m4` was tarball-only. The "~500 ms SSH latency" figure is not in Russ Cox's timeline. It comes from Andres Freund's report (logins went from 0.299 s to 0.807 s), which is now cited.
+  - *Dependabot:* the default cooldown is exactly 3 days, not "a few days".
+  - *pnpm:* the current allowlist setting is `allowBuilds`.
+  - *Unsupported claim flagged:* pnpm's "malicious releases are … removed … within an hour" is a vendor assertion with no published data behind it.
+- **Rationale:**
+  - The recent incident record (Shai-Hulud, colors/faker, event-stream, xz) shows malicious or sabotaged versions spreading through normal installs.
+  - Install scripts are a common execution vector.
+  - A short delay is claimed by tool vendors to block many malicious releases. It is now on by default in pnpm v11 (1 day) and Dependabot (3 days).
+- **Evidence:**
+  - [pnpm settings: dependency resolution](https://pnpm.io/settings/dependency-resolution) — pnpm, 2026 — official_docs
+    - `minimumReleaseAge`: "Added in: v10.16.0 Default: 1440 (since v11), 0 (before v11)". "In most cases, malicious releases are discovered and removed from the registry within an hour." Applies to transitive dependencies. `minimumReleaseAgeExclude` exists.
+    - `trustPolicy`: "Added in: v10.21.0 Default: off". With `no-downgrade`, "pnpm will fail if a package's trust level has decreased compared to previous releases".
+    - `blockExoticSubdeps`: "Added in: v10.26.0 Default: true".
+    - Verified.
+  - [pnpm Supply Chain Security](https://pnpm.io/supply-chain-security) — pnpm — official_docs — "pnpm v10 disables the automatic execution of postinstall scripts in dependencies". Use `allowBuilds` to allowlist trusted packages. Verified.
+  - [npm ci](https://docs.npmjs.com/cli/v11/commands/npm-ci) — npm docs v11 — official_docs — `--ignore-scripts`: "If true, npm does not run scripts specified in package.json files." Verified. This was flagged "not re-verified" in the research.
+  - [Dependabot options reference](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference) — GitHub Docs — official_docs — 3-day default cooldown for version updates only. Verified.
+  - [Renovate configuration options: minimumReleaseAge](https://docs.renovatebot.com/configuration-options/#minimumreleaseage) — Renovate — official_docs — delays updates and cites npm's 72-hour unpublish window and community detection time. Verified.
+  - [Widespread Supply Chain Compromise Impacting npm Ecosystem](https://www.cisa.gov/news-events/alerts/2025/09/23/widespread-supply-chain-compromise-impacting-npm-ecosystem) — CISA, 2025-09-23 — incident_report
+    - "Shai-Hulud" compromised "over 500 packages" and targeted GitHub PATs and AWS/GCP/Azure keys.
+    - "Pin npm package dependency versions to known safe releases produced prior to Sept. 16, 2025".
+    - "Immediately rotate all developer credentials".
+    - Verified.
+  - [Open source maintainer pulls the plug on npm packages colors and faker](https://snyk.io/blog/open-source-npm-packages-colors-faker/) — Snyk (Liran Tal, Assaf Ben Josef), 2022-01-09 — incident_report
+    - colors gets "over 20 million downloads a week", has 18,962 dependents including aws-cdk, and colors@1.4.1 had 95,397 downloads.
+    - Verified.
+  - [Details about the event-stream incident](https://blog.npmjs.org/post/180565383195/details-about-the-event-stream-incident) — npm, Inc., 2018-11-27 — incident_report
+    - "The attacker, posing as a maintainer, took over maintainership".
+    - The flatmap-stream payload targeted Copay versions 5.0.2 through 5.1.0.
+    - Verified.
+  - [Timeline of the xz open source attack](https://research.swtch.com/xz-timeline) — Russ Cox, 2024-04-01 — incident_report
+    - "Over a period of over two years, an attacker using the name 'Jia Tan' worked as a diligent, effective contributor".
+    - 2024-02-23: "hidden backdoor binary code well hidden inside some binary test input files".
+    - 2024-02-24: the malicious `build-to-host.m4` "is not present in the source repository".
+    - Verified. The claim was corrected.
+  - [backdoor in upstream xz/liblzma leading to ssh server compromise](https://www.openwall.com/lists/oss-security/2024/03/29/4) — Andres Freund, oss-security, 2024-03-29 — incident_report
+    - Found because "logins via ssh become a lot slower" (`real 0m0.299s` before, `0m0.807s` after).
+    - The `build-to-host.m4` line "is *not* in the upstream source … However, it is present in the tarballs released upstream."
+    - Verified. *Substituted source.*
+- **Detect:**
+  - **pnpm:** check `pnpm-workspace.yaml` for `minimumReleaseAge` (it should not be set to 0), `minimumReleaseAgeExclude`, `allowBuilds`, `trustPolicy: no-downgrade`, and `blockExoticSubdeps` (it should not be set to false).
+  - **npm:** check `.npmrc` for `ignore-scripts=true`, or CI for `npm ci --ignore-scripts`.
+  - **Bots:** Renovate `minimumReleaseAge`; Dependabot `cooldown`, where the 3-day default applies if absent.
+  - Run `npm audit signatures`.
+  - List packages with install scripts: `rg -l '"(pre|post)?install"' node_modules/*/package.json node_modules/@*/*/package.json`. Scoped packages were added to the glob.
+- **Tools:** pnpm, `npm ci --ignore-scripts`, `npm audit signatures`, Renovate, Dependabot cooldown, ripgrep.
+- **Applies to:** npm/pnpm/yarn primarily; the release-age idea applies to any bot-driven updates.
+- **When not to apply / counterpoints:**
+  - A delay also delays security patches. Keep an exclude path. Dependabot's cooldown already exempts security updates.
+  - Delays measured in days do not catch long-con attacks like xz.
+  - He et al. (FSE 2025) argue that local measures are insufficient without ecosystem-level changes.
+  - The right value is unsettled: pnpm 1 day, Dependabot 3 days, Renovate 14 days before automerge. No empirical time-to-takedown distribution was found.
+  - Disabling install scripts breaks packages with native build steps until they are allowlisted.
+- **Fix risk:** low
+
+### T16-F11 — For every direct runtime dependency, check maintenance status (deprecated, archived, yanked/quarantined, unmaintained advisory, no release beyond a threshold such as 2 years); for each abandoned one, decide act (replace/fork/vendor) or keep-and-monitor using four context factors: depth of integration, availability of alternatives, importance of the functionality, external environmental pressure
+- **Grade:** B (was A) · **Verdict:** DOWNGRADED, and the factor gloss is corrected. Changes:
+  - The prevalence evidence is strong: a quantitative ICSE 2025 study with a Distinguished Paper Award, verified on Kästner's publications page.
+  - The prescriptive act-or-keep logic rests on one qualitative need-finding study: 22 interviews, then an LLM-classifier evaluation with 124 maintainers. No study shows that applying the factors improves outcomes.
+  - The researcher glossed "external environmental pressure" as "security exposure, runtime or platform upgrades". The paper defines it as pressure on the dependency "to continue evolving and to keep up with ongoing environmental changes", for example a TypeScript-ESLint parser, as opposed to stable micro-packages like isarray.
+  - The staleness thresholds are conventions, not evidence.
+- **Rationale:**
+  - Abandonment of widely used packages is common, and most exposed projects never react.
+  - Whether abandonment matters depends on context, so a blanket "replace everything stale" rule creates churn.
+- **Evidence:**
+  - [Understanding the Response to Open-Source Dependency Abandonment in the npm Ecosystem](https://www.cs.cmu.edu/~ckaestne/pdf/icse25_abandonment.pdf) — Miller, Jahanshahi, Mockus, Vasilescu, Kästner, ICSE 2025, Distinguished Paper — peer_reviewed
+    - "15% of widely-used packages becoming abandoned within our six-year observation window".
+    - "18% of exposed projects remove the abandoned dependency".
+    - "1.58 times higher chance of reaction on average, at any point in time" when abandonment is explicit.
+    - Verified in the PDF.
+  - [Designing Abandabot: When Does Open Source Dependency Abandonment Matter?](https://www.cs.cmu.edu/~ckaestne/pdf/icse26_abandabot.pdf) — Miller, He, Chen, Lin, Yang, Vasilescu, Kästner, ICSE 2026 — peer_reviewed
+    - 22 interviews, and an evaluation with 124 maintainers covering 372 dependencies.
+    - Four factors: "the depth of integration, the availability of alternatives, the importance of the functionality, and external environmental pressures".
+    - Depth-of-integration signals: the number of files and API calls, and use in GitHub Actions or npm scripts.
+    - Verified in the PDF.
+  - ["We Feel Like We're Winging It"](https://www.cs.cmu.edu/~ckaestne/pdf/fse23.pdf) — Miller, Kästner, Vasilescu, ESEC/FSE 2023 — peer_reviewed
+    - 33 developers interviewed.
+    - Response strategies: Switch to Alternative, Fork/Vendor Code, Refactor Code Minimizing Use, Localize Dependency Use.
+    - Pre-adoption signals: number of maintainers, commit frequency, response to issues and PRs.
+    - Verified in the PDF.
+  - [Concise Guide for Evaluating Open Source Software](https://best.openssf.org/Concise-Guide-for-Evaluating-Open-Source-Software) — OpenSSF, 2023-11-21, revised 2025-04-23 — standard
+    - "Confirm significant recent activity (e.g., commits) has occurred within the previous 12 months."
+    - "Verify the presence of more than one maintainer, ideally from different organizations".
+    - Verified word for word.
+  - [Renovate abandonmentThreshold](https://docs.renovatebot.com/configuration-options/#abandonmentthreshold) — Renovate — official_docs — "flags packages that have not been updated within this period as abandoned". Example: `"2 years"`. Verified.
+  - [PEP 792](https://peps.python.org/pep-0792/) — Python, Final 2025-07-08 — standard
+    - archived: "The project does not expect to be updated in the future."
+    - quarantined: "generally unsafe for use, e.g. due to malware."
+    - deprecated: "considered obsolete".
+    - Verified.
+  - [cargo-deny advisories configuration](https://embarkstudios.github.io/cargo-deny/checks/advisories/cfg.html) — Embark Studios — official_docs
+    - `unmaintained` takes `all` (default), `workspace`, `transitive` or `none`.
+    - `yanked` defaults to `warn`.
+    - Verified. *Added.*
+  - [2026 OSSRA](https://www.blackduck.com/resources/analyst-reports/open-source-security-risk-analysis.html) — Black Duck — industry_report — 93% of codebases contain components with "no development in 2 or more years". Verified.
+  - [Small World with High Risks](https://www.usenix.org/conference/usenixsecurity19/presentation/zimmerman) — Zimmermann, Staicu, Tenny, Pradel, USENIX Security 2019 — peer_reviewed — "npm suffers from single points of failure and that unmaintained packages threaten large code bases." Verified in the abstract.
+- **Detect:**
+  - Renovate `abandonmentThreshold` or `abandonments:recommended`, which is included in `config:best-practices`.
+  - `npm view <pkg> deprecated`. `npm view` supports arbitrary field selection; the `deprecated` field itself was not separately confirmed.
+  - `dotnet package list --deprecated` on .NET 10 or later, or `dotnet list package --deprecated`.
+  - `cargo deny check advisories` for unmaintained and yanked crates.
+  - PyPI project status (PEP 792).
+  - Scorecard `Maintained`: the highest score needs at least one commit per week over 90 days.
+  - Manual: archived flag, last release, unanswered security issues, number of maintainers.
+- **Tools:** Renovate, cargo-deny, `dotnet package list --deprecated`, OpenSSF Scorecard, `npm view`.
+- **Applies to:** All ecosystems; direct runtime dependencies first.
+- **When not to apply / counterpoints:**
+  - No recent commits does not mean abandoned. Ronacher's terminal-size code "from 10 years ago still works without a single update". Abandabot's participants likewise say narrow packages like isarray can sit unmaintained harmlessly.
+  - Thresholds conflict: 90 days (Scorecard), 12 months (OpenSSF), 2 years (the Renovate example).
+  - Replacing an integrated dependency is costly. The skill should *report* abandonment with the four factors and leave replacement to a human.
+- **Fix risk:** high
+
+### T16-F13 — Verify every dependency (direct and transitive) has a machine-identifiable licence on an explicit allowlist for the project's distribution model; enforce in CI; re-check licences on major upgrades because projects relicense
+- **Grade:** B · **Verdict:** VERIFIED. There is one caveat: pipdeptree's licence reporting is only mentioned in its README, and the exact flag was not confirmed.
+- **Rationale:**
+  - Licence conflicts are the norm in audited commercial codebases.
+  - Evaluation guides make licence verification a baseline check.
+  - Relicensing events (HashiCorp to BSL, 2023) mean an upgrade can change obligations.
+- **Evidence:**
+  - [2026 OSSRA](https://www.blackduck.com/resources/analyst-reports/open-source-security-risk-analysis.html) — Black Duck — industry_report
+    - "68%" of codebases have licence conflicts, "the highest rate in OSSRA history", up from 56%.
+    - Based on 947 commercial codebases.
+    - Verified.
+  - [Concise Guide for Evaluating Open Source Software](https://best.openssf.org/Concise-Guide-for-Evaluating-Open-Source-Software) — OpenSSF — standard — "Verify that every component has a license, that it's a widely-used OSI license if it's OSS, and that it's consistent with your intended use." Verified.
+  - [Third-party code policy](https://opensource.google/documentation/reference/thirdparty) — Google Open Source — official_docs — "IMPORTANT: All third party code must have a license." Verified.
+  - [cargo-deny licenses configuration](https://embarkstudios.github.io/cargo-deny/checks/licenses/cfg.html) — Embark Studios — official_docs
+    - "Licenses not in this list are denied by default".
+    - The confidence threshold defaults to 0.8.
+    - `clarify` exists for crates without machine-readable licence data.
+    - Verified.
+  - [OSV-Scanner license scanning](https://google.github.io/osv-scanner/usage/license-scanning/) — Google — official_docs
+    - `osv-scanner --licenses="BSD-3-Clause,Apache-2.0,MIT" path/to/directory`. The data comes from deps.dev.
+    - The licence "cannot be retrieved, or does not apply to your specific use" in some cases.
+    - Verified.
+  - [actions/dependency-review-action](https://github.com/actions/dependency-review-action) — GitHub — official_docs — `allow-licenses` takes SPDX identifiers. `deny-licenses` is "deprecated for possible removal in the next major release". Verified.
+  - [OpenSSF Scorecard checks](https://github.com/ossf/scorecard/blob/main/docs/checks.md) — OpenSSF — standard — the `License` check (Low risk) covers the project's own licence file. Verified.
+  - [HashiCorp adopts Business Source License](https://www.hashicorp.com/blog/hashicorp-adopts-business-source-license) — HashiCorp, 2023-08-10 — other — "changing its source code license from Mozilla Public License v2.0 (MPL 2.0) to the Business Source License (BSL, also known as BUSL) v1.1 on all future releases". Verified.
+- **Detect:**
+  - **Rust:** `cargo deny check licenses`.
+  - **Polyglot:** `osv-scanner --licenses="MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC" .`.
+  - **PR gate:** dependency-review-action with `allow-licenses`.
+  - **Python:** pipdeptree's summary report lists licences; the flag was not verified.
+  - **Own licence:** Scorecard `License`.
+  - **Manual:** for each major-version bump, diff the dependency's LICENSE file between the old and new tags.
+- **Tools:** cargo-deny, `osv-scanner --licenses`, actions/dependency-review-action, pipdeptree, OpenSSF Scorecard.
+- **Applies to:** Any project that is distributed or sold, or has licence obligations; SaaS with AGPL/SSPL exposure.
+- **When not to apply / counterpoints:**
+  - Automated detection is imperfect: metadata can be missing or wrong, which is why cargo-deny has confidence thresholds and clarifications.
+  - Compatibility depends on the distribution model and needs legal judgement. The agent should report, not decide.
+  - OSSRA has a selection bias toward commercial and M&A audits.
+- **Fix risk:** low
+
+### T16-F15 — Verify every direct dependency is the authentic, intended package (exists on the official registry, canonical project not a typo-variant or personal fork, plausible age/maintainers/repository); internal packages use a claimed scope/namespace with registry mapping; apply with extra care to LLM-written code
+- **Grade:** B · **Verdict:** CORRECTED. The OpenSSF npm guide is dated v1.1 in a repository archived on 2023-10-09, not "2024". The detection heuristics (creation date relative to authoring, edit distance) are the researcher's own reasoning, not taken from a source.
+- **Rationale:**
+  - LLMs hallucinate package names at a measurable rate, and attackers can register those names.
+  - Dependency confusion lets public packages shadow internal names.
+  - Standards require components from official sources.
+- **Evidence:**
+  - [We Have a Package for You! A Comprehensive Analysis of Package Hallucinations by Code Generating LLMs](https://arxiv.org/abs/2406.10279) — Spracklen, Wijewickrama, Sakib, Maiti, Viswanath, Jadliwala, USENIX Security 2025 — peer_reviewed
+    - Hallucination rate of at least 5.2% for commercial models and 21.7% for open-source models.
+    - 205,474 unique hallucinated names, from 576,000 samples across 16 LLMs.
+    - Verified in the abstract.
+  - [Concise Guide for Evaluating Open Source Software](https://best.openssf.org/Concise-Guide-for-Evaluating-Open-Source-Software) — OpenSSF — standard
+    - "Verify that the software being evaluated is the authentic version from the authorized source, not a personal fork nor an attacker-controlled fork."
+    - It links this check to countering typosquatting.
+    - Verified word for word.
+  - [npm Best Practices Guide (dependency confusion)](https://github.com/ossf/package-manager-best-practices/blob/main/published/npm.md) — OpenSSF, v1.1 (archived 2023-10-09) — standard
+    - "On the public npm registry, create a free organization with the 'myorg' name. At that point, no one else can publish anything under the `@myorg` scope".
+    - Scope-to-registry mapping sends `@myorg` requests to the private registry.
+    - Verified.
+  - [OWASP Top 10:2025 A03](https://top10.owasp.org/2025/A03_2025-Software_Supply_Chain_Failures) — OWASP — standard — "Only obtain components from official (trusted) sources over secure links." Verified.
+  - [npm view](https://docs.npmjs.com/cli/v11/commands/npm-view) — npm docs v11 — official_docs — field selection such as `npm view npm repository.url`. Multiple fields are allowed. Verified. *Added.*
+- **Detect:**
+  - Registry lookup per direct dependency:
+    - npm: `npm view <pkg> time.created repository.url maintainers`.
+    - Python: `pip index versions <pkg>` or the PyPI JSON API.
+    - Rust: `cargo search <crate>`.
+    - Go: `go list -m -versions <module>`.
+  - Flag packages that are new relative to when the code was written, have no repository link, or have names one edit away from a popular package.
+  - For internal-looking unscoped names, check `.npmrc` and the pip index configuration for a scoped registry mapping.
+  - `npm audit signatures` checks registry signatures and provenance attestations.
+- **Tools:** `npm view`, `npm audit signatures`, PyPI JSON API, `pip index`, `cargo search`, `go list -m`.
+- **Applies to:** All ecosystems; mandatory when an AI agent wrote or added dependencies.
+- **When not to apply / counterpoints:**
+  - Existence on the registry is not proof of legitimacy, because attackers pre-register hallucinated names.
+  - Legitimate niche packages can look suspicious.
+  - Manual verification is costly, so prioritise runtime dependencies and recent additions.
+- **Fix risk:** low
+
+### T16-F16 — When the pass upgrades dependencies, keep each commit small and isolated (one dependency or coherent family per commit, majors stepped 1→2→3, changelog/migration notes read, full build/tests/smoke), never mixed with refactors; treat patch and minor updates as potentially breaking
+- **Grade:** B · **Verdict:** CORRECTED. Changes:
+  - The SWE-at-Google chapter is authored by Titus Winters.
+  - Ochoa et al. is published in Empirical Software Engineering (2022); the researcher gave only the arXiv 2021 date.
+  - The "one dependency per commit" and "never mix with refactors" practices rest on vendor docs and practitioner essays, not measured outcomes. They are C-level within a B finding.
+- **Rationale:**
+  - SemVer is a promise, not a proof (Hyrum's Law).
+  - Breaking updates are common enough to fill benchmarks.
+  - Update-tool vendors and practitioners recommend small, isolated updates, and isolation keeps regressions bisectable.
+- **Evidence:**
+  - [Renovate upgrade best practices](https://docs.renovatebot.com/upgrade-best-practices/) — Renovate — official_docs
+    - "Regular updates tend to be small".
+    - For outdated projects, "You should update to `2`, then `3` and finally `4`", using `:separateMultipleMajorReleases`.
+    - Verified.
+  - [Semantic Versioning Will Not Save You](https://hynek.me/articles/semver-will-not-save-you/) — Hynek Schlawack, 2021-03-02 — engineering_blog
+    - "you must treat every update as potentially breaking".
+    - "relying on updates not breaking if the maintainer doesn't intend it, means relying on software being bug-free."
+    - Verified.
+  - [Software Engineering at Google, ch. 21](https://abseil.io/resources/swe-book/html/ch21.html) — Titus Winters (Winters, Manshreck, Wright, eds.), 2020 — book — calls SemVer a "lossy-compression shorthand estimate". Hyrum's Law: "every observable behavior of your system will be depended upon by someone". Verified.
+  - [Breaking Bad? Semantic Versioning and Impact of Breaking Changes in Maven Central](https://arxiv.org/abs/2110.07889) — Ochoa, Degueule, Falleri, Vinju, Empirical Software Engineering 2022 (DOI 10.1007/s10664-021-10052-y) — peer_reviewed
+    - "83.4% of these upgrades do comply with semantic versioning" (119,879 upgrades).
+    - "only 7.9% of all clients are affected by BCs" (293,817 clients).
+    - Verified. The venue was confirmed via Crossref.
+  - [BUMP: A Benchmark of Reproducible Breaking Dependency Updates](https://arxiv.org/abs/2401.09906) — Reyes, Gamage, Skoglund, Baudry, Monperrus, SANER 2024 — peer_reviewed — "571 breaking dependency updates collected from 153 Java projects". Verified.
+  - [Dependency Smells in JavaScript Projects](https://arxiv.org/abs/2010.14573) — Jafari et al., IEEE TSE — peer_reviewed
+    - Citing a survey of more than 2,000 developers (Bogart et al.): 92% of npm respondents claim to bump the left-most digit for breaking changes, yet "70% of the surveyed developers had a different experience".
+    - Also cites a Maven study (Raemaekers et al.): "more than 35% of minor and more than 23% of patch releases contain at least one breaking change".
+    - Both figures are secondary citations, verified in Jafari's full text.
+- **Detect:**
+  - Process check on the pass's own history: in `git log --stat`, each upgrade commit touches only the manifest, the lockfile and minimal adaptation code.
+  - Flag commits that bump several unrelated majors or mix upgrades with refactors.
+  - Before merging, run the full tests, a production build and a start.
+- **Tools:** git, Renovate `:separateMultipleMajorReleases`, the project test suite.
+- **Applies to:** All ecosystems.
+- **When not to apply / counterpoints:**
+  - Ochoa shows most Maven upgrades are safe, so extreme caution builds technical lag.
+  - The Maven figures (16.6% non-compliant, 35% of minors breaking) come from different datasets and definitions. They are not directly comparable.
+  - A project with weak tests should limit the pass to security-driven upgrades.
+- **Fix risk:** high
+
+### T16-F17 — Measure and report dependency freshness (technical lag) as a baseline (total libyears; each runtime dependency ≥1 major behind or on an EOL line); use it to prioritise; do not bulk-upgrade everything to latest in a hardening pass
+- **Grade:** B · **Verdict:** CORRECTED. The .NET command was fixed to the SDK-appropriate form. The commands the researcher flagged as unverified (`npm outdated`, `cargo outdated`, `pip list --outdated`) are now verified.
+- **Rationale:**
+  - Outdated dependencies are the norm and correlate with unpatched vulnerabilities.
+  - A measured baseline turns "update stuff" into a prioritised, reviewable list.
+- **Evidence:**
+  - [Libyear](https://libyear.com/) — libyear.com — other
+    - "A simple measure of software dependency freshness".
+    - "Rails 5.0.0 (June 2016) is 1 libyear behind 5.1.2 (June 2017)".
+    - Tools: libyear (JS), pylibyear, libyear-bundler, php-libyear, dotnet-libyear, libyear-maven-plugin, libyear-gradle-plugin, go-libyear, cargo-libyear.
+    - Verified.
+  - [2026 OSSRA](https://www.blackduck.com/resources/analyst-reports/open-source-security-risk-analysis.html) — Black Duck — industry_report — "92%" of codebases contain components "4 or more years out-of-date". Verified.
+  - [Do Developers Update Their Library Dependencies?](https://arxiv.org/abs/1709.04621) — Kula et al., EMSE 2017 — peer_reviewed — "81.5% of the studied systems still keep their outdated dependencies." Verified.
+  - [Understanding the Response to Open-Source Dependency Abandonment in the npm Ecosystem](https://www.cs.cmu.edu/~ckaestne/pdf/icse25_abandonment.pdf) — Miller et al., ICSE 2025 — peer_reviewed — secondary citation of Decan et al.: "it takes almost 14 months for 50% of projects to install a patch" for a vulnerable dependency. Verified in the PDF.
+  - [Technology Radar: Dependency drift fitness function](https://www.thoughtworks.com/radar/techniques/dependency-drift-fitness-function) — Thoughtworks, Adopt (Oct 2020) — industry_report. Verified.
+  - [dotnet package list](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-package-list) — Microsoft Learn — official_docs
+    - `--outdated`: "Lists packages that have newer versions available".
+    - `--deprecated`: "Displays packages that have been deprecated".
+    - `--include-transitive` lists transitive packages.
+    - "The 'noun first' form was introduced in .NET 10". Older SDKs use `dotnet list package`.
+    - Verified.
+  - [npm outdated](https://docs.npmjs.com/cli/v11/commands/npm-outdated), [pip list](https://pip.pypa.io/en/stable/cli/pip_list/) (`-o, --outdated`) and [cargo-outdated](https://github.com/kbknapp/cargo-outdated) ("displaying when Rust dependencies are out of date") — official_docs. Verified. *Added.*
+- **Detect:**
+  - Libyear: `npx libyear` (JS), `pylibyear` (Python), `cargo libyear` (Rust), `go-libyear` (Go), `libyear-maven-plugin` (Maven).
+  - .NET: `dotnet package list --outdated`, or `dotnet list package --outdated` on .NET 9 or earlier.
+  - Also `npm outdated`, `cargo outdated` and `pip list --outdated`.
+  - Produce a table: dependency, scope, current, latest, majors behind, libyears, known CVEs.
+- **Tools:** the libyear family, `dotnet package list --outdated`, `npm outdated`, cargo-outdated, `pip list --outdated`, Renovate Dependency Dashboard.
+- **Applies to:** All ecosystems.
+- **When not to apply / counterpoints:**
+  - Freshness does not equal security: floating to the newest version increases exposure to malicious releases (He et al. 2025; release-age guidance).
+  - Libyear rewards churn and penalises stable, feature-complete libraries.
+  - Use the report to prioritise, not as a target.
+- **Fix risk:** low
+
+### T16-F05 — Treat lockfile changes as security-relevant code: lint the lockfile so every resolved package comes from the expected registry over HTTPS with an integrity hash; flag git/URL/file/tarball sources and any lockfile change not explained by a manifest change
+- **Grade:** C · **Verdict:** CORRECTED. Changes:
+  - The Snyk post is dated 2019-09-24, by Liran Tal, not "undated".
+  - The ripgrep lookahead needed `-P`.
+  - lockfile-lint supports only npm and yarn lockfiles, not pnpm.
+  - pnpm `blockExoticSubdeps` was added in v10.26.0 and now defaults to `true`.
+- **Rationale:**
+  - Installers trust the lockfile.
+  - Lockfile diffs are machine-generated and folded by review UIs, so a replaced tarball URL can slip through. This is a demonstrated injection vector.
+- **Evidence:**
+  - [Why npm lockfiles can be a security blindspot for injecting malicious modules](https://snyk.io/blog/why-npm-lockfiles-can-be-a-security-blindspot-for-injecting-malicious-modules/) — Snyk (Liran Tal), 2019-09-24 — engineering_blog
+    - "GitHub's interface defaults to folding diffs whenever they are larger than a couple hundred lines of code in length."
+    - The demo replaced ms@2.1.1 with an attacker-hosted tarball that runs a postinstall script.
+    - Recommends lockfile-lint and limiting lockfile changes to core maintainers.
+    - Verified.
+  - [lockfile-lint](https://github.com/lirantal/lockfile-lint/tree/main/packages/lockfile-lint) — lirantal — official_docs
+    - `--type` takes "`npm` or `yarn`" and is optional (auto-detected).
+    - Other options: `--allowed-hosts`, `--validate-https`, `--validate-integrity`, `--validate-package-names`.
+    - Example: `npx lockfile-lint --path yarn.lock --allowed-hosts npm yarn --validate-https`.
+    - Verified.
+  - [pnpm Supply Chain Security](https://pnpm.io/supply-chain-security) and [dependency-resolution settings](https://pnpm.io/settings/dependency-resolution) — pnpm — official_docs
+    - "You can prevent transitive dependencies from using exotic sources (like git repositories or direct tarball URLs) by setting blockExoticSubdeps to true."
+    - Added in v10.26.0, default `true`.
+    - Verified.
+  - [Dependency Smells in JavaScript Projects](https://arxiv.org/abs/2010.14573) — Jafari et al., IEEE TSE — peer_reviewed
+    - For a URL dependency pointing at the master branch, "any new change to the master branch will be fetched".
+    - Such projects "are more vulnerable to typosquatting attacks".
+    - Verified.
+  - [npm audit (signatures)](https://docs.npmjs.com/cli/v11/commands/npm-audit) — npm docs v11 — official_docs — "you can verify the registry signatures of downloaded packages using the npm CLI". `audit signatures` "will also verify the provenance attestations". Verified.
+  - [cargo-deny sources check](https://embarkstudios.github.io/cargo-deny/checks/sources/index.html) — Embark Studios — official_docs — "The sources check ensures crates only come from sources you trust." Verified. *Added.*
+- **Detect:**
+  - npm lockfile: `npx lockfile-lint --path package-lock.json --allowed-hosts npm --validate-https --validate-integrity`.
+  - yarn lockfile: `--path yarn.lock --allowed-hosts npm yarn`.
+  - Non-registry resolved URLs: `rg -nP '"resolved": "(?!https://registry\.npmjs\.org/)' package-lock.json`.
+  - Exotic sources in manifests and lockfiles: `rg -n '(git\+|github:|file:|https?://[^\s]*\.tgz)' package.json *.lock pnpm-lock.yaml`.
+  - pnpm: make sure `blockExoticSubdeps` is not disabled.
+  - Rust: `cargo deny check sources`.
+  - Run `npm audit signatures`.
+  - Review rule: when a lockfile diff adds or changes packages that the manifest diff does not imply, the change needs an explanation.
+- **Tools:** lockfile-lint (npm/yarn), `npm audit signatures`, pnpm `blockExoticSubdeps`, `cargo deny check sources`, ripgrep (with `-P`).
+- **Applies to:** npm, yarn and pnpm primarily; Cargo via cargo-deny sources.
+- **When not to apply / counterpoints:**
+  - Deliberate git or URL dependencies exist, such as an unreleased upstream fix or an internal fork. Document and time-box them rather than banning them.
+  - No empirical data on how often lockfile injection happens was found. The evidence is one demonstrated attack plus tooling.
+- **Fix risk:** low
+
+### T16-F12 — Challenge each direct dependency's necessity; replace with a platform/stdlib built-in or a few owned lines only when it is used at one or two call sites, implements trivial logic with no platform edge cases, drags a disproportionate subtree, and is not a parser, crypto, protocol, date/time-zone or cross-platform OS abstraction
+- **Grade:** C · **Verdict:** CORRECTED. Changes:
+  - `module-replacements` now lives in the **e18e** GitHub organisation, not es-tooling.
+  - `eslint-plugin-depend` is **deprecated**: "The functionality of this plugin is now available in the @e18e/eslint-plugin". Recommend `@e18e/eslint-plugin` (`ban-dependencies` rule) only.
+  - The Russ Cox quote is completed.
+- **Rationale:**
+  - Every dependency adds attack surface and a single point of failure. left-pad broke builds across npm, and a handful of maintainer accounts can reach most of npm.
+  - OpenSSF and Russ Cox both make necessity the first evaluation question.
+- **Evidence:**
+  - [Our Software Dependency Problem](https://research.swtch.com/deps) — Russ Cox, 2019-01-23 — engineering_blog
+    - "If a dependency seems too risky and you can't find a way to isolate it, the best answer may be to avoid it entirely, or at least to avoid the parts you've identified as most problematic."
+    - "Flaws in indirect dependencies are just as bad for your program as flaws in direct dependencies."
+    - Verified.
+  - [Concise Guide for Evaluating Open Source Software](https://best.openssf.org/Concise-Guide-for-Evaluating-Open-Source-Software) — OpenSSF — standard — "Evaluate whether the dependency can be avoided by utilizing existing components. Every new dependency increases the attack surface". Verified.
+  - [kik, left-pad, and npm](https://blog.npmjs.org/post/141577284765/kik-left-pad-and-npm) — npm, Inc., 2016-03-22 — incident_report
+    - The author unpublished "his kik package and 272 other packages".
+    - This caused "hundreds of failures per minute" for about 2.5 hours.
+    - npm then made unpublishing harder.
+    - Verified.
+  - [NPM & left-pad: Have We Forgotten How To Program?](https://www.davidhaney.io/npm-left-pad-have-we-forgotten-how-to-program/) — David Haney, 2016-03-23 — engineering_blog
+    - left-pad is "11 simple lines".
+    - isArray had "880,000 downloads a day" and "72 dependent NPM packages".
+    - Verified.
+  - [Build It Yourself](https://lucumr.pocoo.org/2025/1/24/build-it-yourself/) — Armin Ronacher, 2025-01-24 — engineering_blog
+    - "A brand new Tokio project drags in 28 crates, a new Rocket project balloons that to 172".
+    - "when you end up using one function, but you compile hundreds, some alarm bell should go off."
+    - He also concedes that libraries for genuinely hard problems are justified.
+    - Verified.
+  - [module-replacements](https://github.com/e18e/module-replacements) — e18e — official_docs
+    - "A manifest of JS modules and their more modern/active replacements".
+    - Three lists: native, micro-utilities and preferred.
+    - Consumed by @e18e/eslint-plugin.
+    - Verified. The organisation was corrected.
+  - [@e18e/eslint-plugin](https://github.com/e18e/eslint-plugin) and [eslint-plugin-depend (deprecated)](https://github.com/es-tooling/eslint-plugin-depend) — e18e / es-tooling — official_docs — the `ban-dependencies` rule "disallow[s] dependencies in favor of more performant or secure alternatives". Verified. *Added.*
+  - [Go Proverbs](https://go-proverbs.github.io/) — Rob Pike, Gopherfest SV 2015 — talk — "A little copying is better than a little dependency." Verified.
+  - [Small World with High Risks](https://www.usenix.org/conference/usenixsecurity19/presentation/zimmerman) — Zimmermann et al., USENIX Security 2019 — peer_reviewed — "a very small number of maintainer accounts could be used to inject malicious code into the majority of all packages". Verified.
+  - [Lobsters: Build It Yourself](https://lobste.rs/s/a5vkze/build_it_yourself) — Lobsters, 2025 — practitioner_forum
+    - kornel: "I probably wouldn't have thought about this, despite writing programs affected by this. So this would have been my bug".
+    - rprospero describes an "XML parser" that crashed on whitespace.
+    - Verified in the page HTML.
+- **Detect:**
+  - Tree size: `npm ls --all | wc -l`, `cargo tree | wc -l`, `pipdeptree | wc -l`, `go list -m all | wc -l`.
+  - Import sites per direct dependency: `rg -l "from ['\"]<pkg>['\"]|require\(['\"]<pkg>['\"]\)|^import <pkg>|use <crate>::" src`.
+  - Subtree per dependency: `pnpm why`, `npm ls <pkg>`, `cargo tree -p <crate>`, `go mod why -m <module>`.
+  - JS: `@e18e/eslint-plugin` with `ban-dependencies`.
+  - Manual: check whether the runtime already provides the function.
+- **Tools:** @e18e/eslint-plugin, npm ls, pnpm why, cargo tree, go mod why, pipdeptree, ripgrep.
+- **Applies to:** All ecosystems; strongest in npm (micro-packages) and Rust (deep trees).
+- **When not to apply / counterpoints:**
+  - Strong pushback on Lobsters: reimplementation throws away bug fixes that took "weeks of real-world usage" to find, per ssokolow citing Spolsky. Home-grown parsers fail oddly.
+  - On Rust dependency counts, kyrias showed that 3.67M vendored lines fall to 1.83M when filtered to Linux-only code, so raw line and crate counts mislead.
+  - No peer-reviewed measurement of trivial-package risk was accessed.
+  - A native built-in can differ subtly in edge semantics from the package it replaces.
+- **Fix risk:** medium
+
+### T16-F18 — Remove, replace, vendor or keep: vendor/fork only when a dependency is abandoned or needs an unmerged fix and replacement costs more; vendored code in one clearly marked third-party location with its licence, exact upstream origin (tag/commit) and a record of local patches; verify vendored code against the upstream VCS tag, not just a release tarball
+- **Grade:** C · **Verdict:** CORRECTED. Changes:
+  - *xz:* the malicious binary test files *were* in git. Only the activating `build-to-host.m4` was tarball-only. So "check against the VCS tag" would have caught the activation step but not the payload files, and the lesson is to diff tarballs against tags *and* distrust opaque binary test fixtures.
+  - The `fd` pattern was fixed: it matches basenames, so `lib/vendor` in an alternation never matched.
+- **Rationale:**
+  - Vendoring and forking are real strategies developers use against abandonment, but they move maintenance onto you.
+  - Release artefacts can differ from the repository.
+  - Centralising third-party code with mandatory licences keeps it traceable.
+- **Evidence:**
+  - ["We Feel Like We're Winging It"](https://www.cs.cmu.edu/~ckaestne/pdf/fse23.pdf) — Miller, Kästner, Vasilescu, ESEC/FSE 2023 — peer_reviewed
+    - Strategies include "Switch to Alternative", "Fork/Vendor Code" and "Refactor Code Minimizing Use".
+    - "Abandonment introduces cost for otherwise seemingly free dependencies".
+    - Verified in the PDF.
+  - [Third-party code policy](https://opensource.google/documentation/reference/thirdparty) — Google Open Source — official_docs
+    - "All third-party code, whether received under an open source or proprietary license, is kept in third_party."
+    - "All these are easier when non-Google code is in one place".
+    - Verified.
+  - [Timeline of the xz open source attack](https://research.swtch.com/xz-timeline) — Russ Cox, 2024 — incident_report — the backdoor binary was committed inside test files, and the malicious `build-to-host.m4` "is not present in the source repository". Verified. The claim was corrected.
+  - [oss-security: backdoor in upstream xz/liblzma](https://www.openwall.com/lists/oss-security/2024/03/29/4) — Andres Freund, 2024-03-29 — incident_report — the injected line "is *not* in the upstream source … However, it is present in the tarballs released upstream." Verified. *Added.*
+  - [Our Software Dependency Problem](https://research.swtch.com/deps) — Russ Cox, 2019 — engineering_blog — "It may also be appropriate to isolate a dependency at run-time, to limit the possible damage caused by bugs in it." Verified.
+  - [Lobsters: Rust Dependencies Scare Me](https://lobste.rs/s/j3nhhc/rust_dependencies_scare_me) — Lobsters, 2025 (101 comments) — practitioner_forum — ssokolow on reimplementing: you "force-unmaintain the 'discover exploitable logic bugs' side of things". Verified.
+- **Detect:**
+  - Vendor directories: `fd -t d '^(vendor|third_party|external)$'`, plus `fd -t d --full-path 'lib/vendor$'`.
+  - Minified copies in source: `rg -l --glob '*.min.js' . src`.
+  - Each vendored package needs a LICENSE file and an origin record (URL plus tag or commit).
+  - Undocumented local diffs: `diff -r vendored/ <checkout of upstream tag>`.
+  - For release tarballs, also diff the tarball against the tag.
+  - Go: `go mod vendor` output must match go.mod, and `go mod tidy -diff` must be clean.
+- **Tools:** fd, ripgrep, diff, git.
+- **Applies to:** All ecosystems; especially C/C++, front-end projects with copied scripts, and Go `vendor/`.
+- **When not to apply / counterpoints:**
+  - Vendoring removes automatic security updates, so upstream advisories must be watched manually.
+  - Go modules with a checksum database make vendoring unnecessary for reproducibility.
+  - The evidence is mostly policy and practitioner opinion, not measured outcomes.
+- **Fix risk:** medium
+
+## Practitioner voice
+
+- [Lobsters: Turn Dependabot Off](https://lobste.rs/s/gscaw3/turn_dependabot_off) — 107 votes.
+  - c12: "In theory I think Dependabot is a good idea, in practice it's become noise."
+  - creesch: deferred updates mean "often is never"; automate minor and patch updates, handle majors by hand.
+  - voutilad: update-bot PRs combined with Heroku per-PR deploys ran up costs.
+  - JamieTanna (Renovate maintainer) partly agrees and notes Renovate lacks govulncheck-quality data for Go.
+- [Turn Dependabot Off](https://words.filippo.io/dependabot/) — Filippo Valsorda, 2026-02-20.
+  - A one-line edwards25519 fix triggered thousands of Dependabot PRs, including an alert on Wycheproof, which imports only an unaffected sub-package.
+  - He recommends a scheduled govulncheck plus tests against the latest dependencies.
+- [npm audit: Broken by Design](https://overreacted.io/npm-audit-broken-by-design/) — Dan Abramov, 2021.
+  - Create React App's audit warnings are all false positives in a build-tool context.
+  - Moving packages to devDependencies is "flawed" as a fix, because audit still warns on them unless you pass `--production`.
+- [Lobsters: Build It Yourself](https://lobste.rs/s/a5vkze/build_it_yourself) — pushback on "write it yourself".
+  - kornel on a terminal-size edge case: "this would have been my bug".
+  - ssokolow cites Spolsky on bug fixes that took "weeks of real-world usage" to find.
+  - rprospero describes a home-grown XML parser that crashed on whitespace.
+  - mitsuhiko replies that shared dependencies change behaviour for everyone.
+- [Build It Yourself](https://lucumr.pocoo.org/2025/1/24/build-it-yourself/) — Armin Ronacher, 2025.
+  - A Tokio project pulls in 28 crates and a Rocket project 172.
+  - His terminal-size code from 10 years ago still works without a single update.
+- [Rust Dependencies Scare Me](https://vincents.dev/blog/rust-dependencies-scare-me/) — undated.
+  - 9 crates vendor 3.6M lines of Rust against about 1,000 lines of the author's own code.
+  - "How could I ever audit all of that code?"
+- [Lobsters: Rust Dependencies Scare Me](https://lobste.rs/s/j3nhhc/rust_dependencies_scare_me) — 101 comments.
+  - kyrias: 3.67M lines fall to 1.83M when filtered to Linux-only code, because windows-sys dominates.
+  - ubernostrum: Rust "just makes the code-you-didn't-personally-write more visible".
+  - Commenters mention cargo-vet, cargo-crev and cargo-audit.
+- [kik, left-pad, and npm](https://blog.npmjs.org/post/141577284765/kik-left-pad-and-npm) — npm, 2016. Unpublishing 273 packages caused "hundreds of failures per minute" for about 2.5 hours, and npm restricted unpublishing afterwards.
+- [colors and faker sabotage](https://snyk.io/blog/open-source-npm-packages-colors-faker/) — Snyk, January 2022.
+  - colors@1.4.1 shipped an infinite loop: over 20M weekly downloads, 18,962 dependents including aws-cdk.
+  - Snyk advises pinning or a lockfile.
+- [Timeline of the xz attack](https://research.swtch.com/xz-timeline) — Russ Cox, 2024.
+  - A contributor spent more than two years of social engineering on the project.
+  - The payload was committed inside binary test files, and the activating m4 script existed only in the release tarballs.
+  - Discovery came via Andres Freund's [oss-security report](https://www.openwall.com/lists/oss-security/2024/03/29/4) of slow SSH logins (0.299 s to 0.807 s). *Gist corrected.*
+- [Lobsters: go.sum is not a lockfile](https://lobste.rs/s/exv2eq/go_sum_is_not_lockfile).
+  - kornel: "Cargo.lock is a maximal superset of all possible dependencies … the build will never use any dependency that isn't there."
+  - bakkot: "The relevant difference is whether languages use minimum or maximum versions".
+- [NPM & left-pad: Have We Forgotten How To Program?](https://www.davidhaney.io/npm-left-pad-have-we-forgotten-how-to-program/) — David Haney, 2016. left-pad is 11 lines, and isArray had 880,000 daily downloads and 72 dependents.
+- [Lobsters: Our Software Dependency Problem](https://lobste.rs/s/lnwtyg/our_software_dependency_problem).
+  - bogdan: check "does it keep an explicit changelog?" and how often breaking changes ship.
+  - colindean: tools for evaluating library trustworthiness are the missing "next big advancement".
+- [npm lockfiles as a security blindspot](https://snyk.io/blog/why-npm-lockfiles-can-be-a-security-blindspot-for-injecting-malicious-modules/) — Liran Tal, 2019.
+  - A lockfile-injection PR swaps in an attacker-hosted tarball and hides behind GitHub's folded diffs.
+  - He recommends lockfile-lint and maintainer-only lockfile changes.
+- [Should You Use Upper Bound Version Constraints?](https://iscinumpy.dev/post/bound-version-constraints/) — Henry Schreiner, 2021.
+  - "users cannot fix an over restrictive cap".
+  - Minor and patch releases break about as often as majors, so use lockfiles in applications.
+
+## Contradictions and open questions
+
+**Contradictions:**
+
+- **Pinning.**
+  - For pinning: CISA (Shai-Hulud) and Snyk (colors/faker) tell teams to pin, and Renovate says applications should pin everything.
+  - Against: He, Vasilescu and Kästner (FSE 2025) show that pinning *direct* dependencies raises maintenance cost and, in npm graphs of about 498 or more dependencies, can increase exposure to malicious updates.
+  - Reconciliation: the same paper says applications should freeze the whole graph with a committed lockfile. Lockfiles freeze the tree; manifest pins alone do not.
+  - The result is npm-specific.
+- **Library lockfiles.**
+  - The OpenSSF npm guide (v1.1, archived 2023) says library CI should ignore the lockfile.
+  - The Cargo team (2023) says do what is best and add scheduled latest-dependency testing.
+  - Snyk (2019) says libraries should avoid lockfiles.
+- **Update bots.**
+  - For: R. He et al. (TSE 2023) find that Dependabot reduces lag, Thoughtworks rates drift fitness functions "Adopt", and Scorecard treats a missing update tool as high risk.
+  - Against: Valsorda (2026) calls Dependabot a "noise machine", with Lobsters agreement, and 11.3% of projects in the TSE study dropped it.
+- **Trivial dependencies.**
+  - For avoiding them: OpenSSF, Russ Cox, the Go proverb, Haney and Ronacher.
+  - Against: Lobsters practitioners (kornel, ssokolow, rprospero) report home-made replacements missing edge cases.
+- **SemVer reliability.**
+  - Ochoa et al. (EMSE 2022) find 83.4% of Maven upgrades compliant, with 7.9% of clients affected by breaking changes.
+  - Hynek, Schreiner and SWE at Google (Hyrum's Law) say to treat every update as potentially breaking. A survey cited by Jafari reports that 70% of developers experienced breaking updates.
+- **Maintenance thresholds.**
+  - Scorecard: weekly commits over 90 days. OpenSSF: 12 months. The Renovate example: 2 years.
+  - Ronacher reports 10-year-stable code, and Abandabot says impact depends on context.
+- **Dev-dependency risk.** Latendresse and Abramov show that most alerts on dev and build dependencies are irrelevant to production. CISA's Shai-Hulud alert shows that install-time malware in *any* dependency steals credentials.
+- **Release-age values.**
+  - pnpm: 1 day by default in v11.
+  - Dependabot: 3 days by default, version updates only.
+  - Renovate: 14 days before automerge.
+  - None catches multi-year long cons like xz.
+- **New: headline numbers versus their bodies.**
+  - Soto-Valero's "75.1% bloated" is mostly transitive; only 2.7% of relationships are unused direct declarations.
+  - Latendresse's abstract says "28.2% of the dependencies configured as development dependencies are used in production", while the body's Finding 4 says "28.2% of production dependencies are development dependencies". The skill should cite the body.
+  - Both studies measure specific settings: Maven bytecode, and JS bundler output.
+- **New: OpenSSF npm guide status.** The guide is still linked from best.openssf.org, but its repository has been read-only since 9 Oct 2023. It predates pnpm v10 and v11 script and release-age defaults and npm's provenance and trusted-publishing features.
+
+**Open questions:**
+
+- **Python dependency bloat.** A peer-reviewed study exists: Drosos, Sotiropoulos, Spinellis, Mitropoulos, "Bloat beneath Python's Scales", Proc. ACM Softw. Eng. (FSE) 2024, DOI 10.1145/3660821, confirmed via Crossref. Its content was not read. PyTrim (ASE 2025) is a follow-up tool.
+- **False-positive and false-negative rates** for knip, deptry, cargo-machete and cargo-udeps have not been published. The removal protocol relies on multi-signal verification instead.
+- **Transitive-vulnerability share and reachability numbers** from industry reports (Endor Labs, Sonatype) were not accessible.
+- **Time-to-takedown for malicious packages.** There is no empirical distribution. pnpm's "within an hour" is unsupported.
+- **Reachability tooling** is production-grade only for Go. JS, Python and JVM reachability tools were not evaluated.
+- **Auto-remove or propose only?** Should the agent auto-remove dependencies or change constraints, or only propose changes? The evidence supports automatic detection. Removal and replacement should stay human-approved.
+- **Licence decisions** need legal judgement: the agent reports, a human decides.
+- **Unverified command details:**
+  - cargo-udeps `--all-targets` is not in the README.
+  - The exact pipdeptree licence flag.
+  - `npm view <pkg> deprecated` as a field (field selection is documented).
+
+## Dropped findings
+
+None. All 18 findings survived with the corrections above. No source was fabricated. Several sources were misquoted or misdated (Abramov, the xz timeline, the OpenSSF npm guide date, the TSE Dependabot year, the SWE-at-Google authorship), and all were corrected in place.

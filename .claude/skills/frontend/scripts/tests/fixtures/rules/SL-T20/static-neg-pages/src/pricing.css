@@ -1,0 +1,4 @@
+/* A live saturated gradient on another page: the grain layer of index.html never sits over it. */
+.pricing-hero {
+  background: linear-gradient(135deg, #7c3aed, #db2777);
+}

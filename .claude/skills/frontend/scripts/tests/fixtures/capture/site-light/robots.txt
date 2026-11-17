@@ -1,0 +1,3 @@
+# Fixture: everything allowed for every agent, one private folder.
+User-agent: *
+Disallow: /private/

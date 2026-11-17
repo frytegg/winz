@@ -1,0 +1,987 @@
+# Concurrency and async correctness
+> Code T29 · slug concurrency-async · verified 2026-09-23 · counts: verified 14 / corrected 11 / downgraded 0 / dropped 0
+
+**How this was checked.** WebSearch was exhausted for this session, so every source was opened directly. HTML pages were read with WebFetch or curl. Peer-reviewed PDFs (Lu 2008, Tu 2019, Qin 2020, Okur 2014, TaxDC 2016, ACIDRain 2017, Feral 2015) were downloaded and searched with `pdftotext`. Clippy lint groups were read from the lint source files on GitHub, because the rendered lint index is JavaScript-driven and a summariser misreported one lint's group. The Roblox postmortem live URL reset the connection, so it was read from the Wayback Machine copy.
+
+## Summary
+
+Researched on 2026-09-23. Versions confirmed on the pages themselves: Python 3.14.7 docs, Tokio 1.53.1, golang.org/x/sync v0.23.0, Go 1.27.1 (`cmd/vet`; Go 1.27 was released August 2026), PostgreSQL 18, CWE 4.20, detekt 2.0.0-alpha.6, .NET 10 (CA2016), and the current masters of Clippy and the C++ Core Guidelines.
+
+**What the studies say (numbers re-checked in the PDFs):**
+- **Lu et al., ASPLOS'08.** 105 bugs from MySQL, Apache, Mozilla and OpenOffice: 74 non-deadlock and 31 deadlock.
+  - 97% of the non-deadlock bugs are atomicity or order violations.
+  - 66% (49 of 74) involve only one variable.
+  - 92% of *all* examined bugs are guaranteed to show up once a partial order among 4 or fewer memory accesses is enforced.
+  - 73% of non-deadlock bugs were fixed by something other than adding or changing locks.
+  - The fix history was only studied for Mozilla: 17 of 57 Mozilla bugs got at least one buggy patch before the correct one. The paper does **not** compare this rate with non-concurrency fixes. The researcher's claim that concurrency fixes are wrong "more often than other fixes" was removed.
+- **Tu et al., ASPLOS'19.** 171 Go bugs from Docker, Kubernetes, etcd, gRPC, CockroachDB and BoltDB.
+  - About 58% of blocking bugs came from message passing.
+  - Go's built-in deadlock detector caught 2 of 21 reproduced blocking bugs.
+  - The race detector caught 10 of 20 reproduced non-blocking bugs, with 100 runs per bug.
+- **Qin et al., PLDI'20 (Rust).** 30 of 38 lock-related blocking bugs were double locks. The authors name misunderstanding of lifetime rules as "a common cause" of blocking bugs. 21 of the 59 blocking bugs were fixed by changing a guard's lifetime.
+- **Chabbi and Ramanathan, PLDI'22 (Uber).** About 46M lines of Go and 2,100 services. Over 2,000 races found and over 1,000 fixed in six months, through 790 patches by 210 developers.
+- **Okur et al., ICSE'14 (C#).** Corpus of 1,378 Windows Phone apps, of which 167 use async/await. 19% of async methods (460 of 2,383) are `async void` methods that are not event handlers. They appear in 76% of the 167 apps that use async/await.
+- **ACIDRain, SIGMOD'17.** 22 verified attacks in 12 e-commerce apps deployed on over 2M sites. 17 of the 22 manifest even at the databases' strongest isolation level, because transactions are used incorrectly.
+- **TaxDC, ASPLOS'16.** 104 bugs from Cassandra, HBase, Hadoop MapReduce and ZooKeeper.
+  - 63% surface only in the presence of hardware faults (crash, reboot, timeout, partition, disk error).
+  - 47% lead to silent failures.
+  - More than 60% are triggered by a single untimely message.
+
+**Official lint and tool rules exist for most local patterns.** These cover floating promises, dangling asyncio tasks, blocking calls in async code, locks held across await, guard-lifetime traps, lost cancel functions, misplaced `WaitGroup.Add` (a Go 1.25+ vet check), and HTTP requests sent without a timeout.
+
+**Weak spots:**
+- There is no peer-reviewed prevalence data for JS/TS promise bugs; only official tool docs.
+- The benefit of structured concurrency has not been measured.
+- Rust async cancellation and "futurelock" have no lint and no agreed fix.
+- Several popular fixes are obsolete on current runtimes:
+  - loop-variable copies on Go ≥ 1.22;
+  - replacing `synchronized` to avoid virtual-thread pinning on JDK ≥ 24;
+  - the if-let guard scope trap on Rust 2024;
+  - ConfigureAwait deadlocks in ASP.NET Core app code.
+- One guarantee is going away: Python's free-threaded build is officially supported (still optional) from 3.14.
+
+**The biggest behaviour-change risks in a hardening pass:**
+- Adding `await`, timeouts, bounds or TaskGroups changes timing and adds new failure paths.
+- Narrowing a lock can split one atomic operation into two.
+- Concurrency fixes are often wrong the first time. Lu found buggy intermediate patches for 30% of the Mozilla bugs studied, and 5 of the 23 buggy patches introduced new concurrency bugs. Each fix therefore needs a test that explores thread schedules.
+
+## Findings
+
+### T29-F01 — Treat check-then-act / read-modify-write on shared state across a suspension point, lock release or thread boundary as a suspected atomicity violation
+- **Grade:** A · **Verdict:** VERIFIED. Nuance added: the 92% figure covers all examined bugs, not only non-deadlock ones. The ESLint false-positive issue was accepted but then archived; it was not fixed in that thread.
+- **Rationale:** The largest classic study of real concurrency bugs found that almost all non-deadlock bugs are atomicity or order violations. They usually involve one variable and need only a tiny interleaving to show up. The same shape exists in single-threaded async code. ESLint documents how `x += await f()` reads `x` before the await and writes a stale value after it. CWE-367 classifies the pattern as TOCTOU.
+- **Fix:** make the check and the act one atomic step. Options:
+  - memoize the in-flight promise or future instead of the value;
+  - re-read the state after the await;
+  - hold one lock over both steps;
+  - move the state to a single owner (an actor or task).
+- **Evidence:**
+  - [Learning from Mistakes: A Comprehensive Study on Real World Concurrency Bug Characteristics](https://people.cs.uchicago.edu/~shanlu/paper/asplos122-lu.pdf) — Lu, Park, Seo, Zhou (UIUC), ASPLOS 2008 — peer_reviewed.
+    - Quotes: "(1) Almost all (97%) of the examined non-deadlock bugs belong to one of the two simple bug patterns: atomicity-violation or order-violation"; "(5) Many (66%) of the examined non-deadlock concurrency bugs' manifestation involves concurrent accesses to only one variable"; "(8) Almost all (92%) of the examined concurrency bugs are guaranteed to manifest if certain partial order among no more than 4 memory accesses is enforced."
+    - Verification: all three read in the PDF's findings table. The corpus is 105 bugs (74 non-deadlock, 31 deadlock). The site's certificate failed in WebFetch, so the PDF was fetched with curl.
+  - [require-atomic-updates](https://eslint.org/docs/latest/rules/require-atomic-updates) — ESLint, 2026 — official_docs.
+    - Quote: "Disallow assignments that can lead to race conditions due to usage of `await` or `yield`". The `totalLength += await getPageLength(pageNum)` example is on the page.
+    - Verification: confirmed that the rule was introduced in v5.3.0 and that the `allowProperties` option exists.
+  - [require-atomic-updates false positive (#11899)](https://github.com/eslint/eslint/issues/11899) — ESLint GitHub, 2019 — practitioner_forum.
+    - Quote: "Possible race condition: `someObj.bar` might be reassigned based on an outdated value of `someObj.bar`", reported on race-free code.
+    - Verification: the issue is labelled "accepted" and was later "archived due to age". A related PR, #15238, exists.
+  - [CWE-367: TOCTOU Race Condition](https://cwe.mitre.org/data/definitions/367.html) — MITRE, CWE 4.20 — standard.
+    - Quotes: "The product checks the state of a resource before using that resource, but the resource's state can change between the check and the use in a way that invalidates the results of the check." Mitigation: "Ensure that locking occurs before the check, as opposed to afterwards".
+    - Verification: confirmed verbatim.
+- **Detect:**
+  - JS/TS: enable ESLint `require-atomic-updates` and triage every hit by hand. Consider `allowProperties: true` to cut the property false positives from #11899.
+  - ast-grep patterns: `ast-grep -p '$X += await $E'` and `ast-grep -p '$X = $X + await $E'`.
+  - Cache pattern to look for: `if (!$C.has($K)) { … await … }` followed by `$C.set($K, …)`.
+  - Python heuristic: `rg -n "(self\.\w+|\w+)\s*[-+*/]?=\s*await" --type py`.
+  - Manual pass over every function that awaits:
+    1. List the shared state it touches (module globals, class fields, caches, database rows).
+    2. Mark the reads before each await and the writes after it.
+    3. Flag any shared value read before an await that decides a write after it.
+  - The regex and ast-grep patterns are heuristics and were not tested against a corpus.
+- **Tools:** ESLint require-atomic-updates, ast-grep, ripgrep, manual review.
+- **Applies to:** All languages. It matters most in JS/TS, Python asyncio, C#, Kotlin and Rust async, where "single-threaded" is wrongly taken to mean race-free. The empirical numbers come from multithreaded C/C++. The async version of the pattern is supported by ESLint's official documentation, not by a prevalence study.
+- **When not to apply / counterpoints:**
+  - `require-atomic-updates` has false positives and is not in `eslint:recommended`.
+  - Local variables that nothing else can reach during the await are safe.
+  - Some races are benign by design, such as last-writer-wins on idempotent caches.
+  - Lu found that 73% of non-deadlock bugs were fixed without adding or changing locks, so a lock is not automatically the right fix.
+- **Fix risk:** medium
+
+### T29-F10 — Prevent deadlocks structurally: one-call multi-lock acquisition or a documented global order; never call unknown code while holding a lock; don't rely on runtime deadlock detectors
+- **Grade:** A · **Verdict:** VERIFIED
+- **Rationale:** Real deadlocks are simple. Almost all involve two threads and at most two resources, and 22% are one thread re-acquiring a resource it already holds. They are hard to catch at runtime: Go's built-in detector caught 2 of 21 reproduced blocking bugs. The C++ Core Guidelines give mechanical enforcement rules.
+- **Evidence:**
+  - [Learning from Mistakes (ASPLOS'08)](https://people.cs.uchicago.edu/~shanlu/paper/asplos122-lu.pdf) — Lu et al., 2008 — peer_reviewed.
+    - Quotes: "(7) Almost all (97%) of the examined deadlock bugs involve two threads circularly waiting for at most two resources"; "(4) Some (22%) of the examined deadlock bugs are caused by one thread acquiring resource held by itself"; "(10) Many (61%) of the examined deadlock bugs are fixed by preventing one thread from acquiring one resource (e.g. lock). Such fix can introduce non-deadlock concurrency bugs."
+    - Verification: verbatim in the PDF. 97% is 30 of 31, and 61% is 19 of 31.
+  - [C++ Core Guidelines CP.21 / CP.22](https://raw.githubusercontent.com/isocpp/CppCoreGuidelines/master/CppCoreGuidelines.md) — isocpp (Stroustrup, Sutter), master 2026 — standard.
+    - CP.21: "Use `std::lock()` or `std::scoped_lock` to acquire multiple `mutex`es". Enforcement: "Detect the acquisition of multiple `mutex`es."
+    - CP.22: "Never call unknown code while holding a lock (e.g., a callback)". Enforcement: "Flag calling a virtual function with a non-recursive `mutex` held" and "Flag calling a callback with a non-recursive `mutex` held".
+    - Verification: verbatim in master. CP.22's own example also offers `recursive_mutex` as a fix for some cases.
+  - [Understanding Real-World Concurrency Bugs in Go (ASPLOS'19)](https://songlh.github.io/paper/go-study.pdf) — Tu, Liu, Song, Zhang, 2019 — peer_reviewed.
+    - Quotes: Table 8 shows 2 of 21 blocking bugs detected. "The built-in deadlock detector can only detect two blocking bugs, BoltDB#392 and BoltDB#240"; "Implication 4: Simple runtime deadlock detector is not effective in detecting Go blocking bugs."
+    - Verification: verbatim.
+  - [clang-tidy modernize-use-scoped-lock](https://clang.llvm.org/extra/clang-tidy/checks/modernize/use-scoped-lock.html) — LLVM, 2026 — official_docs.
+    - Content: it warns on "multiple declarations of `std::lock_guard` or `std::scoped_lock` that can be replaced with a single declaration of `std::scoped_lock`".
+    - Verification: confirmed. The source was added by the verifier to back the detection advice.
+- **Detect:**
+  - C++: clang-tidy `modernize-use-scoped-lock`. Also flag functions that take two or more guards (`rg -n "lock_guard|unique_lock"`). Clang `-Wthread-safety` with `EXCLUDES()` marks functions that must not be called while a lock is held.
+  - All languages, manual lock-order table:
+    1. Collect lock acquisitions with `rg -n "\.Lock\(\)|\.RLock\(\)|synchronized|\.lock\(\)|with self\._\w*lock"`.
+    2. Build a table of function to locks taken, in order.
+    3. Look for any pair of locks taken in both orders.
+    4. List calls made inside critical sections to callbacks, interface or virtual methods, event emits and logging hooks.
+- **Tools:** clang-tidy, Clang -Wthread-safety, ripgrep, manual review.
+- **Applies to:** All shared-memory threaded code: C/C++, Java, Go, Rust, C#, Python threading.
+- **When not to apply / counterpoints:**
+  - A global lock order is hard to maintain in large codebases, and Lu warns that deadlock fixes often introduce non-deadlock bugs.
+  - Moving a callback outside the lock can expose partly updated state. CP.22 notes the object's invariant must hold before the call.
+  - CP.22 itself suggests `recursive_mutex` for some re-entrancy cases. The researcher's view that recursive mutexes "hide self-deadlock" is opinion, not sourced.
+- **Fix risk:** medium
+
+### T29-F24 — Treat every concurrency fix as high-risk: minimal, local patch; an interleaving-reproducing test before and after; re-check for new atomicity/deadlock bugs
+- **Grade:** A · **Verdict:** CORRECTED. "Often wrong the first time" is now quantified from the paper. The researcher's comparison with non-concurrency fixes was removed, because the paper makes no such comparison.
+- **Rationale:** Concurrency fixes are often wrong on the first try. In Lu's Mozilla sample, 17 of 57 bugs got at least one buggy patch. Of the 23 buggy patches, 6 only reduced the bug's probability, 5 introduced new concurrency bugs, and 12 introduced new non-concurrency bugs. Deadlock fixes can introduce non-deadlock bugs. Real fixes are usually small and adjust existing primitives, and bugs usually need only a few ordered accesses, so a targeted interleaving test is both feasible and necessary.
+- **Evidence:**
+  - [Learning from Mistakes (ASPLOS'08)](https://people.cs.uchicago.edu/~shanlu/paper/asplos122-lu.pdf) — Lu et al., 2008 — peer_reviewed.
+    - Quotes: "About 73% of the examined non-deadlock concurrency bugs were not fixed by simply adding or changing locks, and many of the fixes were not correct at the first try"; §5.2: "17 out of the 57 Mozilla bugs have at least one buggy patches … Among all the 23 distinct buggy patches, 6 of them only decrease the occurrence probability … 5 of them introduce new concurrency bugs. The other 12 introduce new non-concurrency bugs."
+    - Verification: verbatim (abstract and §5.2).
+  - [Understanding Real-World Concurrency Bugs in Go (ASPLOS'19)](https://songlh.github.io/paper/go-study.pdf) — Tu et al., 2019 — peer_reviewed.
+    - Quotes: "the patch size of our studied blocking bugs is small, with an average of 6.8 lines of code. Around 90% of studied blocking bugs are fixed by adjusting synchronization primitives"; "Around 69% of the non-blocking bugs were fixed by restricting timing".
+    - Verification: verbatim.
+  - [loom](https://github.com/tokio-rs/loom) — tokio-rs, 2026 — official_docs.
+    - Quote: "Loom runs a test many times, permuting the possible concurrent executions of that test under the C11 memory model".
+    - Verification: verbatim. The README states two limits: SeqCst is treated as AcqRel, and not all load-buffering executions are explored, so loom is not a proof. The repo is active (not archived); version 0.7 is on crates.io.
+- **Detect:** A process check for each concurrency change:
+  1. A regression test exists that fails before the fix. Use `go test -race -count=100`, TSan, loom, or a deterministic ordering hook.
+  2. The diff touches only the synchronization it claims to fix.
+  3. The reviewer lists the shared variables and locks touched, and re-checks T29-F01 and T29-F10 for each.
+- **Tools:** go test -race, ThreadSanitizer, loom, manual review.
+- **Applies to:** All languages.
+- **When not to apply / counterpoints:**
+  - Some interleavings cannot be reproduced reliably without heavy instrumentation. If a test is impractical, record the reasoning, and prefer moving state to a single owner over clever lock tweaks.
+  - The Lu fix-quality data comes from Mozilla only (2008). The Tu fix-size data comes from Go blocking bugs only.
+- **Fix risk:** low
+
+### T29-F12 — Go-specific audit of recurring concurrency patterns, verified with `go vet`, goleak and the Go 1.27 goroutineleak profile
+- **Grade:** A · **Verdict:** CORRECTED. Three things were added or fixed:
+  - Go 1.25 added the `waitgroup` vet analyzer, which reports misplaced `WaitGroup.Add`, and `sync.WaitGroup.Go`, the idiomatic fix.
+  - The Go 1.27 `waitgroup` → `waitgroupgo` rename affects the **go fix** modernizer, not the vet analyzer.
+  - The Uber blog lists nine patterns; the researcher's list omitted some.
+- **Rule:** Check each of these patterns:
+  - closures capturing loop variables (only matters if the go.mod `go` line is < 1.22);
+  - a shared `err` or named result written from goroutines;
+  - `WaitGroup.Add` called inside the goroutine (on Go ≥ 1.25, prefer `wg.Go(f)`);
+  - mutexes copied by value;
+  - maps or slices written concurrently;
+  - channels that may be closed twice (use `sync.Once`);
+  - unbuffered result channels paired with a select or timeout, which leak the goroutine (use capacity 1);
+  - context cancel functions that are never called.
+- **Rationale:** Studies of Kubernetes, Docker, etcd, gRPC, CockroachDB, BoltDB and Uber's monorepo keep finding the same Go patterns. Message passing caused about 58% of blocking bugs, against the common belief that channels are safer. Most of these patterns can be detected mechanically.
+- **Evidence:**
+  - [Understanding Real-World Concurrency Bugs in Go (ASPLOS'19)](https://songlh.github.io/paper/go-study.pdf) — Tu et al., 2019 — peer_reviewed.
+    - Quotes: "we found that there are around 42% blocking bugs caused by errors in protecting shared memory, and 58% are caused by errors in message passing".
+    - Other content: Figure 1 shows the Kubernetes `finishReq` fix, `make(chan ob)` → `make(chan ob, 1)`. Docker#24007 is a double close: "The fix is to use Once package to enforce that the channel is only closed once." Blocking-bug patches average 6.8 lines.
+    - Verification: verbatim.
+  - [Data Race Patterns in Go](https://www.uber.com/blog/data-race-patterns-in-go/) — Chabbi, Ramanathan (Uber Engineering), 2 June 2022 — engineering_blog.
+    - Content: the patterns are loop-index capture, err capture, named-return capture, slice meta-field races, concurrent map access, mutex passed by value, channels mixed with shared memory, WaitGroup Add/Done placement, and parallel table-driven tests. About 2,000 races were detected and about 1,100 fixed by 210 developers.
+    - Verification: confirmed.
+  - [Fixing For Loops in Go 1.22](https://go.dev/blog/loopvar-preview) — David Chase, Russ Cox (Go blog), 19 Sept 2023 — official_docs.
+    - Quotes: "For Go 1.22, we plan to change for loops to make these variables have per-iteration scope instead of per-loop scope"; "the new semantics will only apply in packages contained in modules that declare go 1.22 or later".
+    - Verification: verbatim. Google reported zero production problems after forcing the new mode for four months.
+  - [Go 1.25 Release Notes](https://go.dev/doc/go1.25) — Go team, 2025 — official_docs.
+    - Content: "The new `WaitGroup.Go` method makes the common pattern of creating and counting goroutines more convenient." The new vet `waitgroup` analyzer "reports misplaced calls to `sync.WaitGroup.Add`".
+    - Verification: confirmed. Added by the verifier.
+  - [cmd/vet](https://pkg.go.dev/cmd/vet) — Go team, go1.27.1 — official_docs.
+    - Content: copylocks "check for locks erroneously passed by value"; lostcancel "check cancel func returned by context.WithCancel is called"; waitgroup "check for misuses of sync.WaitGroup"; atomic; testinggoroutine.
+    - Verification: verbatim. By default all checks run.
+  - [Go 1.27 Release Notes](https://go.dev/doc/go1.27) — Go team, Aug 2026 — official_docs.
+    - Quotes: the leak profile, "previously available as an experiment in Go 1.26, is now generally available"; "A *leaked* goroutine is a goroutine blocked on some concurrency primitive (channels, sync.Mutex, sync.Cond, etc) that cannot possibly become unblocked". The endpoint is `/debug/pprof/goroutineleak`.
+    - Verification: verbatim. Also noted: "The existing `waitgroup` analyzer was renamed to `waitgroupgo`", but this is in the go fix section.
+  - [goleak](https://github.com/uber-go/goleak) — Uber, 2026 — official_docs.
+    - Content: `defer goleak.VerifyNone(t)` or `goleak.VerifyTestMain(m)`. With `t.Parallel()`, goleak cannot tell unfinished tests from leaks, so use `VerifyTestMain`.
+    - Verification: confirmed; the repo is not archived.
+- **Detect:**
+  - Run `go vet ./...`. Copylocks, lostcancel, waitgroup (Go ≥ 1.25) and atomic run by default.
+  - Check the go.mod `go` line with `grep -E '^go 1\.(1[0-9]|2[01])' go.mod` to decide whether loop-capture fixes still matter.
+  - Add `goleak.VerifyTestMain(m)` per package.
+  - On Go 1.27, fetch `/debug/pprof/goroutineleak` in staging.
+  - Manual greps:
+    - `rg -n "go func\("`, then check for captured `err` or results;
+    - `rg -n "close\(\w+\)"` for channels closed from several goroutines;
+    - `rg -n "make\(chan [^,)]+\)"` for unbuffered result channels read inside `select` with `time.After` or `ctx.Done()`;
+    - `rg -n "wg\.Add\("` inside `go func`.
+- **Tools:** go vet, goleak, pprof goroutineleak, go test -race, ripgrep.
+- **Applies to:** Go.
+- **When not to apply / counterpoints:**
+  - With go.mod ≥ 1.22, rewriting `i := i` copies is only style churn.
+  - goleak cannot tell leaks from in-flight goroutines of parallel tests.
+  - The goroutineleak profile only sees goroutines blocked on unreachable concurrency primitives, not ones blocked on I/O.
+  - Buffering a channel to fix a leak can hide a missing receiver. This is the researcher's reasoning, not sourced.
+  - `wg.Go` requires Go ≥ 1.25.
+- **Fix risk:** low
+
+### T29-F11 — Run a dynamic race detector over the whole test suite in CI, with repeated runs; add model checking (loom) for low-level primitives
+- **Grade:** A · **Verdict:** CORRECTED. The researcher said race detectors have "essentially no false positives". The sources only support something narrower:
+  - the Go study observed no false positives in its 20-bug experiment;
+  - the Go docs do not discuss false positives;
+  - the TSan docs warn that code not built with the TSan flag can cause false positives or missed races.
+- **Tools per ecosystem:** Go `-race`; Clang/GCC ThreadSanitizer for C/C++ and for unsafe or FFI Rust; Rust loom for custom primitives.
+- **Rationale:** Race detectors only see interleavings that actually execute. At Uber, rolling out the Go race detector found over 2,000 races in six months. In the Go study, the detector caught half of the reproduced non-blocking bugs even with 100 runs per bug. It must therefore run often and over realistic, concurrent tests.
+- **Evidence:**
+  - [A Study of Real-World Data Races in Golang (PLDI'22)](https://arxiv.org/abs/2204.00764) — Chabbi, Ramanathan (Uber), 2022 — peer_reviewed.
+    - Content: "46 million lines of Go codebase hosting 2100 distinct microservices"; over 2,000 races detected and over 1,000 fixed, through 790 patches by 210 developers, in six months.
+    - Verification: confirmed on the arXiv abstract page. The full text was not read.
+  - [Data Race Detector](https://go.dev/doc/articles/race_detector) — Go team, 2026 — official_docs.
+    - Content: it only finds races that happen at runtime. Memory use may grow 5–10x and execution time 2–20x. `GORACE` accepts `halt_on_error`. It requires cgo, on listed platforms.
+    - Verification: confirmed.
+  - [Understanding Real-World Concurrency Bugs in Go](https://songlh.github.io/paper/go-study.pdf) — Tu et al., 2019 — peer_reviewed.
+    - Content: Table 12 shows 10 of 20 detected, where "We consider a bug detected within 100 runs as a detected bug"; "The detector reports no false positives." Four of the ten detected bugs needed about 100 runs.
+    - Verification: verbatim.
+  - [ThreadSanitizer](https://clang.llvm.org/docs/ThreadSanitizer.html) — LLVM/Clang, 2026 — official_docs.
+    - Content: "about 5x-15x" slowdown and "about 5x-10x" memory overhead. Build with `-fsanitize=thread` at `-O1`+ with `-g`. It cannot be combined with ASan. Code not built with `-fsanitize=thread` can cause false positives or missed races.
+    - Verification: confirmed.
+  - [loom](https://github.com/tokio-rs/loom) — tokio-rs, 2026 — official_docs.
+    - Content: permutes executions under the C11 memory model. Run with `RUSTFLAGS="--cfg loom" cargo test --release`. Documented as incomplete for load buffering and treats SeqCst as AcqRel.
+    - Verification: confirmed.
+- **Detect:**
+  - Go: `GORACE="halt_on_error=1" go test -race -count=10 ./...` in CI; the platform needs cgo.
+  - C/C++: a separate CI build with `-fsanitize=thread -O1 -g` that runs the unit and integration tests. It must not be the same build as ASan.
+  - Rust: loom tests for custom sync primitives and atomics; TSan for unsafe or FFI code.
+  - Check that the tests actually exercise concurrency: parallel requests, `t.Parallel()` table tests.
+- **Tools:** go test -race, ThreadSanitizer, loom.
+- **Applies to:** Go, C, C++, Rust (unsafe/FFI code or custom primitives), and other TSan-compatible native code. It does not apply to single-threaded JS or Python asyncio, whose races are logical (T29-F01).
+- **When not to apply / counterpoints:**
+  - The 2–20x (Go) and 5–15x (TSan) overheads make full-suite runs slow.
+  - Race detectors miss code paths that tests don't exercise.
+  - The Core Guidelines (CP.2) say run-time tools "often have a significant cost".
+  - Uber's paper discusses the engineering trade-offs of deploying at scale. Its blog notes that parallel table tests expose races in test code as well as product code.
+- **Fix risk:** low
+
+### T29-F09 — Audit where each lock guard is actually released (unnamed RAII temporaries, `let _ = lock()`, guards alive in match/if-let scrutinees, implicit double lock)
+- **Grade:** A · **Verdict:** CORRECTED. The Rust study says 30 of 38 lock-blocking bugs were double locks, and names misunderstanding of lifetime rules as "a common cause" of blocking bugs. It does not attribute all 30 double locks to that. 21 of 59 blocking bugs were fixed by changing a guard's lifetime.
+- **What to flag:**
+  - unnamed RAII lock temporaries;
+  - `let _ = mutex.lock()`;
+  - guards created in a match or if-let scrutinee that stay alive into arms which lock again;
+  - a guard whose implicit drop happens after a second acquisition of the same lock (double lock).
+- **Rationale:**
+  - Most lock-related blocking bugs in the Rust study were double locks. Many were fixed by moving the implicit unlock, which the authors call "much harder than moving an explicit unlock()".
+  - C++ has the matching trap of unnamed `lock_guard` temporaries.
+  - Rust 2024 changed if-let temporary scope, and its edition guide uses this exact RwLock deadlock as the example.
+- **Evidence:**
+  - [Understanding Memory and Thread Safety Practices and Issues in Real-World Rust Programs (PLDI'20)](https://songlh.github.io/paper/rust-study.pdf) — Qin, Chen, Yu, Song, Zhang, 2020 — peer_reviewed.
+    - Quotes: "Failing to acquire lock (for Mutex) or read/write (for RwLock) results in thread blocking for 38 bugs, with 30 of them caused by double locking"; "This strategy was used for the bug of Figure 8 and 20 other bugs"; "Insight 6: Lacking good understanding in Rust's lifetime rules is a common cause for many blocking bugs." Also, 51 of 59 blocking bugs were fixed by adjusting synchronization.
+    - Verification: verbatim; PLDI '20 confirmed on the PDF.
+  - [Clippy significant_drop_in_scrutinee / let_underscore_lock](https://rust-lang.github.io/rust-clippy/master/index.html#significant_drop_in_scrutinee) — Rust Clippy, master 2026 — official_docs.
+    - significant_drop_in_scrutinee: group `nursery` (allow by default), since 1.60.0. Doc: "When a temporary is returned in a function call in a match scrutinee, its lifetime lasts until the end of the match block … For `Mutex`es this can lead to a deadlock."
+    - let_underscore_lock (Clippy): group `correctness` (deny), since 1.43.0, covers parking_lot. Doc: "This statement immediately drops the lock". It points to the deny-by-default rustc lint `let_underscore_lock` for std locks.
+    - significant_drop_tightening: `nursery`.
+    - Verification: groups read from `clippy_lints/src/matches/mod.rs`, `let_underscore.rs` and `significant_drop_tightening.rs` on master.
+  - [Rust 2024: if let temporary scope](https://doc.rust-lang.org/edition-guide/rust-2024/temporary-if-let-scope.html) — Rust project, 2025 — official_docs.
+    - Quote: "the temporary values generated from evaluating `$expr` will be dropped before the program enters the `else` branch instead of after". The example is a `value.read()` guard deadlocking `value.write()` in the else branch. The migration lint is `if_let_rescope`.
+    - Verification: verbatim.
+  - [C++ Core Guidelines CP.44 / CP.20](https://raw.githubusercontent.com/isocpp/CppCoreGuidelines/master/CppCoreGuidelines.md) — isocpp, master 2026 — standard.
+    - CP.44: "An unnamed local object is a temporary that immediately goes out of scope." Enforcement: "Flag all unnamed `lock_guard`s and `unique_lock`s."
+    - CP.20: "Use RAII, never plain `lock()`/`unlock()`". Enforcement: "Flag calls of member `lock()` and `unlock()`."
+    - Verification: verbatim.
+- **Detect:**
+  - Rust: `cargo clippy -- -W clippy::significant_drop_in_scrutinee -W clippy::significant_drop_tightening` (nursery lints, opt-in). rustc and Clippy `let_underscore_lock` are deny by default. Crates still on edition 2021 can run `#![warn(if_let_rescope)]`.
+  - Rust manual greps: `rg -n "match .*\.(lock|read|write)\(\)"` and `rg -n "if let .*\.(lock|read|write)\(\)"`.
+  - C++: clang-tidy `bugprone-unused-raii` (present in the current check list). Find unnamed guards with `rg -n "^\s*(std::)?(lock_guard|unique_lock|scoped_lock)(<[^>]*>)?\s*[({]"`, and manual lock/unlock calls with `rg -n "\.(lock|unlock)\(\)" --type cpp`.
+- **Tools:** Clippy, rustc lints, clang-tidy, ripgrep.
+- **Applies to:** Rust and C++ RAII locks. The same idea applies wherever release placement matters, such as Python `with` blocks or Java try-finally.
+- **When not to apply / counterpoints:**
+  - significant_drop_in_scrutinee is a nursery lint and can be noisy.
+  - Rust 2024 changed only the if-let case, not `match` scrutinees, so check the crate's edition before "fixing".
+  - Moving a guard's drop earlier can open an atomicity window (T29-F01).
+- **Fix risk:** low
+
+### T29-F18 — Move invariants over persistent state (uniqueness, balances, stock, one-time tokens) into the datastore; ORM validations and read-check-write are not concurrency control
+- **Grade:** A · **Verdict:** CORRECTED. Three changes:
+  - Added the ACIDRain caveat: 17 of 22 attacks manifest even at the strongest isolation level because of incorrect transaction usage. SERIALIZABLE helps only if the check and the act are inside the **same** transaction.
+  - Replaced the paraphrased PortSwigger quote with its real wording.
+  - Added PortSwigger's own remediation.
+- **Datastore mechanisms to use:** unique constraints, atomic upserts (`INSERT … ON CONFLICT`), conditional `UPDATE … WHERE`, `SELECT … FOR UPDATE`, or SERIALIZABLE transactions with retry, with the check and the act in one transaction.
+- **Rationale:** Default isolation levels (Read Committed in PostgreSQL) and app-level validations let concurrent requests break invariants. ACIDRain found 22 exploitable races in 12 e-commerce apps deployed on over 2M sites. HTTP/2 single-packet attacks make such races easy to trigger: 20–30 requests with about a 1 ms median spread.
+- **Evidence:**
+  - [ACIDRain: Concurrency-Related Attacks on Database-Backed Web Applications (SIGMOD'17)](http://www.bailis.org/papers/acidrain-sigmod2017.pdf) — Warszawski, Bailis (Stanford), 2017 — peer_reviewed.
+    - Quotes: 12 apps "deployed on over 2M websites. We identify and verify 22 critical ACIDRain attacks"; "All 22 vulnerabilities manifest under the default isolation guarantees … and 17 vulnerabilities—due to incorrect transaction usage—manifest even under the strongest transactional guarantees". On Flexcoin: "By sending thousands of simultaneous requests…".
+    - Verification: verbatim.
+  - [Feral Concurrency Control (SIGMOD'15)](http://www.bailis.org/papers/feral-sigmod2015.pdf) — Bailis, Fekete, Franklin, Ghodsi, Hellerstein, Stoica, 2015 — peer_reviewed.
+    - Quotes: 67 Rails apps; "validations and associations are, respectively, 13.6 and 24.2 times more common than transactions"; "PostgreSQL and MySQL actually default to, respectively, the weaker Read Committed and Repeatable Read isolation levels"; "up to 86.9% of Rails validation usage by volume is actually safe under concurrent execution", with uniqueness under insertion and foreign keys under deletion being the unsafe remainder.
+    - Verification: verbatim.
+  - [INSERT (ON CONFLICT)](https://www.postgresql.org/docs/current/sql-insert.html) — PostgreSQL 18 docs, 2025 — official_docs.
+    - Quote: "ON CONFLICT DO UPDATE guarantees an atomic INSERT or UPDATE outcome; provided there is no independent error, one of those two outcomes is guaranteed, even under high concurrency."
+    - Verification: verbatim; the "current" docs are version 18.
+  - [Smashing the state machine](https://portswigger.net/research/smashing-the-state-machine) — James Kettle (PortSwigger Research), 9 Aug 2023 — industry_report.
+    - Quotes: "you can make 20-30 requests arrive at the server simultaneously"; benchmark "Last-byte sync 4ms … Single-packet attack 1ms" median spread; the assumption "that 'requests are atomic'" is wrong. Remediation: "Ensure sensitive endpoints make state-changes atomic by using the datastore's concurrency features. For example, use a single database transaction…". GitLab assigned CVE-2022-4037 to the Devise email-confirmation race.
+    - Verification: verbatim.
+  - [CWE-362](https://cwe.mitre.org/data/definitions/362.html) — MITRE, CWE 4.20 — standard.
+    - Quote: "a timing window exists in which the shared resource can be modified by another code sequence operating concurrently". "Manual Source Code Review (not inspections)" is rated High effectiveness.
+    - Verification: confirmed.
+- **Detect:**
+  - ORM uniqueness: `rg -n "validates_uniqueness_of|validates .*uniqueness|unique=True"`, then check that a matching database unique index exists in the migrations or schema.
+  - Read-check-write: look for `SELECT`/`find`/`get`, then an `if`, then an `UPDATE`/`save` on the same row. Flag it if there is no `FOR UPDATE`, no conditional `WHERE`, no version column and no SERIALIZABLE, **and** confirm the check and the write share one transaction.
+  - Balances, stock and coupons: `rg -n "balance|stock|quantity|inventory|redeem|used_at"`. Check that each decrement is one conditional statement, such as `UPDATE … SET qty = qty - 1 WHERE id = ? AND qty >= 1`.
+  - Test: fire N parallel identical requests (for example with Turbo Intruder's single-packet mode) and assert that the invariant holds.
+- **Tools:** ripgrep, manual review, Burp Suite Turbo Intruder, database constraints.
+- **Applies to:** Any database-backed service (web, API, workers) and ORMs such as Rails, Django, Prisma, TypeORM and Hibernate.
+- **When not to apply / counterpoints:**
+  - Feral CC found up to 86.9% of Rails validations by volume are safe under concurrency, so only the invariant-breaking ones need this treatment.
+  - Adding a unique constraint fails if duplicates already exist, so it needs a data-cleanup migration.
+  - SERIALIZABLE and `FOR UPDATE` lower throughput and need retry logic for serialization failures.
+  - Raising the isolation level does not fix a check done in a separate transaction; this is ACIDRain's 17-of-22 finding.
+- **Fix risk:** high
+
+### T29-F02 — Every promise/future/task/coroutine must be awaited, returned, combined, or handed to an owner that observes its failure
+- **Grade:** A · **Verdict:** VERIFIED. The Clippy lint group was confirmed from source (a summariser had misreported it). A caveat was added to the Python detection recipe.
+- **Rationale:** Discarded async results lose exceptions and break ordering. Since Node 15, an unhandled rejection crashes the process by default, so a floating promise is a latent crash as well as a silent failure. Linters in every major ecosystem detect this mechanically.
+- **Evidence:**
+  - [no-floating-promises](https://typescript-eslint.io/rules/no-floating-promises/) — typescript-eslint, 2026 — official_docs.
+    - Quote: floating promises "can cause several issues, such as improperly sequenced operations, ignored Promise rejections, and more."
+    - Accepted handling: `.then` with two arguments, `.catch`, `await`, `return`, or `void` (`ignoreVoid` defaults to true).
+    - Status: in `recommended-type-checked`; needs type information. The page says it "can be difficult to enable on large existing projects" and may be skipped if global unhandled-rejection handlers are registered.
+    - Verification: confirmed.
+  - [Node.js v15.0.0 release notes](https://nodejs.org/en/blog/release/v15.0.0) — Node.js, 2020 — official_docs.
+    - Quote: "As of Node.js 15, the default mode for `unhandledRejection` is changed to `throw` (from `warn`). In `throw` mode, if an `unhandledRejection` hook is not set, the `unhandledRejection` is raised as an uncaught exception."
+    - Verification: verbatim.
+  - [Clippy let_underscore_future](https://rust-lang.github.io/rust-clippy/master/index.html#let_underscore_future) — Rust Clippy, master 2026 — official_docs.
+    - Content: group `suspicious` (warn by default), since 1.67.0. "Futures must be polled for work to be done. The original intention was most likely to await the future and ignore the resulting value."
+    - Verification: read from `clippy_lints/src/let_underscore.rs` on master.
+  - [FutureReturnValueIgnored](https://errorprone.info/bugpattern/FutureReturnValueIgnored) — Google Error Prone, 2026 — official_docs.
+    - Quote: "Return value of methods returning Future must be checked. Ignoring returned Futures suppresses exceptions thrown from the code that completes the Future." Severity WARNING.
+    - Verification: verbatim.
+  - [VSTHRD analyzers index](https://raw.githubusercontent.com/microsoft/vs-threading/main/docfx/analyzers/index.md) — Microsoft vs-threading, 2026 — official_docs.
+    - Content: VSTHRD110 "Observe result of async calls" and VSTHRD100 "Avoid `async void` methods", both in the advisory band.
+    - Verification: confirmed.
+  - [Developing with asyncio](https://docs.python.org/3/library/asyncio-dev.html) — PSF, Python 3.14.7 — official_docs.
+    - Quotes: "When a coroutine function is called, but not awaited … asyncio will emit a RuntimeWarning"; for a never-retrieved Future exception, "asyncio would emit a log message when the Future object is garbage collected."
+    - Verification: verbatim.
+- **Detect:**
+  - TS: `@typescript-eslint/no-floating-promises` and `no-misused-promises` (preset `recommended-type-checked`, needs type information).
+  - Rust: `cargo clippy`; `let_underscore_future` warns by default.
+  - Java: Error Prone FutureReturnValueIgnored.
+  - C#: Microsoft.VisualStudio.Threading.Analyzers VSTHRD110.
+  - Python: run the tests with `python -X dev -W error::RuntimeWarning -m pytest`.
+    - Caveat (unverified): the "never awaited" warning is raised from a finalizer. With `-W error` it can surface as an "Exception ignored" message instead of failing the run, so confirm that the harness actually fails.
+  - Review every `void promise`, `_ = task` and `let _ = fut` suppression. Confirm it is intentional and has a `.catch` or error handler.
+- **Tools:** typescript-eslint, Clippy, Error Prone, Microsoft.VisualStudio.Threading.Analyzers, python -X dev.
+- **Applies to:** JS/TS, Rust, Java, C#, Python.
+- **When not to apply / counterpoints:**
+  - typescript-eslint itself says the rule is hard to enable on large legacy codebases, and that projects with global rejection handlers may relax it.
+  - Some fire-and-forget calls are intentional, such as telemetry or cache warm-up. Mark them with `void` plus a `.catch` rather than awaiting them.
+  - Type-aware linting is slow.
+- **Fix risk:** medium
+
+### T29-F03 — In Python asyncio, never drop the Task returned by create_task/ensure_future; keep a strong reference or use TaskGroup (3.11+)
+- **Grade:** A · **Verdict:** VERIFIED
+- **Rationale:** The event loop keeps only weak references to tasks, so a task nothing else references can be garbage-collected mid-execution without any error. The official docs mark this "Important", Ruff has a dedicated rule for it, and practitioners describe it as a hard-to-reproduce heisenbug.
+- **Evidence:**
+  - [Coroutines and Tasks: create_task](https://docs.python.org/3/library/asyncio-task.html) — PSF, Python 3.14.7 — official_docs.
+    - Quote: "Save a reference to the result of this function, to avoid a task disappearing mid-execution. The event loop only keeps weak references to tasks. A task that isn't referenced elsewhere may get garbage collected at any time, even before it's done."
+    - Verification: verbatim. The page includes the `background_tasks` set plus `add_done_callback(discard)` pattern.
+  - [asyncio-dangling-task (RUF006)](https://docs.astral.sh/ruff/rules/asyncio-dangling-task/) — Astral Ruff, 2026 — official_docs.
+    - Content: "Checks for `asyncio.create_task` and `asyncio.ensure_future` calls that do not store a reference to the returned result". Added in v0.0.247. Recommends `asyncio.TaskGroup` on 3.11+.
+    - Verification: confirmed.
+  - [The Heisenbug lurking in your async code](https://textual.textualize.io/blog/2023/02/11/the-heisenbug-lurking-in-your-async-code/) — Will McGugan (Textualize), 11 Feb 2023 — engineering_blog.
+    - Quotes: "if you don't hold a reference to the task object returned by `create_task` then the task may disappear without warning when Python runs garbage collection"; a GitHub search showed "a lot of projects" with the latent bug.
+    - Verification: verbatim.
+  - [Lobsters: The Heisenbug lurking in your Python async code](https://lobste.rs/s/vqttsw/heisenbug_lurking_your_python_async_code) — Lobsters, Feb 2023 — practitioner_forum.
+    - Content: hoistbypetard says the note "was completely absent in the 3.7 docs … and was much more subtle in the 3.9 docs". anordal warns that a later maintainer may "clean up that apparently unused reference". JulianWgs: "There should definitely be a lint for this".
+    - Verification: confirmed.
+- **Detect:**
+  - `ruff check --select RUF006 .`
+  - `rg -n "^\s*(asyncio\.|loop\.|self\._?loop\.)?(create_task|ensure_future)\(" --type py` finds statement-level calls whose result is not assigned.
+  - Also check for assignments to a local that goes out of scope right away.
+- **Tools:** Ruff RUF006, ripgrep.
+- **Applies to:** Python asyncio (all versions); TaskGroup needs 3.11+. The researcher also says trio/anyio nurseries don't have this problem; that was not checked here.
+- **When not to apply / counterpoints:**
+  - A module-level reference set can leak memory if tasks never finish.
+  - TaskGroup is not a drop-in change. The enclosing block now waits for all children and cancels siblings when one fails (asyncio docs), which changes latency and error behaviour.
+- **Fix risk:** low
+
+### T29-F05 — Choose the fan-out combinator by its failure and cancellation semantics; cancel or await losers and siblings explicitly
+- **Grade:** A · **Verdict:** CORRECTED. The C# parenthetical ("Task.WhenAll/WhenAny have similar no-cancel semantics") has no source in the dossier and is now marked unverified.
+- **Semantics per combinator:**
+  - Promise.all fails fast but does not cancel the other promises; Promise.allSettled waits for all of them.
+  - asyncio.gather does not cancel siblings; asyncio.TaskGroup does.
+  - Go's errgroup.WithContext cancels the shared context on the first error.
+  - Rust's try_join! and select! drop the remaining futures, which cancels them.
+- **Rationale:** The wrong combinator either leaves side-effecting work running after the caller has failed, or silently cancels work that had to finish, such as shutdown steps. Oxide reports a production bug of the second kind.
+- **Evidence:**
+  - [Promise.all()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/all) — MDN, 2026 — official_docs.
+    - Quotes: "Rejecting the returned promise does not cancel the remaining operations or unsubscribe the handlers attached to their promises." "Use `allSettled()` if you need the final result of every promise in the input iterable."
+    - Verification: verbatim.
+  - [Coroutines and Tasks: gather, TaskGroup](https://docs.python.org/3/library/asyncio-task.html) — PSF, Python 3.14.7 — official_docs.
+    - Quotes: gather "Other awaitables in the aws sequence won't be cancelled and will continue to run."; "TaskGroup provides stronger safety guarantees than gather … if a task (or a subtask …) raises an exception, TaskGroup will, while gather will not, cancel the remaining scheduled tasks."
+    - Verification: verbatim.
+  - [errgroup](https://pkg.go.dev/golang.org/x/sync/errgroup) — Go team, x/sync v0.23.0 — official_docs.
+    - Quote: "The derived Context is canceled the first time a function passed to Go returns a non-nil error or the first time Wait returns, whichever occurs first." SetLimit bounds the number of active goroutines.
+    - Verification: verbatim.
+  - [Cancelling async Rust](https://sunshowers.io/posts/cancelling-async-rust/) — Rain (sunshowers), Oxide Computer, 3 Oct 2025 — engineering_blog.
+    - Quote: "we had code to stop a bunch of services, all expressed as futures. We used `try_join` … If one of these operations failed for whatever reason, we would stop running the code to wait for the other services to exit."
+    - Verification: confirmed.
+- **Detect:** Find call sites with ``rg -n "Promise\.(all|race|any)\(|asyncio\.gather\(|asyncio\.wait\(|try_join!|join_all\(|select!|errgroup\."``. For each hit, answer three questions:
+  1. Do the siblings have side effects (writes, payments, messages)?
+  2. On failure, should they be cancelled (AbortController, TaskGroup, ctx) or allowed to finish (allSettled, `return_exceptions=True`)?
+  3. Are the losers of a `race` still consuming resources?
+- **Tools:** ripgrep, manual review.
+- **Applies to:** JS/TS, Python, Go and Rust. C#'s Task.WhenAll/WhenAny are likely similar, but that is unverified here.
+- **When not to apply / counterpoints:**
+  - Failing fast without cancelling is fine for pure reads whose results are simply discarded.
+  - TaskGroup and errgroup cancellation only helps if the children honour cancellation (T29-F14).
+- **Fix risk:** medium
+
+### T29-F06 — Never block the event loop or async runtime worker; offload blocking I/O and CPU-heavy work, or split it into chunks
+- **Grade:** A · **Verdict:** VERIFIED
+- **What counts as blocking:** synchronous file, network, subprocess or sleep calls, and CPU-heavy work such as large JSON parses, crypto, compression or catastrophic regexes.
+- **Where to move it:** `run_in_executor`/`to_thread` in Python, `spawn_blocking`/rayon/a dedicated thread in Rust, `worker_threads` in Node.
+- **Rationale:** A blocked loop stalls every other request. Node's docs describe this as both a throughput risk and a DoS risk. Python's debug mode logs callbacks that take longer than 100 ms. A Tokio maintainer suggests no more than 10–100 µs between awaits. Each ecosystem's linters list the blocking APIs.
+- **Evidence:**
+  - [Don't Block the Event Loop (or the Worker Pool)](https://nodejs.org/en/learn/asynchronous-work/dont-block-the-event-loop) — Node.js, 2026 — official_docs.
+    - Quotes: "While a thread is blocked working on behalf of one client, it cannot handle requests from any other clients." A 50 MB JSON object "takes 0.7 seconds to stringify, 1.3 seconds to parse".
+    - The page lists sync crypto, zlib, fs and child_process APIs and ReDoS as blockers.
+    - Verification: confirmed.
+  - [Developing with asyncio](https://docs.python.org/3/library/asyncio-dev.html) — PSF, Python 3.14.7 — official_docs.
+    - Quotes: "if a function performs a CPU-intensive calculation for 1 second, all concurrent asyncio Tasks and IO operations would be delayed by 1 second"; "Callbacks taking longer than 100 milliseconds are logged." `loop.slow_callback_duration` sets the threshold.
+    - Verification: verbatim.
+  - [Ruff rules: flake8-async](https://docs.astral.sh/ruff/rules/) — Astral Ruff, 2026 — official_docs.
+    - Content: ASYNC210 (blocking HTTP call), 212 (httpx), 220/221/222 (subprocess), 230 (open), 240 (pathlib), 250 (input), 251 (`time.sleep`). All stable; only ASYNC119 is preview.
+    - Verification: confirmed.
+  - [Async: What is blocking?](https://ryhl.io/blog/async-what-is-blocking/) — Alice Ryhl (Tokio maintainer), 21 Dec 2020 — engineering_blog.
+    - Quote: "A good rule of thumb is no more than 10 to 100 microseconds between each .await."
+    - Advice: spawn_blocking for blocking I/O, rayon for CPU-bound work, a dedicated thread for work that runs forever. The blocking pool has "an upper limit of around 500 threads".
+    - Verification: verbatim.
+  - [detekt coroutines: SleepInsteadOfDelay](https://detekt.dev/docs/rules/coroutines) — detekt 2.0.0-alpha.6 — official_docs.
+    - Quote: "if one coroutine invokes Thread.sleep, it could potentially halt the execution of unrelated coroutines and cause unpredictable behavior." Active by default since v1.21.0.
+    - Verification: verbatim.
+  - [A Study and Toolkit for Asynchronous Programming in C# (ICSE'14)](https://dig.cs.illinois.edu/papers/ICSE14_Semih.pdf) — Okur, Hartveld, Dig, van Deursen, 2014 — peer_reviewed.
+    - Quote: "We found 115 instances of potentially long-running operations in 22% of the 167 apps that use async/await."
+    - Verification: verbatim.
+- **Detect:**
+  - Python: `ruff check --select ASYNC .`. Run the service or tests with `PYTHONASYNCIODEBUG=1` or `python -X dev` and look for slow-callback warnings.
+  - Node: `rg -n "\b(readFileSync|writeFileSync|existsSync|execSync|spawnSync|pbkdf2Sync|scryptSync|randomFillSync|inflateSync|deflateSync|gunzipSync)\b"`, keeping only hits reachable from request handlers. Also review JSON.parse/stringify on unbounded input and nested-quantifier regexes.
+  - Rust: inside async code, look for `std::thread::sleep`, `std::fs::`, `reqwest::blocking`, and heavy loops without an await.
+  - Kotlin: detekt SleepInsteadOfDelay.
+  - C#: VSTHRD103 "Call async methods when in an async method".
+- **Tools:** Ruff flake8-async, asyncio debug mode, ripgrep, detekt, Microsoft.VisualStudio.Threading.Analyzers.
+- **Applies to:** Node.js and browser JS, Python asyncio/trio/anyio, Rust (Tokio, async-std), Kotlin coroutines, C#.
+- **When not to apply / counterpoints:**
+  - Tiny sync calls at startup, before the server listens, are harmless.
+  - Offloading moves code onto another thread, which can create new data races on state that used to be confined to the loop.
+  - Tokio's blocking pool is large (about 500 threads) but finite.
+  - The 10–100 µs figure is one maintainer's rule of thumb, not a measured threshold.
+- **Fix risk:** medium
+
+### T29-F08 — Never hold a non-async-aware lock across a suspension point; keep every critical section short
+- **Grade:** A · **Verdict:** VERIFIED
+- **Locks this covers:** std or parking_lot `Mutex`, `threading.Lock`, `synchronized`, and RefCell borrows.
+- **Rule:** no network I/O, sleeps or awaits while holding such a lock. Scope the guard in a block that ends before the await. Use an async mutex only when the protected resource itself must stay locked across I/O.
+- **Rationale:** Holding a thread-blocking lock across a suspension point can deadlock the runtime or panic. Tokio's docs say this "virtually never leads to correct concurrent code", and dedicated lints exist in Rust, C++ and Java.
+- **Evidence:**
+  - [Clippy await_holding_lock / await_holding_refcell_ref](https://rust-lang.github.io/rust-clippy/master/index.html#await_holding_lock) — Rust Clippy, master 2026 — official_docs.
+    - Content: both are `suspicious` (warn), since 1.45.0 and 1.49.0. "The Mutex types found in standard library and parking_lot are not designed to operate in an async context across await points."
+    - Known problem: a false positive for explicitly dropped guards; wrap the lock in a block instead.
+    - Verification: confirmed on the page and in `await_holding_invalid.rs`.
+  - [tokio::sync::Mutex: which kind of mutex should you use?](https://docs.rs/tokio/latest/tokio/sync/struct.Mutex.html) — Tokio 1.53.1, 2026 — official_docs.
+    - Quotes: "Contrary to popular belief, it is ok and often preferred to use the ordinary Mutex from the standard library in asynchronous code"; holding the std guard across `.await` "virtually never leads to correct concurrent code in practice as it can easily lead to deadlocks"; "it is often better to spawn a task to manage the IO resource, and to use message passing".
+    - Verification: verbatim.
+  - [C++ Core Guidelines CP.43](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#Rconc-time) — isocpp, master 2026 — standard.
+    - Content: rule title "Minimize time spent in a critical section".
+    - Verification: confirmed in the master markdown.
+  - [clang-tidy cppcoreguidelines-no-suspend-with-lock](https://clang.llvm.org/extra/clang-tidy/checks/cppcoreguidelines/no-suspend-with-lock.html) — LLVM, 2026 — official_docs.
+    - Content: "Flags coroutines that suspend while a lock guard is in scope at the suspension point". It checks only `lock_guard`-style guards, not manual lock/unlock.
+    - Verification: confirmed.
+  - [SpotBugs bug descriptions](https://spotbugs.readthedocs.io/en/latest/bugDescriptions.html) — SpotBugs, 2026 — official_docs.
+    - Content: SWL_SLEEP_WITH_LOCK_HELD "Method calls Thread.sleep() with a lock held"; TLW_TWO_LOCK_WAIT "Wait with two locks held".
+    - Verification: confirmed.
+- **Detect:**
+  - Rust: `cargo clippy` (both lints warn by default). Configure `await-holding-invalid-types` in clippy.toml for project-specific types.
+  - C++20 coroutines: clang-tidy `cppcoreguidelines-no-suspend-with-lock`.
+  - Java: SpotBugs SWL and TLW.
+  - Python/JS, manual: inside `async def`, find `with <threading lock>:` blocks that contain `await`. For `async with asyncio.Lock()` blocks, check whether they contain slow network awaits that serialize all callers.
+- **Tools:** Clippy, clang-tidy, SpotBugs, manual review.
+- **Applies to:**
+  - Rust async, C++20 coroutines, Java, and Python (threading locks inside async code).
+  - C#: `lock` blocks cannot contain `await`, but holding a SemaphoreSlim over I/O is the same smell.
+- **When not to apply / counterpoints:**
+  - Tokio recommends the std Mutex when it is not held across an await, so "switch to an async mutex" is often the wrong fix.
+  - Narrowing a critical section can split one atomic check-and-update into two (T29-F01).
+  - Oxide advises avoiding Tokio mutexes altogether (see T29-F14 and F15).
+- **Fix risk:** medium
+
+### T29-F13 — Every wait on something outside the process has a finite timeout or deadline, propagated down the call chain as a remaining budget
+- **Grade:** A · **Verdict:** VERIFIED
+- **Scope:** HTTP, RPC, database, queue, lock and subprocess waits. Propagate the deadline through context, CancellationToken, AbortSignal or a cancel scope rather than resetting it per call.
+- **Rationale:** Popular clients default to waiting forever: requests has no default timeout, and gRPC sets no deadline. Per-call timeouts don't compose across layers. In a distributed-bug study, a missing reply with no timeout accounted for 9% of cases and showed up as a silent failure.
+- **Evidence:**
+  - [Requests Quickstart: Timeouts](https://requests.readthedocs.io/en/latest/user/quickstart/) — Python Requests, 2026 — official_docs.
+    - Quotes: "Nearly all production code should use this parameter in nearly all requests. Failure to do so can cause your program to hang indefinitely"; "If no timeout is specified explicitly, requests do not time out." The timeout "is not a time limit on the entire response download".
+    - Verification: verbatim.
+  - [gRPC Deadlines](https://grpc.io/docs/guides/deadlines/) — gRPC, 2026 — official_docs.
+    - Quote: "By default, gRPC does not set a deadline which means it is possible for a client to end up waiting for a response effectively forever."
+    - Deadline propagation subtracts elapsed time. It is automatic in Java and Go and must be enabled explicitly in C++.
+    - Verification: confirmed.
+  - [Timeouts and cancellation for humans](https://vorpus.org/blog/timeouts-and-cancellation-for-humans/) — Nathaniel J. Smith, 11 Jan 2018 — engineering_blog.
+    - Quotes: "Pretty much every place your program interacts with another program or person or system, it needs a timeout"; "it is currently not possible to guarantee that requests.get will return in any finite time", because the timeout resets per socket operation.
+    - Verification: verbatim.
+  - [request-without-timeout (S113)](https://docs.astral.sh/ruff/rules/request-without-timeout/) — Astral Ruff, 2026 — official_docs.
+    - Content: flags `requests` and `httpx` calls without `timeout`: "the program may hang indefinitely".
+    - Verification: confirmed.
+  - [async-function-with-timeout (ASYNC109)](https://docs.astral.sh/ruff/rules/async-function-with-timeout/) — Astral Ruff, 2026 — official_docs.
+    - Content: "Checks for async function definitions with timeout parameters" and prefers `asyncio.timeout`, `trio.fail_after` and similar. It is labelled "highly opinionated", enforcing structured concurrency.
+    - Verification: confirmed; this page was added by the verifier.
+  - [AbortSignal.timeout()](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static) — MDN, 2026 — official_docs.
+    - Content: `fetch(url, { signal: AbortSignal.timeout(5000) })` rejects with `TimeoutError`, and `AbortSignal.any()` combines signals. The timer counts active time, not time spent in a suspended worker or bfcache.
+    - Verification: confirmed.
+  - [CA2016: Forward the CancellationToken parameter](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2016) — Microsoft Learn, updated 2026 — official_docs.
+    - Content: "Enabled by default in .NET 10: As suggestion"; fix is "Non-breaking".
+    - Verification: confirmed.
+  - [TaxDC (ASPLOS'16)](https://ucare.cs.uchicago.edu/pdf/asplos16-TaxDC.pdf) — Leesatapornwongsa, Lukman, Lu, Gunawi, 2016 — peer_reviewed.
+    - Quotes: "47% of DC bugs lead to silent failures"; silent global errors "include missing messages, where NT never sends a reply that the communicating node is waiting for in the absence of timeout (9%)".
+    - Verification: verbatim.
+- **Detect:**
+  - Python: `ruff check --select S113,ASYNC109 .`
+  - JS: `rg -n "\bfetch\(" | rg -v "signal"`, then check axios, undici and got clients for a timeout setting.
+  - Go: `rg -n "http\.Client\{\s*\}|http\.(Get|Post)\(|context\.Background\(\)"` in request paths. Prefer the request's ctx with WithTimeout; vet's lostcancel checks that the cancel function is called.
+  - gRPC: every stub call needs a deadline.
+  - C#: CA2016, plus I/O methods that take no CancellationToken.
+  - Manual: list each external dependency with its timeout value and where that value is set.
+- **Tools:** Ruff S113/ASYNC109, CA2016, go vet lostcancel, ripgrep, manual review.
+- **Applies to:** All languages and services that do network, IPC or lock waits.
+- **When not to apply / counterpoints:**
+  - A timeout adds a new failure path. A non-idempotent request that timed out may still have run on the server (T29-F19).
+  - Timeouts that are too tight cause false failures and retry storms.
+  - No verified source here gives a method for choosing timeout values.
+- **Fix risk:** medium
+
+### T29-F14 — Let cancellation propagate: never catch-and-swallow cancellation exceptions; keep cleanup in finally/defer/Drop; in Rust, state must be consistent at every `.await`
+- **Grade:** A · **Verdict:** VERIFIED
+- **Exceptions this covers:** asyncio.CancelledError, Kotlin CancellationException (including via runCatching around suspend calls), and .NET OperationCanceledException.
+- **Rationale:** Structured-concurrency features (TaskGroup, asyncio.timeout, coroutineScope, errgroup) are built on cancellation, so swallowing it breaks timeouts and shutdown. In Rust, cancelling a future between a `take()` and the restore can leave shared state permanently invalid, which Oxide hit in production.
+- **Evidence:**
+  - [Coroutines and Tasks: Task Cancellation](https://docs.python.org/3/library/asyncio-task.html) — PSF, Python 3.14.7 — official_docs.
+    - Quotes: "In case asyncio.CancelledError is explicitly caught, it should generally be propagated when clean-up is complete."; TaskGroup and asyncio.timeout "are implemented using cancellation internally and might misbehave if a coroutine swallows asyncio.CancelledError"; "in cases when suppressing asyncio.CancelledError is truly desired, it is necessary to also call uncancel()".
+    - Verification: verbatim.
+  - [asyncio exceptions](https://docs.python.org/3/library/asyncio-exceptions.html) — PSF, Python 3.14.7 — official_docs.
+    - Content: "Changed in version 3.8: CancelledError is now a subclass of BaseException rather than Exception."
+    - Verification: verbatim; added to back the counterpoint below.
+  - [detekt coroutines: SuspendFunSwallowedCancellation](https://detekt.dev/docs/rules/coroutines) — detekt 2.0.0-alpha.6 — official_docs.
+    - Quotes: "suspend functions should not be called inside runCatching's lambda block, because runCatching catches all the Exceptions"; "CancellationException should never be: caught and swallowed (even if logged) … they must always be immediately rethrown in the same context."
+    - Verification: verbatim in the page HTML. Not active by default.
+  - [Cancelling async Rust](https://sunshowers.io/posts/cancelling-async-rust/) — Rain (sunshowers), Oxide, Oct 2025 — engineering_blog.
+    - Content: a mutex-protected `Option` was `.take()`n and awaited: "If the code that operated on the mutex got cancelled at that await point, then the data would be stuck in the invalid `None` state."
+    - It distinguishes local "cancel safety" from global "cancel correctness". Recommendations include "Avoid Tokio mutexes".
+    - Verification: confirmed.
+  - [ASP.NET Core Async Guidance](https://raw.githubusercontent.com/davidfowl/AspNetCoreDiagnosticScenarios/master/AsyncGuidance.md) — David Fowler (Microsoft), living doc on GitHub — engineering_blog.
+    - Quote: "Everything in the call chain has to be explicitly passed the `CancellationToken` in order for it to work well."
+    - Verification: verbatim.
+- **Detect:**
+  - Python: `rg -n "except\s*(\(|)?\s*(asyncio\.)?CancelledError|except\s+BaseException|except\s*:" --type py`, then check that each handler re-raises. Also check `.uncancel()` calls.
+  - Kotlin:
+    - enable detekt `SuspendFunSwallowedCancellation` and `SuspendFunInFinallySection`;
+    - `rg -n "runCatching\s*\{"` around suspend calls;
+    - look for `catch (e: Exception|Throwable)` inside suspend functions.
+  - C#: `catch (OperationCanceledException)` or `catch (Exception)` inside loops that should stop.
+  - Rust, manual: in each async fn that mutates shared state, check that the state is valid at every `.await`. Look for `.take()`, `mem::replace` and half-finished multi-step updates.
+- **Tools:** ripgrep, detekt, manual review.
+- **Applies to:** Python asyncio/trio/anyio, Kotlin coroutines, C#/.NET, Rust async, Swift structured concurrency.
+- **When not to apply / counterpoints:**
+  - asyncio allows suppressing cancellation when "truly desired", but `uncancel()` must then be called.
+  - A broad `except Exception` does not catch CancelledError on 3.8+, so only `BaseException` and bare `except` are real hits.
+  - Making Rust code cancel-correct may need an API redesign, not a local edit.
+- **Fix risk:** medium
+
+### T29-F04 — Do not pass async functions where the caller ignores the returned promise/task; fix to for…of/await, bounded Promise.all, or `Task`-returning methods
+- **Grade:** A · **Verdict:** CORRECTED. The Okur numbers come from the 167 apps that use async/await (out of a 1,378-app corpus), not from all 1,378 apps.
+- **Where the returned promise is ignored:**
+  - Array.forEach/filter/some callbacks;
+  - event-emitter and DOM listeners;
+  - setTimeout;
+  - constructors;
+  - C# `async void` (except top-level UI event handlers).
+- **Rationale:** The caller never awaits the promise, so work runs unordered and errors are lost. In .NET, an exception in `async void` crashes the process. The C# field study found this misuse in 76% of the apps that use async/await.
+- **Evidence:**
+  - [no-misused-promises](https://typescript-eslint.io/rules/no-misused-promises/) — typescript-eslint, 2026 — official_docs.
+    - Quote: "Disallow Promises in places not designed to handle them". `checksVoidReturn` defaults to true.
+    - The incorrect examples include `forEach(async value => …)` and `addEventListener('click', async () => …)`. In `recommended-type-checked`; needs type information.
+    - Verification: confirmed.
+  - [A Study and Toolkit for Asynchronous Programming in C# (ICSE'14, ACM SIGSOFT Distinguished Paper)](https://dig.cs.illinois.edu/papers/ICSE14_Semih.pdf) — Okur, Hartveld, Dig, van Deursen, 2014 — peer_reviewed.
+    - Quotes: "Exceptions thrown in such methods cannot be caught in the calling method, and cause termination of the app"; "only 339 out of these 799 async void methods are event handlers. It means that 19% of all async methods (460 out of 2383) are not following this important practice". Table 2 gives Fire & Forget as 460 methods, 19%, in 76% of apps.
+    - Verification: verbatim. The corpus is 1,378 Windows Phone apps (12M SLOC); the async statistics cover the 167 apps that use async/await.
+  - [ASP.NET Core Async Guidance](https://raw.githubusercontent.com/davidfowl/AspNetCoreDiagnosticScenarios/master/AsyncGuidance.md) — David Fowler (Microsoft), living doc — engineering_blog.
+    - Quotes: "The use of async void in ASP.NET Core applications is **ALWAYS** bad. Avoid it, never do it." "Async void methods will crash the process if an exception is thrown."
+    - Verification: verbatim.
+- **Detect:**
+  - TS: `@typescript-eslint/no-misused-promises` (checksVoidReturn).
+  - ast-grep: `ast-grep -p '$A.forEach(async ($$$) => $$$)'`.
+  - C#: VSTHRD100 (async void), VSTHRD101 (unsupported async delegates), and `rg -n "async void" --type cs`, keeping only event handlers.
+  - Kotlin/Java: callbacks passed to listeners that launch coroutines without a scope.
+- **Tools:** typescript-eslint, ast-grep, Microsoft.VisualStudio.Threading.Analyzers.
+- **Applies to:** JS/TS and C#/.NET. The same idea covers Kotlin `launch` inside callbacks and Python callbacks that call coroutines.
+- **When not to apply / counterpoints:**
+  - UI event handlers must be `async void` in .NET.
+  - Fixing `forEach` forces a choice. `for…of` serializes the work, which can be much slower. `Promise.all` has no bound and fails fast (T29-F05, F17). Preserve the original intent rather than just satisfying the linter.
+- **Fix risk:** medium
+
+### T29-F20 — Check the runtime/edition version before "fixing" a concurrency idiom; do not rely on the Python GIL for atomicity
+- **Grade:** A · **Verdict:** CORRECTED. The free-threaded Python build was **experimental** in 3.13. It is **officially supported but optional (not the default)** in 3.14 (PEP 779).
+- **Classic fixes that are now obsolete:**
+  - loop-variable copies on Go ≥ 1.22 (per-iteration loop variables);
+  - replacing `synchronized` to avoid pinning on JDK 24+ (virtual threads are no longer pinned by it);
+  - the if-let deadlock workaround on Rust 2024 (temporaries are dropped before `else`);
+  - ConfigureAwait deadlock fixes in ASP.NET Core (it has no SynchronizationContext).
+- **Rationale:** Hardening passes often apply advice from older versions, which produces churn or even regressions. They can also miss new hazards: free-threaded Python exposes races the GIL used to hide.
+- **Evidence:**
+  - [Fixing For Loops in Go 1.22](https://go.dev/blog/loopvar-preview) — David Chase, Russ Cox, 2023 — official_docs.
+    - Content: per-iteration scope, gated by the go.mod `go 1.22` line.
+    - Verification: verbatim.
+  - [JEP 491: Synchronize Virtual Threads without Pinning](https://openjdk.org/jeps/491) — OpenJDK, delivered in JDK 24 — standard.
+    - Content: virtual threads can "acquire, hold, and release monitors, independently of their carriers". It quotes *Java Concurrency in Practice*: "Use synchronized where practical". Pinning remains for class loading/initialization and for native frames.
+    - Verification: confirmed.
+  - [Python support for free threading](https://docs.python.org/3/howto/free-threading-python.html) — PSF, Python 3.14.7 — official_docs.
+    - Quotes: built-in type locking "should be treated as a description of the current implementation, not a guarantee of current or future behavior"; "It's recommended to use the threading.Lock or other synchronization primitives instead of relying on the internal locks of built-in types".
+    - Verification: verbatim.
+  - [What's New in Python 3.14](https://docs.python.org/3/whatsnew/3.14.html) — PSF, 2025 — official_docs.
+    - Content: "PEP 779: Free-threaded Python is officially supported". Free threading was "initially added in 3.13"; it remains optional.
+    - Verification: confirmed; added by the verifier.
+  - [Rust 2024: if let temporary scope](https://doc.rust-lang.org/edition-guide/rust-2024/temporary-if-let-scope.html) — Rust project, 2025 — official_docs.
+    - Quote: temporaries "will be dropped before the program enters the `else` branch instead of after."
+    - Verification: verbatim.
+  - [ConfigureAwait FAQ](https://devblogs.microsoft.com/dotnet/configureawait-faq/) — Stephen Toub (Microsoft .NET blog), 11 Dec 2019 — official_docs.
+    - Content: classic ASP.NET has its own SynchronizationContext; "in contrast ASP.NET Core does not." Fowler's guidance adds: "ASP.NET Core does not have a `SynchronizationContext` and is not prone to the deadlock problem."
+    - Verification: confirmed in both.
+- **Detect:** First record the versions:
+  - the go.mod `go` directive;
+  - the Cargo.toml `edition`;
+  - the JDK version;
+  - the Python version, and whether the free-threaded build is in use (`python -VV`, `sys._is_gil_enabled()` on 3.13+);
+  - the target framework (ASP.NET Core vs .NET Framework).
+
+  Then filter findings:
+  - skip `i := i` copies on Go ≥ 1.22;
+  - skip synchronized → ReentrantLock rewrites on JDK ≥ 24;
+  - on free-threaded Python, grep for unsynchronized shared mutation across threads.
+- **Tools:** manual review, ripgrep.
+- **Applies to:** Go, Java, Rust, Python, .NET: any polyglot hardening pass.
+- **When not to apply / counterpoints:**
+  - Libraries that support old toolchains still need the old defensive idioms.
+  - Free-threaded thread safety is described by the implementation, not guaranteed, so the target semantics may still change.
+- **Fix risk:** low
+
+### T29-F22 — Every condition-variable/monitor wait sits in a loop (or predicate overload) re-checking the condition under the lock; notify after changing it under the same lock
+- **Grade:** A · **Verdict:** VERIFIED
+- **Rationale:** A wait without a predicate misses wakeups or acts on spurious ones. The Core Guidelines, the CERT-derived clang-tidy check and SpotBugs all encode this rule. Condition-variable misuse also appears among real Go blocking bugs.
+- **Evidence:**
+  - [C++ Core Guidelines CP.42](https://raw.githubusercontent.com/isocpp/CppCoreGuidelines/master/CppCoreGuidelines.md) — isocpp, master 2026 — standard.
+    - Quote: "A `wait` without a condition can miss a wakeup or wake up simply to find that there is no work to do."
+    - Verification: verbatim.
+  - [clang-tidy bugprone-spuriously-wake-up-functions](https://clang.llvm.org/extra/clang-tidy/checks/bugprone/spuriously-wake-up-functions.html) — LLVM, 2026 — official_docs.
+    - Content: finds `cnd_wait`/`wait`/`wait_for`/`wait_until` calls "not invoked from a loop that checks whether a condition predicate holds or the function has a condition parameter". Corresponds to CERT CON54-CPP and CON36-C.
+    - Verification: confirmed.
+  - [SpotBugs bug descriptions](https://spotbugs.readthedocs.io/en/latest/bugDescriptions.html) — SpotBugs, 2026 — official_docs.
+    - Content: UW_UNCOND_WAIT "Unconditional wait", NN_NAKED_NOTIFY "Naked notify", WA_NOT_IN_LOOP, WA_AWAIT_NOT_IN_LOOP, MWN_MISMATCHED_WAIT/NOTIFY.
+    - Verification: all codes confirmed on the page.
+  - [Understanding Real-World Concurrency Bugs in Go](https://songlh.github.io/paper/go-study.pdf) — Tu et al., 2019 — peer_reviewed.
+    - Quote: "one goroutine calls Cond.Wait(), but no other goroutines call Cond.Signal() (or Cond.Broadcast()) after that."
+    - Verification: verbatim.
+- **Detect:**
+  - C/C++: clang-tidy `bugprone-spuriously-wake-up-functions`.
+  - Java: SpotBugs UW_UNCOND_WAIT, NN_NAKED_NOTIFY, WA_NOT_IN_LOOP.
+  - Go: find `.Wait()` on a sync.Cond and check that it sits in a `for !cond {}` loop.
+  - Python: `Condition.wait(` outside a while loop. Prefer `wait_for(predicate)`; that API was not verified here.
+- **Tools:** clang-tidy, SpotBugs, ripgrep.
+- **Applies to:** C, C++, Java, Go, Python threading, Rust (`Condvar`).
+- **When not to apply / counterpoints:**
+  - Rewriting to channels or queues changes semantics (buffering, fairness) and is a bigger refactor than adding a predicate loop.
+  - SpotBugs may misfire on custom lock wrappers.
+- **Fix risk:** low
+
+### T29-F23 — Make locking discipline machine-checkable: GUARDED_BY/REQUIRES with -Wthread-safety, @GuardedBy with Error Prone, and treat inconsistent-sync reports as bugs
+- **Grade:** A · **Verdict:** VERIFIED
+- **Rationale:** Race freedom is a non-local property that code review misses. Static annotation checkers turn it into a compile error at no runtime cost. Google uses Clang's analysis extensively. The Core Guidelines admit that tools have blind spots and recommend using several.
+- **Evidence:**
+  - [Thread Safety Analysis](https://clang.llvm.org/docs/ThreadSafetyAnalysis.html) — Clang/LLVM (developed by Google with CERT/SEI), 2026 — official_docs.
+    - Quotes: "no run-time overhead"; "used extensively in Google's internal code base"; enabled with `-Wthread-safety`.
+    - Documented limits: no inter-procedural analysis and no alias analysis.
+    - Verification: confirmed.
+  - [GuardedBy](https://errorprone.info/bugpattern/GuardedBy) — Google Error Prone, 2026 — official_docs.
+    - Content: "Checks for unguarded accesses to fields and methods with @GuardedBy annotations"; severity ERROR.
+    - Verification: confirmed.
+  - [SpotBugs bug descriptions](https://spotbugs.readthedocs.io/en/latest/bugDescriptions.html) — SpotBugs, 2026 — official_docs.
+    - Content: IS2_INCONSISTENT_SYNC, IS_FIELD_NOT_GUARDED, AT_NONATOMIC_OPERATIONS_ON_SHARED_VARIABLE, UL_UNRELEASED_LOCK_EXCEPTION_PATH, RV_RETURN_VALUE_OF_PUTIFABSENT_IGNORED.
+    - Verification: all confirmed.
+  - [C++ Core Guidelines CP.2 (Enforcement)](https://raw.githubusercontent.com/isocpp/CppCoreGuidelines/master/CppCoreGuidelines.md) — isocpp, master 2026 — standard.
+    - Quote: "Static tools often have many false positives and run-time tools often have a significant cost. We hope for better tools. Using multiple tools can catch more problems than a single one."
+    - Verification: verbatim.
+- **Detect:**
+  - C++: add `-Wthread-safety` to Clang builds and annotate mutex-protected members with GUARDED_BY.
+  - Java: SpotBugs MT_CORRECTNESS and Error Prone GuardedBy.
+  - Manual: find fields written under a lock anywhere, and check that every other access to them also holds the lock.
+- **Tools:** Clang -Wthread-safety, Error Prone, SpotBugs.
+- **Applies to:** C++ (Clang) and Java/Kotlin on the JVM. The concept carries over to Rust, where `Mutex<T>` owns its data.
+- **When not to apply / counterpoints:**
+  - Annotating a finished codebase takes significant effort.
+  - Clang's analysis is intra-procedural with no alias tracking, so false negatives remain.
+  - Static tools produce false positives (CP.2).
+- **Fix risk:** low
+
+### T29-F07 — Eliminate sync-over-async; go async all the way or isolate the blocking bridge at the program entry point
+- **Grade:** B · **Verdict:** CORRECTED. The researcher said the C# study "found five real deadlocks". The paper actually reports "5 different cases for this type of deadlock which can happen if the caller method executes on UI event thread". These are instances of the pattern found by the authors' analysis, not five observed production deadlocks.
+- **Patterns to remove:**
+  - .NET: `Task.Result`, `.Wait()` and `GetAwaiter().GetResult()` in request or UI paths.
+  - Python: `asyncio.run`/`run_until_complete` inside code reachable from a running loop.
+  - Rust: `block_on` inside an async runtime.
+- **Rationale:** Blocking on async work uses two threads instead of one, starves the thread pool, and deadlocks under a single-threaded SynchronizationContext.
+- **Evidence:**
+  - [ASP.NET Core Async Guidance](https://raw.githubusercontent.com/davidfowl/AspNetCoreDiagnosticScenarios/master/AsyncGuidance.md) — David Fowler (Microsoft), living doc — engineering_blog.
+    - Quotes: "There are very few ways to use `Task.Result` and `Task.Wait` correctly so the general advice is to completely avoid using them in your code."; "*MUCH* worse than calling a truly synchronous API"; "we need to use 2 threads instead of 1 … This usually leads to thread-pool starvation and results in service outages."
+    - Verification: verbatim.
+  - [VSTHRD analyzers index](https://raw.githubusercontent.com/microsoft/vs-threading/main/docfx/analyzers/index.md) — Microsoft vs-threading, 2026 — official_docs.
+    - Content: VSTHRD002 "Avoid problematic synchronous waits", in the critical band (IDs 1–99).
+    - Verification: confirmed.
+  - [A Study and Toolkit for Asynchronous Programming in C#](https://dig.cs.illinois.edu/papers/ICSE14_Semih.pdf) — Okur et al., ICSE'14 — peer_reviewed.
+    - Quotes: `ReceiveAsync(response).Wait()` on the UI thread: "Therefore, a deadlock occurs."; "We found 5 different cases for this type of deadlock which can happen if the caller method executes on UI event thread."
+    - Verification: verbatim.
+- **Detect:**
+  - C#: VSTHRD002 and `rg -n "\.Result\b|\.Wait\(\)|GetAwaiter\(\)\.GetResult\(\)" --type cs`, excluding Main and test fixtures.
+  - Python: `rg -n "asyncio\.run\(|run_until_complete\(" --type py`.
+  - Rust: `rg -n "block_on\("`.
+- **Tools:** Microsoft.VisualStudio.Threading.Analyzers, ripgrep.
+- **Applies to:** .NET mainly; also Python, Rust, and Kotlin (`runBlocking` inside coroutines, not verified here).
+- **When not to apply / counterpoints:**
+  - At a true entry point, one blocking bridge is sometimes unavoidable.
+  - ASP.NET Core has no SynchronizationContext, so the classic deadlock does not occur there (Fowler), but thread-pool starvation still does.
+  - Converting a call chain to async spreads through public APIs.
+  - Grade stays B: the deadlock mechanism is well documented, but the only empirical evidence is Okur's five pattern instances in 2014 Windows Phone apps.
+- **Fix risk:** high
+
+### T29-F15 — Rust/Tokio: in `loop { select! }` use only cancel-safe branches; prefer spawning tasks or JoinSet over polling borrowed futures that may hold a lock or permit (futurelock)
+- **Grade:** B · **Verdict:** VERIFIED
+- **Rationale:** select! drops the losing branches, so futures that are not cancel-safe lose data or their place in a fair queue. A borrowed future that already holds a resource but is no longer polled can hang the whole task. Oxide traced a production hang to exactly this. The RFD says no single piece of the code is wrong on its own, which defeats local reasoning in code review.
+- **Evidence:**
+  - [tokio::select!: Cancellation safety](https://docs.rs/tokio/latest/tokio/macro.select.html) — Tokio 1.53.1, 2026 — official_docs.
+    - Quote: "When using `select!` in a loop to receive messages from multiple sources, you should make sure that the receive call is cancellation safe to avoid losing messages."
+    - Not cancel-safe: read_exact, read_to_end, read_to_string, write_all. Also `Mutex::lock`, `RwLock::read/write`, `Semaphore::acquire` and `Notify::notified`, which "use a queue for fairness and cancellation makes you lose your place in the queue."
+    - Verification: verbatim.
+  - [RFD 609: Futurelock](https://rfd.shared.oxide.computer/rfd/0609) — David Pacheco (Oxide Computer), 2025 — incident_report.
+    - Quotes: "any time you have a single task polling multiple futures concurrently, be extremely careful that the task never stops polling a future that it previously started polling. One way to avoid this situation is to bias towards spawning futures in new tasks instead."; "futurelock defeats Rust's goal of being able to reason locally about correctness"; "None of these by itself is wrong, but combining them results in futurelock."
+    - In omicron#9259, requests blocked sending on "an mpsc channel with capacity 1" and "essentially every incoming HTTP request hung indefinitely". The RFD also suggests JoinSet instead of FuturesOrdered/FuturesUnordered.
+    - Verification: verbatim.
+  - [Nexus node timing out on API requests (omicron #9259)](https://github.com/oxidecomputer/omicron/issues/9259) — Oxide GitHub, 19 Oct 2025 — incident_report.
+    - Content: GET /v1/me was "cancelled (client disconnected)" after about 14.7 s.
+    - Verification: the issue itself does not mention futurelock; the RFD makes that link.
+  - [Lobsters: Futurelock](https://lobste.rs/s/fzro7f/futurelock) — Lobsters, 31 Oct 2025 (33 comments) — practitioner_forum.
+    - Quotes: kornel, "I'm coming to conclusion that `tokio::select!` itself is a wrong design"; quad, "The following code deadlocks identically: `… timeout(Duration::from_millis(500), &mut future1).await`"; withoutboats, with intra-task concurrency "the flow of control is an implicit shared resource".
+    - Verification: confirmed.
+- **Detect:**
+  - `rg -n "select!" --type rust`. For each hit, list the branch futures and check them against Tokio's cancel-safety list.
+  - Flag `&mut` future branches, `.lock()`, `.acquire()`, `read_exact`, `write_all`, and `send(` on bounded channels.
+  - Also run `rg -n "FuturesUnordered|FuturesOrdered|timeout\(.*&mut"`.
+  - There is no lint for futurelock, so this is manual review only.
+- **Tools:** ripgrep, manual review.
+- **Applies to:** Rust async (Tokio, and `futures::select!`).
+- **When not to apply / counterpoints:**
+  - Practitioners disagree on the root cause: select!'s design or intra-task concurrency in general.
+  - Spawned tasks need `'static + Send` and add overhead.
+  - The RFD says a larger channel capacity does not reliably fix futurelock.
+  - "Pin the future outside the loop and pass `&mut fut`" is standard Tokio advice for not losing progress, but it is exactly the borrowed-future shape that enables futurelock. Resolve the tension case by case (see Contradictions).
+- **Fix risk:** medium
+
+### T29-F16 — Replace unscoped fire-and-forget spawns with scoped concurrency (TaskGroup/nursery, coroutineScope, errgroup, JoinSet) so every task has an owner
+- **Grade:** B · **Verdict:** CORRECTED. The Lobsters comments cited are from July 2021, not "2018–2024".
+- **Spawns to replace:** `GlobalScope.launch`, a bare `create_task`, `go func()` without a join, `Task.Run` without an await, and `tokio::spawn` with a dropped JoinHandle for work that must finish.
+- **Rationale:** Unscoped tasks lose errors, outlive the resources and `with` blocks they depend on, and cannot be cancelled together. Kotlin officially marks GlobalScope as delicate for these reasons.
+- **Evidence:**
+  - [Notes on structured concurrency, or: Go statement considered harmful](https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/) — Nathaniel J. Smith, 25 Apr 2018 — engineering_blog.
+    - Quote: "the nursery block doesn't exit until all the tasks inside it have exited".
+    - Verification: verbatim. The post also argues that unstructured spawns break error propagation and `with`-block cleanup.
+  - [GlobalScope](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/-global-scope/) — JetBrains kotlinx.coroutines, 2026 — official_docs.
+    - Quotes: "Since GlobalScope does not have a Job, it is impossible to cancel all coroutines launched in it"; "A coroutine that never gets cancelled or resumed can be a resource leak". Using it requires `@OptIn(DelicateCoroutinesApi::class)`.
+    - Verification: verbatim.
+  - [detekt GlobalCoroutineUsage](https://detekt.dev/docs/rules/coroutines) — detekt 2.0.0-alpha.6 — official_docs.
+    - Quote: "Using async or launch on the instance of GlobalScope is highly discouraged." Not active by default.
+    - Verification: verbatim.
+  - [Lobsters: Notes on structured concurrency](https://lobste.rs/s/8msejg/notes_on_structured_concurrency_go) — Lobsters, July 2021 comments — practitioner_forum.
+    - Quotes: "this restriction doesn't do much because it doesn't touch data sharing patterns"; matklad replies, "structured concurrency doesn't prevent data races. But data races are not the only problem with concurrency."
+    - Verification: verbatim.
+- **Detect:**
+  - Kotlin: detekt `GlobalCoroutineUsage` and `rg -n "GlobalScope\.(launch|async)"`.
+  - Python: RUF006, plus `create_task(` calls outside a TaskGroup.
+  - Go: check each `go func` for a WaitGroup, errgroup or ctx owner.
+  - Rust: `tokio::spawn(` with the JoinHandle discarded.
+  - C#: `Task.Run(` without an await.
+  - For each survivor, write down who owns it and how shutdown cancels it.
+- **Tools:** detekt, Ruff RUF006, ripgrep, manual review.
+- **Applies to:** Kotlin, Python, Go, Rust, C#, Swift. Java 21+ StructuredTaskScope was not verified here.
+- **When not to apply / counterpoints:**
+  - The benefit is argued, not measured; no defect-rate study was found.
+  - Long-lived background services legitimately outlive a request and need an application-level scope.
+  - Scoping changes latency because the parent now waits. It can deadlock if a child waits on the parent.
+- **Fix risk:** high
+
+### T29-F17 — Bound every queue, buffer, channel, pool and fan-out; respect stream backpressure
+- **Grade:** B · **Verdict:** VERIFIED
+- **How to bound:**
+  - asyncio.Queue with maxsize > 0;
+  - mpsc::channel(n) instead of an unbounded channel;
+  - Node `pipeline()`, never writing again after `write()` returns false;
+  - ThreadPoolExecutor with an explicit queue size;
+  - a concurrency limit (errgroup.SetLimit, a semaphore, p-limit) on Promise.all or gather over unbounded input.
+- **Rationale:** Unbounded buffers turn overload into memory exhaustion. Node's own benchmark shows 1.52 GB versus 87.81 MB when backpressure is ignored. Tokio aborts the process when an unbounded channel exhausts memory. An industry coding standard bans the default Java executors because their queues or thread counts are unbounded.
+- **Evidence:**
+  - [Backpressuring in Streams](https://nodejs.org/en/learn/modules/backpressuring-in-streams) — Node.js, 2026 — official_docs.
+    - Content: gzip of a ~9 GB file used a max RSS of 87.81 MB with backpressure and 1.52 GB without. "Never call `.write()` after it returns false but wait for 'drain' instead." Use `pipeline()`.
+    - Verification: confirmed.
+  - [tokio::sync::mpsc::unbounded_channel](https://docs.rs/tokio/latest/tokio/sync/mpsc/fn.unbounded_channel.html) — Tokio 1.53.1, 2026 — official_docs.
+    - Quote: "Using an `unbounded` channel has the ability of causing the process to run out of memory. In this case, the process will be aborted."
+    - Verification: verbatim.
+  - [asyncio Queues](https://docs.python.org/3/library/asyncio-queue.html) — PSF, Python 3.14.7 — official_docs.
+    - Content: `Queue(maxsize=0)`; "If maxsize is less than or equal to zero, the queue size is infinite." `shutdown()` was added in 3.13.
+    - Verification: confirmed.
+  - [P3C-PMD (Alibaba Java Coding Guidelines)](https://raw.githubusercontent.com/alibaba/p3c/master/p3c-pmd/README.md) — Alibaba — industry_report.
+    - Content: ThreadPoolCreationRule: "A thread pool should be created by ThreadPoolExecutor rather than Executors". Fixed/SingleThreadPool queues can grow to `Integer.MAX_VALUE`, and Cached/ScheduledThreadPool threads can too, risking OOM.
+    - Verification: confirmed.
+  - [no-await-in-loop](https://eslint.org/docs/latest/rules/no-await-in-loop) — ESLint, 2026 — official_docs.
+    - Quote: "Loops may be used to prevent your code from sending an excessive amount of requests in parallel." The docs also list bounded resources (RAM, file descriptors, network bandwidth) and retries as valid reasons for sequential awaits.
+    - Verification: confirmed.
+- **Detect:**
+  - Rust: `rg -n "unbounded_channel|mpsc::unbounded"`.
+  - Python: `rg -n "asyncio\.Queue\(\s*\)|queue\.Queue\(\s*\)"`.
+  - Java: p3c-pmd ThreadPoolCreationRule, or `rg -n "Executors\.new(Fixed|Single|Cached|Scheduled)"`.
+  - Node: `.on('data'` handlers that call `.write(` without handling drain, and bare `.pipe(` chains.
+  - JS/Python fan-out over unbounded input: `rg -n "Promise\.all\(.*\.map\(|asyncio\.gather\(\*"`.
+  - Go: goroutine-per-item loops without SetLimit or a semaphore.
+- **Tools:** ripgrep, p3c-pmd, manual review.
+- **Applies to:** All languages with producer/consumer or fan-out code.
+- **When not to apply / counterpoints:**
+  - A bound turns memory growth into blocking or rejection.
+  - A bounded channel can deadlock: a capacity-1 channel was part of Oxide's futurelock hang, and the RFD rejects raising capacity as a fix.
+  - Limits must be tuned.
+  - The 17x Node figure comes from one benchmark (a gzip pipeline).
+- **Fix risk:** medium
+
+### T29-F19 — Make every retryable or redeliverable operation idempotent (idempotency keys, message-ID dedupe); never wrap a non-idempotent side effect in a generic retry
+- **Grade:** B · **Verdict:** VERIFIED
+- **Rationale:** Networks and queues produce ambiguous outcomes and duplicates. SQS standard queues are documented as at-least-once. AWS and Stripe both build retries on idempotency tokens. TaxDC shows that most distributed concurrency bugs involve faults or untimely messages.
+- **Evidence:**
+  - [Amazon SQS at-least-once delivery](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html) — AWS, 2026 — official_docs.
+    - Quote: "you might get that message copy again when you receive messages. Design your applications to be *idempotent* (they should not be affected adversely when processing the same message more than once)."
+    - Verification: verbatim.
+  - [Making retries safe with idempotent APIs](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/) — Malcolm Featonby (Amazon Builders' Library) — engineering_blog.
+    - Quotes: retries assume "an operation can be retried without any side effects"; AWS adds "a unique caller-provided client request identifier into our API contract". The same token with different parameters returns a validation error.
+    - Verification: confirmed.
+  - [Designing robust and predictable APIs with idempotency](https://stripe.com/blog/idempotency) — Brandur Leach (Stripe), 22 Feb 2017 — engineering_blog.
+    - Content: the `Idempotency-Key` header, exponential backoff, and "adding some amount of random jitter" against the thundering herd.
+    - Verification: confirmed.
+  - [TaxDC (ASPLOS'16)](https://ucare.cs.uchicago.edu/pdf/asplos16-TaxDC.pdf) — Leesatapornwongsa et al., 2016 — peer_reviewed.
+    - Quotes: "63% of DC bugs surface in the presence of hardware faults such as machine crashes (and reboots), network delay and partition (timeouts), and disk errors"; "More than 60% of DC bugs are triggered by a single untimely message delivery"; "30% are fixed by prohibiting the triggering timing and another 40% by simply delaying or ignoring the untimely message".
+    - Verification: verbatim.
+- **Detect:**
+  - Retry wrappers: `rg -n "@retry|tenacity|backoff\.on_exception|axios-retry|p-retry|retry\(|Polly|RetryPolicy|withRetry"`. Check whether each wrapped call is a mutation.
+  - Consumers: `rg -n "receive_message|consume|@KafkaListener|on_message|subscribe\("`. Check each for a dedupe key or naturally idempotent writes.
+  - Check that public mutating endpoints have an idempotency-key contract.
+- **Tools:** ripgrep, manual review.
+- **Applies to:** Distributed systems, service-to-service calls, payment and email APIs, queue and stream consumers, webhooks.
+- **When not to apply / counterpoints:**
+  - Idempotency storage adds latency, needs a retention policy, and has its own race: two in-flight requests with the same key need a lock or a unique insert.
+  - Naturally idempotent operations need nothing.
+  - Grade B: vendor guidance plus indirect empirical support. TaxDC studies distributed concurrency bugs in general, not retry or idempotency failures specifically.
+- **Fix risk:** medium
+
+### T29-F21 — In .NET, don't "optimize" async plumbing as a hardening step: ConfigureAwait(false) only in general-purpose library code; don't elide async/await where using/try/AsyncLocal/argument validation exist
+- **Grade:** B · **Verdict:** CORRECTED. The two rules come from different sources:
+  - The ConfigureAwait guidance is Microsoft's (Toub's FAQ on the .NET blog).
+  - The preference for async/await over returning the Task comes from David Fowler's GitHub guidance. He is a Microsoft engineer, but it is not official product documentation.
+- **Rationale:** Toub says app-level code should not use ConfigureAwait(false). Fowler prefers async/await over returning the Task directly, because eliding it changes exception timing and makes code harder to modify. A 2014 study recommended the opposite, so applying either rule mechanically changes behaviour.
+- **Evidence:**
+  - [ConfigureAwait FAQ](https://devblogs.microsoft.com/dotnet/configureawait-faq/) — Stephen Toub (Microsoft .NET blog), 11 Dec 2019 — official_docs.
+    - Quotes: "if you're writing general-purpose library code, use `ConfigureAwait(false)`"; "if you're writing app-level code, *do not* use `ConfigureAwait(false)`".
+    - Verification: verbatim.
+  - [ASP.NET Core Async Guidance](https://raw.githubusercontent.com/davidfowl/AspNetCoreDiagnosticScenarios/master/AsyncGuidance.md) — David Fowler, living doc — engineering_blog.
+    - Quotes: "Asynchronous and synchronous exceptions are normalized to always be asynchronous."; "The code is easier to modify (consider adding a `using`, for example)."
+    - Verification: verbatim. Its own ConfigureAwait section reads "TBD".
+  - [A Study and Toolkit for Asynchronous Programming in C# (ICSE'14)](https://dig.cs.illinois.edu/papers/ICSE14_Semih.pdf) — Okur et al., 2014 — peer_reviewed.
+    - Quotes (the opposing view): "There is no need to use async/await in 14% of async methods"; "If the statements after the await expression do not update the UI, ConfigureAwait(false) must be set." That applied to 1,770 methods, 74%.
+    - Verification: verbatim.
+- **Detect:**
+  - Enable VSTHRD111 ("Use `.ConfigureAwait(bool)`") only for library projects.
+  - Review diffs for `.ConfigureAwait(false)` added to ASP.NET Core or UI app code.
+  - Review diffs for `async` removed from methods that contain `using`, `try`, parameter checks or AsyncLocal access.
+- **Tools:** Microsoft.VisualStudio.Threading.Analyzers, manual review.
+- **Applies to:** .NET (C#/VB).
+- **When not to apply / counterpoints:**
+  - In libraries consumed by WinForms, WPF or legacy ASP.NET, a missing ConfigureAwait(false) plus a caller's `.Result` can deadlock; that is Okur's scenario.
+  - Eliding async saves an allocation on hot paths. That is the researcher's claim, not verified here.
+- **Fix risk:** medium
+
+### T29-F25 — Remove hand-rolled lock-free code and double-checked locking unless a benchmark proves it necessary; use standard once/atomic primitives
+- **Grade:** B · **Verdict:** VERIFIED. The more direct C++ Core Guidelines rule, CP.110, was added.
+- **Standard replacements:** sync.Once, `std::call_once` or a function-local static, OnceLock/LazyLock, `Lazy<T>`, `AtomicXxx.incrementAndGet`, and `ConcurrentHashMap.compute`.
+- **Rationale:** Lock-free and double-checked-locking code needs expert knowledge of the memory model, and bugs in it are "really hard to find through testing". Standard once-initialization and atomic read-modify-write primitives cover almost all real needs. Linters flag the classic broken forms.
+- **Evidence:**
+  - [C++ Core Guidelines CP.100](https://raw.githubusercontent.com/isocpp/CppCoreGuidelines/master/CppCoreGuidelines.md) — isocpp, master 2026 — standard.
+    - Quotes: "It's error-prone and requires expert level knowledge of language features, machine architecture, and data structures." "Spot the bug. It would be really hard to find through testing."
+    - Verification: verbatim.
+  - [C++ Core Guidelines CP.110: Do not write your own double-checked locking for initialization](https://raw.githubusercontent.com/isocpp/CppCoreGuidelines/master/CppCoreGuidelines.md) — isocpp, master 2026 — standard.
+    - Quote: "Use either static local variables of C++11 or std::call_once instead of writing your own double-checked locking for initialization."
+    - Verification: verbatim; added by the verifier.
+  - [SpotBugs bug descriptions](https://spotbugs.readthedocs.io/en/latest/bugDescriptions.html) — SpotBugs, 2026 — official_docs.
+    - Content: DC_DOUBLECHECK "Possible double-check of field", DC_PARTIALLY_CONSTRUCTED "Possible exposure of partially initialized object", LI_LAZY_INIT_STATIC.
+    - Verification: confirmed.
+  - [Understanding Real-World Concurrency Bugs in Go](https://songlh.github.io/paper/go-study.pdf) — Tu et al., 2019 — peer_reviewed.
+    - Quote: Docker#24007, "The fix is to use Once package to enforce that the channel is only closed once."
+    - Verification: verbatim.
+- **Detect:**
+  - Java: SpotBugs DC_DOUBLECHECK, LI_LAZY_INIT_STATIC, AT_NONATOMIC_OPERATIONS_ON_SHARED_VARIABLE.
+  - C++: `rg -n "compare_exchange_(weak|strong)|memory_order_relaxed|std::atomic<.*\*>"`. Require a justification and a test for each hit.
+  - Go: `atomic.Load/Store/CompareAndSwap` used as a hand-made init flag. Replace with sync.Once or OnceValue (OnceValue not verified here).
+  - Rust: `rg -n "Ordering::Relaxed|compare_exchange"` outside well-known crates.
+- **Tools:** SpotBugs, ripgrep, manual review.
+- **Applies to:** C++, Java, Go, Rust, C#.
+- **When not to apply / counterpoints:**
+  - Performance-critical code can justify lock-free structures when backed by benchmarks and model checking.
+  - Rewriting working lock-free code carries its own regression risk, so demand a test harness first.
+  - CP.111 allows a "conventional pattern" if double-checked locking is truly needed.
+  - Grade B: backed by standards and tool rules, but no measured defect-rate data.
+- **Fix risk:** medium
+
+## Practitioner voice
+- [Lobsters: Futurelock](https://lobste.rs/s/fzro7f/futurelock) — Oct 2025, 33 comments.
+  - kornel: "`tokio::select!` itself is a wrong design".
+  - quad shows the same deadlock with `timeout(…, &mut future1)`.
+  - withoutboats frames it as intra-task concurrency, where "the flow of control is an implicit shared resource".
+  - There is no consensus on the root cause, and no lint.
+- [Lobsters: Cancelling async Rust](https://lobste.rs/s/d4batn/cancelling_async_rust) — a practitioner's webhook handler silently stopped logging because "GitHub killing the connection after 10 seconds was killing my code too". The fix was to spawn a task. Oxide turns "shared mutable state into single-owner mutable state" (actors) instead of relying on Tokio mutexes.
+- [Cancelling async Rust (blog)](https://sunshowers.io/posts/cancelling-async-rust/) — two Oxide production bugs:
+  - a mutex-protected `Option` was taken, then cancelled at an await and left `None`;
+  - a `try_join` shutdown that stopped waiting for the other services' shutdown.
+- [RFD 609 Futurelock](https://rfd.shared.oxide.computer/rfd/0609) — traced to omicron#9259, where "essentially every incoming HTTP request hung indefinitely". "None of these by itself is wrong, but combining them results in futurelock." It recommends biasing toward spawning tasks.
+- [Roblox return to service 10/28–10/31 2021](https://about.roblox.com/newsroom/2022/01/roblox-return-to-service-10-28-10-31-2021/) — "The outage lasted 73 hours." Under very high read and write load, Consul streaming "exacerbates the amount of contention on a single Go channel, which causes blocking during writes". This combined with a BoltDB freelist pathology. The live page reset the connection; the text was read from the Wayback Machine copy.
+- [Lobsters: The Heisenbug lurking in your Python async code](https://lobste.rs/s/vqttsw/heisenbug_lurking_your_python_async_code) — the create_task reference warning was absent from the 3.7 docs and subtle in 3.9. A refactor may delete the "unused" reference. A commenter asked for a lint, which Ruff RUF006 now provides. carlana notes Go avoids the problem by never collecting goroutines, "but that has its own downsides".
+- [The Heisenbug lurking in your async code](https://textual.textualize.io/blog/2023/02/11/the-heisenbug-lurking-in-your-async-code/) — Textual's author hit the weak-reference bug and found "a lot of projects" with it via GitHub code search. He attributes it to developers treating tasks like threads.
+- [Data Race Patterns in Go](https://www.uber.com/blog/data-race-patterns-in-go/) — Uber rolled out the race detector: about 2,000 races found and about 1,100 fixed by 210 developers in six months. It catalogues the recurring patterns.
+- [asyncio: We Did It Wrong](https://www.roguelynn.com/words/asyncio-we-did-it-wrong/) — Lynn Root (Spotify), 2018, updated 2019. Tutorials hide the hard parts: lost task exceptions, graceful shutdown, cancellation, and blocking dependencies ("This quickly got difficult").
+- [Lobsters: Notes on structured concurrency](https://lobste.rs/s/8msejg/notes_on_structured_concurrency_go) — 2021. Dissent: it "doesn't touch data sharing patterns". matklad: "data races are not the only problem with concurrency". peterbourgon describes it as moving "the mechanics of concurrency out of your components".
+- [ESLint issue #11899](https://github.com/eslint/eslint/issues/11899) — `require-atomic-updates` flagged race-free code. The issue was labelled accepted and later archived due to age, which is why hits need manual triage.
+- [Smashing the state machine](https://portswigger.net/research/smashing-the-state-machine) — the single-packet attack lands 20–30 requests with about a 1 ms median spread, which makes check-then-act races practical to exploit. Example: a Devise email-confirmation race (GitLab CVE-2022-4037).
+- [ACIDRain (Flexcoin incident)](http://www.bailis.org/papers/acidrain-sigmod2017.pdf) — "By sending thousands of simultaneous requests" an attacker drained the Flexcoin exchange in 2014.
+
+## Contradictions and open questions
+
+**Contradictions:**
+- **C#/.NET ConfigureAwait and async elision.**
+  - Okur et al. (ICSE'14) say "ConfigureAwait(false) must be set" wherever the code after an await does not touch the UI, and call async/await unnecessary in 14% of methods.
+  - Toub (Microsoft, 2019) says app-level code should not use it, and ASP.NET Core has no SynchronizationContext.
+  - Fowler prefers async/await over returning the Task.
+  - A hardening skill must separate library code from app code.
+- **Parallelism versus backpressure in JS.** ESLint `no-await-in-loop` pushes toward Promise.all, but its own docs list rate limits, bounded resources and retries as valid reasons for sequential awaits. An unbounded Promise.all over user-sized input conflicts with the backpressure evidence (Node streams: 1.52 GB vs 87.81 MB).
+- **Which mutex to use in Rust async.** The common advice is "use an async mutex". Tokio says the std Mutex is "often preferred" when it is not held across an await. Oxide advises "Avoid Tokio mutexes" for invariants. A Tokio mutex's fair queue is also one ingredient of futurelock.
+- **Pinning a future outside a `select!` loop.** Tokio documents reusing a future across iterations via `&mut` so progress isn't lost. RFD 609 shows that `&mut` futures in select! are exactly what enables futurelock, and suggests spawning or JoinSet instead. Neither source settles when each applies.
+- **Bounding channels.** "Bound everything" (Node, Tokio's unbounded-channel warning, Alibaba p3c) conflicts with futurelock, where a capacity-1 bounded channel was part of a production hang and raising capacity was rejected as a fix.
+- **Go's "share memory by communicating".** Tu et al. found message passing caused about 58% of blocking bugs, but only about 20% of non-blocking bugs. Developers also often chose channels as the fix. Channels move the risk from races to leaks and deadlocks rather than removing it.
+- **Locks as the fix.** Lu et al. (C/C++, 2008) found 73% of non-deadlock bugs were fixed without adding or changing locks. Tu et al. (Go, 2019) found Mutex the most used primitive in non-blocking-bug patches (32; Table 11). The evidence depends on language and era.
+- **Root cause of futurelock.** kornel blames select!'s design; quad and withoutboats point to intra-task concurrency in general. The RFD says there is no construct it can point to and say "never do this".
+- **Structured concurrency.** Smith, Kotlin and Python TaskGroup present it as the default. Dissenters note it does nothing for data races, and long-lived services need application-scoped tasks. There is no empirical defect-rate evidence either way.
+- **Virtual threads on the JVM.** Pre-JDK-24 advice to replace `synchronized` with ReentrantLock is reversed by JEP 491, which quotes "Use synchronized where practical".
+- **SERIALIZABLE as a fix.** Feral CC and PostgreSQL point to stronger isolation or atomic statements. ACIDRain shows 17 of 22 attacks survive the strongest isolation because the transaction boundaries are wrong. Isolation level alone is not a fix.
+
+**Open questions:**
+- No peer-reviewed prevalence study of JS/TS promise bugs was located. The JS findings rest on official tool docs.
+- How to choose timeout values: this dossier includes no source of its own for percentile-based timeout selection or retry-amplification numbers, but sibling dossiers verified both. error-handling T14-F11 verified Brooker's AWS Builders' Library PDF ("we choose an acceptable rate of false timeouts (such as 0.1%)… (p99.9 in this example)"), error-handling T14-F12 verified the retry-amplification figures from the same PDF and the Google SRE book ("If each layer retries independently, the load on the database will increase 243x"; a 10% retry budget "reduces the growth to just 1.1x"), and error-handling T14-F13 verified the Builders' Library idempotency article that T29-F19 cites. Use those findings for T29-F13 and T29-F19. What stays open is only the Builders' Library health-check article, which no dossier verified.
+- The effect of structured concurrency on real defect rates is unmeasured.
+- No lint detects Rust futurelock or cancel-correctness bugs.
+- How much GIL-reliant Python code breaks under the free-threaded 3.14 build, and how to detect it, is unknown.
+- The false-positive and false-negative rates of Go 1.27's goroutineleak profile in production are not reported.
+- Java 21+ StructuredTaskScope / ScopedValue status as of JDK 25/26 was not verified.
+- Whether C#'s Task.WhenAll/WhenAny match Promise.all's "no cancel on failure" semantics was not verified with a source.
+
+## Dropped findings
+None. All 25 findings had real sources that support the core rule. Unsupported side claims inside findings were corrected or marked unverified rather than dropped:
+- the C# WhenAll semantics;
+- `runBlocking` in Kotlin;
+- the claim that eliding async saves an allocation;
+- trio/anyio nurseries being immune to the create_task GC issue;
+- Python `Condition.wait_for` and Go `OnceValue`;
+- the `python -X dev` detection recipe.

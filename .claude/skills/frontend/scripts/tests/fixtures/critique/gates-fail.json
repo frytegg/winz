@@ -1,0 +1,14 @@
+{
+  "ok": false,
+  "tool": "frontend-check",
+  "version": "1",
+  "at": "2026-10-01T10:00:00Z",
+  "target": {},
+  "counts": {"ok": 2, "fail": 1, "skipped": 1},
+  "gates": [
+    {"id": "render.console", "title": "No console errors on any route", "ifDropped": "a page that throws would pass", "state": "ok", "detail": "0 errors", "evidence": []},
+    {"id": "render.clipping", "title": "No clipped text", "ifDropped": "cut-off text would pass", "state": "fail", "detail": "1 clipped text container", "evidence": [{"route": "/", "viewport": "desktop", "selector": "h1", "value": "238px"}]},
+    {"id": "a11y.axe", "title": "axe finds no violation", "ifDropped": "an inaccessible page would pass", "state": "ok", "detail": "0 violations", "evidence": []},
+    {"id": "motion.reduced", "title": "Content visible under reduced motion", "ifDropped": "hidden content would pass", "state": "skipped", "detail": "not requested", "evidence": []}
+  ]
+}

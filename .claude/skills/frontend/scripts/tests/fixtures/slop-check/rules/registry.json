@@ -1,0 +1,311 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "SL-T02",
+      "family": "owner-tell",
+      "title": "Fixture tier-1 rule on both layers",
+      "tell": 2,
+      "static": true,
+      "runtime": true,
+      "tier": "tier1",
+      "anchor": true,
+      "weight": 2,
+      "scope": "fx-t02 in code; data-fx=\"t02\" rendered",
+      "falsePositives": "fixture: fires only on its fx- marker",
+      "fix": "fixture: remove the marker",
+      "sources": [
+        "FIXTURE slop-check"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-X02",
+      "family": "invented",
+      "title": "Fixture tier-1 rule, static only",
+      "tell": null,
+      "static": true,
+      "runtime": false,
+      "tier": "tier1",
+      "anchor": true,
+      "weight": 3,
+      "scope": "fx-x02 in code",
+      "falsePositives": "fixture: fires only on its fx- marker",
+      "fix": "fixture: remove the marker",
+      "sources": [
+        "FIXTURE slop-check"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T04",
+      "family": "owner-tell",
+      "title": "Fixture tier-2 rule with a category allowlist",
+      "tell": 4,
+      "static": true,
+      "runtime": true,
+      "tier": "tier2",
+      "anchor": false,
+      "weight": 2,
+      "scope": "fx-t04 in code; data-fx=\"t04\" rendered",
+      "falsePositives": "fixture: fires only on its fx- marker",
+      "fix": "fixture: remove the marker",
+      "sources": [
+        "FIXTURE slop-check"
+      ],
+      "allowlist": "category",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T09",
+      "family": "owner-tell",
+      "title": "Fixture tier-2 rule, runtime only",
+      "tell": 9,
+      "static": false,
+      "runtime": true,
+      "tier": "tier2",
+      "anchor": false,
+      "weight": 2,
+      "scope": "data-fx=\"t09\" rendered",
+      "falsePositives": "fixture: fires only on its fx- marker",
+      "fix": "fixture: remove the marker",
+      "sources": [
+        "FIXTURE slop-check"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T01",
+      "family": "owner-tell",
+      "title": "Fixture candidate with the sponsor-hash allowlist",
+      "tell": 1,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 2,
+      "scope": "fx-t01 in code or in public/sponsor.svg; data-fx=\"t01\" rendered",
+      "falsePositives": "fixture: fires only on its fx- marker",
+      "fix": "fixture: remove the marker",
+      "sources": [
+        "FIXTURE slop-check"
+      ],
+      "allowlist": "sponsor-hash",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-G01",
+      "family": "generator",
+      "title": "Fixture candidate anchor, static only",
+      "tell": null,
+      "static": true,
+      "runtime": false,
+      "tier": "candidate",
+      "anchor": true,
+      "weight": 2,
+      "scope": "fx-g01 in code",
+      "falsePositives": "fixture: fires only on its fx- marker",
+      "fix": "fixture: remove the marker",
+      "sources": [
+        "FIXTURE slop-check"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-C01",
+      "family": "claude-era",
+      "title": "Fixture candidate with a category allowlist",
+      "tell": null,
+      "static": true,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": false,
+      "weight": 1,
+      "scope": "fx-c01 in code; data-fx=\"c01\" rendered",
+      "falsePositives": "fixture: fires only on its fx- marker",
+      "fix": "fixture: remove the marker",
+      "sources": [
+        "FIXTURE slop-check"
+      ],
+      "allowlist": "category",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-M04",
+      "family": "missing-tell",
+      "title": "Fixture candidate anchor, runtime only",
+      "tell": null,
+      "static": false,
+      "runtime": true,
+      "tier": "candidate",
+      "anchor": true,
+      "weight": 2,
+      "scope": "data-fx=\"m04\" rendered",
+      "falsePositives": "fixture: fires only on its fx- marker",
+      "fix": "fixture: remove the marker",
+      "sources": [
+        "FIXTURE slop-check"
+      ],
+      "allowlist": "none",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "SL-T08",
+      "family": "owner-tell",
+      "title": "Fixture advisory rule",
+      "tell": 8,
+      "static": true,
+      "runtime": true,
+      "tier": "advisory",
+      "anchor": false,
+      "weight": 2,
+      "scope": "fx-t08 in code; data-fx=\"t08\" rendered",
+      "falsePositives": "fixture: fires only on its fx- marker",
+      "fix": "fixture: remove the marker",
+      "sources": [
+        "FIXTURE slop-check"
+      ],
+      "allowlist": "category",
+      "calibration": {
+        "positives": {
+          "fired": 0,
+          "total": 0
+        },
+        "controls": {
+          "fired": 0,
+          "total": 0
+        },
+        "exemplars": {
+          "fired": 0,
+          "total": 0
+        },
+        "date": null,
+        "notes": ""
+      }
+    }
+  ]
+}

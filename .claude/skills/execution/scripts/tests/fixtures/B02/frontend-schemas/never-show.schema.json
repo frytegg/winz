@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:frontend:schema:never-show:1",
+  "title": "Never-show list",
+  "description": "The never-show list at profile paths.never_show (scripts/CONTRACTS.md 6.1b), one JSON file shared with /execution: /execution's banned-phrase grep reads entries of scope repo or both before every commit and before the public flip; /frontend's coverage.nevershow reads entries of scope rendered or both on rendered text. An entry whose until_utc is in the past is inactive. An embargo always carries its end date.",
+  "type": "object",
+  "required": ["version", "entries"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"const": 1},
+    "entries": {"type": "array", "items": {"$ref": "#/$defs/entry"}}
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "required": ["id", "class", "pattern", "regex", "case_sensitive", "until_utc", "scope", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"},
+        "class": {"enum": ["do-not-carry", "undisclosed-security", "never-public", "embargo"]},
+        "pattern": {"type": "string", "minLength": 1, "description": "A literal substring, or a JavaScript regular expression when regex is true."},
+        "regex": {"type": "boolean", "default": false},
+        "case_sensitive": {"type": "boolean", "default": false},
+        "until_utc": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "format": "date-time", "pattern": "Z$"}
+          ],
+          "default": null,
+          "description": "UTC end of the entry; null means it never expires."
+        },
+        "scope": {"enum": ["rendered", "repo", "both"]},
+        "note": {"type": "string"},
+        "source": {"type": "string", "minLength": 1, "pattern": "\\S", "description": "The file (and line when known) the entry comes from, for example a memory note or a redaction file."}
+      },
+      "allOf": [
+        {
+          "description": "An embargo has an end date.",
+          "if": {"properties": {"class": {"const": "embargo"}}},
+          "then": {"properties": {"until_utc": {"type": "string"}}}
+        },
+        {
+          "description": "A regex entry must compile.",
+          "if": {"properties": {"regex": {"const": true}}},
+          "then": {"properties": {"pattern": {"format": "regex"}}}
+        }
+      ]
+    }
+  }
+}

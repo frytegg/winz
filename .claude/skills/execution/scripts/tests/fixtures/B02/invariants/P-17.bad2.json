@@ -1,0 +1,14 @@
+{
+ "base": "base.json",
+ "note": "FE-21 without the newest EX-FIX-GATE",
+ "expect": [
+  "E_DELIVERABLE_ORDER"
+ ],
+ "ops": [
+  {
+   "op": "drop-dep",
+   "task": "@frontend.fe-21",
+   "dep": "#execution.ex-fix-gate"
+  }
+ ]
+}

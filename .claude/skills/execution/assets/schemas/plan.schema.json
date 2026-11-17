@@ -1,0 +1,502 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.execution.invalid/plan.schema.json",
+  "title": ".execution/plan.json, the plan-of-record",
+  "description": "Structure only: no task status lives here (status/<executor>.json). Written only by exec.py: plan instantiate (before approval), decision resolve (the approved block), amend (everything after approval). Invariants JSON Schema cannot express are in contract/SCHEMAS.md section 2 (P-01 ... P-24).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "project", "plan_version", "created_utc", "updated_utc", "approved", "spec", "deadlines", "requirements", "feature_groups", "lanes", "protected", "tasks", "amendments"],
+  "properties": {
+    "schema": {"const": "execution.plan/1"},
+    "project": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,40}$"},
+    "plan_version": {"type": "integer", "minimum": 1},
+    "created_utc": {"$ref": "common.schema.json#/$defs/utc"},
+    "updated_utc": {"$ref": "common.schema.json#/$defs/utc"},
+    "approved": {
+      "anyOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["at_utc", "by", "decision", "plan_sha256"],
+          "properties": {
+            "at_utc": {"$ref": "common.schema.json#/$defs/utc"},
+            "by": {"$ref": "common.schema.json#/$defs/dev"},
+            "decision": {"$ref": "common.schema.json#/$defs/decision_id"},
+            "plan_sha256": {"$ref": "common.schema.json#/$defs/sha256", "description": "plan_digest() of the approved content (SCHEMAS.md 1.4)."}
+          }
+        }
+      ]
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "validated_decision"],
+      "properties": {
+        "path": {"$ref": "common.schema.json#/$defs/abs_path"},
+        "sha256": {"$ref": "common.schema.json#/$defs/sha256"},
+        "validated_decision": {"$ref": "common.schema.json#/$defs/decision_id", "description": "The resolved spec-validation decision whose spec_sha256 equals sha256."}
+      }
+    },
+    "deadlines": {"type": "array", "items": {"$ref": "#/$defs/deadline"}},
+    "requirements": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/requirement"}},
+    "feature_groups": {"type": "array", "items": {"$ref": "#/$defs/feature_group"}},
+    "lanes": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/lane"}},
+    "protected": {
+      "description": "Globs no implementer may write: acceptance tests and proof files written by the test-designer, CI workflows, hooks, test-runner configs, .claude/**, .githooks/**. Enforced by the PreToolUse guard (agent_type) and by merge's integrity scan.",
+      "$ref": "common.schema.json#/$defs/glob_list"
+    },
+    "tasks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/task"}},
+    "amendments": {"type": "array", "items": {"$ref": "#/$defs/amendment"}}
+  },
+  "$defs": {
+    "deadline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "at_utc", "kind", "irrecoverable", "gate_phase", "source"],
+      "properties": {
+        "id": {"$ref": "common.schema.json#/$defs/deadline_id"},
+        "title": {"type": "string", "minLength": 1, "maxLength": 120},
+        "at_utc": {"$ref": "common.schema.json#/$defs/utc"},
+        "kind": {"enum": ["event-start", "submission", "deck-lock", "build-complete", "freeze", "external"]},
+        "irrecoverable": {"type": "boolean", "description": "true: a completion-check gate DL.<id> is generated for it."},
+        "gate_phase": {"$ref": "common.schema.json#/$defs/gate_phase"},
+        "source": {"type": "string", "minLength": 1, "description": "Organiser text path:line, or 'computed:schedule' for build-complete."}
+      }
+    },
+    "requirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "text", "priority", "required", "feature_group", "surface", "status_expected", "story", "source"],
+      "properties": {
+        "id": {"$ref": "common.schema.json#/$defs/req_id"},
+        "title": {"type": "string", "minLength": 1, "maxLength": 80, "description": "Short title; becomes the feature catalogue title."},
+        "text": {"type": "string", "minLength": 1},
+        "priority": {"$ref": "common.schema.json#/$defs/priority"},
+        "required": {"type": "boolean"},
+        "feature_group": {"anyOf": [{"$ref": "common.schema.json#/$defs/group_id"}, {"type": "null"}]},
+        "surface": {"enum": ["ui", "api", "cli", "contract", "chain", "docs", "ops", "none"], "description": "ui requirements are exported to the feature catalogue."},
+        "status_expected": {"anyOf": [{"enum": ["live", "testnet", "simulated", "planned"]}, {"type": "null"}]},
+        "story": {"anyOf": [{"type": "string", "pattern": "^US[0-9]{1,3}$"}, {"type": "null"}]},
+        "acceptance": {"$ref": "common.schema.json#/$defs/string_list"},
+        "source": {"type": "string", "minLength": 1, "description": "spec:<abs path>#L<n>, planner (id assigned by the planner, shown at approval), or execution:standard (structural NFR from the template library)."}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"surface": {"const": "ui"}}},
+          "then": {"properties": {"feature_group": {"$ref": "common.schema.json#/$defs/group_id"}}}
+        }
+      ]
+    },
+    "feature_group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title"],
+      "properties": {
+        "id": {"$ref": "common.schema.json#/$defs/group_id"},
+        "title": {"type": "string", "minLength": 1, "maxLength": 80}
+      }
+    },
+    "lane": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "executor", "title", "globs", "contract"],
+      "properties": {
+        "id": {"$ref": "common.schema.json#/$defs/lane_id"},
+        "executor": {"$ref": "common.schema.json#/$defs/executor"},
+        "title": {"type": "string", "minLength": 1, "maxLength": 80},
+        "globs": {"allOf": [{"$ref": "common.schema.json#/$defs/glob_list"}, {"minItems": 1}]},
+        "contract": {"type": "boolean", "description": "true for the contract lane (L0): manifests, lockfile, public types, schemas, ABIs, env schema, hub files."}
+      }
+    },
+    "anchor_ref": {
+      "type": "string",
+      "pattern": "^(event\\.start|event\\.deadline|DL-[a-z0-9][a-z0-9-]{0,40}|T[0-9]{3,}\\.(ready|done))$"
+    },
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relative_to", "offset_min", "recurrence"],
+      "properties": {
+        "relative_to": {"$ref": "#/$defs/anchor_ref"},
+        "offset_min": {"type": "integer"},
+        "recurrence": {
+          "anyOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["every_min", "until"],
+              "properties": {
+                "every_min": {"type": "integer", "minimum": 15},
+                "until": {"anyOf": [{"$ref": "#/$defs/anchor_ref"}, {"$ref": "common.schema.json#/$defs/utc"}]}
+              }
+            }
+          ]
+        }
+      }
+    },
+    "negative_control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "description", "expect_nonzero"],
+      "properties": {
+        "kind": {"enum": ["pre-implementation", "planted-defect", "forgery", "not-applicable"]},
+        "description": {"type": "string", "minLength": 1},
+        "command": {"type": "string", "minLength": 1, "description": "How to run the control (pre-implementation: the proof itself on the parent SHA; planted-defect: apply patch_path then run the proof; forgery: the proof against a forged artifact)."},
+        "patch_path": {"$ref": "common.schema.json#/$defs/state_rel_path"},
+        "expect_nonzero": {"const": true},
+        "recorded": {
+          "anyOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["run", "exit_code", "at_utc"],
+              "properties": {
+                "run": {"$ref": "common.schema.json#/$defs/run_ref"},
+                "exit_code": {"type": "integer"},
+                "at_utc": {"$ref": "common.schema.json#/$defs/utc"}
+              }
+            }
+          ]
+        },
+        "waived_reason": {"type": "string", "minLength": 10}
+      },
+      "allOf": [
+        {"if": {"properties": {"kind": {"const": "not-applicable"}}}, "then": {"required": ["waived_reason"]}},
+        {"if": {"properties": {"kind": {"enum": ["planted-defect"]}}}, "then": {"required": ["patch_path"]}}
+      ]
+    },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "spec", "expect", "max_runtime_min", "negative_control"],
+      "properties": {
+        "type": {"$ref": "common.schema.json#/$defs/proof_type"},
+        "spec": {"type": "object"},
+        "expect": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["summary"],
+          "properties": {
+            "summary": {"type": "string", "minLength": 1, "description": "What a verifier must observe, in one sentence."},
+            "exit_code": {"type": "integer"},
+            "stdout_regex": {"type": "string", "minLength": 1},
+            "json": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["pointer", "equals"],
+                "properties": {
+                  "pointer": {"type": "string", "pattern": "^(/[^/]*)*$"},
+                  "equals": {}
+                }
+              }
+            }
+          }
+        },
+        "max_runtime_min": {"type": "number", "exclusiveMinimum": 0, "maximum": 30},
+        "negative_control": {"$ref": "#/$defs/negative_control"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"type": {"const": "command"}}},
+          "then": {
+            "properties": {
+              "spec": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["cmd", "shell", "cwd", "install"],
+                "properties": {
+                  "cmd": {"type": "string", "minLength": 1, "description": "Run from the clean checkout of the landed SHA. Placeholders already resolved at instantiation; never contains a secret, names an env file (programs of tx and wallet tasks read $EXEC_ENV_FILE, which proof run sets) or passes --allow-skip (P-12)."},
+                  "shell": {"enum": ["bash", "cmd"]},
+                  "cwd": {"type": "string", "pattern": "^(\\.|[A-Za-z0-9._/-]+)$"},
+                  "install": {"type": "boolean", "description": "Run the gates.json install step in the checkout first."},
+                  "timeout_s": {"type": "integer", "minimum": 10, "maximum": 1800},
+                  "env_allowlist": {"$ref": "common.schema.json#/$defs/string_list"}
+                }
+              },
+              "expect": {"required": ["exit_code"]}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"type": {"const": "tx"}}},
+          "then": {
+            "properties": {
+              "spec": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["chain", "network", "hash_from", "reader_cmd"],
+                "properties": {
+                  "chain": {"type": "string", "pattern": "^[a-z0-9-]{2,30}$"},
+                  "network": {"type": "string", "pattern": "^[a-z0-9-]{2,30}$"},
+                  "hash_from": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "minProperties": 1,
+                    "maxProperties": 1,
+                    "properties": {
+                      "answer_key": {"$ref": "common.schema.json#/$defs/answer_key"},
+                      "file": {"type": "string", "minLength": 1, "description": "Repo-relative file (in the checkout) holding the hash, with json_pointer."},
+                      "json_pointer": {"type": "string"}
+                    }
+                  },
+                  "reader_cmd": {"type": "string", "minLength": 1, "description": "Re-reads the transaction on chain through an independent provider; {hash} placeholder; exit 0 iff the outcome matches expect."}
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"type": {"const": "ci"}}},
+          "then": {
+            "properties": {
+              "spec": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["workflow", "require"],
+                "properties": {
+                  "workflow": {"type": "string", "pattern": "^[A-Za-z0-9._-]+\\.ya?ml$"},
+                  "job": {"type": "string", "minLength": 1},
+                  "require": {"const": "success"}
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"type": {"const": "file"}}},
+          "then": {
+            "properties": {
+              "spec": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["path"],
+                "properties": {
+                  "path": {"type": "string", "minLength": 1, "description": "Repo-relative (checked in the clean checkout) or absolute (private file outside the repo)."},
+                  "must_match": {"type": "string", "minLength": 1},
+                  "json_pointer": {"type": "string"},
+                  "json_equals": {},
+                  "min_bytes": {"type": "integer", "minimum": 1},
+                  "json_checks": {
+                    "description": "Checks on the value at json_pointer (CLI.md proof run, file type). pointer is relative to it; a segment * means every item of an array. utc: an ISO instant ending in Z; enum: one of values; non-empty: a non-empty string or array; url: ^https?://; equals: JSON equality with value; min-items: an array with at least value items, counting only items whose keys equal `where`; dir-exists: a directory named by the string exists under base.",
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["pointer", "check"],
+                      "properties": {
+                        "pointer": {"type": "string", "pattern": "^(/[^/]*)*$"},
+                        "check": {"enum": ["utc", "enum", "non-empty", "url", "equals", "min-items", "dir-exists"]},
+                        "values": {"type": "array", "minItems": 1},
+                        "value": {},
+                        "base": {"$ref": "common.schema.json#/$defs/abs_path"},
+                        "where": {"type": "object"}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"type": {"const": "url"}}},
+          "then": {
+            "properties": {
+              "spec": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["url", "expect_status", "render"],
+                "properties": {
+                  "url": {"type": "string", "pattern": "^https?://"},
+                  "expect_status": {"type": "integer", "minimum": 100, "maximum": 599},
+                  "must_contain": {"type": "string", "minLength": 1},
+                  "render": {"type": "boolean", "description": "true: checked by rendering (explorers answer 200 on not-found), which needs the browser resource."}
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"type": {"const": "human-attest"}}},
+          "then": {
+            "properties": {
+              "spec": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["answer_key", "attest"],
+                "properties": {
+                  "answer_key": {"$ref": "common.schema.json#/$defs/answer_key"},
+                  "attest": {"type": "string", "minLength": 1}
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "bring_back": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "kind", "verify"],
+      "properties": {
+        "key": {"$ref": "common.schema.json#/$defs/answer_key"},
+        "kind": {"enum": ["tx-hash", "screenshot", "text", "transcript", "file", "choice", "url", "sha"]},
+        "description": {"type": "string"},
+        "verify": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method"],
+          "properties": {
+            "method": {"enum": ["chain-reread", "file-exists", "choice-in-options", "regex", "sha-on-origin-main", "url-resolves", "owner-attest"]},
+            "spec": {"type": "string", "description": "reader command (chain-reread; the value is passed as its last argv element, never substituted into a shell line, after it matched the kind's strict pattern; the reader prints one JSON object {chain, network, from, to, value, block_time}), regex (regex), or empty."},
+            "expect": {
+              "description": "chain-reread only: fields the reader's JSON must equal (null = not checked); block_time must also be at or after the task's posted time.",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "chain": {"type": ["string", "null"]},
+                "network": {"type": ["string", "null"]},
+                "from": {"type": ["string", "null"]},
+                "to": {"type": ["string", "null"]},
+                "value": {"type": ["string", "null"]}
+              }
+            }
+          }
+        }
+      }
+    },
+    "manual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["steps", "bring_back", "where", "latest_start_utc", "options_source", "options", "decision_deadline_utc"],
+      "properties": {
+        "steps": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "bring_back": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/bring_back"}},
+        "options_source": {"$ref": "common.schema.json#/$defs/abs_path_or_null"},
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "label", "consequence"],
+            "properties": {
+              "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,30}$"},
+              "label": {"type": "string", "minLength": 1, "maxLength": 120},
+              "consequence": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "where": {"enum": ["phone", "laptop", "venue"]},
+        "latest_start_utc": {"$ref": "common.schema.json#/$defs/utc"},
+        "decision_deadline_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+        "push_text": {"type": "string", "maxLength": 200}
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "description", "template", "params", "feature_group", "covers", "story", "priority", "required", "phase", "kind", "owner", "executor", "depends_on", "release_utc", "deadline_utc", "anchor", "writes", "resources", "estimate", "tokens_est", "model", "effort", "proof", "proof_author", "brief_refs", "manual", "max_attempts"],
+      "properties": {
+        "id": {"$ref": "common.schema.json#/$defs/task_id"},
+        "key": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,60}$", "description": "The planner draft's stable key, kept for traceability."},
+        "title": {"type": "string", "minLength": 1, "maxLength": 120},
+        "description": {"type": "string", "minLength": 1, "description": "Objective, exact paths, output, boundaries (one deliverable)."},
+        "template": {"anyOf": [{"$ref": "common.schema.json#/$defs/template_ref"}, {"type": "null"}]},
+        "template_digest": {"$ref": "common.schema.json#/$defs/sha256"},
+        "params": {"type": "object"},
+        "feature_group": {"anyOf": [{"$ref": "common.schema.json#/$defs/group_id"}, {"type": "null"}]},
+        "covers": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "common.schema.json#/$defs/req_id"}},
+        "story": {"anyOf": [{"type": "string", "pattern": "^US[0-9]{1,3}$"}, {"type": "null"}]},
+        "priority": {"$ref": "common.schema.json#/$defs/priority"},
+        "required": {"type": "boolean"},
+        "phase": {"$ref": "common.schema.json#/$defs/phase"},
+        "kind": {"$ref": "common.schema.json#/$defs/kind"},
+        "owner": {"$ref": "common.schema.json#/$defs/owner"},
+        "executor": {"$ref": "common.schema.json#/$defs/executor"},
+        "lane": {"$ref": "common.schema.json#/$defs/lane_id"},
+        "depends_on": {"type": "array", "uniqueItems": true, "items": {"$ref": "common.schema.json#/$defs/task_id"}},
+        "release_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+        "deadline_utc": {"$ref": "common.schema.json#/$defs/utc_or_null"},
+        "anchor": {"anyOf": [{"$ref": "#/$defs/anchor"}, {"type": "null"}]},
+        "writes": {"$ref": "common.schema.json#/$defs/glob_list"},
+        "resources": {"type": "array", "uniqueItems": true, "items": {"$ref": "common.schema.json#/$defs/resource"}},
+        "estimate": {"$ref": "common.schema.json#/$defs/estimate"},
+        "tokens_est": {"$ref": "common.schema.json#/$defs/tokens_est"},
+        "model": {"$ref": "common.schema.json#/$defs/model_or_null"},
+        "effort": {"$ref": "common.schema.json#/$defs/effort_or_null"},
+        "verify": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model", "effort"],
+          "properties": {
+            "model": {"$ref": "common.schema.json#/$defs/model"},
+            "effort": {"$ref": "common.schema.json#/$defs/effort"}
+          }
+        },
+        "proof": {"$ref": "#/$defs/proof"},
+        "proof_author": {"enum": ["test-designer", "template", "owner", "planner"]},
+        "brief_refs": {"type": "array", "uniqueItems": true, "items": {"$ref": "common.schema.json#/$defs/abs_path"}},
+        "manual": {"anyOf": [{"$ref": "#/$defs/manual"}, {"type": "null"}]},
+        "max_attempts": {"type": "integer", "minimum": 1, "maximum": 3}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"kind": {"enum": ["manual", "decision"]}}},
+          "then": {
+            "properties": {
+              "owner": {"enum": ["devA", "devB"]},
+              "model": {"type": "null"},
+              "effort": {"type": "null"},
+              "manual": {"$ref": "#/$defs/manual"}
+            }
+          },
+          "else": {
+            "properties": {
+              "owner": {"const": "agent"},
+              "model": {"$ref": "common.schema.json#/$defs/model"},
+              "effort": {"$ref": "common.schema.json#/$defs/effort"},
+              "manual": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"proof": {"properties": {"type": {"const": "human-attest"}}}}},
+          "then": {"properties": {"kind": {"enum": ["manual", "decision"]}}}
+        },
+        {
+          "if": {"properties": {"kind": {"enum": ["code", "test", "infra"]}}},
+          "then": {
+            "properties": {
+              "writes": {"minItems": 1},
+              "proof_author": {"enum": ["test-designer", "template"]}
+            },
+            "required": ["lane"]
+          }
+        }
+      ]
+    },
+    "amendment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan_version", "at_utc", "by", "decision", "summary", "added", "changed", "superseded", "plan_sha256_before", "plan_sha256_after"],
+      "properties": {
+        "plan_version": {"type": "integer", "minimum": 2},
+        "at_utc": {"$ref": "common.schema.json#/$defs/utc"},
+        "by": {"$ref": "common.schema.json#/$defs/executor"},
+        "decision": {"$ref": "common.schema.json#/$defs/decision_id"},
+        "summary": {"type": "string", "minLength": 1, "maxLength": 300},
+        "added": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/task_id"}},
+        "changed": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/task_id"}},
+        "superseded": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/task_id"}},
+        "requirements_added": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/req_id"}},
+        "plan_sha256_before": {"$ref": "common.schema.json#/$defs/sha256"},
+        "plan_sha256_after": {"$ref": "common.schema.json#/$defs/sha256"}
+      }
+    }
+  }
+}

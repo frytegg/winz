@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:frontend:schema:fragment-commands:1",
+  "title": "Commands the wave fragments run",
+  "description": "A workflow script cannot run Node, so every command in assets/wave-fragments/*.js runs inside an agent() call that returns $defs/runResult; the JSON the command prints on stdout must match the $defs entry named for it here. Defaults (each overridable through the fragment's input.commands): critique.mjs measure, critique.mjs ui-copy and critique.mjs --verify-receipt (feCritique and the FE-20 proof); board.mjs render, board.mjs screen and board.mjs board (feDirections). Restore uses plain git. Exit codes follow scripts/CONTRACTS.md section 1.",
+  "$defs": {
+    "runResult": {
+      "type": "object",
+      "required": ["exit_code", "json", "stderr_tail"],
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {"type": "integer", "description": "The command's real exit code."},
+        "json": {"type": ["object", "null"], "description": "stdout parsed as JSON, or null when stdout is not one JSON object."},
+        "stderr_tail": {"type": "string", "description": "Last lines of stderr, at most 2,000 characters."}
+      }
+    },
+    "gateSummary": {
+      "type": "object",
+      "required": ["ok", "counts", "failing"],
+      "properties": {
+        "ok": {"type": "boolean"},
+        "counts": {
+          "type": "object",
+          "required": ["ok", "fail", "skipped"],
+          "properties": {
+            "ok": {"type": "integer", "minimum": 0},
+            "fail": {"type": "integer", "minimum": 0},
+            "skipped": {"type": "integer", "minimum": 0}
+          }
+        },
+        "failing": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"},
+          "description": "Ids of the gates that are fail or skipped (a skipped gate never counts as passing)."
+        }
+      }
+    },
+    "measure": {
+      "type": "object",
+      "description": "critique.mjs measure --round <n> --label <baseline|candidate> --profile <p> --state <s> --root . <target>: runs the --phase build gates on the served build, computes the deterministic sub-scores, writes DOM-marked viewport tiles at 1440x900 and 390x844 (DPR 2, animations disabled), the marks file, the binary checklist derived from the brief and the critic task file under <state>/critique/round-<n>/<label>/, and prints this object.",
+      "required": ["round", "label", "sha", "ui_tree", "dir", "gates", "scores", "deterministic", "task_file", "tiles", "first_view", "proposition"],
+      "properties": {
+        "round": {"type": "integer", "minimum": 0},
+        "label": {"type": "string", "minLength": 1},
+        "sha": {"type": "string", "pattern": "^[0-9a-f]{7,64}$", "description": "git HEAD of the measured tree."},
+        "ui_tree": {"type": "string", "pattern": "^[0-9a-f]{7,64}$", "description": "git rev-parse HEAD:<ui_root>, which survives a rebase when nothing else touched the UI."},
+        "dir": {"type": "string", "minLength": 1},
+        "gates": {"$ref": "#/$defs/gateSummary"},
+        "scores": {
+          "type": "object",
+          "additionalProperties": {"type": "number"},
+          "description": "Deterministic sub-scores, each higher-is-better (layout, typography, contrast margin, page economy, ...)."
+        },
+        "deterministic": {
+          "type": "array",
+          "description": "Problems a deterministic check measured, tied to marks; they confirm a critic's issue on the same mark.",
+          "items": {
+            "type": "object",
+            "required": ["mark", "check", "problem"],
+            "properties": {
+              "mark": {"type": "string", "minLength": 1},
+              "check": {"type": "string", "minLength": 1},
+              "problem": {"type": "string", "minLength": 1},
+              "fix": {"type": "string"}
+            }
+          }
+        },
+        "task_file": {"type": "string", "minLength": 1, "description": "Critic task file for kind critique: tiles, marks, checklist, brief and the output format."},
+        "tiles": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["viewport", "path"],
+            "properties": {"viewport": {"type": "string"}, "path": {"type": "string"}}
+          }
+        },
+        "first_view": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"type": "string", "minLength": 1},
+          "description": "Viewport name to the path of its first-viewport image, unmarked, for the blind probes."
+        },
+        "proposition": {"type": "string", "minLength": 1, "description": "The brief's one-line proposition (brief.hero.h1 and brief.hero.sentence)."}
+      }
+    },
+    "uiCopy": {
+      "type": "object",
+      "required": ["ok", "path"],
+      "properties": {"ok": {"type": "boolean"}, "path": {"type": "string"}}
+    },
+    "verifyReceipt": {
+      "type": "object",
+      "description": "critique.mjs --verify-receipt <path> --root .: exit 0 only when the receipt validates against critique-receipt.schema.json, its checksum matches, ok is true and best.ui_tree equals git rev-parse HEAD:<ui_root>.",
+      "required": ["ok", "errors"],
+      "properties": {"ok": {"type": "boolean"}, "errors": {"type": "array", "items": {"type": "string"}}}
+    },
+    "render": {
+      "type": "object",
+      "description": "board.mjs render --direction <A|B|C> --state <s> --profile <p>: renders <state>/directions/<id>/hero.html at 1440x900 and 390x844.",
+      "required": ["direction", "hero_desktop", "hero_mobile"],
+      "properties": {
+        "direction": {"type": "string", "pattern": "^[A-C]$"},
+        "hero_desktop": {"type": "string", "minLength": 1},
+        "hero_mobile": {"type": "string", "minLength": 1}
+      }
+    },
+    "screen": {
+      "type": "object",
+      "description": "board.mjs screen --direction <A|B|C> --generic <state>/similar-prompt --state <s> --profile <p>: the checker on the hero comp, the similar-prompt test (tokens identical to the generic plan) and the ledger of past directions.",
+      "required": ["direction", "ok", "findings"],
+      "properties": {
+        "direction": {"type": "string", "pattern": "^[A-C]$"},
+        "ok": {"type": "boolean"},
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["check", "detail"],
+            "properties": {"check": {"type": "string"}, "detail": {"type": "string"}}
+          }
+        },
+        "identical_to_generic": {"type": "array", "items": {"type": "string"}},
+        "near_duplicate_of": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "board": {
+      "type": "object",
+      "description": "board.mjs board --state <s> --profile <p>: the direction board the orchestrator publishes for H1.",
+      "required": ["ok", "path", "directions"],
+      "properties": {
+        "ok": {"type": "boolean"},
+        "path": {"type": "string", "minLength": 1},
+        "directions": {"type": "array", "items": {"type": "string", "pattern": "^[A-C]$"}}
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "session_id": "sess-orch-1",
+  "transcript_path": "C:/tmp/exec-test/t.jsonl",
+  "cwd": "<REPO>",
+  "permission_mode": "bypassPermissions",
+  "hook_event_name": "PreToolUse",
+  "agent_id": "agent-7",
+  "agent_type": "execution-implementer",
+  "tool_name": "Bash",
+  "tool_input": {"command": "git status"}
+}

@@ -1,0 +1,19 @@
+{
+ "base": "base.json",
+ "note": "an implementer writing a protected glob (ok: a test-designer test task may)",
+ "ops": [
+  {
+   "op": "append",
+   "path": "/plan/protected",
+   "value": "docs/**"
+  },
+  {
+   "op": "append",
+   "path": "/plan/tasks/@execution.ex-readme/writes",
+   "value": "docs/guide.md"
+  }
+ ],
+ "expect": [
+  "E_PROTECTED"
+ ]
+}

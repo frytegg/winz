@@ -1,0 +1,43 @@
+{
+  "schema": "execution.result.test-designer/1",
+  "role": "test-designer",
+  "wave": "W01",
+  "attempt": 1,
+  "commit": null,
+  "files_written": [],
+  "proofs": [
+    {
+      "task": "T001",
+      "proof": {
+        "type": "command",
+        "spec": {
+          "cmd": "node --test",
+          "shell": "bash",
+          "cwd": ".",
+          "install": false
+        },
+        "expect": {
+          "summary": "the task's tests pass",
+          "exit_code": 0
+        },
+        "max_runtime_min": 2,
+        "negative_control": {
+          "kind": "pre-implementation",
+          "description": "fails on the parent commit",
+          "expect_nonzero": true
+        }
+      },
+      "acceptance": [
+        "tests pass"
+      ],
+      "negative_control": {
+        "kind": "pre-implementation",
+        "command": "node --test",
+        "ran": true,
+        "exit_code": 1,
+        "failed_as_required": true
+      }
+    }
+  ],
+  "notes": ""
+}

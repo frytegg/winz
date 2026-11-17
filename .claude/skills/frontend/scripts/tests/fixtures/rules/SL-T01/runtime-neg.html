@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SL-T01 runtime negative</title>
+<style>
+  body { margin: 0; padding: 32px; font-family: Arial, sans-serif; color: #111; }
+  .block { height: 120px; margin-bottom: 16px; border-radius: 8px; }
+  /* purple into pink: no blue stop */
+  .purple-pink { background-image: linear-gradient(90deg, #a855f7, #ec4899); }
+  /* a multi-hue data meter (green, blue, violet, gold): a ramp, not the sweep (FD14-F07) */
+  .meter { height: 12px; background: linear-gradient(to right, #7A9E6E, #5B9BD5, #A78BFA, #C9A84C); }
+  /* purple and blue washes under 30% alpha */
+  .wash { background-image: linear-gradient(rgba(139, 92, 246, 0.1), rgba(59, 130, 246, 0.1)); }
+  /* blue into cyan: no purple stop */
+  .blue-cyan { background-image: linear-gradient(#3b82f6, #06b6d4); }
+  /* a purple-to-blue gradient that never renders */
+  .hidden { display: none; background-image: linear-gradient(135deg, #8b5cf6, #3b82f6); }
+  .solid { display: inline-block; padding: 12px 20px; background: #7c3aed; color: #fff; border-radius: 8px; }
+</style>
+</head>
+<body>
+  <h1>Collateral health, block by block</h1>
+  <div class="block purple-pink"></div>
+  <div class="block meter" role="meter" aria-valuenow="62" aria-valuemin="0" aria-valuemax="100"></div>
+  <div class="block wash"></div>
+  <div class="block blue-cyan"></div>
+  <div class="block hidden"></div>
+  <button class="solid" type="button">Open the vault</button>
+</body>
+</html>

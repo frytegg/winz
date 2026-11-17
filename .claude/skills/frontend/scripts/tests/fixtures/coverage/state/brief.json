@@ -1,0 +1,18 @@
+{
+  "project": {"name": "Queue Clock", "name_status": "working", "source": "profile.json#project.name"},
+  "sentences": {"broken": "", "did": "", "source": ""},
+  "hero": {
+    "h1": "See when your withdrawal clears",
+    "sentence": "Lenders see where their withdrawal stands in the queue and when it becomes claimable.",
+    "source": "research/findings/wave3/_recommendation.md:8; research/findings/wave3/_recommendation.md:10"
+  },
+  "gap": {"text": "", "who_loses": "", "how_much": "", "source": ""},
+  "sponsors": [{"id": "cardano", "name": "Cardano", "strategy": "", "source": "profile.json#sponsors"}],
+  "customers": [],
+  "use_case": {"text": "", "source": ""},
+  "features": [],
+  "claims": {"path": "", "ids": []},
+  "never_show": [],
+  "judge_path": {"beats": [], "source": ""},
+  "missing": []
+}

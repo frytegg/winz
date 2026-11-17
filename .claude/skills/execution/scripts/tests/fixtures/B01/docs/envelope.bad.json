@@ -1,0 +1,11 @@
+{
+  "ok": "yes",
+  "command": "wave emit",
+  "data": {
+    "wave": "W01"
+  },
+  "errors": [],
+  "warnings": [],
+  "exit_code": 0,
+  "contract": "execution/1"
+}

@@ -1,0 +1,17 @@
+{
+ "base": "base.json",
+ "note": "release after deadline",
+ "ops": [
+  {
+   "op": "set",
+   "path": "/plan/tasks/@engine/release_utc",
+   "value": "2026-10-03T10:00:00Z"
+  },
+  {
+   "op": "set",
+   "path": "/plan/tasks/@engine/deadline_utc",
+   "value": "2026-10-03T11:00:00Z"
+  }
+ ],
+ "expect": []
+}

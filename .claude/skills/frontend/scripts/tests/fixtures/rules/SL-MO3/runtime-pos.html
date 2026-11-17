@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slow UI motion</title>
+<style>
+  body { margin: 0; font-family: Arial, sans-serif; color: #111; padding: 48px; }
+  .reveal { animation: up 800ms ease-out both; padding: 24px; border: 1px solid #ddd; max-width: 600px; }
+  .btn { transition: transform 700ms ease-out; padding: 10px 16px; }
+  .btn:hover { transform: translateY(-4px); }
+  @keyframes up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+  <section class="reveal"><h2>Vaults</h2><p>An 800 ms section entrance.</p></section>
+  <button class="btn" type="button">Deposit</button>
+</body>
+</html>

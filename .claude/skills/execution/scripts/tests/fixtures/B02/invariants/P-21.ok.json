@@ -1,0 +1,15 @@
+{
+ "base": "base.json",
+ "note": "brief_refs that exist",
+ "expect": [],
+ "expect_no_warning": "W_BRIEF_REF_MISSING",
+ "ops": [
+  {
+   "op": "set",
+   "path": "/plan/tasks/@engine/brief_refs",
+   "value": [
+    "C:/x/qc/private/SPEC.md"
+   ]
+  }
+ ]
+}

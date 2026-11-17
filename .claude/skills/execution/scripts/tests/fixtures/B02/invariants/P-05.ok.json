@@ -1,0 +1,12 @@
+{
+ "base": "base.json",
+ "note": "a requirement naming an unknown feature group",
+ "ops": [
+  {
+   "op": "set",
+   "path": "/plan/requirements/@FR-001/feature_group",
+   "value": "G2"
+  }
+ ],
+ "expect": []
+}

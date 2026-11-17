@@ -1,0 +1,6 @@
+{
+ "base": "base2.json",
+ "note": "a task of executor B writing the /frontend state",
+ "ops": [],
+ "expect": []
+}

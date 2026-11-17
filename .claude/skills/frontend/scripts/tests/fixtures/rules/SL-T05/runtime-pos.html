@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SL-T05 runtime positive</title>
+<style>
+  body { margin: 0; padding: 32px; font-family: Arial, sans-serif; color: #111; }
+  .grid { display: flex; gap: 24px; }
+  .card { width: 300px; padding: 16px; border: 1px solid #e5e7eb; border-left: 4px solid #7c3aed; border-radius: 12px; }
+  .stripe { position: relative; width: 300px; padding: 16px 16px 16px 24px; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
+  .stripe::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #10b981; }
+</style>
+</head>
+<body>
+  <div class="grid">
+    <div class="card" id="border-card"><h3>Collateral ratio</h3><p>Every vault reports its ratio each block.</p></div>
+    <div class="stripe" id="pseudo-card"><h3>Liquidation queue</h3><p>Positions under the threshold queue here.</p></div>
+  </div>
+</body>
+</html>

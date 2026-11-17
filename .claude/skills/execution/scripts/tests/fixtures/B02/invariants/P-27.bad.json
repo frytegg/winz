@@ -1,0 +1,14 @@
+{
+ "base": "base.json",
+ "note": "an irrecoverable deadline with no anchored or due task",
+ "ops": [
+  {
+   "op": "set",
+   "path": "/plan/tasks/@execution.ex-dlv-form/anchor/relative_to",
+   "value": "DL-push-freeze"
+  }
+ ],
+ "expect": [
+  "E_GATES"
+ ]
+}

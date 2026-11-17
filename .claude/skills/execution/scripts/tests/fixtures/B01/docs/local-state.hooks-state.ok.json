@@ -1,0 +1,9 @@
+{
+  "schema": "execution.hooks-state/1",
+  "consecutive_continuations": 2,
+  "last_continuation_utc": "2026-10-02T09:14:00Z",
+  "last_digest_sha256": null,
+  "stuck": null,
+  "last_stop_utc": "2026-10-02T09:13:58Z",
+  "last_effort": "xhigh"
+}

@@ -1,0 +1,4 @@
+[
+  {"id": "FR-001", "group": "G1", "title": "See where a withdrawal stands in the queue", "priority": "P1", "status_expected": "testnet"},
+  {"id": "FR-002", "group": "G1", "title": "Estimate when a withdrawal becomes claimable", "priority": "P2", "status_expected": "planned"}
+]

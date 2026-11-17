@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SL-T11 runtime negative: default greys without the kit</title>
+<style>
+  /* the same token values as the scaffold, but no shadcn component renders: presence of the kit is required */
+  :root { --radius: 0.625rem; --background: oklch(1 0 0); --foreground: oklch(0.145 0 0); --primary: oklch(0.205 0 0); }
+  body { margin: 0; padding: 48px; background: var(--background); color: var(--foreground); font-family: Arial, sans-serif; }
+  button { background: var(--primary); color: #fff; border: 0; border-radius: var(--radius); padding: 8px 16px; }
+</style>
+</head>
+<body>
+  <h1>Vault health</h1>
+  <button type="button" class="hover:bg-primary/90">Open vault</button>
+</body>
+</html>

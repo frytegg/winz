@@ -1,0 +1,78 @@
+{
+  "$comment": [
+    "Examples of .harden/config.json (blueprint section 5). Copy one object from 'examples' into the target repo as .harden/config.json and adapt it; never copy this wrapper. examples[3] is not a config.json but the .harden/ratchet.json that goes with examples[2].",
+    "examples[0]: pnpm + TypeScript project, apply mode. examples[1]: Python project managed with uv, report-only mode, scope limited to src/, gates run with an allowlisted environment.",
+    "gates[].cmd: a list is run as argv without a shell (portable; on Windows 'pnpm' resolves to pnpm.cmd); a string is run through the platform shell (cmd.exe on Windows). Use the project's own commands: the gates are the project's scripts, not the skill's opinion of them.",
+    "timeout_s: seconds per run of that gate (gates.py default 1800). cwd: relative to the repository root.",
+    "test_globs / protected_globs: an empty list means the defaults of diff_guard.py merged with the inventory's suggestions (.harden/inventory.json test_globs and protected_globs_suggested); run_state.py start writes that union into .harden/active, which diff_guard.py and hook_guard.py read. The protected defaults cover lint, type-check, format, test-runner and coverage configs (.flake8, .pylintrc, .coveragerc, deny.toml, codecov.yml, playwright.config.*, .solhint.json, ...), CI files, the manifests package.json, pyproject.toml, Cargo.toml, go.mod and foundry.toml, and every lockfile (pnpm-lock.yaml, package-lock.json, Cargo.lock, uv.lock, ...). A non-empty list replaces both the defaults and the suggestions, so include every default you still want; the inventory's test_globs are still added to a non-empty test_globs list (pilot-auto-calibration A01-F53). Manifests and lockfiles change only inside an approved dependency item, after run_state.py allow-config-edit.",
+    "exclude_globs: paths left out of ranking and detection (build output, generated code). scope: [] means the whole repository.",
+    "Glob dialect: repo-relative POSIX paths; '**/' matches zero or more directories; '*' stays inside one segment; a pattern without '/' matches at any depth; a trailing '/' means the directory and everything below it.",
+    "count_regex (optional, test gates): a regex with exactly one capture group, applied to the gate's stdout followed by its stderr (ANSI codes removed); gates.py records the number it captures as that run's 'count', and 'gates.py --min-count-from baseline' fails when a count drops below the baseline's (PC-02), less the test cases recorded with run_state.py allow-test-deletion --cases. Several matches are summed unless count_mode is 'last' or 'max' (cargo prints one 'test result' line per test binary). examples[2]: Rust project tested with cargo.",
+    "count_regex values per runner, as written in JSON (every regex backslash doubled): pytest '(\\d+) passed', vitest 'Tests\\s+(\\d+) passed', cargo test 'test result: ok\\. (\\d+) passed'. Check the regex against one real run's output before recording the baseline.",
+    "ratchet (optional, formatting and lint gates; protocol-preflight PF-11, eval-v1-calibration E01-F02): true marks a gate whose count_regex counts violations instead of tests. Give it to the formatting and lint gates before the probe. While the gate runs from .harden/config.json nothing else changes: its exit code decides, and --min-count-from never compares its count (a violation count may only fall). A gate red at the probe (gates.py --label probe --only <names>) moves unchanged into .harden/ratchet.json (examples[3]: a copy of config.json whose gates list holds only the ratchet gates) and leaves config.json before the baseline. There, 'gates.py --config .harden/ratchet.json --label <id>-a<n>-ratchet --ratchet-from probe' ignores its exit code: it passes while the count stays at or below the probe's and fails when the count rises or cannot be read; the result records ratchet {reference, current, passed} per gate. Change nothing in a gate between config.json and ratchet.json except adding ratchet: --ratchet-from compares each gate's gate_sha256 with the probe's and refuses any other change (exit 2).",
+    "Violation count_regex values: ESLint's default formatter '(\\d+) problems? \\(' (it prints '1 problem' in the singular; source: lib/cli-engine/formatters/stylish.js of eslint 9.39.4 and a run of eslint 8.57.1, 2026-09-24); ruff check 'Found (\\d+) errors?\\.' and ruff format --check '(\\d+) files? would be reformatted' (source: crates/ruff/src/printer.rs and crates/ruff/src/commands/format.rs on astral-sh/ruff main, read 2026-09-24); cargo fmt --check '^Diff in ' with count_mode 'matches', one match per diff hunk (a run of rustfmt 1.8.0-stable, 2026-09-24; a new violation next to an existing one joins its hunk and does not raise the count). A ratchet gate that exits 0 without printing a count (ESLint and cargo fmt print nothing when clean) counts 0 violations; one that exits non-zero with no count, or a count of 0, has an unreadable count (a crash or parse error), which fails the ratchet.",
+    "Every gates.py result records gates_sha256, the hash of the whole 'gates' array. Changing that array after the baseline makes 'gates.py --min-count-from baseline' refuse the comparison (exit 2). With --interactive, record the baseline again only after the user approves the new gates. In autonomous mode the gates are the owner's (the profile's 'gates') and nobody is asked (user-policy-autonomy U01-F01): keep the baseline's gates and record the wanted change as an owner item in .harden/progress.md and the report.",
+    "env_policy records the owner's answer to the live side-effect check (protocol-preflight PF-03): the profile's live_side_effects in autonomous mode ('none' gives 'inherit', anything else 'unconfirmed'; PF-22), the user's live answer with --interactive. Values: 'inherit' (the gate commands are confirmed offline), 'allowlist' (the environment is sanitized) or 'unconfirmed'. gates.py copies it into each result and adds a note when it is missing or 'unconfirmed'.",
+    "install (optional; read by verify_branch.py, the end-to-end verifier of protocol-change PC-26): the install step each fresh clone runs before the gates, as one gate object or a list of them (name, cmd, cwd, timeout_s, env, ... as in gates[]; a missing name becomes 'install', or 'install-<n>' in a list). It replaces the default, which runs the lockfile-enforcing command of the clone's root lockfile (protocol-preflight PF-10): pnpm-lock.yaml -> 'pnpm install --frozen-lockfile'; package-lock.json -> 'npm ci'; yarn.lock -> 'yarn install --immutable' for Yarn 2+ (package.json 'packageManager' yarn@2 or later, a .yarnrc.yml, or, unless 'packageManager' names yarn@1, a yarn.lock whose header carries Yarn 2+'s '__metadata:' block) and 'yarn install --frozen-lockfile' for Yarn 1 (sources: yarnpkg.com/cli/install and classic.yarnpkg.com/en/docs/cli/install, read 2026-09-25); uv.lock -> 'uv sync --locked'; Cargo.lock -> 'cargo build --locked'. A JavaScript lockfile of the manager 'packageManager' names goes before the others. Give 'install' when the lockfile is not at the root (a monorepo package), when the project installs with another command, or to avoid a redundant step (examples[2] only fetches the locked crates: 'cargo fetch --locked' downloads every dependency of Cargo.lock and 'will exit with an error' when the lock file is missing or would change, doc.rust-lang.org/cargo/commands/cargo-fetch.html, read 2026-09-25; the clippy and test gates then build). '\"install\": []' disables the install step. No install runs while network is 'denied' (the profile's 'network', else this config's), and an install command matching a forbidden_commands pattern is refused (explicit) or skipped (lockfile default).",
+    "inherit_env / env_allowlist (optional, top level for every gate or per gate): inherit_env false gives a gate only the variables named in env_allowlist that are set, plus its own env, so API keys, RPC URLs and cloud credentials of the parent environment do not reach project code. List what the tools need to start: on Windows at least SYSTEMROOT, PATH, PATHEXT, TEMP, TMP, USERPROFILE, APPDATA and LOCALAPPDATA; elsewhere PATH and HOME. Results record each gate's env_policy and the variable names passed, never the values."
+  ],
+  "examples": [
+    {
+      "gates": [
+        { "name": "typecheck", "cmd": ["pnpm", "exec", "tsc", "--noEmit"], "timeout_s": 600, "cwd": "." },
+        { "name": "lint", "cmd": ["pnpm", "run", "lint"], "timeout_s": 600, "cwd": ".", "ratchet": true, "count_regex": "(\\d+) problems? \\(" },
+        { "name": "test", "cmd": ["pnpm", "exec", "vitest", "run"], "timeout_s": 1800, "cwd": ".", "count_regex": "Tests\\s+(\\d+) passed" },
+        { "name": "build", "cmd": ["pnpm", "run", "build"], "timeout_s": 900, "cwd": "." }
+      ],
+      "test_globs": [],
+      "protected_globs": [],
+      "exclude_globs": ["dist/", "coverage/", "**/*.generated.ts"],
+      "scope": [],
+      "mode": "apply",
+      "env_policy": "inherit"
+    },
+    {
+      "gates": [
+        { "name": "lint", "cmd": ["uv", "run", "--frozen", "ruff", "check", "."], "timeout_s": 300, "cwd": ".", "ratchet": true, "count_regex": "Found (\\d+) errors?\\." },
+        { "name": "format", "cmd": ["uv", "run", "--frozen", "ruff", "format", "--check", "."], "timeout_s": 300, "cwd": ".", "ratchet": true, "count_regex": "(\\d+) files? would be reformatted" },
+        { "name": "typecheck", "cmd": ["uv", "run", "--frozen", "mypy", "src"], "timeout_s": 900, "cwd": "." },
+        { "name": "test", "cmd": ["uv", "run", "--frozen", "pytest", "-q"], "timeout_s": 1800, "cwd": ".", "count_regex": "(\\d+) passed" }
+      ],
+      "test_globs": ["tests/", "**/test_*.py", "**/*_test.py", "**/conftest.py", "**/__snapshots__/**"],
+      "protected_globs": [],
+      "exclude_globs": [".venv/", "build/", "notebooks/", "src/*/_generated/"],
+      "scope": ["src/"],
+      "mode": "report-only",
+      "env_policy": "allowlist",
+      "inherit_env": false,
+      "env_allowlist": ["PATH", "PATHEXT", "SYSTEMROOT", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "HOME", "UV_CACHE_DIR"]
+    },
+    {
+      "gates": [
+        { "name": "fmt", "cmd": ["cargo", "fmt", "--all", "--check"], "timeout_s": 300, "cwd": ".", "ratchet": true, "count_regex": "^Diff in ", "count_mode": "matches" },
+        { "name": "clippy", "cmd": ["cargo", "clippy", "--locked", "--all-targets"], "timeout_s": 1200, "cwd": "." },
+        { "name": "test", "cmd": ["cargo", "test", "--locked"], "timeout_s": 1800, "cwd": ".", "count_regex": "test result: ok\\. (\\d+) passed", "count_mode": "sum" }
+      ],
+      "install": [
+        { "name": "fetch", "cmd": ["cargo", "fetch", "--locked"], "timeout_s": 1800, "cwd": "." }
+      ],
+      "test_globs": [],
+      "protected_globs": [],
+      "exclude_globs": ["target/"],
+      "scope": [],
+      "mode": "apply",
+      "env_policy": "inherit"
+    },
+    {
+      "gates": [
+        { "name": "fmt", "cmd": ["cargo", "fmt", "--all", "--check"], "timeout_s": 300, "cwd": ".", "ratchet": true, "count_regex": "^Diff in ", "count_mode": "matches" }
+      ],
+      "test_globs": [],
+      "protected_globs": [],
+      "exclude_globs": ["target/"],
+      "scope": [],
+      "mode": "apply",
+      "env_policy": "inherit"
+    }
+  ]
+}

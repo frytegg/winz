@@ -1,0 +1,55 @@
+{
+  "schema": "execution.local-state/1",
+  "executor": "A",
+  "project": "queue-clock",
+  "run_state": "RUNNING",
+  "run_state_since_utc": "2026-10-03T07:12:00Z",
+  "previous_run_state": null,
+  "events_seq": 0,
+  "plan_sha256": null,
+  "waves": [],
+  "awaiting": [],
+  "heartbeat": {
+    "cron_id": null,
+    "cron_expr": null,
+    "prompt": "",
+    "recorded_utc": null,
+    "session_id": null
+  },
+  "watchers": [],
+  "governor": null,
+  "quota": null,
+  "notion": {
+    "pages": {},
+    "hashes": {},
+    "pending_batches": [],
+    "outbox_count": 0,
+    "last_ok_utc": null,
+    "token_ok": null,
+    "last_hub_text_sha256": null
+  },
+  "flags": {
+    "mainnet_open": false,
+    "push_frozen": false
+  },
+  "hooks": {
+    "installed_utc": null,
+    "settings_path": null,
+    "canary_ok_utc": null,
+    "permission_mode": null,
+    "probe_ok_utc": null,
+    "agent_role_source": null,
+    "agent_session_scoped": false
+  },
+  "calibration": {
+    "ratios": {},
+    "samples": {},
+    "pct_per_agent_hour": null
+  },
+  "stuck": null,
+  "last_tick_utc": null,
+  "settings_backup": {
+    "switchModelsOnFlag_present": false,
+    "switchModelsOnFlag_value": null
+  }
+}

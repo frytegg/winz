@@ -1,0 +1,12 @@
+Copyright 2026 The Tally Project Authors (fixture fonts of the /frontend skill's end-to-end tests)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+https://openfontlicense.org
+
+-----------------------------------------------------------
+SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
+-----------------------------------------------------------
+
+(Fixture licence text: the checks read the header and the licence name. Tally Sans and Tally Mono are rectangle
+glyphs drawn by tests/e2e/build-fixtures.mjs.)

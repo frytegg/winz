@@ -1,0 +1,25 @@
+/* FD14-F23 and FD10-F21: status rows, toasts, active tabs, hover states and neutral rails are not accent cards. */
+tr.is-late td:first-child {
+  border-left: 3px solid #d97706;
+}
+
+.toast-error {
+  border-left: 4px solid #dc2626;
+}
+
+.tab[aria-selected="true"] {
+  border-top: 2px solid #7c3aed;
+}
+
+.card:hover {
+  border-left: 4px solid #2563eb;
+}
+
+.rail {
+  border-left: 2px solid #e5e7eb;
+}
+
+/* .callout { border-left: 4px solid #2563eb; } */
+.unused-callout {
+  border-left: 4px solid #2563eb;
+}

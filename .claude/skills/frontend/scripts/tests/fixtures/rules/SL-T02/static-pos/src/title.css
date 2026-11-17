@@ -1,0 +1,9 @@
+:root {
+  --brand-sweep: linear-gradient(90deg, #f97316, #db2777);
+}
+
+.gradient-title {
+  background-image: var(--brand-sweep);
+  -webkit-background-clip: text;
+  color: transparent;
+}

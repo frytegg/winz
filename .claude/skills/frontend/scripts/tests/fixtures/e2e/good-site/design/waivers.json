@@ -1,0 +1,13 @@
+{
+  "waivers": [
+    {
+      "rule": "SL-M13",
+      "scope": "/ [data-proof]",
+      "reason": "The proof link shows the transaction hash middle-truncated with three dots, the hash display the wallet research asks for, not template chrome",
+      "evidence": ["research/ui-wallet-tx-states.md (FD18): middle-truncated hashes, full value in the accessible name"],
+      "approved_by": "research",
+      "date": "2026-10-11"
+    }
+  ],
+  "category": []
+}

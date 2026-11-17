@@ -1,0 +1,14 @@
+{
+ "base": "base2.json",
+ "note": "a decision owned by dev B",
+ "ops": [
+  {
+   "op": "set",
+   "path": "/plan/tasks/@execution.ex-name/owner",
+   "value": "devB"
+  }
+ ],
+ "expect": [
+  "E_OWNER"
+ ]
+}

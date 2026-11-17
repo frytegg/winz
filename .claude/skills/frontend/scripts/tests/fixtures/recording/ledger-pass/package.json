@@ -1,0 +1,8 @@
+{
+  "name": "ledger-pass-fixture",
+  "private": true,
+  "dependencies": {
+    "@ledgerhq/device-management-kit": "0.9.0",
+    "@ledgerhq/device-signer-kit-solana": "1.0.0"
+  }
+}

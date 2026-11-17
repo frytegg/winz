@@ -1,0 +1,22 @@
+{
+ "base": "base.json",
+ "note": "a lane of executor B with no dev B",
+ "expect": [
+  "E_OWNER"
+ ],
+ "ops": [
+  {
+   "op": "append",
+   "path": "/plan/lanes",
+   "value": {
+    "id": "L7",
+    "executor": "B",
+    "title": "Misc",
+    "contract": false,
+    "globs": [
+     "misc/**"
+    ]
+   }
+  }
+ ]
+}

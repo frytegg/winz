@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Queue Clock</title>
+<style>
+  body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.2; color: #222222; background: #ffffff; }
+  main > section { padding: 40px; }
+  main > section.s2 { padding: 72px 40px 24px; }
+  main > section.s3 { padding: 56px 40px 88px; }
+  .wide { width: 1300px; max-width: none; }
+  .faint { color: #b0b0b0; }
+  .tiny { display: inline-block; width: 16px; height: 16px; padding: 0; margin: 0 2px 0 0; border: 1px solid #222222; background: #ffffff; font-size: 9px; line-height: 1; }
+  .stack .shifted { margin-left: 4px; }
+  .stack > p { margin: 0 0 8px; }
+  .gaps > div { background: #eeeeee; height: 40px; }
+  .gaps > .g1 { margin-bottom: 10px; }
+  .gaps > .g2 { margin-bottom: 34px; }
+  .gaps > .g3 { margin-bottom: 12px; }
+  .clip { width: 120px; overflow: hidden; white-space: nowrap; }
+  h2.orphan { width: 14ch; font: 700 20px/1.2 "Courier New", monospace; }
+</style>
+</head>
+<body>
+<main>
+  <section>
+    <h1>Welcome to the future of finance</h1>
+    <p class="wide">This paragraph runs across the whole width of the desktop screen in small type, so each of its lines holds far more characters than a reader can follow comfortably from one line to the next one without losing the place.</p>
+    <p class="faint">Secondary caption text that is printed in a very light grey on the white page, which makes it hard to read for many people.</p>
+    <p class="figure" data-metric>1,204,000 users</p>
+    <div><button class="tiny" type="button">a</button><button class="tiny" type="button">b</button><button class="tiny" type="button">c</button></div>
+  </section>
+  <section class="s2">
+    <div class="stack">
+      <p>First line of a stacked group that starts at the left edge of its container.</p>
+      <p class="shifted">Second line of the same group, nudged four pixels to the right of the first one.</p>
+    </div>
+    <div class="gaps">
+      <div class="g1">one</div>
+      <div class="g2">two</div>
+      <div class="g3">three</div>
+      <div class="g4">four</div>
+    </div>
+  </section>
+  <section class="s3">
+    <h2 class="orphan">Queue settles now</h2>
+    <div class="clip">This label is far too long for its narrow box and gets cut off</div>
+  </section>
+</main>
+</body>
+</html>

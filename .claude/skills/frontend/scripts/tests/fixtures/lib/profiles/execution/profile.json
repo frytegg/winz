@@ -1,0 +1,60 @@
+{
+  "project": {
+    "name": "Queue Clock",
+    "name_owner_confirmed": true
+  },
+  "event": {
+    "kind": "hackathon",
+    "start_utc": "2026-10-06T01:00:00Z"
+  },
+  "prework": {
+    "code": false,
+    "designs": false,
+    "until_utc": "2026-10-06T01:00:00Z"
+  },
+  "phase_b": {
+    "claims_ledger": "../private/claims.md",
+    "dx_journal": null
+  },
+  "paths": {
+    "never_show": "../private/never-show.json",
+    "feature_catalogue": "feature-catalogue.json"
+  },
+  "workspace": {
+    "private_dir": "../private"
+  },
+  "machine": {
+    "max_lanes": 4
+  },
+  "frontend": {
+    "mode": "small",
+    "judged_surface": "site+app",
+    "stack": "vite-react",
+    "hosting": "gh-pages",
+    "format": {
+      "stage": true,
+      "video": {
+        "max_s": 120,
+        "embed": "pptx"
+      }
+    },
+    "sponsors": [
+      "Cardano"
+    ],
+    "references": [
+      {
+        "customer": "Aave",
+        "url": "https://aave.com",
+        "source": "brief",
+        "owner_confirmed": true
+      }
+    ],
+    "paths": {
+      "design": "ui/design"
+    },
+    "tells": {
+      "score_max": 6
+    },
+    "ready_flag": true
+  }
+}

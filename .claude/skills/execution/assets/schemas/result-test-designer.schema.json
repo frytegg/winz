@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.execution.invalid/result-test-designer.schema.json",
+  "title": "Structured result of the execution-test-designer agent",
+  "description": "Self-contained (inlined as the agent() schema). The test-designer is never the implementer: it writes each task's proof and acceptance checks (failing first) and records the negative control it ran. Proof objects it returns are applied to the plan only through `exec.py amend` (after approval) or `plan instantiate` (before), never by editing plan.json. Recorded with `exec.py result put --role test-designer`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "role", "wave", "attempt", "commit", "files_written", "proofs", "notes"],
+  "properties": {
+    "schema": {"const": "execution.result.test-designer/1"},
+    "role": {"const": "test-designer"},
+    "wave": {"type": ["string", "null"], "pattern": "^W[0-9]{2,3}$"},
+    "attempt": {"type": "integer", "minimum": 1},
+    "commit": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40}$", "description": "The `exec.py snapshot` commit holding the acceptance checks (a commit object on origin/main at refs/exec/<task>/td-a<n>r<k>; the test-designer never commits in the shared checkout); null when only proof objects were produced."},
+    "files_written": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "file_blobs": {
+      "description": "Path -> git blob id of each file in the snapshot, as `snapshot` printed it: the tamper reference of fix tests (FIX-MODE.md 6.3).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "blob_sha"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "blob_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+        }
+      }
+    },
+    "message_file": {"type": ["string", "null"], "description": "The conventional commit message file the integrator's merge --single-tree uses."},
+    "proofs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["task", "proof", "acceptance", "negative_control"],
+        "properties": {
+          "task": {"type": "string", "pattern": "^T[0-9]{3,}$"},
+          "proof": {
+            "type": "object",
+            "description": "A full plan proof object (plan.schema.json#/$defs/proof); validated by exec.py when applied.",
+            "required": ["type", "spec", "expect", "max_runtime_min", "negative_control"]
+          },
+          "acceptance": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "negative_control": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "command", "ran", "exit_code", "failed_as_required"],
+            "properties": {
+              "kind": {"enum": ["pre-implementation", "planted-defect", "forgery", "not-applicable"]},
+              "command": {"type": "string"},
+              "ran": {"type": "boolean"},
+              "exit_code": {"type": ["integer", "null"]},
+              "failed_as_required": {"type": ["boolean", "null"]},
+              "waived_reason": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "gates_config": {
+      "type": ["string", "null"],
+      "pattern": "^([A-Za-z]:/|/).*/local/inbox/.+\\.json$",
+      "description": "Contract wave only: a /harden gates.py config (offline install, typecheck, lint, test) the test-designer wrote in its inbox; the orchestrator installs it as .execution/gates.json through `exec.py amend` (patch gates_json)."
+    },
+    "notes": {"type": "string"}
+  }
+}

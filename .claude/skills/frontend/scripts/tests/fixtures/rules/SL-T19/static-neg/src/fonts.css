@@ -1,0 +1,23 @@
+/* FD14-F26: requested, never applied; a stale comment naming Fraunces does not count either. */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=Fraunces&display=swap');
+
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('/fonts/instrument-serif.woff2') format('woff2');
+}
+
+:where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) {
+  h1 {
+    font-family: 'Syne', sans-serif;
+  }
+}
+
+@theme {
+  --font-display: 'Bricolage Grotesque', sans-serif;
+}
+
+body {
+  font-family: 'Clash Grotesk', system-ui, sans-serif;
+}
+
+/* h1 { font-family: 'Fraunces', serif; } */

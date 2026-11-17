@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "ns-embargo-live",
+      "class": "embargo",
+      "pattern": "Harbor Desk",
+      "regex": false,
+      "case_sensitive": false,
+      "until_utc": "2026-10-04T13:45:00Z",
+      "scope": "both",
+      "note": "Codename of a fictional integration partner, under embargo until a day after the event: live for the whole rehearsal. Planting it in a commit must make merge refuse with E_NEVER_SHOW.",
+      "source": "evals/fixture/workspace/never-show.json (fictional fixture entry)"
+    },
+    {
+      "id": "ns-embargo-expired",
+      "class": "embargo",
+      "pattern": "Queue Clock Pro",
+      "regex": false,
+      "case_sensitive": false,
+      "until_utc": "2026-10-03T05:12:00Z",
+      "scope": "both",
+      "note": "Embargo that ended two hours before instantiation: inactive, it must never fire.",
+      "source": "evals/fixture/workspace/never-show.json (fictional fixture entry)"
+    },
+    {
+      "id": "ns-do-not-carry",
+      "class": "do-not-carry",
+      "pattern": "guaranteed withdrawal time",
+      "regex": false,
+      "case_sensitive": false,
+      "until_utc": null,
+      "scope": "both",
+      "note": "Overclaim from an earlier draft; an ETA is a range, never a promise (SPEC.md FR-002, claims ledger row 7).",
+      "source": "evals/fixture/workspace/claims-ledger.md row 7"
+    },
+    {
+      "id": "ns-never-public-ticket",
+      "class": "never-public",
+      "pattern": "\\bQC-INT-[0-9]{3,}\\b",
+      "regex": true,
+      "case_sensitive": true,
+      "until_utc": null,
+      "scope": "repo",
+      "note": "Internal ticket ids of the fictional team never enter the product repository.",
+      "source": "evals/fixture/workspace/never-show.json (fictional fixture entry)"
+    }
+  ]
+}

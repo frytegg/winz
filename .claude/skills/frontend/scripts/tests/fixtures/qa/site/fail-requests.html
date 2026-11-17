@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Requests fixture</title>
+<link rel="preload" href="fonts/qa-block.otf" as="font" type="font/otf" crossorigin>
+<link rel="stylesheet" href="base.css">
+
+</head>
+<body>
+<main>
+  <h1>Requests fixture</h1>
+  <p>Lenders see the withdrawal queue before they sign.</p>
+  <script>
+    fetch("api/missing.json").then(function (response) { return response.status; }).catch(function () { return 0; });
+  </script>
+</main>
+</body>
+</html>

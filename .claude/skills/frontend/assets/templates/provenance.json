@@ -1,0 +1,45 @@
+{
+  "assets": [
+    {
+      "path": "brand/mark.svg",
+      "kind": "logo",
+      "source": "Drawn for this project by brand.mjs from the wordmark: FE-05 candidate 3, picked by the owner at H2",
+      "license": "Same licence as the repository",
+      "ai": "assisted",
+      "tool": "Claude Opus 5.5 with the /frontend skill",
+      "notes": "Wordmark set in Public Sans (OFL-1.1) with one intervention; mono and lockup variants derive from it"
+    },
+    {
+      "path": "design/fonts/PublicSans[wght].woff2",
+      "kind": "font",
+      "source": "https://github.com/google/fonts/tree/main/ofl/publicsans",
+      "license": "OFL-1.1",
+      "licenseFile": "design/fonts/OFL-PublicSans.txt",
+      "ai": "none"
+    },
+    {
+      "path": "design/fonts/IBMPlexMono-Regular.woff2",
+      "kind": "font",
+      "source": "https://github.com/google/fonts/tree/main/ofl/ibmplexmono",
+      "license": "OFL-1.1",
+      "licenseFile": "design/fonts/OFL-IBMPlexMono.txt",
+      "ai": "none"
+    },
+    {
+      "path": "app/public/favicon.ico",
+      "kind": "icon",
+      "source": "Rendered by brand.mjs from brand/mark.svg: one 32 px entry",
+      "license": "Same licence as the repository",
+      "ai": "none",
+      "tool": "brand.mjs"
+    },
+    {
+      "path": "app/public/og.png",
+      "kind": "image",
+      "source": "Rendered by brand.mjs at 1200x630 from brand/lockup.svg and the brief's H1",
+      "license": "Same licence as the repository",
+      "ai": "assisted",
+      "tool": "Claude Opus 5.5 with the /frontend skill"
+    }
+  ]
+}

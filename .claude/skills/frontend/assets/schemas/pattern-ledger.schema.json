@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:frontend:schema:pattern-ledger:1",
+  "title": "Pattern ledger",
+  "description": "pattern-ledger.json in the state directory (scripts/CONTRACTS.md 6.5), written by extract.mjs (FE-02): conventions, measured relationships, domain conventions and facts drawn from the captured reference pages. A pattern rests on at least two unrelated references unless it is a single measured fact. Never carried downstream: pixels, logos, names beyond plain text, copy, imagery, licensed font files, exact brand hexes, one site's full section sequence (ARCHITECTURE.md P1, FD09).",
+  "type": "object",
+  "required": ["references", "patterns", "excluded"],
+  "additionalProperties": false,
+  "properties": {
+    "references": {"type": "array", "items": {"$ref": "#/$defs/reference"}},
+    "patterns": {"type": "array", "items": {"$ref": "#/$defs/pattern"}},
+    "excluded": {
+      "type": "array",
+      "description": "What was observed and deliberately not carried, as text or as {what, why, ref} objects.",
+      "items": {
+        "anyOf": [
+          {"type": "string", "minLength": 1},
+          {
+            "type": "object",
+            "required": ["what", "why"],
+            "properties": {
+              "what": {"type": "string", "minLength": 1},
+              "why": {"type": "string", "minLength": 1},
+              "ref": {"type": "string"}
+            }
+          }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9-]{0,31}$"},
+    "reference": {
+      "type": "object",
+      "required": ["id", "customer", "url", "page", "captured_at", "viewports", "receipt", "purged"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "customer": {"type": "string", "minLength": 1},
+        "url": {"type": "string", "format": "uri", "pattern": "^https?://"},
+        "page": {"type": "string", "minLength": 1, "description": "The one reference page captured on this site, the closest to the surface being built."},
+        "captured_at": {"type": "string", "format": "date-time"},
+        "viewports": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "receipt": {"type": "string", "minLength": 1, "description": "Path of the capture-gate receipt (robots, terms review, SHA-256 manifest)."},
+        "purged": {"type": "boolean", "description": "true once the raw captures were deleted, with a deletion receipt."}
+      }
+    },
+    "pattern": {
+      "type": "object",
+      "required": ["id", "kind", "statement", "values", "from", "not_borrowed"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "kind": {"enum": ["convention", "relationship", "domain", "fact"]},
+        "statement": {"type": "string", "minLength": 1},
+        "values": {
+          "description": "The measured values behind the statement (ratios, counts, steps), never a brand's exact hexes or a site's text.",
+          "type": ["object", "array", "string", "number"]
+        },
+        "from": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/id"},
+          "description": "Reference ids; at least two unrelated references unless kind is fact."
+        },
+        "not_borrowed": {
+          "description": "What the pattern deliberately leaves behind.",
+          "anyOf": [
+            {"type": "string", "minLength": 1},
+            {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+          ]
+        }
+      },
+      "if": {"properties": {"kind": {"const": "fact"}}},
+      "then": {"properties": {"from": {"minItems": 1}}},
+      "else": {"properties": {"from": {"minItems": 2}}}
+    }
+  }
+}

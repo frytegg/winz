@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SL-T01 runtime positive</title>
+<style>
+  body { margin: 0; font-family: Arial, sans-serif; color: #111; }
+  .hero { height: 480px; padding: 64px; box-sizing: border-box; background-image: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%); color: #fff; }
+  .cta { display: inline-block; margin-top: 24px; padding: 12px 20px; border-radius: 8px; color: #fff; text-decoration: none;
+    background-image: linear-gradient(90deg, rgb(124, 58, 237), rgb(79, 70, 229)); }
+  .glow { position: relative; height: 200px; }
+  .glow::before { content: ''; position: absolute; inset: 0;
+    background: radial-gradient(circle at 30% 40%, oklch(0.606 0.25 292.717), oklch(0.623 0.214 259.815) 70%); }
+</style>
+</head>
+<body>
+  <section class="hero">
+    <h1>Settle invoices in one block</h1>
+    <a class="cta" href="#start">Open the demo</a>
+  </section>
+  <div class="glow" id="glow"></div>
+  <p id="start">The settlement engine reconciles each invoice against the ledger.</p>
+</body>
+</html>

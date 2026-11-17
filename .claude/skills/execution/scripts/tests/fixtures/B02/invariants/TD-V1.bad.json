@@ -1,0 +1,14 @@
+{
+ "base": "base.json",
+ "note": "executor B used with no dev B (ok: base2 has dev B and its tasks)",
+ "ops": [
+  {
+   "op": "set",
+   "path": "/plan/tasks/@execution.ex-hb-recon/executor",
+   "value": "B"
+  }
+ ],
+ "expect": [
+  "E_OWNER"
+ ]
+}

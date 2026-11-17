@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dash labels in long copy</title>
+<style>
+  body { margin: 0; padding: 32px; font: 16px/1.5 Arial, sans-serif; color: #111; background: #fff; }
+  li { margin: 4px 0; }
+</style>
+</head>
+<body>
+  <main>
+    <h1>Settlement for escrowed trades</h1>
+    <ul>
+      <li id="l01">SPEED &#8212; settles in one block</li>
+      <li id="l02">COST &#8212; one fee for both legs</li>
+      <li id="l03">SAFETY &#8212; refunds after the deadline</li>
+      <li id="l04">PROOF &#8212; a receipt per step</li>
+      <li id="l05">CUSTODY &#8212; nobody holds both legs</li>
+      <li id="l06">AUDIT &#8212; every signature on chain</li>
+      <li id="l07">LIMITS &#8212; set per trade</li>
+      <li id="l08">KEYS &#8212; never leave the wallet</li>
+      <li id="l09">FEES &#8212; shown before signing</li>
+      <li id="l10">ROUTES &#8212; one per asset pair</li>
+      <li id="l11">ALERTS &#8212; sent on each state change</li>
+      <li id="l12">EXPORT &#8212; trades as a CSV file</li>
+      <li id="l13">ACCESS &#8212; read-only for auditors</li>
+      <li id="l14">STATUS &#8212; live on the test network</li>
+    </ul>
+    <section id="long"></section>
+  </main>
+  <script>
+    // 8,000 words of plain prose: 14 dashes stay under 2 per 1,000 words and under one per 500 characters.
+    const sentence = 'The escrow holds both legs of the trade until each side signs and then releases them together.';
+    const words = sentence.split(' ').length;
+    const host = document.getElementById('long');
+    for (let i = 0; i < Math.ceil(8000 / words / 10); i += 1) {
+      const p = document.createElement('p');
+      p.textContent = Array(10).fill(sentence).join(' ');
+      host.appendChild(p);
+    }
+  </script>
+</body>
+</html>
