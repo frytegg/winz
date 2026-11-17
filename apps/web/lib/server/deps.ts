@@ -1,5 +1,8 @@
+import type { ExecutionVenueName } from "@winz/shared";
+
 import type { AuthVerifier, IdentityDirectory } from "./auth";
 import { getDb, type Db } from "./db";
+import type { DemoSaleWait } from "./demo";
 import { webEnv } from "./env";
 import { StripePaymentGateway, type PaymentGateway } from "./payments-gateway";
 import { PrivyIdentity } from "./privy";
@@ -12,6 +15,8 @@ export interface ServerConfig {
   baseUrl: string;
   /** `ARC_ESCROW_ADDRESS`, or null while the contract is not deployed. */
   escrowAddress: string | null;
+  /** `APP_EXECUTION_VENUE`, shown on the Hedge desk. */
+  executionVenue: ExecutionVenueName;
 }
 
 /** Everything a route implementation talks to. Tests build their own. */
@@ -24,6 +29,11 @@ export interface ServerDeps {
   config: () => ServerConfig;
   /** The clock. */
   now: () => Date;
+  /**
+   * How long `POST /api/admin/demo/sale` waits for the engine to issue the ticket, and how often it
+   * looks. Absent: `DEMO_SALE_WAIT` (8 s, every 250 ms). Tests pass a short one.
+   */
+  demoSaleWait?: DemoSaleWait;
 }
 
 let defaults: ServerDeps | undefined;
@@ -35,6 +45,7 @@ function configFromEnv(): ServerConfig {
     adminKey: env.APP_ADMIN_DEMO_KEY,
     baseUrl: env.APP_BASE_URL.replace(/\/+$/, ""),
     escrowAddress: env.ARC_ESCROW_ADDRESS ?? null,
+    executionVenue: env.APP_EXECUTION_VENUE,
   };
 }
 

@@ -1,3 +1,4 @@
+import { EXECUTION_VENUES } from "@winz/shared";
 import { z } from "zod";
 
 const booleanString = z.enum(["true", "false"]).transform((value) => value === "true");
@@ -12,6 +13,11 @@ const webEnvSchema = z.object({
   APP_BASE_URL: z.string().url(),
   APP_API_MOCK: booleanString.default(false),
   APP_ADMIN_DEMO_KEY: z.string().min(16),
+  /**
+   * Where the engine executes hedge orders, shown in clear on the Hedge desk (MDB-3). Must match
+   * the engine's own `APP_EXECUTION_VENUE`: the web app only displays it.
+   */
+  APP_EXECUTION_VENUE: z.enum(EXECUTION_VENUES).default("paper"),
   DB_URL: z.string().url(),
   STRIPE_SECRET_KEY: z.string().startsWith("sk_test_", "only Stripe test keys are allowed"),
   STRIPE_WEBHOOK_SECRET: z.string().min(1),
