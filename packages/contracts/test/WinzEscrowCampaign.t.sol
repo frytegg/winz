@@ -83,6 +83,16 @@ contract WinzEscrowCampaignTest is EscrowFixture {
         escrow.createCampaignFor(address(0), params, ONE);
     }
 
+    /// @dev A campaign paying the escrow itself would strand the merchant's share and the released
+    ///      budget in the escrow with nothing accounting for them, and there is no sweep.
+    function test_create_revertsWhenMerchantIsTheEscrow() public {
+        IWinzEscrow.CampaignParams memory params = _params(20 * ONE, 5000);
+        vm.expectRevert(IWinzEscrow.InvalidParams.selector);
+        vm.prank(relayer);
+        escrow.createCampaignFor(address(escrow), params, ONE);
+        assertEq(escrow.campaignCount(), 0);
+    }
+
     function test_create_revertsOnZeroUnitPrice() public {
         IWinzEscrow.CampaignParams memory params = _params(0, 10_000);
         vm.expectRevert(IWinzEscrow.InvalidParams.selector);

@@ -108,10 +108,10 @@ Chacune répond à une incertitude de la revue (question ouverte 9). Si une sond
 Tous parallèles entre eux dès que F-05 est figé. Lot à lancer ensemble : C-01, P-01, D-01, M-01, X-01, J-01.
 
 ### Contrat
-- [ ] **C-01** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : F-05 · EC-1, EC-3, EC-4, EC-5, EC-6, EC-7, PR-3
+- [x] **C-01** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : F-05 · EC-1, EC-3, EC-4, EC-5, EC-6, EC-7, PR-3
   `WinzEscrow.sol` selon la section 8 : état, rôles, toutes les fonctions, devis EIP-712, événements, erreurs personnalisées, NatSpec.
   Fini quand : `forge test` couvre chaque fonction et chaque refus listé en section 15 (devis expiré ou rejoué, facturation au-delà de la réserve, `settle` avec réserve ouverte, double `settle`, vente après `salesClose`, remboursement vers une adresse bloquée).
-- [ ] **C-02** · Qui : Agent `coder-high`, relu par A · Dép. : C-01 · EC-2
+- [x] **C-02** · Qui : Agent `coder-high`, relu par A · Dép. : C-01 · EC-2
   Tests d'invariants : solvabilité, `lockedRefunds == Σ refundable non payés`, `hedgeSpent + hedgeReserved ≤ hedgeBudget`, R jamais modifié.
   Fini quand : les invariants tiennent sur la campagne de fuzzing, couverture ≥ 90 % sur `WinzEscrow`.
 - [ ] **C-03** · Qui : Agent `coder`, relu par A · Dép. : C-01, S-01

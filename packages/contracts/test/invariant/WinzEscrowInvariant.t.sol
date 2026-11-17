@@ -7,6 +7,7 @@ import {IWinzEscrow} from "../../src/interfaces/IWinzEscrow.sol";
 import {WinzEscrow} from "../../src/WinzEscrow.sol";
 import {TestUSDC} from "../../src/mocks/TestUSDC.sol";
 import {EscrowHandler} from "./EscrowHandler.sol";
+import {WrongDirectionEscrow} from "../mocks/WrongDirectionEscrow.sol";
 
 /// @notice Invariants of WinzEscrow under random sequences of every action (C-02, EC-2, section 15).
 /// @dev Each invariant is recomputed from the escrow's own views and from what the handler recorded
@@ -397,6 +398,26 @@ contract WinzEscrowInvariantTest is Test {
         usdc.transfer(makeAddr("elsewhere"), 1);
         vm.expectRevert();
         this.invariant_treasuryFlows();
+    }
+
+    /// @dev A money movement in the wrong direction must land in `violation`. Before the handler's
+    ///      deltas were direction-safe, `escrowBefore - escrowAfter` panicked instead, and with
+    ///      fail_on_revert off the invariant campaign silently dropped the call.
+    function test_control_handlerRecordsAWrongDirectionMovement() public {
+        _scriptedSequence();
+        assertEq(bytes(handler.violation()).length, 0, "clean before");
+        assertEq(uint8(escrow.getCampaign(1).status), uint8(IWinzEscrow.Status.SettledYes));
+
+        // Same constructor arguments as setUp, so the delegated code reads the same immutables.
+        WinzEscrow impl = new WinzEscrow(address(usdc), relayer, oracle, treasury, makeAddr("owner"));
+        vm.etch(
+            address(escrow), address(new WrongDirectionEscrow(address(impl), address(usdc), treasury)).code
+        );
+
+        uint256 calls = handler.callCount("refundBatch");
+        handler.refundBatch(_exact(0), type(uint256).max, address(this));
+        assertEq(handler.callCount("refundBatch"), calls + 1, "the handler call went through");
+        assertEq(handler.violation(), "refundBatch: escrow outflow != lockedRefunds decrease");
     }
 
     // ----------------------------------------------------------------------------------------------
