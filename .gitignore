@@ -25,3 +25,6 @@ test-results/
 playwright-report/
 
 .DS_Store
+
+# Deployment records of local rehearsal chains
+packages/contracts/deployments/31337.json

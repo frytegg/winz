@@ -12,6 +12,12 @@ solc = "0.8.28"
 evm_version = "cancun"
 optimizer = true
 optimizer_runs = 200
+# Reproducible bytecode: no metadata hash and no CBOR trailer, so the committed artifacts in
+# artifacts/ do not depend on the machine or the directory they were built in.
+bytecode_hash = "none"
+cbor_metadata = false
+# The deployment scripts write and read deployments/<chainId>.json, and nothing else.
+fs_permissions = [{ access = "read-write", path = "./deployments" }]
 remappings = [
   "forge-std/=node_modules/forge-std/src/",
   "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
