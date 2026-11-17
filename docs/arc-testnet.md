@@ -26,7 +26,14 @@ forge script script/Deploy.s.sol --rpc-url https://rpc.testnet.arc.io --private-
 forge script script/Approve.s.sol --rpc-url https://rpc.testnet.arc.io --private-key "$ARC_RELAYER_PRIVATE_KEY" --with-gas-price 25gwei --broadcast
 ```
 
-Not done yet: source verification on the explorer.
+The source is verified on the explorer (Blockscout), contract name `WinzEscrow`:
+https://explorer.testnet.arc.io/address/0x81d2d4050E617184b2B832c30BE68f8811b37D2c
+
+```bash
+forge verify-contract 0x81d2d4050E617184b2B832c30BE68f8811b37D2c src/WinzEscrow.sol:WinzEscrow \
+  --chain-id 5042002 --verifier blockscout --verifier-url https://explorer.testnet.arc.io/api/ \
+  --constructor-args "$(cast abi-encode 'constructor(address,address,address,address,address)' <usdc> <relayer> <oracle> <treasury> <owner>)" --watch
+```
 
 ## Receipt: one full campaign lifecycle on the real chain
 
