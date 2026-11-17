@@ -152,3 +152,10 @@ token. Each has one `select` policy for `anon` and `authenticated`. Every other 
 those two roles is revoked on every table, so a policy added by mistake exposes nothing by
 itself. A new table needs the same three lines: `enable row level security`, the `revoke`, and a
 row in `tests/00_harness.sql`.
+
+## Order books (third migration)
+
+`book_cache` holds the latest order book of every instrument the engine follows, and
+`tracked_instruments` lets the web app ask the engine to follow one more (a merchant previewing a
+promo). The engine is the only process that talks to Gemini; the web app reads `book_cache`.
+Both tables are private: service role only.
