@@ -262,15 +262,15 @@ select test.throws(
 -- Foreign keys hold the money records together.
 select test.throws(
   $$delete from public.campaigns where slug = 'joes-tex13'$$,
-  '{23503}', 'a campaign with payments and tickets cannot be deleted'
+  '{23503,23001}', 'a campaign with payments and tickets cannot be deleted'
 );
 select test.throws(
   $$delete from public.tickets where onchain_id = 1$$,
-  '{23503}', 'a ticket with a lot cannot be deleted'
+  '{23503,23001}', 'a ticket with a lot cannot be deleted'
 );
 select test.throws(
   $$delete from public.events where ticker = 'NCAAF-2611212030-ARK-TEX-M'$$,
-  '{23503}', 'an event with campaigns cannot be deleted'
+  '{23503,23001}', 'an event with campaigns cannot be deleted'
 );
 select test.throws(
   $$insert into public.instruments (symbol, event_ticker, label, type, onchain_id)
