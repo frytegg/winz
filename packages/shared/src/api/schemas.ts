@@ -503,8 +503,13 @@ export const demoResetRequestSchema = z.object({});
 export const demoResponseSchema = z.object({
   ok: z.literal(true),
   demo: z.literal(true),
-  /** Set by /sale. */
+  /** Set by /sale once the ticket is issued; null while it is not, and for the other routes. */
   ticketToken: z.string().nullable(),
+  /**
+   * Set by /sale: the payment of the replayed sale. When `ticketToken` is still null, follow it
+   * with GET /api/checkout/:pi exactly like a card payment. Null for the other routes.
+   */
+  paymentIntentId: z.string().nullable(),
 });
 
 // ---------------------------------------------------------------------------------------------

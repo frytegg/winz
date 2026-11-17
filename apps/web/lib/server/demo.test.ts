@@ -203,6 +203,7 @@ describe("POST /api/admin/demo/book", () => {
       ok: true,
       demo: true,
       ticketToken: null,
+      paymentIntentId: null,
     });
 
     const [override] = await db`
@@ -339,10 +340,13 @@ describe("POST /api/admin/demo/sale", () => {
       noParams,
     );
     expect(response.status).toBe(200);
-    expect(demoResponseSchema.parse(await response.json())).toEqual({
+    // No ticket yet: the answer still names the payment, so the front can follow it.
+    const answer = demoResponseSchema.parse(await response.json());
+    expect(answer).toEqual({
       ok: true,
       demo: true,
       ticketToken: null,
+      paymentIntentId: expect.stringMatching(/^pi_demo_[0-9a-f]{24}$/) as unknown,
     });
     expect(Date.now() - started).toBeLessThan(2_000);
 
@@ -386,6 +390,7 @@ describe("POST /api/admin/demo/sale", () => {
       ok: true,
       demo: true,
       ticketToken: token,
+      paymentIntentId: expect.stringMatching(/^pi_demo_[0-9a-f]{24}$/) as unknown,
     });
     expect(await paymentsOf(promo.id)).toHaveLength(1);
   });

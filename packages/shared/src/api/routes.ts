@@ -192,7 +192,10 @@ export const API_ROUTES = {
     auth: "admin",
     request: schemas.demoSaleRequestSchema,
     response: schemas.demoResponseSchema,
-    examples: { default: examples.demoExamples.sale },
+    examples: {
+      default: examples.demoExamples.sale,
+      processing: examples.demoExamples.saleStillProcessing,
+    },
   },
   demoReset: {
     method: "POST",
