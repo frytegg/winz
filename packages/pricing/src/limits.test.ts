@@ -341,10 +341,13 @@ describe("limits", () => {
   });
 
   it("caps the count at the largest safe integer", () => {
+    // c_max 100 %: a 1 micro-USDC sale may then cost its 1 micro-USDC (at 20 % its cap rounds to 0).
     const huge: LimitsInput = {
       ...joe,
       book: makeBook([[1200n, "10000000000"]], [[1100n, "1"]]),
       unitPrice: 1n,
+      usualMarginBps: 10_000n,
+      minMarginBps: 0n,
       availableBudget: 10n ** 20n,
     };
     expect(limits(huge).capacity).toEqual({ sales: MAX_CAPACITY_SALES, limitedBy: "depth" });
@@ -366,6 +369,7 @@ describe("limits", () => {
 
   it("rounds up the reserve of a sale that straddles two levels", () => {
     // 3 micro-contracts per sale: 1 at 12.74 % and 2 at 13.80 % cost 0.4034 micro-USDC → 1.
+    // c_max 35 % so that the cap, 3 × 35 % = 1.05 → 1, lets that 1 micro-USDC through.
     const dust: LimitsInput = {
       ...joe,
       book: makeBook(
@@ -376,6 +380,7 @@ describe("limits", () => {
         [[1100n, "300"]],
       ),
       unitPrice: 3n,
+      minMarginBps: 3000n,
       toleranceTicks: 0,
     };
     expect(limits({ ...dust, availableBudget: 0n }).capacity).toEqual({
@@ -386,6 +391,101 @@ describe("limits", () => {
       sales: 1,
       limitedBy: "budget",
     });
+  });
+
+  it("reserves the capped guarantee for each sale at the threshold", () => {
+    // At 18 % a pizza costs $3.808; with one tick it would be $4.008, capped at $4.00.
+    const atThreshold: LimitsInput = { ...joe, book: makeBook([[1800n, "100"]], [[1700n, "1"]]) };
+    expect(limits({ ...atThreshold, availableBudget: 20_000_000n }).capacity).toEqual({
+      sales: 5,
+      limitedBy: "depth",
+    });
+    expect(limits({ ...atThreshold, availableBudget: 19_999_999n }).capacity).toEqual({
+      sales: 4,
+      limitedBy: "budget",
+    });
+    expect(limits({ ...atThreshold, availableBudget: 4_000_000n }).saleState).toBe("open");
+    expect(limits({ ...atThreshold, availableBudget: 3_999_999n }).saleState).toBe("paused_budget");
+    // A sale straddling two levels near the cap reserves the cap too: 0.1 at 17 % + 19.9 at 18 %.
+    const straddle: LimitsInput = {
+      ...joe,
+      book: makeBook(
+        [
+          [1700n, "20.1"],
+          [1800n, "19.9"],
+        ],
+        [[1600n, "1"]],
+      ),
+    };
+    // Sale 1 at 17 % reserves $3.798, sale 2 straddles and reserves $4.00.
+    expect(limits({ ...straddle, availableBudget: 7_798_000n }).capacity).toEqual({
+      sales: 2,
+      limitedBy: "depth",
+    });
+    expect(limits({ ...straddle, availableBudget: 7_797_999n }).capacity).toEqual({
+      sales: 1,
+      limitedBy: "budget",
+    });
+  });
+
+  it("stops the capacity at the first sale whose cost is above c_max of its price", () => {
+    // $0.000007 sales: 7 micro-contracts, cap 1.4 → 1 micro-USDC. At 12 % a sale costs
+    // 0.8918 → 1 and is quoted; at 18 %, under the threshold, it costs 1.3328 → 2 and is not.
+    const dust: LimitsInput = {
+      ...joe,
+      book: makeBook(
+        [
+          [1200n, "0.000014"],
+          [1800n, "100"],
+        ],
+        [[1100n, "1"]],
+      ),
+      unitPrice: 7n,
+    };
+    const result = limits(dust);
+    expect(result.pauseThresholdBps).toBe(1800n);
+    // Each of the two reserves 1 (the cost) and not 2 (with the 1 micro-USDC of tolerance).
+    expect(result.capacity).toEqual({ sales: 2, limitedBy: "depth" });
+    expect(result.saleState).toBe("open");
+    expect(limits({ ...dust, availableBudget: 2n }).capacity).toEqual({
+      sales: 2,
+      limitedBy: "depth",
+    });
+    expect(limits({ ...dust, availableBudget: 1n }).capacity).toEqual({
+      sales: 1,
+      limitedBy: "budget",
+    });
+    // A level that holds whole sales, all of them above the cap.
+    const onlyAtThreshold = limits({ ...dust, book: makeBook([[1800n, "100"]], [[1100n, "1"]]) });
+    expect(onlyAtThreshold.capacity).toEqual({ sales: 0, limitedBy: "depth" });
+    expect(onlyAtThreshold.saleState).toBe("paused_price");
+    // Behind the two cheap sales, the next one is paused on its price.
+    const behind = limits({ ...dust, pending: 14n });
+    expect(behind.costPerSale).toBe(2n);
+    expect(behind.capacity).toEqual({ sales: 0, limitedBy: "depth" });
+    expect(behind.saleState).toBe("paused_price");
+  });
+
+  it("sells nothing when c_max is 0 and something is refunded", () => {
+    const none = limits({ ...joe, minMarginBps: 6500n });
+    expect(none.maxCostBps).toBe(0n);
+    expect(none.pauseThresholdBps).toBe(0n);
+    expect(none.capacity).toEqual({ sales: 0, limitedBy: "depth" });
+    expect(none.saleState).toBe("paused_price");
+    // Even on free asks, and even for a dust sale with no exposure.
+    const free = makeBook([[0n, "100"]], []);
+    expect(limits({ ...joe, minMarginBps: 6500n, book: free }).capacity).toEqual({
+      sales: 0,
+      limitedBy: "depth",
+    });
+    expect(limits({ ...joe, minMarginBps: 6500n, book: free }).saleState).toBe("paused_price");
+    const dust = limits({ ...joe, minMarginBps: 6500n, unitPrice: 1n, refundBps: 1n });
+    expect(dust.capacity).toEqual({ sales: 0, limitedBy: "depth" });
+    expect(dust.saleState).toBe("paused_price");
+    // Nothing refunded: no hedge, so no cost to cap.
+    const noRefund = limits({ ...joe, minMarginBps: 6500n, refundBps: 0n });
+    expect(noRefund.capacity).toEqual({ sales: MAX_CAPACITY_SALES, limitedBy: "budget" });
+    expect(noRefund.saleState).toBe("open");
   });
 
   it("skips empty levels between two quoted ones", () => {
@@ -415,20 +515,24 @@ describe("limits", () => {
 function sellUntilRefused(
   input: LimitsInput,
   thresholdBps: bigint,
-): { accepted: number; refusal: QuoteRefusalReason } {
+  maxCost: bigint,
+): { accepted: number; refusal: QuoteRefusalReason; reserved: bigint[] } {
   let pending = input.pending;
   let budget = input.availableBudget;
   let accepted = 0;
+  const reserved: bigint[] = [];
   for (;;) {
     const quote = computeQuote({
       ...input,
       qty: 1n,
       pauseThresholdBps: thresholdBps,
+      maxCostBps: maxCost,
       pending,
       availableBudget: budget,
     });
-    if (!quote.ok) return { accepted, refusal: quote.reason };
+    if (!quote.ok) return { accepted, refusal: quote.reason, reserved };
     accepted += 1;
+    reserved.push(quote.maxHedgeCost);
     // The generated books hold at most 360 contracts and a sale needs at least half of one.
     if (accepted > 1_000) throw new Error("repeated quoting never refused a sale");
     pending += quote.exposure;
@@ -460,9 +564,16 @@ describe("limits, properties", () => {
       fc.property(arbInput, (input) => {
         const result = limits(input);
 
-        const { accepted, refusal } = sellUntilRefused(input, result.pauseThresholdBps);
+        const { accepted, refusal, reserved } = sellUntilRefused(
+          input,
+          result.pauseThresholdBps,
+          result.maxCostBps,
+        );
 
         expect(result.capacity.sales).toBe(accepted);
+        // Every simulated sale reserved at most c_max of its price.
+        const cap = (input.unitPrice * result.maxCostBps) / 10_000n;
+        for (const reserve of reserved) expect(reserve).toBeLessThanOrEqual(cap);
         expect(result.capacity.limitedBy).toBe(refusal === "over_budget" ? "budget" : "depth");
         expect(result.saleState === "open").toBe(accepted > 0);
         if (accepted === 0) seen.none += 1;

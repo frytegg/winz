@@ -135,7 +135,7 @@ Exemple : Joe vend une pizza à 20 $, marge habituelle 65 %, marge minimale 45 %
 - L'écran affiche : « Your promo pauses if Texas' chances go above 18 %. »
 
 ### 4.4 Garantie de coût par vente
-Au moment de la vente, le devis fixe un **coût maximal garanti**. Ce montant est **réservé on-chain sur le budget** du commerçant dès l'achat, et le contrat refuse toute facturation au-delà :
+Au moment de la vente, le devis fixe un **coût maximal garanti**, plafonné à `c_max × montant payé` : c'est ce qui garantit la marge minimale. Ce montant est **réservé on-chain sur le budget** du commerçant dès l'achat, et le contrat refuse toute facturation au-delà :
 - si le moteur couvre en maker moins cher, l'économie va au commerçant (la réserve non utilisée retourne au budget) ;
 - s'il doit payer plus que ce coût garanti (le marché a bougé entre la vente et l'exécution), la différence est absorbée par la marge Winz et comptée dans le P&L du moteur.
 
@@ -372,7 +372,7 @@ Le remboursement des clients vient du séquestre et ne dépend jamais de la tré
 1. q = qty × unitPrice × refundBps / 10 000 = exposition du ticket en micro-USDC = nombre de micro-contrats nécessaires.
 2. coût = `marginalTakerCost(carnet, en_attente, q)`, où `en_attente` est l'exposition déjà vendue et pas encore couverte. C'est le prix de la tranche que cette vente consommera vraiment, pas la moyenne depuis le haut du carnet.
 3. Si le carnet est périmé ou trop peu profond, si p_eff > p_max ou si le coût garanti dépasse le budget disponible : pas de devis, l'achat est refusé et l'autorisation de paiement annulée.
-4. Sinon, devis signé avec `maxHedgeCost = coût + tolérance (1 tick × q)`, valable 60 s.
+4. Sinon, devis signé avec `maxHedgeCost = min(coût + tolérance (1 tick × q), c_max × montant payé)`, valable 60 s. Si le coût dépasse déjà `c_max × montant payé`, pas de devis. Le commerçant n'est donc jamais facturé au-delà de ce qui lui laisse sa marge minimale : près du seuil la tolérance se réduit, et un éventuel écart est à la charge de Winz.
 
 ### 9.3 Politique d'exécution, par instrument
 Variables : `E` exposition (contrats), `H` position détenue, `W` ordres maker en attente, `U = E − H` non couvert.
@@ -730,6 +730,15 @@ Revue technique du 17 novembre 2026. Les faits marqués « vérifié » ont ét�
 | Realtime Supabase pour tout | Pas de pont documenté entre Privy et RLS | Tables publiques sans donnée personnelle (section 7) |
 | Wallet créé à la connexion du client | Le client ne se connecte pas avant de payer | Pré-génération par e-mail, ticket par lien à jeton (hypothèse 5, ID-1, C3) |
 | Webhooks idempotents | Rien sur l'authenticité | Signature vérifiée (section 10, 16) |
+
+### Ajustements pendant la construction (17 novembre)
+| Sujet | Avant | Maintenant | Pourquoi |
+|---|---|---|---|
+| Coût garanti d'une vente | coût + 1 tick de tolérance | plafonné à `c_max × montant payé` (4.4, 9.2) | Au seuil, la tolérance faisait dépasser la marge minimale promise : 4,008 $ pour un plafond de 4,00 $ dans l'exemple de Joe. À confirmer par Alexandre |
+| Modèles de promo | toutes les conditions cotées | pas de condition cotée sous 5 % | Sinon les conditions les plus improbables (« gagne de 30+ ») sortent toujours en tête. À confirmer |
+| `buyFor` | `buyFor(buyer, id, qty, quote, sig)` | `buyFor(quote, sig)` | Le devis porte déjà la campagne, l'acheteur et la quantité |
+| ABI partagée | celle de l'interface | celle de l'implémentation | Le moteur doit aussi nommer les erreurs d'OpenZeppelin |
+| Émetteur de transactions | suivi des nonces par rôle | par adresse et par chaîne | Un changement de clé sur la même base bloquait la file (revue) |
 
 ### Risque de périmètre, non tranché
 La v1.0 compte une quarantaine de Must pour trois jours à deux. La v1.1 n'en retire aucun : `TASKS.md` les ordonne pour que le parcours de démo tienne debout en premier, et marque ce qui peut glisser sans casser la démo. C'est à Alexandre et Téo de reclasser.
