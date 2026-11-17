@@ -359,7 +359,7 @@ export const checkoutExample: CheckoutResponse = {
 
 export const checkoutStatusExamples = {
   processing: { status: "processing", ticketToken: null, message: null },
-  ticketed: { status: "ticketed", ticketToken: "tkt_9f3b2c7a1d5e4f60", message: null },
+  ticketed: { status: "ticketed", ticketToken: "tkt_example_joes_texas", message: null },
   cancelledPaused: {
     status: "cancelled_paused",
     ticketToken: null,
@@ -373,7 +373,7 @@ export const checkoutStatusExamples = {
 } satisfies Record<string, CheckoutStatusResponse>;
 
 const ticketPreGame: Ticket = {
-  token: "tkt_9f3b2c7a1d5e4f60",
+  token: "tkt_example_joes_texas",
   campaignSlug: "joes-texas",
   merchant: { name: "Joe's Pizza", logoUrl: null },
   product: "Large pizza",
@@ -410,7 +410,7 @@ export const ticketsExample: TicketsResponse = {
     ticketPreGame,
     {
       ...ticketPreGame,
-      token: "tkt_1a2b3c4d5e6f7a8b",
+      token: "tkt_example_joes_pitt",
       campaignSlug: "joes-pitt",
       promise: "50% back if Pitt wins",
       conditionLabel: "Pittsburgh wins",
@@ -530,5 +530,5 @@ export const hedgeDeskExample: HedgeDeskResponse = {
 
 export const demoExamples = {
   ok: { ok: true, demo: true, ticketToken: null },
-  sale: { ok: true, demo: true, ticketToken: "tkt_9f3b2c7a1d5e4f60" },
+  sale: { ok: true, demo: true, ticketToken: "tkt_example_joes_texas" },
 } satisfies Record<string, DemoResponse>;
