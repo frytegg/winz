@@ -1,5 +1,5 @@
-import { defineRoute } from "@/lib/server/route";
+import { apiRoute } from "@/lib/server/api-route";
 
 export const dynamic = "force-dynamic";
 
-export const POST = defineRoute("demoResult");
+export const POST = apiRoute("demoResult");
