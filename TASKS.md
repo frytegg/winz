@@ -129,7 +129,7 @@ Tous parallèles entre eux dès que F-05 est figé. Lot à lancer ensemble : C-0
   Fini quand : `pnpm db:migrate` passe sur une base vide, le rôle anonyme lit `live_*` et rien d'autre (testé).
 
 ### Marché
-- [ ] **M-01** · Qui : Agent `coder`, relu par A · Dép. : F-05 · MD-1, MD-3
+- [x] **M-01** · Qui : Agent `coder`, relu par A · Dép. : F-05 · MD-1, MD-3
   Client REST Gemini : événements actifs avec leurs marchés enfants, carnet `GET /v1/book/{symbol}`, événements réglés ; validation zod, normalisation vers `events` et `instruments`, cache de 60 s, respect de la limite de 120 requêtes par minute.
   Fini quand : les tests tournent sur des réponses enregistrées, et une commande synchronise le catalogue réel en base.
 - [ ] **M-02** · Qui : Agent `coder-high`, relu par A · Dép. : M-01, S-05 · MD-2

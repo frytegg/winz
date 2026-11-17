@@ -3,6 +3,10 @@ import type { Bps, InstrumentType, Sport } from "@winz/shared";
 
 import type { RawChildEvent, RawContract, RawEvent } from "./schemas";
 
+/** Which side of the game a contract pays on. Same strings as Gemini's `sportsSide`. */
+export const INSTRUMENT_SIDES = ["home", "away", "tie"] as const;
+export type InstrumentSide = (typeof INSTRUMENT_SIDES)[number];
+
 export interface NormalizedTeam {
   /** As Gemini gives it: "Texas Longhorns" in college sports, "Baltimore" in the NFL. */
   name: string;
@@ -36,6 +40,11 @@ export interface NormalizedInstrument {
   strike: string | null;
   /** Short human condition: "Texas wins", "Texas wins by 14+", "Over 45.5 points". */
   label: string;
+  /**
+   * The team the contract pays on, or "tie" for the draw of a three-way moneyline.
+   * Null when unknown, and always null on totals, which belong to neither team.
+   */
+  side: InstrumentSide | null;
   bestBidBps: Bps | null;
   bestAskBps: Bps | null;
 }
@@ -116,6 +125,31 @@ export function totalLabel(strike: string, metric: string | null | undefined): s
   return `Over ${strike} ${metric ?? "points"}`;
 }
 
+function isInstrumentSide(value: string): value is InstrumentSide {
+  return (INSTRUMENT_SIDES as readonly string[]).includes(value);
+}
+
+/**
+ * Side of a moneyline or spread contract: Gemini's `sportsSide` when it is there. Most spread
+ * contracts come without it; their symbol ends with the team abbreviation and the strike
+ * ("…-S-TEX13"), which is matched against the two participants. Null when neither tells.
+ */
+export function contractSide(
+  contract: Pick<RawContract, "instrumentSymbol" | "sportsSide">,
+  type: InstrumentType,
+  teams: { home: string; away: string },
+): InstrumentSide | null {
+  if (type === "total") return null;
+  if (contract.sportsSide && isInstrumentSide(contract.sportsSide)) return contract.sportsSide;
+  if (type !== "spread" || teams.home === teams.away) return null;
+  const lastSegment = contract.instrumentSymbol.split("-").pop() ?? "";
+  const abbreviation = lastSegment.replace(/\d+$/, "");
+  if (abbreviation === "") return null;
+  if (abbreviation === teams.home) return "home";
+  if (abbreviation === teams.away) return "away";
+  return null;
+}
+
 /** Full game: "full_contest", or "regulation" for soccer where 90 minutes is the standard market. */
 function isFullGame(event: RawChildEvent): boolean {
   const scope = event.sportsMarket?.scope?.type;
@@ -144,6 +178,7 @@ function normalizeContract(
   market: RawChildEvent,
   type: InstrumentType,
   eventTicker: string,
+  teams: { home: string; away: string },
 ): NormalizedInstrument | SkippedItem {
   const skip = (reason: string): SkippedItem => ({ ref: contract.instrumentSymbol, reason });
   if (contract.isCombo === true) return skip("combo contract");
@@ -174,6 +209,7 @@ function normalizeContract(
     type,
     strike,
     label,
+    side: contractSide(contract, type, teams),
     bestBidBps: priceOrNull(contract.prices?.bestBid),
     bestAskBps: priceOrNull(contract.prices?.bestAsk),
   };
@@ -223,9 +259,14 @@ export function normalizeCatalog(rawEvents: readonly RawEvent[]): NormalizedCata
   const seenSymbols = new Set<string>();
   const attached = new Set<string>();
 
-  const addContracts = (market: RawChildEvent, type: InstrumentType, eventTicker: string): void => {
+  const addContracts = (
+    market: RawChildEvent,
+    type: InstrumentType,
+    eventTicker: string,
+    teams: { home: string; away: string },
+  ): void => {
     for (const contract of market.contracts) {
-      const result = normalizeContract(contract, market, type, eventTicker);
+      const result = normalizeContract(contract, market, type, eventTicker, teams);
       if (isSkipped(result)) {
         skipped.push(result);
       } else if (!seenSymbols.has(result.symbol)) {
@@ -277,14 +318,15 @@ export function normalizeCatalog(rawEvents: readonly RawEvent[]): NormalizedCata
       status: game.status,
     });
 
-    addContracts(game, "moneyline", game.ticker);
+    const teams = { home: home.abbreviation, away: away.abbreviation };
+    addContracts(game, "moneyline", game.ticker, teams);
     for (const { market, type } of children) {
       if (market.status !== "active") {
         // "approved" markets are listed before they trade; they come back once active.
         skipped.push({ ref: market.ticker, reason: `market status is "${market.status}"` });
         continue;
       }
-      addContracts(market, type, game.ticker);
+      addContracts(market, type, game.ticker, teams);
     }
   }
 

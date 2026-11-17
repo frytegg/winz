@@ -4,9 +4,35 @@ import { SettlementConflictError } from "./errors";
 import type { NormalizedEvent, NormalizedInstrument } from "./normalize";
 
 /**
+ * Status of a stored event: ours, not Gemini's. Same strings as the check on `events.status`
+ * (supabase/migrations/20261117010000_catalog.sql).
+ */
+export const EVENT_STATUSES = ["upcoming", "active", "closed", "settled", "void"] as const;
+export type EventStatus = (typeof EVENT_STATUSES)[number];
+
+/**
+ * Gemini event status → stored status. A status we have never seen maps to "closed": nothing
+ * may be sold on an event we do not understand, and the raw string is kept beside it.
+ */
+export function mapEventStatus(geminiStatus: string): EventStatus {
+  switch (geminiStatus) {
+    case "approved":
+      return "upcoming";
+    case "active":
+      return "active";
+    case "settled":
+      return "settled";
+    case "invalid":
+      return "void";
+    default:
+      return "closed";
+  }
+}
+
+/**
  * Where the catalogue is persisted (tables `events` and `instruments`, SPEC section 10).
- * The Postgres implementation lands with the schema; until then the engine and the tests
- * use `InMemoryCatalogStore`.
+ * The engine uses `PgCatalogStore`; `InMemoryCatalogStore` is for tests that need no database.
+ * Nothing is ever deleted: a campaign may reference an event or an instrument for good.
  */
 export interface CatalogStore {
   /** Inserts new games and refreshes the fields of known ones, keyed by ticker. */
@@ -14,7 +40,14 @@ export interface CatalogStore {
   /** Inserts new instruments and refreshes known ones, keyed by symbol. Never clears an outcome. */
   upsertInstruments(instruments: readonly NormalizedInstrument[]): Promise<void>;
   /**
-   * Records the outcome of the instruments it knows; unknown symbols are ignored.
+   * Marks inactive every instrument that is not in `listedSymbols`, the symbols of a complete
+   * catalogue. The rows stay. Returns how many instruments were newly marked.
+   * An instrument that is listed again becomes active at its next upsert.
+   */
+  markDelisted(listedSymbols: readonly string[]): Promise<number>;
+  /**
+   * Records the outcome of the instruments it knows and marks them inactive; unknown symbols
+   * are ignored.
    * Idempotent. Returns how many instruments were newly settled.
    * Rejects with `SettlementConflictError` if an instrument already has a different outcome.
    */
@@ -22,6 +55,8 @@ export interface CatalogStore {
 }
 
 export interface StoredInstrument extends NormalizedInstrument {
+  /** False once Gemini no longer lists the contract as tradable. */
+  active: boolean;
   outcome: Outcome | null;
   settledAt: Date | null;
 }
@@ -40,11 +75,23 @@ export class InMemoryCatalogStore implements CatalogStore {
       const known = this.instruments.get(instrument.symbol);
       this.instruments.set(instrument.symbol, {
         ...instrument,
+        active: true,
         outcome: known?.outcome ?? null,
         settledAt: known?.settledAt ?? null,
       });
     }
     return Promise.resolve();
+  }
+
+  markDelisted(listedSymbols: readonly string[]): Promise<number> {
+    const listed = new Set(listedSymbols);
+    let delisted = 0;
+    for (const [symbol, instrument] of this.instruments) {
+      if (!instrument.active || listed.has(symbol)) continue;
+      this.instruments.set(symbol, { ...instrument, active: false });
+      delisted += 1;
+    }
+    return Promise.resolve(delisted);
   }
 
   markSettled(outcomes: ReadonlyMap<string, Outcome>, settledAt: Date): Promise<number> {
@@ -59,7 +106,7 @@ export class InMemoryCatalogStore implements CatalogStore {
     for (const [symbol, outcome] of outcomes) {
       const known = this.instruments.get(symbol);
       if (!known || known.outcome !== null) continue;
-      this.instruments.set(symbol, { ...known, outcome, settledAt });
+      this.instruments.set(symbol, { ...known, outcome, settledAt, active: false });
       newlySettled += 1;
     }
     return Promise.resolve(newlySettled);
