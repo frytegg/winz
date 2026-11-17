@@ -54,7 +54,7 @@ pnpm install
   Fini quand : l'autorisation arrive, l'e-mail aussi, et la capture comme l'annulation fonctionnent. Teste aussi l'ouverture depuis le navigateur d'Instagram.
 
 ### Mardi : écrans sur l'API simulée
-Tu n'attends pas le back : avec `API_MOCK=1`, chaque route renvoie une réponse d'exemple (tâche F-06, livrée à la porte G0).
+Tu n'attends pas le back : avec `APP_API_MOCK=true`, chaque route renvoie une réponse d'exemple (tâche F-06, livrée à la porte G0).
 
 - [ ] **U-01** Direction visuelle et socle : couleurs, typographie, composants de base, manifeste PWA, icône, textes dans `apps/web/lib/copy.ts`.
 - [ ] **U-02** Onboarding commerçant M0 à M8. Les calculs de M6 viennent de `packages/pricing`, ne les réécris pas.
