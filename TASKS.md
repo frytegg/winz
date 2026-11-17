@@ -74,7 +74,7 @@ Tout le reste en dépend. F-02, puis F-03, sont les deux seules tâches vraiment
 - [x] **F-06** · Qui : Agent `coder`, relu par T · Dép. : F-05
   API simulée : avec `APP_API_MOCK=true`, chaque route renvoie son exemple, avec quelques scénarios (campagne ouverte, en pause, réglée YES, réglée NO).
   Fini quand : Téo construit ses écrans sans qu'aucun service du back ne tourne.
-- [ ] **F-07** · Qui : Agent `coder`, relu par A · Dép. : F-04
+- [x] **F-07** · Qui : Agent `coder`, relu par A · Dép. : F-04
   `scripts/completion-check.mjs` : lit `TASKS.md` (cases et tableau de couverture) et vérifie que les fichiers attendus existent ; code de sortie non nul tant qu'un Must est ouvert. Hors CI.
   Fini quand : `pnpm completion-check` liste les Must ouverts et sort en erreur aujourd'hui.
 
@@ -298,7 +298,7 @@ Fin de vague : **porte G2**, boucle complète en mode démo sur le testnet, issu
 
 ## Couverture des exigences
 
-Chaque exigence de la spec et les tâches qui la portent. Une exigence sans tâche cochée est ouverte.
+Chaque exigence de la spec et les tâches qui la portent. Une exigence reste ouverte tant qu'une seule de ses tâches n'est pas cochée, y compris une tâche marquée ◇ : la faire glisser demande de reclasser l'exigence ici.
 
 | Exigence | Priorité | Tâches |
 |---|---|---|
@@ -319,11 +319,13 @@ Chaque exigence de la spec et les tâches qui la portent. Une exigence sans tâc
 | CA-6 | Should | A-08 |
 | CA-7 | Could | B-01 |
 | CO-1 | Must | U-03, U-08 |
-| CO-2 | Must | S-03, A-03, J-03 |
+| CO-2 | Must | S-03, A-03, J-03, U-04 |
 | CO-3 | Must | A-03, J-03 |
 | CO-4 | Must | J-03 |
 | CO-5 | Could | B-02 |
-| EC-1, EC-3, EC-4, EC-5, EC-6, EC-7 | Must | C-01 |
+| EC-1, EC-3, EC-4, EC-6 | Must | C-01 |
+| EC-5 | Must | C-01, H-05 |
+| EC-7 | Must | C-01, R-02 |
 | EC-2 | Must | C-02 |
 | HE-1 | Must | X-02, H-01, S-04, A-06 |
 | HE-2 | Must | H-04 |
@@ -344,6 +346,10 @@ Chaque exigence de la spec et les tâches qui la portent. Une exigence sans tâc
 | MDB-3 | Must | A-05, U-06 |
 | MDB-4 | Must | A-07, U-07 |
 | Critères de succès 1 à 8 | Must | Q-03, Q-04, Q-05, Q-06 |
+| Fondations | Must | F-01, F-02, F-03, F-04, F-05, F-06, F-07, S-01, C-03, D-01, X-01, J-01, U-01 |
+| Tests de bout en bout | Must | Q-01, Q-02 |
+| Rendu | Must | Q-07, L-01, L-02 |
+| Finale | Could | L-03 |
 
 ## Questions ouvertes qui bloquent une tâche
 

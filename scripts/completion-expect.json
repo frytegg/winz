@@ -1,0 +1,42 @@
+{
+  "F-04": [
+    "package.json",
+    "pnpm-workspace.yaml",
+    "turbo.json",
+    "apps/web/app/layout.tsx",
+    "apps/engine/src/index.ts",
+    ".github/workflows/ci.yml"
+  ],
+  "F-05": [
+    "packages/shared/src/api/schemas.ts",
+    "packages/shared/src/api/routes.ts",
+    "packages/shared/src/api/examples.ts",
+    "packages/contracts/src/interfaces/IWinzEscrow.sol",
+    "packages/shared/src/abi/winz-escrow.ts"
+  ],
+  "F-07": ["scripts/completion-check.mjs"],
+  "S-05": ["apps/engine/fixtures"],
+  "C-01": ["packages/contracts/src/WinzEscrow.sol"],
+  "C-03": ["packages/contracts/script", "packages/shared/src/abi/winz-escrow.ts"],
+  "P-01": ["packages/pricing/src/index.ts", "packages/pricing/src/**/*.test.ts"],
+  "D-01": ["supabase/migrations"],
+  "M-01": ["apps/engine/src/market-data"],
+  "X-01": ["apps/engine/src/chain"],
+  "J-01": ["apps/engine/src/jobs"],
+  "U-01": ["apps/web/components", "apps/web/lib/copy.ts", "apps/web/app/manifest.ts"],
+  "U-02": ["apps/web/app/(merchant)"],
+  "U-03": ["apps/web/app/(fan)"],
+  "A-01": ["apps/web/app/api/events", "apps/web/app/api/me", "apps/web/app/api/merchants"],
+  "A-02": ["apps/web/app/api/campaigns"],
+  "A-03": ["apps/web/app/api/checkout", "apps/web/app/api/webhooks/stripe"],
+  "A-04": ["apps/web/app/api/c", "apps/web/app/api/t", "apps/web/app/api/tickets"],
+  "H-03": ["apps/engine/src/venues"],
+  "H-04": ["apps/engine/src/hedging"],
+  "H-05": ["apps/engine/src/hedging"],
+  "R-01": ["apps/engine/src/settlement"],
+  "A-05": ["apps/web/app/api/hedge-desk"],
+  "A-06": ["apps/web/app/api/webhooks/quicknode"],
+  "U-06": ["apps/web/app/hedge-desk"],
+  "U-07": ["apps/web/app/admin"],
+  "Q-02": ["e2e"]
+}
