@@ -1,0 +1,29 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+cache_path = "cache"
+libs = ["node_modules"]
+# pnpm links dependencies into the workspace store, outside this package.
+allow_paths = ["../../node_modules"]
+solc = "0.8.28"
+# Arc's docs disagree on Prague vs Osaka; Cancun is inside both.
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+remappings = [
+  "forge-std/=node_modules/forge-std/src/",
+  "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
+]
+
+[fuzz]
+runs = 256
+
+[invariant]
+runs = 64
+depth = 64
+fail_on_revert = false
+
+[fmt]
+line_length = 110
