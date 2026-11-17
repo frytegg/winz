@@ -209,15 +209,18 @@ Lots parallèles : (H-03 → H-04 → H-05, H-06), (R-01 → R-02), (A-05, A-06,
 - [x] **H-03** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : M-02, S-05 · HE-8, 9.7
   Interface `ExecutionVenue` et exécution papier : règles taker et maker de 9.7, profondeur consommée retenue, frais, carnet de référence gardé avec chaque exécution.
   Fini quand : sur le jeu de carnets, un ordre taker ne dépasse jamais la profondeur affichée et un ordre maker n'est exécuté que si le marché l'a touché.
-- [ ] **H-04** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : H-03, H-01 · HE-2, HE-3, 9.3
+- [x] **H-04** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : H-03, H-01 · HE-2, HE-3, 9.3
   Politique d'exécution : maker d'abord, plafond `U_max`, TTL, repli taker, taker forcé à 60 min du début, regroupement des ventes rapprochées ; paramètres en base et lisibles.
   Fini quand : chaque branche de 9.3 a son test sur carnets enregistrés, et `U × p` ne dépasse pas `U_max` plus de 5 s dans le scénario de démo (critère 4).
-- [ ] **H-05** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : H-04, C-03 · HE-4, EC-5, 9.5
+- [x] **H-05** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : H-04, C-03 · HE-4, EC-5, 9.5
   Allocation FIFO des exécutions aux lots, facturation `chargeHedge` par lots de tickets plafonnée au coût garanti, P&L du moteur (économies maker, pertes de garantie).
   Fini quand : sur un scénario à deux commerçants, chacun ne paie que ses lots, jamais plus que son devis, et la somme facturée plus le P&L égale le coût réel.
-- [ ] **H-06** · Qui : Agent `coder`, relu par A · Dép. : H-04 · HE-5
+- [x] **H-06** · Qui : Agent `coder`, relu par A · Dép. : H-04 · HE-5
   Coupe-circuit : Gemini muet, carnet périmé ou plafond dépassé → plus de devis, plus d'ordres, état visible.
   Fini quand : chaque déclencheur est testé, et aucun ordre ne part coupe-circuit actif.
+- [ ] **H-10** · Qui : Agent `coder`, relu par A · Dép. : H-03, H-04, H-05, M-02, X-02 · HE-2, HE-3, HE-4
+  Brancher la couverture dans le moteur : un exécuteur par instrument alimenté par le flux de carnets et le grand livre d'exposition, ordres et exécutions enregistrés en base, allocation des exécutions aux lots, envoi des facturations `chargeHedge`, reprise après redémarrage, état public du Hedge desk.
+  Fini quand : sur une chaîne locale, une vente déclenche un ordre papier, son exécution est allouée au lot, la facturation part on-chain, et un redémarrage au milieu ne double rien.
 - [ ] **H-08** · Qui : Agent `coder-high`, relu par A · Dép. : H-05 · HE-6
   Réconciliation à la fin des ventes : position ramenée à l'exposition à 0,01 contrat près, puis facturation de tous les lots restants.
   Fini quand : après clôture, `hedgeReserved == 0` on-chain pour chaque campagne de l'instrument.
@@ -328,9 +331,9 @@ Chaque exigence de la spec et les tâches qui la portent. Une exigence reste ouv
 | EC-7 | Must | C-01, R-02 |
 | EC-2 | Must | C-02 |
 | HE-1 | Must | X-02, H-01, S-04, A-06 |
-| HE-2 | Must | H-04 |
+| HE-2 | Must | H-04, H-10 |
 | HE-3 | Must | H-01, H-04 |
-| HE-4 | Must | H-05 |
+| HE-4 | Must | H-05, H-10 |
 | HE-5 | Must | H-06 |
 | HE-6 | Must | H-08 |
 | HE-7 | Should | H-09 |
