@@ -39,7 +39,7 @@ const TICK_BPS = 100;
 const MIN_PRICE_BPS = 100;
 const MAX_PRICE_BPS = 9_900;
 
-const OK: DemoResponse = { ok: true, demo: true, ticketToken: null };
+const OK: DemoResponse = { ok: true, demo: true, ticketToken: null, paymentIntentId: null };
 
 // ---------------------------------------------------------------------------------------------
 // Shared steps
@@ -248,7 +248,7 @@ export async function replayDemoSale(
   });
   serverLogger("demo").info({ paymentId, campaignId, qty: request.qty }, "demo sale enqueued");
   const ticketToken = await waitForTicket(db, paymentId, wait);
-  return { ok: true, demo: true, ticketToken };
+  return { ok: true, demo: true, ticketToken, paymentIntentId: paymentId };
 }
 
 // ---------------------------------------------------------------------------------------------
