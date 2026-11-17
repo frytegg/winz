@@ -31,6 +31,10 @@ import {
 // ---------------------------------------------------------------------------------------------
 
 export const microUsdcSchema = z.string().regex(/^\d+$/, "micro-USDC as a string of digits");
+/** A strictly positive amount: the contract refuses a zero unit price. */
+export const positiveMicroUsdcSchema = z
+  .string()
+  .regex(/^[1-9]\d*$/, "a positive amount of micro-USDC as a string of digits");
 export const microContractsSchema = z
   .string()
   .regex(/^\d+$/, "micro-contracts as a string of digits");
@@ -171,7 +175,7 @@ export const eventsResponseSchema = z.object({
 /** What the merchant sets on screens M5 and M6. */
 export const campaignTermsSchema = z.object({
   instrumentSymbol: z.string(),
-  unitPrice: microUsdcSchema,
+  unitPrice: positiveMicroUsdcSchema,
   refundBps: bpsSchema.min(1),
   usualMarginBps: bpsSchema,
   minMarginBps: bpsSchema,
