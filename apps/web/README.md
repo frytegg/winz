@@ -149,9 +149,10 @@ apparaît donc quelques secondes après la réponse de la route, quand le moteur
 | `POST /api/checkout/:pi/confirm`, `GET /api/checkout/:pi` | Déclenche l'achat, puis suit son état                                                            |
 | `GET /api/t/:token`, `GET /api/tickets`                | Ticket par lien secret, tickets du fan connecté                                                     |
 | `POST /api/webhooks/stripe`                            | Webhook Stripe, signature vérifiée sur le corps brut                                                |
+| `GET /api/hedge-desk`                                  | Hedge desk public : instruments couverts, lieu d'exécution, paramètres, totaux, contrôle sandbox    |
+| `POST /api/admin/demo/book`, `/result`, `/sale`, `/reset` | Mode démo, derrière la clé admin                                                                 |
 
-Répondent encore `501` : `GET /api/hedge-desk`, `POST /api/admin/demo/*`,
-`POST /api/webhooks/quicknode`.
+Répond encore `501` : `POST /api/webhooks/quicknode`.
 
 ### Créer une campagne (M7)
 
@@ -225,3 +226,68 @@ budget d'une campagne est débité tout de suite ; un achat reste autorisé jusq
 capture (ticket émis) ou annule (promo passée en pause entre-temps, échec).
 
 `next build` ne lit aucun secret : la construction marche sans `.env`.
+
+### Le Hedge desk (`GET /api/hedge-desk`)
+
+Route publique, sans jeton, en lecture seule. Elle assemble ce que le moteur écrit en base :
+
+- `instruments` : un élément par instrument que le moteur couvre (table `live_hedge_desk`), triés
+  par début du match puis par symbole. Pour du temps réel, s'abonner à `live_hedge_desk` (une
+  ligne par instrument, `payload` a exactement la forme d'un élément de `instruments`) ;
+- `venue`, `venueLabel`, `venueNote` : le lieu d'exécution, à afficher tel quel et en clair. En
+  `paper`, `venueLabel` vaut « PAPER · live Gemini book » et `venueNote` dit que les exécutions
+  sont simulées sur le carnet réel de Gemini et que les exécutions maker sont optimistes ;
+- `params` : les paramètres de risque en vigueur (`uMax` en micro-USDC, comme tout montant) ;
+- `totals` : économie maker, pertes de garantie et gains de croisement, sur tous les matchs ;
+- `venueCheck` : le dernier contrôle des ordres réels sur le sandbox Gemini, ou `null` s'il n'a
+  jamais tourné ;
+- `demo` : `true` dès qu'une action du mode démo est en cours (un carnet piloté ou un résultat
+  forcé existe).
+
+La réponse ne contient jamais d'e-mail ni d'adresse.
+
+### Le mode démo (`POST /api/admin/demo/*`)
+
+Chaque appel porte l'en-tête `x-admin-key` (constante `ADMIN_KEY_HEADER` de `@winz/shared`) avec
+la valeur de `APP_ADMIN_DEMO_KEY`. Sans en-tête ou avec une mauvaise clé : `401 unauthenticated`,
+et rien n'est modifié. La clé reste côté serveur ou dans le panneau admin : jamais dans le code du
+front public.
+
+```bash
+curl -X POST http://localhost:3000/api/admin/demo/book \
+  -H "content-type: application/json" -H "x-admin-key: $APP_ADMIN_DEMO_KEY" \
+  -d '{"instrumentSymbol":"GEMI-NCAAF-2611212030-ARK-TEX-S-TEX13","bidBps":1100,"askBps":1300,"depth":"500000000"}'
+```
+
+| Route                          | Corps                                                         | Effet                                                                                                                          |
+| ------------------------------ | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /api/admin/demo/book`    | `{ instrumentSymbol, bidBps, askBps, depth }`                 | Le moteur utilise ce carnet (un niveau de chaque côté, `depth` en micro-contrats) à la place de celui de Gemini, et suit l'instrument 60 min |
+| `POST /api/admin/demo/result`  | `{ instrumentSymbol, outcome }` (`yes`, `no` ou `void`)       | Le moteur règle les campagnes de l'instrument sur ce résultat à la place de celui de Gemini                                   |
+| `POST /api/admin/demo/sale`    | `{ slug, qty, email }`                                        | Rejoue un achat sans carte (voir plus bas)                                                                                     |
+| `POST /api/admin/demo/reset`   | `{}` ou corps vide                                            | Supprime tous les carnets pilotés et tous les résultats forcés                                                                |
+
+Toutes répondent `{ "ok": true, "demo": true, "ticketToken": null }`, sauf `sale` qui peut
+donner un `ticketToken`.
+
+- `book` : `bidBps` et `askBps` sont des multiples de 100 entre 100 et 9900, avec `bidBps` <
+  `askBps` ; `depth` est un multiple de `10000` (0,01 contrat) strictement positif. Sinon
+  `400 invalid_request`. Un instrument inconnu répond `404`.
+- `result` : un instrument inconnu répond `404`. Le règlement n'est pas immédiat : le moteur le
+  fait une fois les ventes closes.
+- `sale` : la campagne doit pouvoir vendre exactement comme pour `POST /api/checkout` : sinon
+  `404` (slug inconnu) ou `409` avec `sales_paused` ou `sales_closed`. La route crée un paiement
+  `pi_demo_…`, le transmet au moteur, puis attend jusqu'à 8 secondes que le ticket soit émis :
+  `ticketToken` est alors rempli (ouvrir `/t/<ticketToken>`), sinon il vaut `null` et le ticket
+  arrivera un peu plus tard. La réponse ne donne pas l'identifiant du paiement (le schéma partagé
+  n'a pas de champ pour lui), donc le front ne peut pas suivre ce paiement avec
+  `GET /api/checkout/:pi` : la vente apparaît dans `GET /api/campaigns/:id` quand le moteur l'a
+  faite. Ne pas relancer l'appel après un `null` : chaque appel est une nouvelle vente.
+- `reset` : les campagnes touchées par une action démo restent des campagnes démo.
+
+### Le bandeau « DEMO MODE »
+
+Afficher le bandeau « DEMO MODE » sur tout écran dont une réponse porte un champ `demo` à `true` :
+`GET /api/c/:slug`, `GET /api/t/:token` et chaque ticket de `GET /api/tickets`,
+`GET /api/campaigns/:id`, `GET /api/hedge-desk`, et les réponses des routes démo elles-mêmes. Une
+campagne touchée par une action démo (carnet piloté ou résultat forcé sur son instrument, vente
+rejouée) le reste pour toujours, même après `reset`.

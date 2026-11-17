@@ -15,7 +15,7 @@ import {
 import { normalizeEmail } from "./auth";
 import { MAX_CARD_AMOUNT, paymentUnavailable } from "./campaign-writes";
 import type { Db } from "./db";
-import { enqueueJob } from "./jobs";
+import { enqueueJob, type JobSql } from "./jobs";
 import { serverLogger } from "./logger";
 import {
   PaymentGatewayError,
@@ -76,6 +76,45 @@ export function saleRefusal(row: SellableRow, now: Date): ApiRouteError | null {
   return null;
 }
 
+/** A published campaign that sells right now, and what `qty` units of it cost. */
+export interface SellableCampaign {
+  id: string;
+  /** qty × unit price, in micro-USDC. */
+  amount: bigint;
+}
+
+/**
+ * The campaign of `slug` when it sells right now, with the price of `qty` units: 404 when no
+ * published campaign has this slug, 409 `sales_paused` or `sales_closed` as `saleRefusal` says,
+ * 400 when the amount is above what one card payment can carry. `lock` takes the campaign row
+ * `for update` (inside a transaction), so a concurrent pause or close waits for the caller.
+ *
+ * The one check of POST /api/checkout, also used by the demo sale (POST /api/admin/demo/sale).
+ */
+export async function findSellableCampaign(
+  sql: JobSql,
+  slug: string,
+  qty: number,
+  now: Date,
+  options: { lock?: boolean } = {},
+): Promise<SellableCampaign> {
+  const [row] = await sql<SellableRow[]>`
+    select id, status, sale_state, sales_close, outcome, unit_price
+    from campaigns
+    where slug = ${slug} and status not in ${sql(UNPUBLISHED)}
+    ${options.lock === true ? sql`for update` : sql``}
+  `;
+  if (!row) throw new ApiRouteError(404, "not_found", "Promo not found");
+  const refusal = saleRefusal(row, now);
+  if (refusal) throw refusal;
+
+  const amount = BigInt(qty) * row.unit_price;
+  if (amount > MAX_CARD_AMOUNT) {
+    throw new ApiRouteError(400, "invalid_request", "That is too many for one payment");
+  }
+  return { id: row.id, amount };
+}
+
 /**
  * POST /api/checkout: checks that the promo sells right now, creates the card authorization for
  * qty × unit price (`capture_method: manual`) and records the payment (`requires_payment`).
@@ -89,19 +128,8 @@ export async function startCheckout(
   now: Date,
   idempotencyKey: string = `checkout:${randomUUID()}`,
 ): Promise<CheckoutResponse> {
-  const [row] = await db<SellableRow[]>`
-    select id, status, sale_state, sales_close, outcome, unit_price
-    from campaigns
-    where slug = ${body.slug} and status not in ${db(UNPUBLISHED)}
-  `;
-  if (!row) throw new ApiRouteError(404, "not_found", "Promo not found");
-  const refusal = saleRefusal(row, now);
-  if (refusal) throw refusal;
-
-  const amount = BigInt(body.qty) * row.unit_price;
-  if (amount > MAX_CARD_AMOUNT) {
-    throw new ApiRouteError(400, "invalid_request", "That is too many for one payment");
-  }
+  const row = await findSellableCampaign(db, body.slug, body.qty, now);
+  const amount = row.amount;
 
   let intent: CreatedPaymentIntent;
   try {
