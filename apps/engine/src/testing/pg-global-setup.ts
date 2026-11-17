@@ -1,5 +1,5 @@
-import { execFile, spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { execFile, execFileSync, spawn } from "node:child_process";
+import { existsSync, readdirSync } from "node:fs";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir, userInfo } from "node:os";
@@ -15,17 +15,30 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../.."
 const MIGRATIONS_DIR = join(REPO_ROOT, "supabase/migrations");
 export const TEMPLATE_DATABASE = "winz_template";
 
+/**
+ * Directory holding initdb, pg_ctl and psql. Looked up in this order: `PG_BIN`, the Debian/Ubuntu
+ * layout (`/usr/lib/postgresql/<version>/bin`, newest version first), then `pg_config --bindir`.
+ */
 function pgBin(): string {
-  const candidates = [
-    process.env.PG_BIN,
-    "/usr/lib/postgresql/16/bin",
-    "/usr/lib/postgresql/17/bin",
-  ];
+  const candidates: string[] = [];
+  if (process.env.PG_BIN) candidates.push(process.env.PG_BIN);
+  const debianRoot = "/usr/lib/postgresql";
+  if (existsSync(debianRoot)) {
+    const versions = readdirSync(debianRoot)
+      .filter((name) => /^\d+$/.test(name))
+      .sort((a, b) => Number(b) - Number(a));
+    candidates.push(...versions.map((version) => join(debianRoot, version, "bin")));
+  }
+  try {
+    candidates.push(execFileSync("pg_config", ["--bindir"], { encoding: "utf8" }).trim());
+  } catch {
+    // pg_config is optional: the candidates above usually suffice.
+  }
   for (const dir of candidates) {
-    if (dir && existsSync(join(dir, "initdb"))) return dir;
+    if (existsSync(join(dir, "initdb")) && existsSync(join(dir, "pg_ctl"))) return dir;
   }
   throw new Error(
-    "Postgres binaries not found. Install PostgreSQL 16 or set PG_BIN to the directory of initdb.",
+    "Postgres server binaries not found (initdb, pg_ctl). Install PostgreSQL 16 or set PG_BIN to their directory.",
   );
 }
 
