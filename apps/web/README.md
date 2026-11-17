@@ -70,7 +70,7 @@ réponse.
 | `GET /api/hedge-desk`            | `default`                                                                  |
 | `POST /api/admin/demo/book`      | `default`                                                                  |
 | `POST /api/admin/demo/result`    | `default`                                                                  |
-| `POST /api/admin/demo/sale`      | `default`                                                                  |
+| `POST /api/admin/demo/sale`      | `default`, `processing`                                                    |
 | `POST /api/admin/demo/reset`     | `default`                                                                  |
 | `POST /api/webhooks/stripe`      | `default`                                                                  |
 | `POST /api/webhooks/quicknode`   | `default`                                                                  |
@@ -266,8 +266,9 @@ curl -X POST http://localhost:3000/api/admin/demo/book \
 | `POST /api/admin/demo/sale`    | `{ slug, qty, email }`                                        | Rejoue un achat sans carte (voir plus bas)                                                                                     |
 | `POST /api/admin/demo/reset`   | `{}` ou corps vide                                            | Supprime tous les carnets pilotés et tous les résultats forcés                                                                |
 
-Toutes répondent `{ "ok": true, "demo": true, "ticketToken": null }`, sauf `sale` qui peut
-donner un `ticketToken`.
+Toutes répondent `{ "ok": true, "demo": true, "ticketToken": null, "paymentIntentId": null }`,
+sauf `sale` qui donne toujours un `paymentIntentId` et, si le ticket est déjà émis, un
+`ticketToken`.
 
 - `book` : `bidBps` et `askBps` sont des multiples de 100 entre 100 et 9900, avec `bidBps` <
   `askBps` ; `depth` est un multiple de `10000` (0,01 contrat) strictement positif. Sinon
@@ -278,10 +279,9 @@ donner un `ticketToken`.
   `404` (slug inconnu) ou `409` avec `sales_paused` ou `sales_closed`. La route crée un paiement
   `pi_demo_…`, le transmet au moteur, puis attend jusqu'à 8 secondes que le ticket soit émis :
   `ticketToken` est alors rempli (ouvrir `/t/<ticketToken>`), sinon il vaut `null` et le ticket
-  arrivera un peu plus tard. La réponse ne donne pas l'identifiant du paiement (le schéma partagé
-  n'a pas de champ pour lui), donc le front ne peut pas suivre ce paiement avec
-  `GET /api/checkout/:pi` : la vente apparaît dans `GET /api/campaigns/:id` quand le moteur l'a
-  faite. Ne pas relancer l'appel après un `null` : chaque appel est une nouvelle vente.
+  arrivera un peu plus tard : suivre alors le paiement avec `GET /api/checkout/<paymentIntentId>`
+  exactement comme pour un achat par carte, jusqu'à `ticketed`, `failed` ou `cancelled_paused`.
+  Ne pas relancer `sale` après un `ticketToken` à `null` : chaque appel est une nouvelle vente.
 - `reset` : les campagnes touchées par une action démo restent des campagnes démo.
 
 ### Le bandeau « DEMO MODE »

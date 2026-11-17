@@ -529,6 +529,17 @@ export const hedgeDeskExample: HedgeDeskResponse = {
 };
 
 export const demoExamples = {
-  ok: { ok: true, demo: true, ticketToken: null },
-  sale: { ok: true, demo: true, ticketToken: "tkt_example_joes_texas" },
+  ok: { ok: true, demo: true, ticketToken: null, paymentIntentId: null },
+  sale: {
+    ok: true,
+    demo: true,
+    ticketToken: "tkt_example_joes_texas",
+    paymentIntentId: "pi_demo_example_joes_texas",
+  },
+  saleStillProcessing: {
+    ok: true,
+    demo: true,
+    ticketToken: null,
+    paymentIntentId: "pi_demo_example_joes_texas",
+  },
 } satisfies Record<string, DemoResponse>;
