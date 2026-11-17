@@ -142,7 +142,7 @@ Tous parallèles entre eux dès que F-05 est figé. Lot à lancer ensemble : C-0
 - [x] **X-01** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : F-05, D-01 · Section 7
   `tx-sender` : une file par clé, nonce géré localement, table `chain_txs` avec clé d'idempotence, frais au-dessus du plancher Arc, reprises, repli de RPC, reçu décodé vers `chain_events`.
   Fini quand : 50 envois concurrents sur Anvil passent sans conflit de nonce, un redémarrage au milieu ne renvoie aucune transaction en double.
-- [ ] **X-02** · Qui : Agent `coder`, relu par A · Dép. : X-01, C-03 · HE-1
+- [x] **X-02** · Qui : Agent `coder`, relu par A · Dép. : X-01, C-03 · HE-1
   Ingestion des événements : relecture `eth_getLogs` toutes les 5 s avec curseur, écriture idempotente sur `(tx_hash, log_index)`, projection vers `tickets` et `campaigns`.
   Fini quand : le même événement reçu par deux sources ne crée qu'une ligne, un arrêt de 5 minutes est rattrapé au redémarrage.
 
@@ -175,19 +175,19 @@ Tous parallèles entre eux dès que F-05 est figé. Lot à lancer ensemble : C-0
 
 - [x] **A-01** · Qui : Agent `coder`, relu par A · Dép. : M-01, P-01, I-01 · CA-1
   `GET /api/events` : catalogue et modèles calculés, limités aux contrats dont le carnet est coté des deux côtés ; `GET /api/me`, `POST /api/merchants`.
-- [ ] **A-02** · Qui : Agent `coder-high`, relu par A · Dép. : P-01, D-01, I-01 · CA-2, CA-4, M6, M7
+- [x] **A-02** · Qui : Agent `coder-high`, relu par A · Dép. : P-01, D-01, I-01 · CA-2, CA-4, M6, M7
   `POST /api/campaigns/preview`, `POST /api/campaigns` (brouillon + PaymentIntent du budget), liste et détail du commerçant, pause, reprise et clôture manuelles (jobs vers `setPaused` et `closeSales`).
   Fini quand : l'aperçu renvoie les mêmes chiffres que `packages/pricing` en test, et un commerçant ne voit que ses campagnes.
 - [ ] **J-02** · Qui : Agent `coder-high`, relu par A · Dép. : X-01, C-03, J-01, A-02 · CA-2
   Job de création : budget payé (webhook Stripe) → `createCampaignFor` → campagne `Live`, slug court.
   Fini quand : un paiement de budget en mode test produit une campagne on-chain et en base, une seule fois même si le webhook est rejoué.
-- [ ] **A-03** · Qui : Agent `coder-high`, relu par A · Dép. : D-01, S-03 · CO-2, CO-3
+- [x] **A-03** · Qui : Agent `coder-high`, relu par A · Dép. : D-01, S-03 · CO-2, CO-3
   `POST /api/checkout` (vérifie que la vente est ouverte, PaymentIntent en capture manuelle), `POST /api/checkout/:pi/confirm`, `GET /api/checkout/:pi`, `POST /api/webhooks/stripe` avec signature vérifiée sur le corps brut.
   Fini quand : webhook rejoué et confirmation du client mènent à un seul job ; une signature fausse est refusée.
 - [ ] **J-03** · Qui : Agent `coder-high`, puis `verifier`, relu par A · Dép. : A-03, X-01, C-03, P-01, M-02, I-01 · CO-2, CO-3, CO-4, PR-3, 9.2
   Job d'achat : wallet de l'acheteur (recherche ou pré-génération), devis calculé sur le carnet frais, signature EIP-712, `buyFor`, puis capture ; si la vente est fermée ou si `buyFor` échoue, annulation de l'autorisation. Écrit le ticket, son lot et son jeton d'accès.
   Fini quand : testé sur Anvil avec Stripe simulé pour les trois issues (ticket et capture ; pause et annulation ; échec on-chain et annulation), sans jamais capturer sans ticket ni émettre deux tickets.
-- [ ] **H-01** · Qui : Agent `coder-high`, relu par A · Dép. : X-02 · HE-1, HE-3
+- [x] **H-01** · Qui : Agent `coder-high`, relu par A · Dép. : X-02 · HE-1, HE-3
   Grand livre d'exposition : chaque `TicketPurchased` crée son lot et augmente l'exposition de l'instrument, toutes campagnes confondues ; écrit `positions` et `live_campaigns`.
   Fini quand : exposition = somme des montants remboursables des tickets, rejouable depuis `chain_events`.
 - [ ] **H-02** · Qui : Agent `coder-high`, relu par A · Dép. : M-02, P-01, H-01 · CA-5

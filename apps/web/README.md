@@ -20,7 +20,8 @@ curl http://localhost:3000/api/c/joes-texas
 ```
 
 Sans `APP_API_MOCK=true`, une route qui n'est pas encore branchée répond `501` avec
-`{ "error": { "code": "internal", "message": "Not implemented yet" } }`.
+`{ "error": { "code": "internal", "message": "Not implemented yet" } }`. La liste des routes déjà
+réelles est plus bas, dans « Le vrai back ».
 
 ### Choisir un scénario
 
@@ -125,3 +126,102 @@ curl -X POST http://localhost:3000/api/checkout \
 - Elle n'a pas d'état : créer une campagne ne l'ajoute pas à `GET /api/campaigns`. Pour dérouler
   un parcours, changer de scénario d'un appel à l'autre.
 - Les webhooks répondent `{ "received": true }` sans lire le corps.
+
+## Le vrai back
+
+Sans `APP_API_MOCK=true`, les routes lisent et écrivent la vraie base. Le web n'envoie jamais de
+transaction : il écrit des lignes et met des jobs dans la table `jobs`, que le moteur
+(`apps/engine`) exécute. Un changement on-chain (campagne en ligne, pause écrite, ticket émis)
+apparaît donc quelques secondes après la réponse de la route, quand le moteur l'a fait.
+
+### Routes réelles
+
+| Route                                                  | Ce qu'elle fait                                                                                     |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `GET /api/me`, `POST /api/merchants`                   | Profil, rôles, création du commerce                                                                 |
+| `GET /api/events`                                      | Catalogue et modèles calculés                                                                       |
+| `POST /api/campaigns/preview`                          | Chiffres de l'écran M6                                                                              |
+| `POST /api/campaigns`                                  | Crée la campagne (`funding`) et le paiement du budget (écran M7)                                    |
+| `GET /api/campaigns`, `GET /api/campaigns/:id`         | Liste et détail du commerçant connecté                                                              |
+| `POST /api/campaigns/:id/pause`, `/resume`, `/close`   | Pause, reprise et clôture manuelles                                                                 |
+| `GET /api/c/:slug`                                     | Page publique de la campagne                                                                        |
+| `POST /api/checkout`                                   | Vérifie que la promo vend, crée l'autorisation de la carte                                          |
+| `POST /api/checkout/:pi/confirm`, `GET /api/checkout/:pi` | Déclenche l'achat, puis suit son état                                                            |
+| `GET /api/t/:token`, `GET /api/tickets`                | Ticket par lien secret, tickets du fan connecté                                                     |
+| `POST /api/webhooks/stripe`                            | Webhook Stripe, signature vérifiée sur le corps brut                                                |
+
+Répondent encore `501` : `GET /api/hedge-desk`, `POST /api/admin/demo/*`,
+`POST /api/webhooks/quicknode`.
+
+### Créer une campagne (M7)
+
+`POST /api/campaigns` prend les réglages de l'aperçu plus `product`. Le prix unitaire et le budget
+sont payés par carte : chacun doit être un nombre entier de cents, entre 0,50 $ et 999 999,99 $.
+Sinon la route répond `400 invalid_request` et le message nomme le champ, par exemple
+`Invalid body.unitPrice: must be a whole number of cents`. Un match dont les ventes sont déjà
+closes répond `409 sales_closed`, une condition indisponible `404`.
+
+La réponse donne `budgetPayment.clientSecret` : le front le passe au Payment Element de Stripe pour
+payer le budget. La campagne reste `funding` jusqu'à ce que le moteur l'ait créée on-chain, puis
+passe `live` avec son `slug` : relire `GET /api/campaigns/:id` jusqu'à voir `live`.
+
+### Pause, reprise, clôture
+
+- `pause` : seulement quand la campagne est `live` et vend. La vente s'arrête tout de suite
+  (`saleState: "paused_manual"`) ; `status` passe à `paused` quand le moteur a écrit la pause.
+- `resume` : seulement après une pause manuelle. `saleState` reste `paused_manual` jusqu'à ce que le
+  moteur l'ait recalculé (il peut alors être une pause automatique, par exemple `paused_price`).
+- `close` : avant la fin des ventes, sur une campagne `live` ou `paused`. `saleState` devient
+  `closed` tout de suite.
+
+La réponse est l'état tel que le commerçant le verra en relisant le détail, pas l'état futur.
+Une action impossible dans l'état actuel (déjà en pause, ventes closes, campagne réglée) répond
+`409 conflict` ; la campagne d'un autre commerçant répond `404`.
+
+### Le parcours d'achat, côté front
+
+1. `POST /api/checkout` avec `{ slug, qty }`. Si la promo ne vend pas, `409` avec `sales_paused`
+   ou `sales_closed` et un message à montrer tel quel : rien n'a été créé, rien n'est débité.
+2. Monter l'Express Checkout Element (ou le Payment Element) de Stripe avec le `clientSecret`
+   reçu, avec `emailRequired: true` : l'e-mail du payeur sert à retrouver son compte. Le client
+   confirme dans la feuille de paiement (`stripe.confirmPayment`, `redirect: "if_required"`). La
+   carte est seulement autorisée, pas débitée.
+3. Dès que la confirmation Stripe a réussi, appeler `POST /api/checkout/:pi/confirm` (corps vide).
+   Le webhook Stripe déclenche le même traitement : appeler les deux ne crée qu'un achat.
+4. Interroger `GET /api/checkout/:pi` toutes les secondes environ, jusqu'à `ticketed` ou un échec :
+   - `requires_payment` ou `processing` : continuer d'attendre ;
+   - `ticketed` : ouvrir `/t/<ticketToken>` ;
+   - `cancelled_paused` ou `failed` : afficher `message` tel quel (« Promo just paused, you were
+     not charged », etc.). La carte n'est pas débitée.
+
+   Si le client réessaie dans la même feuille de paiement après une carte refusée et que la
+   nouvelle tentative est autorisée, rappeler `POST /api/checkout/:pi/confirm` : le paiement
+   repasse en `processing`. Un événement d'échec Stripe arrivé en retard ne fait jamais passer en
+   `failed` un paiement autorisé depuis : le serveur relit l'état chez Stripe, et dès que l'achat
+   est transmis au moteur, seul le moteur décide de l'issue.
+5. Un `pi` inconnu répond `404`. Ces réponses ne contiennent jamais l'e-mail, l'adresse de
+   l'acheteur ni aucun terme on-chain.
+
+### Stripe en mode test
+
+Seules les clés de test sont acceptées (`sk_test_...`) : une clé live est refusée au démarrage de
+la première requête. Variables à mettre dans `.env` (jamais commitées) :
+
+| Variable                             | Où la trouver                                                     |
+| ------------------------------------ | ----------------------------------------------------------------- |
+| `STRIPE_SECRET_KEY`                  | Dashboard Stripe, mode test, Developers → API keys                |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Même page (`pk_test_...`), pour le front                          |
+| `STRIPE_WEBHOOK_SECRET`              | Affiché par `stripe listen` ci-dessous (`whsec_...`)              |
+
+En local, faire suivre les webhooks au serveur de développement avec la CLI Stripe :
+
+```bash
+stripe listen --forward-to localhost:3000/api/webhooks/stripe \
+  --events payment_intent.succeeded,payment_intent.amount_capturable_updated,payment_intent.canceled,payment_intent.payment_failed
+```
+
+Cartes de test utiles : `4242 4242 4242 4242` (acceptée), `4000 0000 0000 0002` (refusée). Le
+budget d'une campagne est débité tout de suite ; un achat reste autorisé jusqu'à ce que le moteur
+capture (ticket émis) ou annule (promo passée en pause entre-temps, échec).
+
+`next build` ne lit aucun secret : la construction marche sans `.env`.
