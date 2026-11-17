@@ -95,3 +95,23 @@ export function bpsToPercent(value: Bps): number {
 export function refundableAmount(qty: bigint, unitPrice: MicroUsdc, refundBps: Bps): MicroUsdc {
   return mulDivDown(qty * unitPrice, refundBps, BPS);
 }
+
+/** One US cent in micro-USDC. Card payments are in whole cents. */
+export const MICRO_PER_CENT = 10_000n;
+
+/**
+ * Micro-USDC to whole cents, for a card payment. Throws when the amount is not a whole number of
+ * cents: a price must be rejected at creation rather than rounded at payment.
+ */
+export function microUsdcToCents(amount: MicroUsdc): bigint {
+  if (amount < 0n || amount % MICRO_PER_CENT !== 0n) {
+    throw new UnitParseError("whole cents", amount.toString());
+  }
+  return amount / MICRO_PER_CENT;
+}
+
+/** Whole cents to micro-USDC. */
+export function centsToMicroUsdc(cents: bigint): MicroUsdc {
+  if (cents < 0n) throw new UnitParseError("cents", cents.toString());
+  return cents * MICRO_PER_CENT;
+}

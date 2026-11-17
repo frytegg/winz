@@ -5,7 +5,9 @@ import {
   bpsToPercent,
   ceilToContractStep,
   formatContracts,
+  centsToMicroUsdc,
   formatUsd,
+  microUsdcToCents,
   mulDivDown,
   mulDivUp,
   parseContracts,
@@ -77,5 +79,21 @@ describe("rounding direction", () => {
     expect(refundableAmount(1n, 20_000_000n, 10_000n)).toBe(20_000_000n);
     expect(refundableAmount(1n, 12_990_000n, 5000n)).toBe(6_495_000n);
     expect(refundableAmount(3n, 20_000_000n, 5000n)).toBe(30_000_000n);
+  });
+});
+
+describe("card amounts", () => {
+  it("converts whole cents both ways", () => {
+    expect(microUsdcToCents(20_000_000n)).toBe(2000n);
+    expect(microUsdcToCents(12_990_000n)).toBe(1299n);
+    expect(microUsdcToCents(0n)).toBe(0n);
+    expect(centsToMicroUsdc(1299n)).toBe(12_990_000n);
+  });
+
+  it("refuses an amount that is not a whole number of cents instead of rounding it", () => {
+    expect(() => microUsdcToCents(6_495_000n)).toThrow(UnitParseError);
+    expect(() => microUsdcToCents(1n)).toThrow(UnitParseError);
+    expect(() => microUsdcToCents(-10_000n)).toThrow(UnitParseError);
+    expect(() => centsToMicroUsdc(-1n)).toThrow(UnitParseError);
   });
 });
