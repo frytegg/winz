@@ -1,4 +1,4 @@
-import { toHex, type Hex } from "viem";
+import { keccak256, toHex, type Hex, type LocalAccount } from "viem";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createArcClients } from "./clients";
@@ -6,6 +6,7 @@ import { describeError } from "./decode-error";
 import {
   ChainIdMismatchError,
   InvalidTxRequestError,
+  SignerHistoryMismatchError,
   TxNotFoundError,
   TxSenderConfigError,
   TxSenderStoppedError,
@@ -16,7 +17,9 @@ import {
   createChainHarness,
   FEE_FLOOR_WEI,
   REVERTING_CALL_DATA,
+  receiptOf,
   rowInconsistency,
+  sendDirect,
   TEST_REVERT_ERROR,
   TEST_SENDER_CONFIG,
   waitUntil,
@@ -24,6 +27,7 @@ import {
   type ChainHarness,
   type ChainTxSnapshot,
 } from "./test-support";
+import { ChainTxStore } from "./store";
 import { TxSender } from "./tx-sender";
 import { SIGNER_NAMES, type SignerName, type TxRequest } from "./types";
 
@@ -715,6 +719,124 @@ describe("TxSender", () => {
       const { id } = await sender.enqueue(h.bumpRequest("relayer", "never"));
       await new Promise((resolve) => setTimeout(resolve, 150));
       expect((await h.rows()).find((row) => row.id === id)?.status).toBe("queued");
+    });
+
+    describe("after a key rotation or a chain switch on the same database", () => {
+      /** A sender on the harness database whose relayer is `relayer`. */
+      function senderWithRelayer(relayer: LocalAccount): TxSender {
+        return new TxSender({
+          db: h.db,
+          client: h.client,
+          accounts: { relayer, oracle: h.accounts.oracle },
+          logger: h.logger,
+          config: { chainId: h.chainId, escrowAddress: h.escrow, ...TEST_SENDER_CONFIG },
+        });
+      }
+
+      async function mineThreeWithHarnessRelayer(): Promise<void> {
+        const first = h.createSender();
+        await first.start();
+        for (const key of ["old-0", "old-1", "old-2"]) {
+          expect((await first.sendAndWait(h.bumpRequest("relayer", key))).status).toBe("mined");
+        }
+        await first.stop();
+        expect(noncesOf(await h.rows(), "relayer")).toEqual([0n, 1n, 2n]);
+      }
+
+      it("refuses to start a new relayer key whose count is below the stored nonces of the old one", async () => {
+        await mineThreeWithHarnessRelayer();
+        // A key that never sent anything: the stored nonce 3 would be a gap it never fills.
+        const sender = senderWithRelayer(h.bystander);
+        const refusal = await sender.start().then(
+          () => undefined,
+          (error: unknown) => error,
+        );
+        try {
+          expect(refusal).toBeInstanceOf(SignerHistoryMismatchError);
+          const message = (refusal as Error).message;
+          expect(message).toContain(h.accounts.relayer.address.toLowerCase());
+          expect(message).toContain(h.bystander.address.toLowerCase());
+          expect(message).toContain("'relayer'");
+        } finally {
+          await sender.stop();
+        }
+        // Nothing runs: a new request stays queued, without a nonce.
+        const { id } = await sender.enqueue(h.bumpRequest("relayer", "new-key"));
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        expect((await h.rows()).find((row) => row.id === id)).toMatchObject({
+          status: "queued",
+          nonce: null,
+        });
+      });
+
+      it("accepts a new relayer key whose own count is already past every stored nonce", async () => {
+        await mineThreeWithHarnessRelayer();
+        for (const nonce of [0, 1, 2]) {
+          await receiptOf(
+            h.client,
+            await sendDirect(h.client, h.bystander, h.chainId, { nonce, to: h.deployer.address }),
+          );
+        }
+        const sender = senderWithRelayer(h.bystander);
+        await sender.start();
+        try {
+          const outcome = await sender.sendAndWait(h.bumpRequest("relayer", "new-key"));
+          expect(outcome.status).toBe("mined");
+          expect((await h.rows()).find((row) => row.idempotencyKey === "new-key")?.nonce).toBe(3n);
+          expect(await h.minedCount(h.bystander.address)).toBe(4);
+        } finally {
+          await sender.stop();
+        }
+      });
+
+      it("refuses to start when a sent row was signed for another chain", async () => {
+        const store = new ChainTxStore(h.db);
+        const { tx } = await store.insertQueued({
+          idempotencyKey: "other-chain",
+          signer: "relayer",
+          kind: "test.bump",
+          to: h.escrow,
+          data: "0x",
+          value: 0n,
+          payload: {},
+        });
+        const raw = await h.accounts.relayer.signTransaction({
+          type: "eip1559",
+          chainId: h.chainId + 1,
+          nonce: 0,
+          gas: 100_000n,
+          maxFeePerGas: FEE_FLOOR_WEI,
+          maxPriorityFeePerGas: 1_000_000_000n,
+          to: h.escrow,
+          data: "0x",
+        });
+        const hash = keccak256(raw);
+        expect(
+          await store.markSent({
+            id: tx.id,
+            nonce: 0n,
+            txHash: hash,
+            state: {
+              gas: "100000",
+              attempts: [
+                {
+                  hash,
+                  raw,
+                  maxFeePerGas: FEE_FLOOR_WEI.toString(),
+                  maxPriorityFeePerGas: "1000000000",
+                  signedAt: new Date().toISOString(),
+                },
+              ],
+            },
+            sentAt: new Date(),
+          }),
+        ).toBe(true);
+
+        const sender = h.createSender();
+        await expect(sender.start()).rejects.toBeInstanceOf(SignerHistoryMismatchError);
+        await sender.stop();
+        expect((await h.rows()).find((row) => row.id === tx.id)?.status).toBe("sent");
+      });
     });
 
     it("refuses to start when the node cannot be reached", async () => {

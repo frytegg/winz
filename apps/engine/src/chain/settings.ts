@@ -23,6 +23,7 @@ export interface TxSenderSettings {
   gasMarginPercent: number;
   feePolicy: FeePolicy;
   maxPrepareAttempts: number;
+  maxPrepareMs: number;
   retryBaseMs: number;
   retryMaxMs: number;
   waitPollMs: number;
@@ -78,6 +79,7 @@ export function resolveTxSenderSettings(config: TxSenderConfig): TxSenderSetting
     ),
     feePolicy: createFeePolicy(config),
     maxPrepareAttempts: positiveInteger("maxPrepareAttempts", config.maxPrepareAttempts ?? 6),
+    maxPrepareMs: nonNegativeInteger("maxPrepareMs", config.maxPrepareMs ?? 60_000),
     retryBaseMs,
     retryMaxMs,
     waitPollMs: positiveInteger("waitPollMs", config.waitPollMs ?? 250),

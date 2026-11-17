@@ -18,6 +18,7 @@ export {
   ConcurrentTxUpdateError,
   CorruptSenderStateError,
   InvalidTxRequestError,
+  SignerHistoryMismatchError,
   TxNotFoundError,
   TxSenderConfigError,
   TxSenderError,

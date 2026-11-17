@@ -220,6 +220,51 @@ describe("TxSender under failure", () => {
       expect(rows.filter((row) => row.nonce !== null).map((row) => row.nonce)).toEqual([0n]);
     });
 
+    it("keeps preparing through an outage shorter than maxPrepareMs, past maxPrepareAttempts", async () => {
+      const downUntil = Date.now() + 600;
+      let failures = 0;
+      const sender = h.createSender({
+        client: wrapClient(h.client, {
+          call: (request) => {
+            if (Date.now() < downUntil) {
+              failures += 1;
+              return Promise.reject(transientError());
+            }
+            return h.client.call(request);
+          },
+        }),
+        config: { maxPrepareAttempts: 3, maxPrepareMs: 5_000 },
+      });
+      await sender.start();
+
+      const outcome = await sender.sendAndWait(h.bumpRequest("relayer", "short-outage"));
+      expect(outcome.status).toBe("mined");
+      // The count alone would have given up after 3 failures.
+      expect(failures).toBeGreaterThan(3);
+      const [row] = await h.rows();
+      expect(row).toMatchObject({ status: "mined", nonce: 0n, lastError: null });
+      expect(await h.counter(h.escrow)).toBe(1n);
+    });
+
+    it("gives up once both maxPrepareAttempts and maxPrepareMs are spent", async () => {
+      const sender = h.createSender({
+        client: wrapClient(h.client, { call: () => Promise.reject(transientError()) }),
+        config: { maxPrepareAttempts: 2, maxPrepareMs: 400 },
+      });
+      await sender.start();
+      const startedAt = Date.now();
+
+      const outcome = await sender.sendAndWait(h.bumpRequest("relayer", "long-outage"));
+      expect(outcome).toMatchObject({
+        status: "failed",
+        error: "NodeUnavailable: HttpRequestError: fetch failed",
+      });
+      expect(Date.now() - startedAt).toBeGreaterThanOrEqual(400);
+      const [row] = await h.rows();
+      expect(row).toMatchObject({ status: "failed", nonce: null, txHash: null });
+      expect(row?.attempts).toBeGreaterThan(2);
+    });
+
     it("re-broadcasts the same bytes until the node takes them", async () => {
       const seen: Hex[] = [];
       const sender = h.createSender({
