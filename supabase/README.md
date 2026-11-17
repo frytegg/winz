@@ -187,3 +187,8 @@ The migration has no backfill: no deployed database existed when it was written.
 run on a table that already holds a nonce, and on a campaign whose `unit_price` is 0, rather than
 guess. `campaigns.unit_price` must now be positive (`campaigns_unit_price_range`), as the escrow
 contract requires.
+
+## Engine result (fifth migration)
+
+`engine_pnl.resale_result` holds what reselling a hedge surplus brought in, minus what those
+contracts had cost. It is the only signed amount in the schema: a resale can lose money.
