@@ -12,6 +12,8 @@ import {
 } from "../auth";
 import type { Db } from "../db";
 import type { ServerConfig, ServerDeps } from "../deps";
+import type { PaymentGateway } from "../payments-gateway";
+import { FakePaymentGateway } from "./fake-payments";
 
 /**
  * Test-only helpers: a fake identity provider and row builders for the real test database. The SQL
@@ -90,11 +92,17 @@ export function authDeps(db: Db, identity: FakeIdentity): AuthDeps {
   return { db, verifier: identity, directory: identity, adminKey: () => ADMIN_KEY };
 }
 
-export function serverDepsFor(db: Db, identity: FakeIdentity, now: Date): ServerDeps {
+export function serverDepsFor(
+  db: Db,
+  identity: FakeIdentity,
+  now: Date,
+  payments: PaymentGateway = new FakePaymentGateway(),
+): ServerDeps {
   return {
     db,
     verifier: identity,
     directory: identity,
+    payments,
     config: () => TEST_CONFIG,
     now: () => now,
   };

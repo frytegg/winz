@@ -5,10 +5,11 @@ import { fileURLToPath } from "node:url";
 import { apiErrorSchema, apiExamples, eventsResponseSchema, meResponseSchema } from "@winz/shared";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { GET as getCampaigns, POST as postCampaigns } from "@/app/api/campaigns/route";
+import { GET as getCampaigns } from "@/app/api/campaigns/route";
 import { GET as getEvents } from "@/app/api/events/route";
 import { GET as getMe } from "@/app/api/me/route";
 import { POST as postMerchants } from "@/app/api/merchants/route";
+import { POST as postQuicknode } from "@/app/api/webhooks/quicknode/route";
 
 import { createTestDatabase, type TestDatabase } from "../../../engine/src/testing/postgres";
 import { setServerDepsForTesting } from "./deps";
@@ -102,8 +103,8 @@ describe("route handlers with authentication wired", () => {
   });
 
   it("still answers 501 on a route that is not implemented yet", async () => {
-    const response = await postCampaigns(
-      new Request("http://localhost/api/campaigns", { method: "POST", body: "{}" }),
+    const response = await postQuicknode(
+      new Request("http://localhost/api/webhooks/quicknode", { method: "POST", body: "{}" }),
       noParams,
     );
     expect(response.status).toBe(501);
