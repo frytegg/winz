@@ -43,6 +43,14 @@ function noncesOf(rows: readonly ChainTxSnapshot[], signer: SignerName): bigint[
     .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
+/** Nonces signed by an address on the harness chain, whatever the role, in ascending order. */
+function noncesOfAddress(rows: readonly ChainTxSnapshot[], address: string): bigint[] {
+  return rows
+    .filter((row) => row.signerAddress === address.toLowerCase() && row.nonce !== null)
+    .map((row) => row.nonce as bigint)
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
 async function eventCount(h: ChainHarness): Promise<bigint> {
   const [row] = await h.db<{ n: bigint }[]>`select count(*) as n from chain_events`;
   return row?.n ?? -1n;
@@ -712,6 +720,51 @@ describe("TxSender", () => {
       ).toThrow(TxSenderConfigError);
     });
 
+    it("cannot store one nonce of one key on one chain twice, even for two roles", async () => {
+      // Behind the constructor's refusal, the table itself holds one nonce per key and chain.
+      const store = new ChainTxStore(h.db);
+      const signed = {
+        nonce: 0n,
+        signerAddress: h.accounts.relayer.address,
+        chainId: h.chainId,
+        state: {
+          gas: "21000",
+          attempts: [
+            {
+              hash: keccak256("0x01"),
+              raw: "0x01" as Hex,
+              maxFeePerGas: FEE_FLOOR_WEI.toString(),
+              maxPriorityFeePerGas: "1",
+              signedAt: new Date().toISOString(),
+            },
+          ],
+        },
+        txHash: keccak256("0x01"),
+        sentAt: new Date(),
+      };
+      const insert = async (signer: SignerName, key: string): Promise<string> =>
+        (
+          await store.insertQueued({
+            idempotencyKey: key,
+            signer,
+            kind: "test.bump",
+            to: h.escrow,
+            data: "0x",
+            value: 0n,
+            payload: {},
+          })
+        ).tx.id;
+      const relayerRow = await insert("relayer", "same-key-relayer");
+      const oracleRow = await insert("oracle", "same-key-oracle");
+      expect(await store.markSent({ ...signed, id: relayerRow })).toBe(true);
+      await expect(store.markSent({ ...signed, id: oracleRow })).rejects.toMatchObject({
+        code: "23505",
+        constraint_name: "chain_txs_address_chain_nonce_key",
+      });
+      // Positive control: the same nonce of the same key on another chain is a different nonce.
+      expect(await store.markSent({ ...signed, id: oracleRow, chainId: h.chainId + 1 })).toBe(true);
+    });
+
     it("refuses to start against a node on another chain", async () => {
       const sender = h.createSender({ config: { chainId: 1 } });
       await expect(sender.start()).rejects.toBeInstanceOf(ChainIdMismatchError);
@@ -743,30 +796,47 @@ describe("TxSender", () => {
         expect(noncesOf(await h.rows(), "relayer")).toEqual([0n, 1n, 2n]);
       }
 
-      it("refuses to start a new relayer key whose count is below the stored nonces of the old one", async () => {
+      it("signs the first transaction of a never-used relayer key with nonce 0, and the old key goes on at 3", async () => {
+        // Regression test of the X-01 finding: nonces were tracked per role, so key B inherited
+        // key A's next nonce (3) and waited forever behind a gap it could never fill.
         await mineThreeWithHarnessRelayer();
-        // A key that never sent anything: the stored nonce 3 would be a gap it never fills.
-        const sender = senderWithRelayer(h.bystander);
-        const refusal = await sender.start().then(
-          () => undefined,
-          (error: unknown) => error,
-        );
+        expect(await h.minedCount(h.bystander.address)).toBe(0);
+
+        const keyB = senderWithRelayer(h.bystander);
+        await keyB.start();
         try {
-          expect(refusal).toBeInstanceOf(SignerHistoryMismatchError);
-          const message = (refusal as Error).message;
-          expect(message).toContain(h.accounts.relayer.address.toLowerCase());
-          expect(message).toContain(h.bystander.address.toLowerCase());
-          expect(message).toContain("'relayer'");
+          const outcome = await keyB.sendAndWait(h.bumpRequest("relayer", "key-b-0"), {
+            timeoutMs: 10_000,
+          });
+          expect(outcome.status).toBe("mined");
+          const onChain = await h.client.getTransaction({ hash: outcome.txHash as Hex });
+          expect(onChain.nonce).toBe(0);
+          expect(onChain.from.toLowerCase()).toBe(h.bystander.address.toLowerCase());
         } finally {
-          await sender.stop();
+          await keyB.stop();
         }
-        // Nothing runs: a new request stays queued, without a nonce.
-        const { id } = await sender.enqueue(h.bumpRequest("relayer", "new-key"));
-        await new Promise((resolve) => setTimeout(resolve, 150));
-        expect((await h.rows()).find((row) => row.id === id)).toMatchObject({
-          status: "queued",
-          nonce: null,
+        const row = (await h.rows()).find((tx) => tx.idempotencyKey === "key-b-0");
+        expect(row).toMatchObject({
+          status: "mined",
+          nonce: 0n,
+          signerAddress: h.bystander.address.toLowerCase(),
+          chainId: h.chainId,
         });
+        expect(await h.minedCount(h.bystander.address)).toBe(1);
+
+        // Key A again, on the same database: it continues from its own history.
+        const keyA = h.createSender();
+        await keyA.start();
+        const again = await keyA.sendAndWait(h.bumpRequest("relayer", "key-a-3"));
+        expect(again.status).toBe("mined");
+        await keyA.stop();
+
+        const rows = await h.rows();
+        expect(rows.map(rowInconsistency).filter(Boolean)).toEqual([]);
+        expect(noncesOfAddress(rows, h.accounts.relayer.address)).toEqual([0n, 1n, 2n, 3n]);
+        expect(noncesOfAddress(rows, h.bystander.address)).toEqual([0n]);
+        expect(await h.minedCount(h.accounts.relayer.address)).toBe(4);
+        expect(await h.counter(h.escrow)).toBe(5n);
       });
 
       it("accepts a new relayer key whose own count is already past every stored nonce", async () => {
@@ -815,6 +885,8 @@ describe("TxSender", () => {
           await store.markSent({
             id: tx.id,
             nonce: 0n,
+            signerAddress: h.accounts.relayer.address,
+            chainId: h.chainId + 1,
             txHash: hash,
             state: {
               gas: "100000",
@@ -836,6 +908,106 @@ describe("TxSender", () => {
         await expect(sender.start()).rejects.toBeInstanceOf(SignerHistoryMismatchError);
         await sender.stop();
         expect((await h.rows()).find((row) => row.id === tx.id)?.status).toBe("sent");
+      });
+
+      it("refuses to start a new relayer key while the old key has a sent transaction, and starts once it is mined", async () => {
+        // Key A signs and stores a transaction, then the process dies before broadcasting it.
+        let stopped: Promise<void> | undefined;
+        const keyA: TxSender = h.createSender({
+          client: wrapClient(h.client, {
+            sendRawTransaction: () => {
+              stopped = keyA.stop();
+              return Promise.reject(new Error("simulated crash before broadcast"));
+            },
+          }),
+        });
+        await keyA.start();
+        const { id } = await keyA.enqueue(h.bumpRequest("relayer", "unfinished"));
+        await waitUntil(() => stopped !== undefined, "the broadcast attempt");
+        await stopped;
+        const [unfinished] = await h.rows();
+        expect(unfinished).toMatchObject({
+          id,
+          status: "sent",
+          nonce: 0n,
+          signerAddress: h.accounts.relayer.address.toLowerCase(),
+          chainId: h.chainId,
+        });
+
+        // Key B for the same role: that transaction would never be completed.
+        const keyB = senderWithRelayer(h.bystander);
+        const refusal = await keyB.start().then(
+          () => undefined,
+          (error: unknown) => error,
+        );
+        await keyB.stop();
+        expect(refusal).toBeInstanceOf(SignerHistoryMismatchError);
+        expect(refusal).toMatchObject({
+          signer: "relayer",
+          txId: id,
+          stored: {
+            address: h.accounts.relayer.address.toLowerCase(),
+            chainId: h.chainId,
+            nonce: 0n,
+            status: "sent",
+          },
+          configured: { address: h.bystander.address.toLowerCase(), chainId: h.chainId },
+        });
+        const message = (refusal as Error).message;
+        expect(message).toContain(id);
+        expect(message).toContain("Start the engine once more with the key");
+        // Nothing was signed by key B, and the row is untouched.
+        expect(
+          await h.client.getTransactionCount({ address: h.bystander.address, blockTag: "pending" }),
+        ).toBe(0);
+        expect((await h.rows()).find((row) => row.id === id)?.status).toBe("sent");
+
+        // Key A again completes it (same stored bytes), and then key B starts at its own nonce 0.
+        const keyAAgain = h.createSender();
+        await keyAAgain.start();
+        expect((await keyAAgain.waitFor(id, { timeoutMs: 10_000 })).status).toBe("mined");
+        await keyAAgain.stop();
+        const keyBAgain = senderWithRelayer(h.bystander);
+        await keyBAgain.start();
+        try {
+          expect((await keyBAgain.sendAndWait(h.bumpRequest("relayer", "key-b"))).status).toBe(
+            "mined",
+          );
+        } finally {
+          await keyBAgain.stop();
+        }
+        const rows = await h.rows();
+        expect(noncesOfAddress(rows, h.accounts.relayer.address)).toEqual([0n]);
+        expect(noncesOfAddress(rows, h.bystander.address)).toEqual([0n]);
+        expect(await h.counter(h.escrow)).toBe(2n);
+      });
+
+      it("lets a key that served one role serve the other, from its own nonces", async () => {
+        await mineThreeWithHarnessRelayer();
+        // The former relayer key becomes the oracle; the oracle key was never used.
+        const swapped = new TxSender({
+          db: h.db,
+          client: h.client,
+          accounts: { relayer: h.bystander, oracle: h.accounts.relayer },
+          logger: h.logger,
+          config: { chainId: h.chainId, escrowAddress: h.escrow, ...TEST_SENDER_CONFIG },
+        });
+        await swapped.start();
+        try {
+          expect((await swapped.sendAndWait(h.bumpRequest("oracle", "swap-oracle"))).status).toBe(
+            "mined",
+          );
+          expect((await swapped.sendAndWait(h.bumpRequest("relayer", "swap-relayer"))).status).toBe(
+            "mined",
+          );
+        } finally {
+          await swapped.stop();
+        }
+        const rows = await h.rows();
+        expect(rows.find((row) => row.idempotencyKey === "swap-oracle")?.nonce).toBe(3n);
+        expect(rows.find((row) => row.idempotencyKey === "swap-relayer")?.nonce).toBe(0n);
+        expect(noncesOfAddress(rows, h.accounts.relayer.address)).toEqual([0n, 1n, 2n, 3n]);
+        expect(rows.map(rowInconsistency).filter(Boolean)).toEqual([]);
       });
     });
 

@@ -6,6 +6,8 @@ escrow contract stays the source of truth for money.
 ```
 migrations/20261117000000_init.sql     every table, constraint, index, RLS policy
 migrations/20261117010000_catalog.sql  what the Gemini catalogue sync stores on events and instruments
+migrations/20261117020000_books.sql    order books shared by the engine and the web app
+migrations/20261117030000_chain_txs_signer.sql  chain_txs nonces per signing key and chain; unit_price > 0
 seed.sql                               demo merchant, one event and its four instruments
 tests/run.sh                           local test script
 tests/*.sql                            the assertions it runs
@@ -62,8 +64,9 @@ and checks, on both:
 - `events.status` and `instruments.side` list exactly the values of the catalogue section below,
   and the catalogue columns have the expected type and nullability;
 - every uniqueness constraint rejects a duplicate, by name;
-- check constraints reject bad enum values, negative amounts, out-of-range basis points and
-  malformed addresses, hashes and slugs;
+- check constraints reject bad enum values, negative amounts, a zero unit price, out-of-range
+  basis points and malformed addresses, hashes and slugs, and a `chain_txs` nonce stored without
+  its signing address and chain;
 - `anon` and `authenticated` read the three `live_*` tables, get `permission denied` on every
   other table, and can write nowhere.
 
@@ -77,7 +80,7 @@ The exit code is non-zero when one assertion fails.
 
 | What | How |
 | --- | --- |
-| Money | `bigint`, micro-USDC (6 decimals), `check (x >= 0)`. Never a float. |
+| Money | `bigint`, micro-USDC (6 decimals), `check (x >= 0)`, or `> 0` where zero is refused (`campaigns.unit_price`). Never a float. |
 | Contract quantities | `bigint`, micro-contracts, `check (x >= 0)`. 1 micro-USDC of exposure = 1 micro-contract. |
 | Rates, probabilities, prices | `integer`, basis points, column name ends in `_bps`, range check. |
 | Time | `timestamptz`. |
@@ -127,7 +130,7 @@ outcome (`void` when all of them are void). A later catalogue sync never undoes 
 | `payments` | primary key `stripe_pi`, unique `ticket_id` | the webhook and the client confirmation meet on one row |
 | `tickets` | unique `onchain_id`, `access_token`, `payment_pi`, `quote_nonce` | one Stripe payment creates at most one ticket |
 | `jobs` | unique `idempotency_key` (nullable) | the same trigger enqueues one job |
-| `chain_txs` | unique `idempotency_key`; unique `(signer, nonce)` where `nonce` is set | no transaction sent twice, no nonce used twice per key |
+| `chain_txs` | unique `idempotency_key`; unique `(signer_address, chain_id, nonce)` where `nonce` is set | no transaction sent twice, no nonce used twice per key and chain, whatever the role |
 | `users` | unique `email`, `privy_id`, `wallet` | one e-mail, one wallet |
 | `campaigns` | unique `slug`, `onchain_id`, `budget_pi` | one budget payment creates at most one campaign |
 | `lots` | unique `ticket_id` | one lot per ticket |
@@ -159,3 +162,28 @@ row in `tests/00_harness.sql`.
 `tracked_instruments` lets the web app ask the engine to follow one more (a merchant previewing a
 promo). The engine is the only process that talks to Gemini; the web app reads `book_cache`.
 Both tables are private: service role only.
+
+## Transaction outbox (fourth migration)
+
+`chain_txs` is the outbox of the engine's transaction sender (`apps/engine/src/chain`, SPEC
+section 7). `signer` is the role a request is addressed to (`relayer` or `oracle`); which key
+serves that role is configuration. A nonce belongs to a key on a chain, so every row that holds a
+nonce also records:
+
+| Column | Content |
+| --- | --- |
+| `signer_address` | lowercase address of the key that signed the transaction |
+| `chain_id` | EIP-155 chain id it was signed for, positive |
+
+Both are set in the same statement as `nonce` (check `chain_txs_nonce_has_signer`), and the
+unique index `chain_txs_address_chain_nonce_key` is on `(signer_address, chain_id, nonce)`. The
+engine derives a key's next nonce from that key's rows on that chain only, so a key rotation or a
+chain switch on the same database starts the new key at its own count instead of stalling it
+behind the old key's nonces. The engine refuses to start while a role has a `sent` row of another
+key or chain, since nothing would ever complete it (`SignerHistoryMismatchError`, whose message
+says what to do).
+
+The migration has no backfill: no deployed database existed when it was written. It refuses to
+run on a table that already holds a nonce, and on a campaign whose `unit_price` is 0, rather than
+guess. `campaigns.unit_price` must now be positive (`campaigns_unit_price_range`), as the escrow
+contract requires.

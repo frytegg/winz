@@ -200,7 +200,9 @@ from (
     ('instruments', 'best_bid_bps', 'integer YES'),
     ('instruments', 'best_ask_bps', 'integer YES'),
     ('instruments', 'active', 'boolean NO'),
-    ('instruments', 'synced_at', 'timestamp with time zone YES')
+    ('instruments', 'synced_at', 'timestamp with time zone YES'),
+    ('chain_txs', 'signer_address', 'text YES'),
+    ('chain_txs', 'chain_id', 'integer YES')
 ) as x (tbl, col, kind);
 
 select test.ok(
@@ -217,4 +219,32 @@ select test.ok(
     where schemaname = 'public' and tablename = 'instruments' and indexdef like '%(event_ticker)%'
   ),
   'instruments has an index on (event_ticker)'
+);
+
+-- chain_txs (fourth migration): nonces are unique per signing key and chain, not per role.
+select test.ok(
+  exists (
+    select 1 from pg_indexes
+    where schemaname = 'public' and tablename = 'chain_txs'
+      and indexname = 'chain_txs_address_chain_nonce_key'
+      and indexdef like 'CREATE UNIQUE INDEX %(signer_address, chain_id, nonce) WHERE (nonce IS NOT NULL)'
+  ),
+  'chain_txs has a unique index on (signer_address, chain_id, nonce) where nonce is set',
+  (select string_agg(indexdef, '; ') from pg_indexes where tablename = 'chain_txs')
+);
+select test.ok(
+  not exists (
+    select 1 from pg_indexes
+    where schemaname = 'public' and tablename = 'chain_txs' and indexdef like '%(signer, nonce)%'
+  ),
+  'chain_txs no longer has the per-role (signer, nonce) index'
+);
+select test.ok(
+  exists (
+    select 1 from pg_indexes
+    where schemaname = 'public' and tablename = 'chain_txs' and indexname = 'chain_txs_sent_idx'
+      and indexdef like '%(signer, signer_address, chain_id, nonce) WHERE (status = ''sent''::text)'
+  ),
+  'chain_txs has an index on the sent rows by (signer, signer_address, chain_id, nonce)',
+  (select string_agg(indexdef, '; ') from pg_indexes where tablename = 'chain_txs')
 );

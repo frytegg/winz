@@ -1,12 +1,5 @@
 import type { Logger } from "pino";
-import {
-  keccak256,
-  parseTransaction,
-  recoverTransactionAddress,
-  type Hex,
-  type LocalAccount,
-  type TransactionSerialized,
-} from "viem";
+import { keccak256, type Address, type Hex, type LocalAccount } from "viem";
 
 import type { Db } from "../db";
 import { systemClock } from "./clock";
@@ -31,7 +24,7 @@ import { decodeEscrowLogs, readChainEvents } from "./events";
 import { addGasMargin, backoffDelayMs, bumpFees, computeFees, type Fees } from "./fees";
 import { normalizeTxRequest } from "./request";
 import { resolveTxSenderSettings, type TxSenderSettings } from "./settings";
-import { ChainTxStore, readSenderState, readSignedAttempts } from "./store";
+import { ChainTxStore, readSenderState, type SigningKey } from "./store";
 import {
   SIGNER_NAMES,
   type CallRequest,
@@ -96,8 +89,17 @@ function latestAttempt(tx: ChainTx, state: SenderState): SignedAttempt {
  * whatever the moment of a crash, the next `start()` re-broadcasts that same transaction (same
  * hash) instead of signing another one.
  *
+ * Nonces belong to a key on a chain: each signed row records `signer_address` and `chain_id`,
+ * the next nonce is derived from that key's own history on that chain, and the unique index is
+ * `(signer_address, chain_id, nonce)`. The role (`signer`) only names the queue a request goes
+ * to. A key can therefore be rotated, or the engine pointed at another chain, on the same
+ * database: the new key starts from its own count. The one thing that cannot carry over is an
+ * unfinished (`sent`) transaction of the previous key or chain, and `start()` refuses while one
+ * exists. The relayer and the oracle must be two different keys (checked at construction):
+ * two queues on one key would race for its nonces.
+ *
  * Run one sender per database. A second one is held back by the row guards and the unique
- * `(signer, nonce)` index, but it is not a supported way to scale.
+ * `(signer_address, chain_id, nonce)` index, but it is not a supported way to scale.
  */
 export class TxSender {
   private readonly store: ChainTxStore;
@@ -108,6 +110,8 @@ export class TxSender {
   private readonly clock: Clock;
   private readonly settings: TxSenderSettings;
   private readonly workers: Record<SignerName, Worker>;
+  /** Each role's key, lowercase, on the configured chain. */
+  private readonly keys: Record<SignerName, SigningKey>;
   private readonly waiters = new Map<string, Set<() => void>>();
   private state: LifecycleState = "idle";
   private stopController = new AbortController();
@@ -121,9 +125,17 @@ export class TxSender {
     this.log = deps.logger;
     this.clock = deps.clock ?? systemClock;
     this.settings = resolveTxSenderSettings(deps.config);
-    const addresses = SIGNER_NAMES.map((signer) => deps.accounts[signer].address.toLowerCase());
+    const keyOf = (signer: SignerName): SigningKey => ({
+      signer,
+      address: deps.accounts[signer].address.toLowerCase() as Address,
+      chainId: this.settings.chainId,
+    });
+    this.keys = { relayer: keyOf("relayer"), oracle: keyOf("oracle") };
+    const addresses = SIGNER_NAMES.map((signer) => this.keys[signer].address);
     if (new Set(addresses).size !== addresses.length) {
-      // Two queues on one key would hand out the same nonces.
+      // Two queues on one key would race for the same nonces: each worker caches its next
+      // nonce, so both would sign with it and one would hit the unique index or be replaced in
+      // the mempool. One key, one role.
       throw new TxSenderConfigError("The relayer and the oracle must be two different keys");
     }
     this.workers = {
@@ -193,7 +205,8 @@ export class TxSender {
 
   /**
    * Starts one worker per signer. Transactions left `sent` by a previous run are re-broadcast
-   * from their stored bytes first. Rejects if the node is unreachable or on another chain.
+   * from their stored bytes first. Rejects if the node is unreachable or on another chain, and
+   * with `SignerHistoryMismatchError` while a role has a `sent` row of another key or chain.
    */
   async start(): Promise<void> {
     if (this.state === "running") return;
@@ -231,55 +244,27 @@ export class TxSender {
   }
 
   /**
-   * Refuses to start when the rows of a signer role were signed by another key or for another
-   * chain and the configured key cannot go on from them. Nonces are stored per role only
-   * (`chain_txs` has no address or chain column), so after a key rotation or a chain switch the
-   * stored nonces would either be driven forever (a `sent` row of the old key) or leave the new
-   * key a nonce gap that is never mined. The key and chain of a row are read back from its
-   * signed bytes. A new key already past every stored nonce is accepted: its nonces come from
-   * the chain and collide with nothing.
+   * Refuses to start while a signer role has a `sent` row signed by another key or for another
+   * chain: the workers drive only the rows of their own key and chain, so that transaction would
+   * stay unfinished for good, and its outcome (mined or not) would never be recorded. Finished
+   * rows of other keys or chains are no obstacle: nonces are scoped by key and chain.
    */
   private async checkSignerHistory(signer: SignerName): Promise<void> {
-    const address = this.accounts[signer].address.toLowerCase();
-    const chainId = this.settings.chainId;
-    let pendingCount: bigint | null = null;
-    for (const tx of await this.store.rowsToCheckAgainstSigner(signer)) {
-      if (tx.nonce === null) continue;
-      let signedBy: string;
-      let signedFor: number | undefined;
-      try {
-        const [attempt] = readSignedAttempts(tx).attempts;
-        if (!attempt) throw new CorruptSenderStateError(tx.id, "no signed attempt");
-        const serializedTransaction = attempt.raw as TransactionSerialized;
-        signedBy = (await recoverTransactionAddress({ serializedTransaction })).toLowerCase();
-        signedFor = parseTransaction(serializedTransaction).chainId;
-      } catch (error: unknown) {
-        // A row whose signed bytes are unusable blocks only its own signer: its worker refuses
-        // it and says so on every pass, without signing anything for that role.
-        this.log.error(
-          { signer, id: tx.id, status: tx.status, err: describeError(error) },
-          "signing key of a stored transaction cannot be read, not checked against the configuration",
-        );
-        continue;
-      }
-      if (signedBy === address && signedFor === chainId) continue;
-      if (tx.status !== "sent") {
-        pendingCount ??= BigInt(
-          await this.client.getTransactionCount({
-            address: this.accounts[signer].address,
-            blockTag: "pending",
-          }),
-        );
-        // The configured key's own count is past every stored nonce of the role.
-        if (pendingCount > tx.nonce) continue;
-      }
-      throw new SignerHistoryMismatchError(
-        signer,
-        tx.id,
-        { address: signedBy, chainId: signedFor ?? 0, nonce: tx.nonce, status: tx.status },
-        { address, chainId, pendingCount },
-      );
-    }
+    const key = this.keys[signer];
+    const foreign = await this.store.foreignSent(key);
+    if (!foreign) return;
+    throw new SignerHistoryMismatchError(
+      signer,
+      foreign.id,
+      {
+        // A `sent` row always has them (check `chain_txs_nonce_has_signer`).
+        address: foreign.signerAddress ?? "unknown",
+        chainId: foreign.chainId ?? 0,
+        nonce: foreign.nonce ?? -1n,
+        status: foreign.status,
+      },
+      { address: key.address, chainId: key.chainId },
+    );
   }
 
   /**
@@ -353,7 +338,7 @@ export class TxSender {
     while (!this.stopping) {
       try {
         worker.dirty = false;
-        const sent = await this.store.oldestSent(signer);
+        const sent = await this.store.oldestSent(this.keys[signer]);
         if (sent) {
           await this.driveSent(signer, sent, readSenderState(sent), log);
         } else {
@@ -376,7 +361,10 @@ export class TxSender {
     }
   }
 
-  /** Next nonce = max(what the chain counts, pending included; highest nonce stored + 1). */
+  /**
+   * Next nonce = max(what the chain counts for the key, pending included; highest nonce stored
+   * for that key on this chain + 1). Another key's nonces, whatever their role, play no part.
+   */
   private async nextNonce(signer: SignerName): Promise<bigint> {
     const worker = this.workers[signer];
     if (worker.nextNonce !== null) return worker.nextNonce;
@@ -385,7 +373,7 @@ export class TxSender {
         address: this.accounts[signer].address,
         blockTag: "pending",
       }),
-      this.store.maxNonce(signer),
+      this.store.maxNonce(this.keys[signer]),
     ]);
     const fromChain = BigInt(onChain);
     const fromStore = stored === null ? 0n : stored + 1n;
@@ -486,6 +474,8 @@ export class TxSender {
     const stored = await this.store.markSent({
       id: tx.id,
       nonce,
+      signerAddress: this.keys[signer].address,
+      chainId: this.keys[signer].chainId,
       txHash: attempt.hash,
       state,
       sentAt: this.clock.now(),
@@ -507,7 +497,14 @@ export class TxSender {
 
     await this.driveSent(
       signer,
-      { ...tx, status: "sent", nonce, txHash: attempt.hash },
+      {
+        ...tx,
+        status: "sent",
+        nonce,
+        signerAddress: this.keys[signer].address,
+        chainId: this.keys[signer].chainId,
+        txHash: attempt.hash,
+      },
       state,
       log,
     );

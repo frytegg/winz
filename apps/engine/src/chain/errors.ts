@@ -68,29 +68,27 @@ export class TxSenderStoppedError extends TxSenderError {
 }
 
 /**
- * `chain_txs` holds transactions of a signer role that were signed by another key or for
- * another chain than the configured ones, and the sender cannot go on from them safely: a `sent`
- * row it would drive forever, or stored nonces the configured key has not reached on this chain
- * (its first nonce would either leave a gap that is never mined or collide with the unique
- * `(signer, nonce)` index). Needs a human: see the message.
+ * A signer role has a `sent` transaction in `chain_txs` that was signed by another key or for
+ * another chain than the configured ones. This process would never complete it (it drives only
+ * the rows of its own key on its own chain), and nothing else would either. Nonces are scoped by
+ * key and chain, so the finished rows of another key are no obstacle: only an unfinished one is.
+ * Needs a human: see the message.
  */
 export class SignerHistoryMismatchError extends TxSenderError {
   constructor(
     public readonly signer: string,
     public readonly txId: string,
     public readonly stored: { address: string; chainId: number; nonce: bigint; status: TxStatus },
-    public readonly configured: { address: string; chainId: number; pendingCount: bigint | null },
+    public readonly configured: { address: string; chainId: number },
   ) {
-    const problem =
-      stored.status === "sent"
-        ? `transaction ${txId} is still 'sent' and can only be completed by that key on that chain`
-        : `the configured key's next nonce on this chain (${String(configured.pendingCount)}) is not above the stored nonce ${stored.nonce.toString()}, so its transactions would wait behind a nonce gap or hit the (signer, nonce) index`;
     super(
-      `chain_txs rows of the '${signer}' signer were signed by ${stored.address} for chain ${stored.chainId.toString()}, ` +
-        `but the sender is configured with ${configured.address} on chain ${configured.chainId.toString()}: ${problem}. ` +
-        "Nonces are tracked per signer role, not per key and chain: before switching key or chain on this database, " +
-        "let the old key's sent transactions finish and move its rows out of chain_txs, or migrate chain_txs to " +
-        "store signer_address and chain_id per row.",
+      `Transaction ${txId} of the '${signer}' signer is still '${stored.status}' with nonce ${stored.nonce.toString()}, ` +
+        `signed by ${stored.address} for chain ${stored.chainId.toString()}, but the sender is configured with ` +
+        `${configured.address} on chain ${configured.chainId.toString()} and would never complete it. ` +
+        `Start the engine once more with the key ${stored.address} as the '${signer}' signer on chain ` +
+        `${stored.chainId.toString()} until the transaction is mined or failed, then switch. If that key or chain is ` +
+        "gone for good, check on that chain whether the transaction was mined, record the outcome on the row by hand " +
+        "(status 'mined' with block_number and mined_at, or 'failed' with nonce and tx_hash cleared), then start again.",
     );
     this.name = "SignerHistoryMismatchError";
   }

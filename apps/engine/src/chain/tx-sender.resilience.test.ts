@@ -356,7 +356,7 @@ describe("TxSender under failure", () => {
       expect(event).toEqual({ block_time: null });
     });
 
-    it("re-derives the nonce when storing a signed transaction hits the unique (signer, nonce) index", async () => {
+    it("re-derives the nonce when storing a signed transaction hits the unique (signer_address, chain_id, nonce) index", async () => {
       const sender = h.createSender();
       await sender.start();
       expect((await sender.sendAndWait(h.bumpRequest("relayer", "first"))).status).toBe("mined");
@@ -370,10 +370,11 @@ describe("TxSender under failure", () => {
       await h.client.waitForTransactionReceipt({ hash: foreign, pollingInterval: 10 });
       await h.db`
         insert into chain_txs
-          (idempotency_key, signer, kind, to_address, data, nonce, tx_hash, status, sent_at, block_number, mined_at)
+          (idempotency_key, signer, kind, to_address, data, nonce, signer_address, chain_id, tx_hash,
+           status, sent_at, block_number, mined_at)
         values
           ('other-writer', 'relayer', 'test.foreign', ${h.bystander.address.toLowerCase()}, '0x', 1,
-           ${foreign}, 'mined', now(), 1, now())
+           ${h.accounts.relayer.address.toLowerCase()}, ${h.chainId}, ${foreign}, 'mined', now(), 1, now())
       `;
 
       const outcome = await sender.sendAndWait(h.bumpRequest("relayer", "second"));
