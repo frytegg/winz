@@ -1,0 +1,811 @@
+/**
+ * The hedging engine as one running service (tasks H-10 and H-08; SPEC HE-2 to HE-6, 9.3 to 9.7):
+ * the book feed, the exposure ledger, one policy runner per instrument, the execution venue, the
+ * persistence of orders and fills with their allocation, the hedge charges, the reconciliation at
+ * sales close and the public Hedge desk.
+ */
+import type { Logger } from "pino";
+import type { Address } from "viem";
+
+import { CONTRACT_STEP_MICRO, type Book, type ExecutionVenueName } from "@winz/shared";
+
+import { abortableSleep } from "../../chain/clock";
+import type { Db } from "../../db";
+import type { BookFeedEvent } from "../../market-data/book-feed";
+import {
+  PaperVenue,
+  createVenue,
+  type ExecutionVenue,
+  type PaperVenueConfig,
+  type VenueClock,
+} from "../../venues";
+import { allocateHeldInventory } from "../allocation";
+import { PolicyRunner, type BreakerParams, type BreakerReason } from "../policy";
+import { HedgeCharger, type ChargeTxSender } from "./charger";
+import { HedgeDeskWriter, type DeskInstrumentInfo } from "./desk";
+import {
+  HedgeFinalizeError,
+  HedgeNotReconciledError,
+  HedgingConfigError,
+  HedgingStoppedError,
+} from "./errors";
+import { orderIdPrefix } from "./ids";
+import { loadRiskParams, policyParamsOf } from "./params";
+import { PgPolicySink, type FillRecorded } from "./sink";
+import {
+  cancelVanishedOrders,
+  closedCampaignsOf,
+  getHedgeInstrument,
+  listHedgeInstruments,
+  loadRestoreState,
+  needsRunner,
+  remainingLots,
+  resetPosition,
+  salesOver,
+  writeWorking,
+  type HedgeInstrumentRow,
+} from "./store";
+
+/** The part of the book feed the service uses. `BookFeed` satisfies it. */
+export interface HedgeBookSource {
+  subscribe(listener: (event: BookFeedEvent) => void): () => void;
+  getBook(symbol: string): Book | null;
+}
+
+/** What the sale-state evaluator reads: sales of the instrument stop while the breaker is active. */
+export interface BreakerStatus {
+  active: boolean;
+  reason: BreakerReason | null;
+}
+
+/** A campaign to finalize. The settlement lane's `SettlementCampaign` satisfies it. */
+export interface FinalizeCampaign {
+  /** `campaigns.id`. */
+  id: string;
+  /** `campaigns.onchain_id`. */
+  onchainId: bigint;
+  /** `campaigns.instrument`. */
+  instrument: string;
+}
+
+/**
+ * Implemented for the settlement lane: reconciles the campaign's instrument and gets every ticket
+ * of the campaign charged on-chain, waiting for those transactions. Safe to call repeatedly.
+ */
+export interface HedgeFinalizer {
+  finalize(campaign: FinalizeCampaign): Promise<void>;
+}
+
+export interface HedgingServiceOptions {
+  db: Db;
+  bookFeed: HedgeBookSource;
+  txSender: ChargeTxSender;
+  venueName: ExecutionVenueName;
+  escrowAddress: Address;
+  logger: Logger;
+  /** Aborting it stops every loop and runner; work in flight finishes first. */
+  signal: AbortSignal;
+  /** Defaults to the system clock. The runners, the venue and the sales-close checks use it. */
+  clock?: VenueClock;
+  /** How often `positions.exposure` and the instruments are read. Default 1 000. */
+  exposureIntervalMs?: number;
+  /** How often every runner gets `onTick` and the desk is refreshed. Default 1 000. */
+  tickIntervalMs?: number;
+  /** How often the covered lots are charged, besides after each allocation. Default 2 000. */
+  chargeIntervalMs?: number;
+  /** Least time between two writes of one instrument's `live_hedge_desk` row. Default 1 000. */
+  deskMinIntervalMs?: number;
+  /** Longest wait for a reconciliation inside `finalize`. Default 30 000. */
+  reconcileTimeoutMs?: number;
+  /** Longest wait for the charges of a campaign inside `finalize`. Default 120 000. */
+  finalizeTimeoutMs?: number;
+  /** Overrides of the circuit breaker's defaults (HE-5). */
+  breakerParams?: Partial<BreakerParams>;
+  /** Overrides of the paper venue's defaults. */
+  paperVenueConfig?: Partial<PaperVenueConfig>;
+}
+
+interface Entry {
+  info: DeskInstrumentInfo;
+  runner: PolicyRunner;
+  lastExposure: bigint;
+  /** Exposure at which the sales-close reconciliation last completed; null before. */
+  reconciledAtExposure: bigint | null;
+  /**
+   * The reconciliation in progress, if any: the sales-close pass or one started by `finalize`.
+   * Both go through this one slot (`claimReconcile`), so a runner never reconciles twice at once.
+   */
+  reconciling: Promise<void> | null;
+}
+
+const SYSTEM_CLOCK: VenueClock = { now: () => new Date() };
+const RECONCILE_POLL_MS = 100;
+const CHARGE_POLL_MS = 200;
+/** A warning is logged every this many rounds of a `finalize` still waiting for its charges. */
+const FINALIZE_WARN_ROUNDS = 10;
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+}
+
+function positive(value: number, name: string): number {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new HedgingConfigError(`startHedging: ${name} must be a positive number`);
+  }
+  return value;
+}
+
+function withinOneStep(held: bigint, exposure: bigint): boolean {
+  const gap = held - exposure;
+  return (gap < 0n ? -gap : gap) <= CONTRACT_STEP_MICRO;
+}
+
+/**
+ * One instance per engine. See `startHedging` for the lifecycle; the methods below are what the
+ * loops call, and what the finalizer and the sale-state evaluator use.
+ */
+export class HedgingService implements HedgeFinalizer {
+  private readonly db: Db;
+  private readonly bookFeed: HedgeBookSource;
+  private readonly logger: Logger;
+  private readonly signal: AbortSignal;
+  private readonly clock: VenueClock;
+  private readonly venue: ExecutionVenue;
+  private readonly sink: PgPolicySink;
+  private readonly charger: HedgeCharger;
+  private readonly desk: HedgeDeskWriter;
+  private readonly breakerParams: Partial<BreakerParams> | undefined;
+  private readonly exposureIntervalMs: number;
+  private readonly tickIntervalMs: number;
+  private readonly chargeIntervalMs: number;
+  private readonly deskMinIntervalMs: number;
+  private readonly lastDeskWriteMs = new Map<string, number>();
+  private readonly reconcileTimeoutMs: number;
+  private readonly finalizeTimeoutMs: number;
+  private readonly entries = new Map<string, Entry>();
+  private readonly creating = new Map<string, Promise<Entry>>();
+  /** Promises started from listeners and loops without being awaited there: awaited at stop. */
+  private readonly inFlight = new Set<Promise<unknown>>();
+  private chargeWake: AbortController | null = null;
+  private chargeRequested = false;
+  private ready = false;
+  private stopped = false;
+
+  constructor(options: HedgingServiceOptions) {
+    this.db = options.db;
+    this.bookFeed = options.bookFeed;
+    this.logger = options.logger.child({ module: "hedging" });
+    this.signal = options.signal;
+    this.clock = options.clock ?? SYSTEM_CLOCK;
+    this.breakerParams = options.breakerParams;
+    this.exposureIntervalMs = positive(options.exposureIntervalMs ?? 1_000, "exposureIntervalMs");
+    this.tickIntervalMs = positive(options.tickIntervalMs ?? 1_000, "tickIntervalMs");
+    this.chargeIntervalMs = positive(options.chargeIntervalMs ?? 2_000, "chargeIntervalMs");
+    this.deskMinIntervalMs = positive(options.deskMinIntervalMs ?? 1_000, "deskMinIntervalMs");
+    this.reconcileTimeoutMs = positive(options.reconcileTimeoutMs ?? 30_000, "reconcileTimeoutMs");
+    this.finalizeTimeoutMs = positive(options.finalizeTimeoutMs ?? 120_000, "finalizeTimeoutMs");
+    this.venue = createVenue(options.venueName, {
+      clock: this.clock,
+      logger: this.logger.child({ component: "venue" }),
+      config: options.paperVenueConfig,
+    });
+    this.sink = new PgPolicySink({
+      db: this.db,
+      venue: this.venue.name,
+      logger: this.logger,
+      onFillRecorded: (event) => {
+        this.onFillRecorded(event);
+      },
+    });
+    this.charger = new HedgeCharger({
+      db: this.db,
+      txSender: options.txSender,
+      escrowAddress: options.escrowAddress,
+      logger: this.logger,
+      now: () => this.clock.now(),
+    });
+    this.desk = new HedgeDeskWriter(this.db, this.logger);
+  }
+
+  /** Runs the service until the signal aborts. Never rejects. */
+  async run(): Promise<void> {
+    const unsubscribe = this.bookFeed.subscribe((event) => {
+      this.onBookFeedEvent(event);
+    });
+    try {
+      this.logger.info(
+        { venue: this.venue.name, label: this.venue.describe().label },
+        "hedging started",
+      );
+      await this.loop("startup", 1_000, async () => {
+        if (!this.ready) await this.prepare();
+        return this.ready ? "done" : "again";
+      });
+      await Promise.all([
+        this.loop("exposure", this.exposureIntervalMs, async () => {
+          await this.syncInstruments();
+          return "again";
+        }),
+        this.loop("tick", this.tickIntervalMs, async () => {
+          await this.tick();
+          return "again";
+        }),
+        this.chargeLoop(),
+      ]);
+    } finally {
+      unsubscribe();
+      await this.shutdown();
+    }
+  }
+
+  /** The breaker of an instrument's runner; inactive when the instrument has none. */
+  breakerStatus(instrumentSymbol: string): BreakerStatus {
+    const entry = this.entries.get(instrumentSymbol);
+    if (entry === undefined) return { active: false, reason: null };
+    const breaker = entry.runner.getBreaker();
+    return { active: breaker.active, reason: breaker.reason };
+  }
+
+  // -------------------------------------------------------------------------------------------
+  // Loops
+  // -------------------------------------------------------------------------------------------
+
+  /** Runs `step` every `intervalMs` until the signal aborts (or it says "done"). Never rejects. */
+  private async loop(
+    name: string,
+    intervalMs: number,
+    step: () => Promise<"again" | "done">,
+  ): Promise<void> {
+    let failures = 0;
+    while (!this.signal.aborted) {
+      let delayMs = intervalMs;
+      try {
+        if ((await step()) === "done") return;
+        failures = 0;
+      } catch (error: unknown) {
+        failures += 1;
+        delayMs = Math.min(intervalMs * 2 ** Math.min(failures, 5), 30_000);
+        this.safeLog(
+          "error",
+          { loop: name, err: describeError(error), failures },
+          "hedging loop step failed",
+        );
+      }
+      await abortableSleep(delayMs, this.signal);
+    }
+  }
+
+  /** Charges on an interval, and at once when an allocation covered a lot. */
+  private async chargeLoop(): Promise<void> {
+    while (!this.signal.aborted) {
+      this.chargeRequested = false;
+      try {
+        await this.charger.chargeCovered();
+      } catch (error: unknown) {
+        this.safeLog(
+          "error",
+          { loop: "charge", err: describeError(error) },
+          "hedge charge pass failed",
+        );
+      }
+      try {
+        await this.charger.recordMinedLosses();
+      } catch (error: unknown) {
+        this.safeLog(
+          "error",
+          { loop: "charge", err: describeError(error) },
+          "guarantee losses of mined charges not booked: retried at the next pass",
+        );
+      }
+      if (this.chargeRequested || this.signal.aborted) continue;
+      const wake = new AbortController();
+      const onAbort = (): void => wake.abort();
+      this.signal.addEventListener("abort", onAbort, { once: true });
+      this.chargeWake = wake;
+      try {
+        await abortableSleep(this.chargeIntervalMs, wake.signal);
+      } finally {
+        this.chargeWake = null;
+        this.signal.removeEventListener("abort", onAbort);
+      }
+    }
+  }
+
+  private requestCharge(): void {
+    this.chargeRequested = true;
+    this.chargeWake?.abort();
+  }
+
+  private safeLog(
+    level: "error" | "warn" | "info",
+    fields: Record<string, unknown>,
+    message: string,
+  ): void {
+    try {
+      this.logger[level](fields, message);
+    } catch {
+      // A failing logger must not stop a loop.
+    }
+  }
+
+  /** Tracks a promise started without being awaited: logged on failure, awaited at stop. */
+  private track(promise: Promise<unknown>, what: string, instrument?: string): void {
+    const tracked = promise.catch((error: unknown) => {
+      this.safeLog("error", { err: describeError(error), instrument }, `${what} failed`);
+    });
+    this.inFlight.add(tracked);
+    void tracked.finally(() => this.inFlight.delete(tracked));
+  }
+
+  /**
+   * Startup, once: a venue that keeps nothing across a restart (the paper venue) no longer has
+   * the orders the previous process left resting, so they are marked cancelled.
+   */
+  private async prepare(): Promise<void> {
+    if (this.venue.name === "paper") {
+      const vanished = await cancelVanishedOrders(this.db, this.venue.name);
+      if (vanished.length > 0) {
+        this.logger.warn(
+          {
+            venue: this.venue.name,
+            orders: vanished.map((order) => order.clientOrderId),
+            instruments: [...new Set(vanished.map((order) => order.instrument))],
+          },
+          "orders left open by the previous process marked cancelled: the paper venue keeps its orders in memory only, so they no longer exist and can never fill",
+        );
+      }
+    }
+    this.ready = true;
+  }
+
+  private async shutdown(): Promise<void> {
+    this.stopped = true;
+    while (this.inFlight.size > 0) await Promise.allSettled([...this.inFlight]);
+    await Promise.allSettled([...this.creating.values()]);
+    for (const [symbol, entry] of this.entries) {
+      try {
+        if (entry.reconciling !== null) await entry.reconciling;
+        await entry.runner.stop();
+      } catch (error: unknown) {
+        this.safeLog(
+          "error",
+          { instrument: symbol, err: describeError(error) },
+          "runner did not stop cleanly",
+        );
+      }
+    }
+    while (this.inFlight.size > 0) await Promise.allSettled([...this.inFlight]);
+    try {
+      await this.sink.retryPending({ force: true });
+    } catch (error: unknown) {
+      this.safeLog(
+        "error",
+        { err: describeError(error) },
+        "last write of pending policy events failed",
+      );
+    }
+    const pending = this.sink.pendingCount();
+    this.safeLog(
+      pending > 0 ? "error" : "info",
+      { pendingEvents: pending },
+      pending > 0
+        ? "hedging stopped with policy events not written: the next start rebuilds from the database"
+        : "hedging stopped",
+    );
+  }
+
+  // -------------------------------------------------------------------------------------------
+  // Books and trades
+  // -------------------------------------------------------------------------------------------
+
+  /** Every book and trade goes to the venue first (it fills resting makers), then to the runner. */
+  private onBookFeedEvent(event: BookFeedEvent): void {
+    if (this.stopped) return;
+    try {
+      if (event.kind === "book") {
+        this.feedVenueBook(event.book);
+        const entry = this.entries.get(event.book.instrumentSymbol);
+        if (entry !== undefined) {
+          this.track(entry.runner.onBook(event.book), "runner book", event.book.instrumentSymbol);
+        }
+        return;
+      }
+      if (this.venue instanceof PaperVenue) this.venue.onTrade(event.trade);
+      const entry = this.entries.get(event.trade.instrumentSymbol);
+      if (entry !== undefined) {
+        this.track(entry.runner.onTrade(event.trade), "runner trade", event.trade.instrumentSymbol);
+      }
+    } catch (error: unknown) {
+      this.safeLog(
+        "error",
+        { err: describeError(error), kind: event.kind },
+        "book feed event could not be applied",
+      );
+    }
+  }
+
+  private feedVenueBook(book: Book): void {
+    if (this.venue instanceof PaperVenue) this.venue.onBook(book);
+  }
+
+  // -------------------------------------------------------------------------------------------
+  // Instruments and runners
+  // -------------------------------------------------------------------------------------------
+
+  /** Reads the instruments and the exposure; starts, feeds and retires runners. */
+  async syncInstruments(): Promise<void> {
+    if (!this.ready || this.stopped) return;
+    const rows = await listHedgeInstruments(this.db);
+    const needed = new Set<string>();
+    for (const row of rows) {
+      if (!needsRunner(row)) continue;
+      needed.add(row.symbol);
+      try {
+        await this.syncInstrument(row);
+      } catch (error: unknown) {
+        this.safeLog(
+          "error",
+          { instrument: row.symbol, err: describeError(error) },
+          "instrument could not be synchronised: retried at the next pass",
+        );
+      }
+    }
+    for (const [symbol, entry] of this.entries) {
+      if (needed.has(symbol) || entry.reconciling !== null) continue;
+      if (entry.runner.snapshot().openOrders.length > 0) continue;
+      try {
+        await this.retire(symbol, entry);
+      } catch (error: unknown) {
+        this.safeLog(
+          "error",
+          { instrument: symbol, err: describeError(error) },
+          "runner could not be retired",
+        );
+      }
+    }
+  }
+
+  private async syncInstrument(row: HedgeInstrumentRow): Promise<void> {
+    const entry = await this.ensureEntry(row);
+    entry.info = infoOf(row);
+    if (row.exposure !== entry.lastExposure) {
+      const grew = row.exposure > entry.lastExposure;
+      entry.lastExposure = row.exposure;
+      this.track(entry.runner.onExposure(row.exposure), "runner exposure", row.symbol);
+      // A new lot: contracts already held ahead of exposure cover it without a new order.
+      if (grew) await this.allocateInventory(row.symbol);
+    }
+    if (salesOver(row, this.clock.now()) && entry.reconciledAtExposure !== row.exposure) {
+      if (entry.reconciling === null) {
+        const run = this.claimReconcile(entry, () =>
+          this.reconcileAtSalesClose(entry, row.exposure),
+        );
+        this.track(run, "sales-close reconciliation", row.symbol);
+      }
+    }
+  }
+
+  /**
+   * Runs `work` as the instrument's reconciliation: `entry.reconciling` is set until it ends, so
+   * the sales-close pass and `finalize` never reconcile one runner at the same time. The caller
+   * must have seen `entry.reconciling === null` without awaiting since.
+   */
+  private claimReconcile<T>(entry: Entry, work: () => Promise<T>): Promise<T> {
+    const run = work();
+    const slot: Promise<void> = run
+      .then(
+        () => undefined,
+        () => undefined,
+      )
+      .finally(() => {
+        if (entry.reconciling === slot) entry.reconciling = null;
+      });
+    entry.reconciling = slot;
+    return run;
+  }
+
+  /** The entry of an instrument, creating and starting its runner the first time. */
+  private async ensureEntry(row: HedgeInstrumentRow): Promise<Entry> {
+    const existing = this.entries.get(row.symbol);
+    if (existing !== undefined) return existing;
+    const pending = this.creating.get(row.symbol);
+    if (pending !== undefined) return pending;
+    const creation = this.createEntry(row).finally(() => {
+      this.creating.delete(row.symbol);
+    });
+    this.creating.set(row.symbol, creation);
+    return creation;
+  }
+
+  /**
+   * Rebuilds a runner from the database (exposure, held from the recorded fills, next order
+   * sequence, orders still open), hands it the latest book, and starts it.
+   */
+  private async createEntry(row: HedgeInstrumentRow): Promise<Entry> {
+    if (this.stopped) throw new HedgingStoppedError(`starting the runner of ${row.symbol}`);
+    const risk = await loadRiskParams(this.db, this.logger);
+    const prefix = orderIdPrefix(row.symbol);
+    const state = await loadRestoreState(this.db, row.symbol, this.venue.name, prefix);
+    await resetPosition(this.db, row.symbol, state.held, this.venue.name);
+    const runner = new PolicyRunner({
+      instrumentSymbol: row.symbol,
+      eventStartMs: row.eventStartsAt.getTime(),
+      venue: this.venue,
+      clock: this.clock,
+      logger: this.logger,
+      idPrefix: prefix,
+      params: policyParamsOf(risk),
+      breakerParams: this.breakerParams,
+      sink: this.sink,
+      restore: {
+        exposure: state.exposure,
+        held: state.held,
+        nextOrderSeq: state.nextOrderSeq,
+        // Open orders as the database has them. The paper venue lost those of a previous process
+        // (marked cancelled at startup), so only orders of this process can still be listed here.
+        unsettledOrders: state.openOrders,
+      },
+    });
+    const entry: Entry = {
+      info: infoOf(row),
+      runner,
+      lastExposure: state.exposure,
+      reconciledAtExposure: null,
+      reconciling: null,
+    };
+    const book = this.bookFeed.getBook(row.symbol);
+    if (book !== null) {
+      this.feedVenueBook(book);
+      await runner.onBook(book);
+    }
+    this.entries.set(row.symbol, entry);
+    await runner.start();
+    this.logger.info(
+      {
+        instrument: row.symbol,
+        idPrefix: prefix,
+        exposure: state.exposure.toString(),
+        held: state.held.toString(),
+        nextOrderSeq: state.nextOrderSeq,
+        openOrders: state.openOrders.length,
+        params: { ...risk, uMaxMicroUsdc: risk.uMaxMicroUsdc.toString() },
+      },
+      "hedging runner started",
+    );
+    await this.allocateInventory(row.symbol);
+    return entry;
+  }
+
+  private async retire(symbol: string, entry: Entry): Promise<void> {
+    await entry.runner.stop();
+    this.entries.delete(symbol);
+    this.lastDeskWriteMs.delete(symbol);
+    await this.desk.remove(symbol);
+    this.logger.info({ instrument: symbol }, "hedging runner retired: nothing left to hedge");
+  }
+
+  private async allocateInventory(instrument: string): Promise<void> {
+    const outcome = await allocateHeldInventory(this.db, instrument);
+    if (outcome.allocations.length > 0) {
+      this.logger.info(
+        {
+          instrument,
+          allocations: outcome.allocations.length,
+          coveredLots: outcome.coveredLots.length,
+        },
+        "inventory held ahead of exposure allocated to new lots",
+      );
+    }
+    if (outcome.coveredLots.length > 0) this.requestCharge();
+  }
+
+  private onFillRecorded(event: FillRecorded): void {
+    if (event.result.coveredLots.length > 0) this.requestCharge();
+  }
+
+  // -------------------------------------------------------------------------------------------
+  // Tick: timers of the runners, retries of the sink, the desk
+  // -------------------------------------------------------------------------------------------
+
+  private async tick(): Promise<void> {
+    if (!this.ready || this.stopped) return;
+    for (const [symbol, entry] of this.entries) {
+      this.track(entry.runner.onTick(), "runner tick", symbol);
+    }
+    await this.sink.retryPending();
+    for (const [symbol, entry] of this.entries) {
+      try {
+        const snapshot = entry.runner.snapshot();
+        await writeWorking(this.db, symbol, snapshot.working);
+        const nowMs = Date.now();
+        if (nowMs - (this.lastDeskWriteMs.get(symbol) ?? 0) < this.deskMinIntervalMs) continue;
+        if (await this.desk.write(entry.info, snapshot)) this.lastDeskWriteMs.set(symbol, nowMs);
+      } catch (error: unknown) {
+        this.safeLog(
+          "error",
+          { instrument: symbol, err: describeError(error) },
+          "hedge desk not written",
+        );
+      }
+    }
+  }
+
+  // -------------------------------------------------------------------------------------------
+  // Sales close (HE-6) and the finalizer
+  // -------------------------------------------------------------------------------------------
+
+  /**
+   * The last campaign selling on the instrument is past its sales close: reconcile once, wait for
+   * it, then charge every remaining lot of the closed campaigns.
+   */
+  private async reconcileAtSalesClose(entry: Entry, exposure: bigint): Promise<void> {
+    const symbol = entry.info.symbol;
+    const reconciled = await this.reconcile(entry, exposure);
+    if (!reconciled.ok) {
+      this.logger.warn(
+        { instrument: symbol, detail: reconciled.detail },
+        "sales-close reconciliation not complete: retried at the next pass",
+      );
+      return;
+    }
+    entry.reconciledAtExposure = exposure;
+    await this.allocateInventory(symbol);
+    const campaigns = await closedCampaignsOf(this.db, symbol, this.clock.now());
+    const charged = await this.charger.chargeRemaining(campaigns);
+    this.logger.info(
+      {
+        instrument: symbol,
+        exposure: exposure.toString(),
+        held: entry.runner.snapshot().held.toString(),
+        campaigns: campaigns.length,
+        chargesQueued: charged.queued,
+        ticketsCharged: charged.tickets,
+      },
+      "sales closed: position reconciled and remaining lots charged",
+    );
+  }
+
+  /**
+   * Calls the runner's `reconcile()` and waits until it is no longer pending, every fill of it is
+   * written, and no order is open. `ok` once |H − E| ≤ one step.
+   */
+  private async reconcile(
+    entry: Entry,
+    exposure: bigint,
+  ): Promise<{ ok: true } | { ok: false; detail: string }> {
+    const { runner } = entry;
+    const symbol = entry.info.symbol;
+    entry.lastExposure = exposure;
+    await runner.onExposure(exposure);
+    await runner.reconcile();
+    const deadline = Date.now() + this.reconcileTimeoutMs;
+    for (;;) {
+      const snapshot = runner.snapshot();
+      const settled =
+        !snapshot.reconcilePending &&
+        snapshot.openOrders.length === 0 &&
+        this.sink.pendingCount(symbol) === 0;
+      if (settled && withinOneStep(snapshot.held, snapshot.exposure)) return { ok: true };
+      if (this.signal.aborted) throw new HedgingStoppedError(`reconciling ${symbol}`);
+      if (Date.now() >= deadline) {
+        return {
+          ok: false,
+          detail:
+            `held ${snapshot.held.toString()}, exposure ${snapshot.exposure.toString()}, ` +
+            `pending ${String(snapshot.reconcilePending)}, open orders ${snapshot.openOrders.length.toString()}, ` +
+            `breaker ${snapshot.breaker.reason ?? "off"}, stale ${String(snapshot.stale)}`,
+        };
+      }
+      await abortableSleep(RECONCILE_POLL_MS, this.signal);
+    }
+  }
+
+  /**
+   * `HedgeFinalizer.finalize` (settlement lane): makes sure the instrument is reconciled, charges
+   * every remaining lot of the campaign on-chain and waits for those transactions. Idempotent: on
+   * a campaign already finalized it finds nothing to charge and returns.
+   *
+   * Throws `HedgeNotReconciledError` when the position cannot be brought within one step (no book,
+   * stale book, breaker), `HedgeFinalizeError` when charges are not final in time, and
+   * `HedgingStoppedError` once the service stops. All are retryable.
+   */
+  async finalize(campaign: FinalizeCampaign): Promise<void> {
+    if (this.stopped || this.signal.aborted) throw new HedgingStoppedError("finalizing");
+    if (!this.ready) throw new HedgeFinalizeError(campaign.id, "the service is still starting");
+    const row = await getHedgeInstrument(this.db, campaign.instrument);
+    if (row !== null && needsRunner(row)) {
+      const entry = await this.ensureEntry(row);
+      // One reconciliation at a time per runner: wait for the one running (sales close or
+      // another finalize), then start ours in the same slot if the exposure still needs it.
+      while (entry.reconciling !== null) await entry.reconciling;
+      if (entry.reconciledAtExposure !== row.exposure) {
+        const exposure = row.exposure;
+        const reconciled = await this.claimReconcile(entry, async () => {
+          const outcome = await this.reconcile(entry, exposure);
+          if (outcome.ok) entry.reconciledAtExposure = exposure;
+          return outcome;
+        });
+        if (!reconciled.ok) {
+          throw new HedgeNotReconciledError(campaign.instrument, reconciled.detail);
+        }
+      }
+    } else if (row !== null) {
+      const entry = this.entries.get(row.symbol);
+      while (entry !== undefined && entry.reconciling !== null) await entry.reconciling;
+    }
+    await this.allocateInventory(campaign.instrument);
+
+    const deadline = Date.now() + this.finalizeTimeoutMs;
+    for (let round = 1; ; round += 1) {
+      await this.charger.chargeRemaining([campaign.id]);
+      await this.waitForCharges(campaign, deadline);
+      await this.charger.recordMinedLosses();
+      const { open, refused } = await this.charger.classify(
+        await remainingLots(this.db, [campaign.id]),
+      );
+      if (refused.length > 0) {
+        // The escrow refused these for good while their reservation is still held: settle
+        // would revert (hedgeReserved is not zero). A defect upstream: never reported as done.
+        throw new HedgeFinalizeError(
+          campaign.id,
+          `the escrow refused ${refused
+            .map((item) => `ticket ${item.lot.ticketOnchainId.toString()} (${item.reason})`)
+            .join(", ")} for good: their reservations are still held`,
+        );
+      }
+      if (open.length === 0) {
+        this.logger.info(
+          { campaignId: campaign.id, campaignOnchainId: campaign.onchainId.toString() },
+          "campaign hedges finalized: every ticket charged",
+        );
+        return;
+      }
+      if (Date.now() >= deadline) {
+        throw new HedgeFinalizeError(
+          campaign.id,
+          `${open.length.toString()} ticket(s) still uncharged after ${round.toString()} round(s)`,
+        );
+      }
+      if (round % FINALIZE_WARN_ROUNDS === 1) {
+        this.logger.warn(
+          { campaignId: campaign.id, round, left: open.length },
+          "campaign hedges not all charged yet: charging again",
+        );
+      }
+      await abortableSleep(CHARGE_POLL_MS, this.signal);
+      if (this.signal.aborted) throw new HedgingStoppedError("finalizing");
+    }
+  }
+
+  /** Waits until no `chargeHedge` holding a ticket of the campaign is queued or sent. */
+  private async waitForCharges(campaign: FinalizeCampaign, deadline: number): Promise<void> {
+    for (;;) {
+      const [row] = await this.db<{ n: bigint }[]>`
+        select count(*)::bigint as n from chain_txs x
+        where x.kind = 'chargeHedge' and x.status in ('queued', 'sent')
+          and x.payload -> 'ticketIds' ?| array(
+            select t.onchain_id::text from tickets t
+            where t.campaign_id = ${campaign.id} and t.onchain_id is not null
+          )
+      `;
+      if ((row?.n ?? 0n) === 0n) return;
+      if (this.signal.aborted) throw new HedgingStoppedError("waiting for hedge charges");
+      if (Date.now() >= deadline) {
+        throw new HedgeFinalizeError(
+          campaign.id,
+          `${(row?.n ?? 0n).toString()} chargeHedge transaction(s) still pending`,
+        );
+      }
+      await abortableSleep(CHARGE_POLL_MS, this.signal);
+    }
+  }
+}
+
+function infoOf(row: HedgeInstrumentRow): DeskInstrumentInfo {
+  return {
+    symbol: row.symbol,
+    label: row.label,
+    eventTitle: row.eventTitle,
+    eventStartsAt: row.eventStartsAt,
+  };
+}
