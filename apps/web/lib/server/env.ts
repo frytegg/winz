@@ -33,9 +33,14 @@ function clean(source: Record<string, string | undefined>): Record<string, strin
   return Object.fromEntries(Object.entries(source).filter(([, value]) => value !== ""));
 }
 
-/** In mock mode the routes serve example payloads and need no backing service. */
+/**
+ * In mock mode the routes serve example payloads and need no backing service.
+ * Never honoured in production: a stray `APP_API_MOCK=true` there would serve fake data
+ * to real users, with no authentication.
+ */
 export function isApiMock(source: Record<string, string | undefined> = process.env): boolean {
-  return source.APP_API_MOCK === "true";
+  if (source.APP_API_MOCK !== "true") return false;
+  return source.APP_ENV !== "production" && source.VERCEL_ENV !== "production";
 }
 
 let cached: WebEnv | undefined;
