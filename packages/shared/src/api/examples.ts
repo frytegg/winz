@@ -143,7 +143,7 @@ export const eventsExample: EventsResponse = {
           headline: "Half back if Pitt wins",
           refundBps: 5000,
           probabilityBps: 4650,
-          costBps: 2437,
+          costBps: 2438,
           available: true,
           unavailableReason: null,
         },
