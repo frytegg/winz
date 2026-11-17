@@ -1,4 +1,11 @@
-import { BPS, DEFAULT_RISK_PARAMS, TICK_BPS, mulDivUp, refundableAmount } from "@winz/shared";
+import {
+  BPS,
+  DEFAULT_RISK_PARAMS,
+  TICK_BPS,
+  mulDivDown,
+  mulDivUp,
+  refundableAmount,
+} from "@winz/shared";
 import type { Book, Bps, MicroContracts, MicroUsdc, SaleState } from "@winz/shared";
 
 import { isBookStale } from "./book";
@@ -34,6 +41,11 @@ export interface QuoteInput extends MarketInput {
   refundBps: Bps;
   /** The campaign's pause threshold `p_max` (see `pauseThresholdBps`). */
   pauseThresholdBps: Bps;
+  /**
+   * The campaign's `c_max` (see `maxCostBps`): the largest hedge cost of one sale the merchant
+   * accepts, in basis points of the amount paid. It caps the guaranteed cost of the quote.
+   */
+  maxCostBps: Bps;
   /** Hedge budget still free: budget − spent − reserved, micro-USDC. */
   availableBudget: MicroUsdc;
 }
@@ -49,7 +61,8 @@ export interface AcceptedQuote {
   hedgeCost: MicroUsdc;
   /**
    * Guaranteed maximum cost, reserved on the merchant's budget and signed in the quote:
-   * `hedgeCost` plus the tolerance (toleranceTicks × one tick × exposure, rounded up).
+   * `hedgeCost` plus the tolerance (toleranceTicks × one tick × exposure, rounded up), capped at
+   * `c_max` × the amount paid (see `guaranteeCap`). Always between `hedgeCost` and that cap.
    */
   maxHedgeCost: MicroUsdc;
   /**
@@ -99,16 +112,53 @@ export function toleranceCost(exposure: MicroContracts, toleranceTicks: bigint):
 }
 
 /**
+ * Most a sale may be charged for its hedge, so that the merchant keeps the minimum margin:
+ * `c_max` × the amount paid (qty × unitPrice), rounded down because a cap protects the merchant
+ * (SPEC 4.3, 4.4).
+ */
+export function guaranteeCap(qty: bigint, unitPrice: MicroUsdc, maxCostBps: Bps): MicroUsdc {
+  return mulDivDown(qty * unitPrice, maxCostBps, BPS);
+}
+
+/**
+ * The guaranteed cost of a slice whose taker cost is `hedgeCost`: `hedgeCost + tolerance`, capped
+ * at `cap`. Null when the taker cost alone is above the cap: no guarantee can then keep the
+ * merchant's minimum margin and the sale is refused. Near the threshold the tolerance shrinks to
+ * zero; what the hedge costs beyond the guarantee is borne by the platform (SPEC 4.4).
+ */
+export function cappedGuarantee(
+  hedgeCost: MicroUsdc,
+  tolerance: MicroUsdc,
+  cap: MicroUsdc,
+): MicroUsdc | null {
+  if (hedgeCost > cap) return null;
+  const guarantee = hedgeCost + tolerance;
+  return guarantee < cap ? guarantee : cap;
+}
+
+/**
+ * True when the merchant accepts no hedge cost at all (`c_max` = 0) on a campaign that refunds
+ * something: no sale of it can ever be hedged, so none is quoted, whatever the book holds (even
+ * an ask at a price of 0, or a dust sale whose exposure rounds down to 0).
+ */
+export function cannotHedge(maxCostBps: Bps, refundBps: Bps): boolean {
+  return maxCostBps === 0n && refundBps > 0n;
+}
+
+/**
  * Prices one purchase at the moment it goes on-chain (SPEC 9.2). The checks run in this order and
  * the first that fails gives the reason:
  *
  * 1. no book was ever received → `no_depth`; the book is older than 10 s → `stale_book`;
  * 2. the asks behind `pending` do not hold the exposure → `no_depth`;
- * 3. the highest ask level the sale consumes is above the pause threshold → `above_threshold`;
+ * 3. the highest ask level the sale consumes is above the pause threshold, or the taker cost of
+ *    the slice is above the cap `c_max` × amount paid, or `c_max` is 0 while the refund rate is
+ *    positive → `above_threshold`;
  * 4. the guaranteed cost exceeds the available budget → `over_budget`.
  *
- * Otherwise the quote is accepted with `maxHedgeCost = hedgeCost + tolerance`. A sale with no
- * exposure (refund rate of 0) needs no contract: it is accepted at zero cost on any fresh book.
+ * Otherwise the quote is accepted with `maxHedgeCost = min(hedgeCost + tolerance, cap)`: the
+ * guarantee never makes the merchant pay more than `c_max` of the sale. A sale with no exposure
+ * (refund rate of 0) needs no contract: it is accepted at zero cost on any fresh book.
  */
 export function computeQuote(input: QuoteInput): Quote {
   if (input.qty <= 0n) {
@@ -119,6 +169,7 @@ export function computeQuote(input: QuoteInput): Quote {
   }
   assertInRange("refundBps", input.refundBps, 0n, BPS);
   assertInRange("pauseThresholdBps", input.pauseThresholdBps, 0n, BPS);
+  assertInRange("maxCostBps", input.maxCostBps, 0n, BPS);
   assertNonNegative("pending", input.pending);
   const ticks = resolveToleranceTicks(input.toleranceTicks);
 
@@ -133,8 +184,13 @@ export function computeQuote(input: QuoteInput): Quote {
   if (fill.topPriceBps !== null && fill.topPriceBps > input.pauseThresholdBps) {
     return { ok: false, reason: "above_threshold" };
   }
+  if (cannotHedge(input.maxCostBps, input.refundBps)) {
+    return { ok: false, reason: "above_threshold" };
+  }
 
-  const maxHedgeCost = fill.cost + toleranceCost(exposure, ticks);
+  const cap = guaranteeCap(input.qty, input.unitPrice, input.maxCostBps);
+  const maxHedgeCost = cappedGuarantee(fill.cost, toleranceCost(exposure, ticks), cap);
+  if (maxHedgeCost === null) return { ok: false, reason: "above_threshold" };
   if (maxHedgeCost > input.availableBudget) return { ok: false, reason: "over_budget" };
 
   return {

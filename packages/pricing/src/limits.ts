@@ -5,7 +5,15 @@ import { assertValidAsks, isBookStale, midBps } from "./book";
 import { PricingInputError, assertInRange, assertNonNegative } from "./errors";
 import { costPerContractBps } from "./fees";
 import { marginalTakerCost } from "./marginal-cost";
-import { computeQuote, resolveToleranceTicks, saleStateForQuote, toleranceCost } from "./quote";
+import {
+  cannotHedge,
+  cappedGuarantee,
+  computeQuote,
+  guaranteeCap,
+  resolveToleranceTicks,
+  saleStateForQuote,
+  toleranceCost,
+} from "./quote";
 import type { MarketInput, QuoteSaleState } from "./quote";
 
 /**
@@ -43,7 +51,8 @@ export interface Capacity {
   sales: number;
   /**
    * `depth` when the asks at or below the pause threshold run out first (or at the same sale as
-   * the budget), `budget` when the reserved guaranteed costs exhaust the budget first.
+   * the budget), which includes the next sale costing more than `c_max` of its price; `budget`
+   * when the reserved guaranteed costs exhaust the budget first.
    */
   limitedBy: CapacityLimit;
 }
@@ -111,8 +120,10 @@ function affordableSales(budgetLeft: MicroUsdc, reserve: MicroUsdc, fit: bigint)
 /**
  * Counts the single-unit sales that `computeQuote` would accept one after the other on this book,
  * each one consuming `exposure` micro-contracts behind the previous one and reserving its
- * guaranteed cost on the budget. The count is exact: it walks the levels, in bulk where sales fit
- * inside one level and one by one where a sale straddles levels.
+ * guaranteed cost on the budget, capped at `cap`. The first sale whose taker cost is above `cap`
+ * stops the count as a price pause (`depth`); sale costs never decrease along the asks, so no
+ * later sale could be quoted either. The count is exact: it walks the levels, in bulk where sales
+ * fit inside one level and one by one where a sale straddles levels.
  */
 function saleCapacity(
   book: Book,
@@ -121,6 +132,7 @@ function saleCapacity(
   thresholdBps: Bps,
   availableBudget: MicroUsdc,
   toleranceTicks: bigint,
+  cap: MicroUsdc,
 ): Capacity {
   if (exposure === 0n) {
     // Nothing to hedge: neither the depth nor the price can stop a sale, only a negative budget.
@@ -149,7 +161,8 @@ function saleCapacity(
     if (slice.left >= exposure) {
       // Sales that fit entirely in this level all cost the same.
       const fit = slice.left / exposure;
-      const reserve = mulDivUp(exposure, slice.costBps, BPS) + tolerance;
+      const reserve = cappedGuarantee(mulDivUp(exposure, slice.costBps, BPS), tolerance, cap);
+      if (reserve === null) return capacityOf(sales, "depth");
       const sold = affordableSales(budgetLeft, reserve, fit);
       sales += sold;
       budgetLeft -= sold * reserve;
@@ -168,7 +181,8 @@ function saleCapacity(
       rawCost += take * last.costBps;
       need -= take;
       if (need === 0n) {
-        const reserve = (rawCost + BPS - 1n) / BPS + tolerance;
+        const reserve = cappedGuarantee((rawCost + BPS - 1n) / BPS, tolerance, cap);
+        if (reserve === null) return capacityOf(sales, "depth");
         if (reserve > budgetLeft) return capacityOf(sales, "budget");
         sales += 1n;
         budgetLeft -= reserve;
@@ -189,9 +203,16 @@ function saleCapacity(
  * the cost of one sale at the current price, the margin kept, and the remaining capacity.
  *
  * The capacity is the number of single-unit sales that could be quoted now, one after the other:
- * the smaller of what the budget allows (each sale reserves its guaranteed cost) and what the
- * asks hold at or below the pause threshold behind `pending`. A missing or stale book is not
- * priced: the market figures are null and the capacity is zero.
+ * the smaller of what the budget allows (each sale reserves its guaranteed cost, capped at `c_max`
+ * of the price) and what the asks hold at or below the pause threshold behind `pending`, a sale
+ * whose taker cost is above `c_max` of the price ending it as the threshold would. A missing or
+ * stale book is not priced: the market figures are null and the capacity is zero. With `c_max` = 0
+ * and a positive refund rate no sale can be hedged: the capacity is zero (`depth`).
+ *
+ * `costPerSale` is the taker cost of the next sale (SPEC 4.3 "coût d'une vente"), not its capped
+ * guarantee, and the margin kept is computed from it: both are what the sale is expected to cost
+ * and leave. Whenever the sale is open that cost is at most the cap, so the margin kept is at
+ * least the usual margin minus `c_max` of the price.
  */
 export function limits(input: LimitsInput): Limits {
   if (input.unitPrice <= 0n) {
@@ -201,7 +222,7 @@ export function limits(input: LimitsInput): Limits {
   const threshold = pauseThresholdBps(maxCost, input.refundBps);
   const ticks = resolveToleranceTicks(input.toleranceTicks);
   const saleState = saleStateForQuote(
-    computeQuote({ ...input, qty: 1n, pauseThresholdBps: threshold }),
+    computeQuote({ ...input, qty: 1n, pauseThresholdBps: threshold, maxCostBps: maxCost }),
   );
 
   const book = input.book;
@@ -231,7 +252,17 @@ export function limits(input: LimitsInput): Limits {
     costPerSale,
     marginKeptPerSale: marginKept,
     marginKeptBps: marginKept === null ? null : mulDivDown(marginKept, BPS, input.unitPrice),
-    capacity: saleCapacity(book, input.pending, exposure, threshold, input.availableBudget, ticks),
+    capacity: cannotHedge(maxCost, input.refundBps)
+      ? { sales: 0, limitedBy: "depth" }
+      : saleCapacity(
+          book,
+          input.pending,
+          exposure,
+          threshold,
+          input.availableBudget,
+          ticks,
+          guaranteeCap(1n, input.unitPrice, maxCost),
+        ),
     saleState,
   };
 }
