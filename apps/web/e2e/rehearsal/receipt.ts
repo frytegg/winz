@@ -3,7 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { formatMicro, formatWei } from "./estimate";
-import { SecretLeakError, type RehearsalReceipt, type Stats } from "./types";
+import { SecretLeakError, type RehearsalReceipt, type RpcRecord, type Stats } from "./types";
 
 /**
  * The receipt of a run: a JSON file and a Markdown file named by the UTC start time, the chain id
@@ -118,6 +118,10 @@ export function receiptMarkdown(receipt: RehearsalReceipt): string {
   );
   lines.push("");
   lines.push(
+    `Run start block ${receipt.escrow.runStartBlock?.toString() ?? "–"}; the engine read the escrow's events from block ${receipt.escrow.engineStartBlock?.toString() ?? "–"} on an empty database.`,
+  );
+  lines.push("");
+  lines.push(
     `Engine: ${receipt.engine.started ? "started" : "not started"}, ${receipt.engine.stopped ? "stopped before the receipt was written" : "not stopped cleanly"}. Run id \`${receipt.runId}\`.`,
   );
   if (receipt.failure !== null) {
@@ -214,7 +218,7 @@ export function receiptMarkdown(receipt: RehearsalReceipt): string {
   if (refunds !== null) {
     lines.push("");
     lines.push(
-      `Refunds: settle mined in block ${refunds.settleBlock.toString()}, last refund in block ${refunds.lastRefundBlock.toString()} (${refunds.blocks.toString()} blocks, ${refunds.chainSeconds.toString()} s of chain time, ${refunds.wallMs === null ? "–" : `${refunds.wallMs.toString()} ms`} of wall clock between the rehearsal seeing settle and the last refund on-chain). ${refunds.batches.length.toString()} batch(es):`,
+      `Refunds: settle mined in block ${refunds.settleBlock.toString()}, last refund in block ${refunds.lastRefundBlock.toString()} (${refunds.blocks.toString()} blocks, ${refunds.chainSeconds === null ? "–" : refunds.chainSeconds.toString()} s of chain time, ${refunds.wallMs === null ? "–" : `${refunds.wallMs.toString()} ms`} of wall clock between the rehearsal first seeing the block of settle and the block of the last refund, each block watched every 500 ms). ${refunds.batches.length.toString()} batch(es):`,
     );
     for (const batch of refunds.batches) {
       lines.push(
@@ -286,14 +290,45 @@ export function receiptMarkdown(receipt: RehearsalReceipt): string {
       `Sales closed and result ${recovery.outcome.toUpperCase()} forced so that the escrow settles and releases: ${recovery.released ? "released" : `not released (${recovery.reason ?? "unknown"})`}.`,
     );
   }
+  if (receipt.rpc !== null) {
+    lines.push("");
+    lines.push("## Node");
+    lines.push("");
+    lines.push(describeRpc(receipt.rpc));
+    lines.push("");
+    lines.push("| Step | Requests | Duration | Per second |");
+    lines.push("|---|---|---|---|");
+    for (const row of receipt.rpc.perStep) {
+      const perSecond =
+        row.durationMs > 0 ? ((row.requests * 1_000) / row.durationMs).toFixed(2) : "–";
+      lines.push(
+        `| ${row.step} | ${row.requests.toString()} | ${row.durationMs.toString()} ms | ${perSecond} |`,
+      );
+    }
+  }
   if (receipt.leftBehind.length > 0) {
     lines.push("");
     lines.push("## Left behind");
     lines.push("");
     for (const line of receipt.leftBehind) lines.push(`- ${line}`);
   }
+  if (receipt.unread.length > 0) {
+    lines.push("");
+    lines.push("## Could not be read");
+    lines.push("");
+    for (const line of receipt.unread) lines.push(`- ${line}`);
+  }
   lines.push("");
   return lines.join("\n");
+}
+
+/** One sentence: the runner's requests, refusals and retries, and the shared limiter's counts. */
+export function describeRpc(rpc: RpcRecord): string {
+  const limiter =
+    rpc.limiter === null
+      ? "no limiter"
+      : `the limiter shared with the engine let ${rpc.limiter.started.toString()} requests through, saw ${rpc.limiter.rateLimited.toString()} rate-limit answers and cooled down ${rpc.limiter.coolDowns.toString()} times`;
+  return `${rpc.requests.toString()} requests by the runner's own client, ${rpc.refused.toString()} refused (${rpc.rateLimited.toString()} rate limits), ${rpc.retried.toString()} reads retried; ${limiter}.`;
 }
 
 /**
@@ -307,12 +342,31 @@ export async function writeReceipt(
   dir: string,
   secrets: readonly string[],
 ): Promise<{ json: string; markdown: string }> {
-  const json = redactText(receiptJson(receipt), secrets);
-  const markdown = redactText(receiptMarkdown(receipt), secrets);
+  return writeTexts(
+    dir,
+    receiptBaseName(receipt),
+    receiptJson(receipt),
+    receiptMarkdown(receipt),
+    secrets,
+  );
+}
+
+/**
+ * Writes `<base>.json` and `<base>.md` into `dir` (`<base>-2` and so on when taken), redacted,
+ * then checked by `assertNoSecrets`; never over an existing file. Returns the paths.
+ */
+export async function writeTexts(
+  dir: string,
+  base: string,
+  jsonText: string,
+  markdownText: string,
+  secrets: readonly string[],
+): Promise<{ json: string; markdown: string }> {
+  const json = redactText(jsonText, secrets);
+  const markdown = redactText(markdownText, secrets);
   assertNoSecrets(json, secrets, "the JSON receipt");
   assertNoSecrets(markdown, secrets, "the Markdown receipt");
   await mkdir(dir, { recursive: true });
-  const base = receiptBaseName(receipt);
   let name = base;
   for (let copy = 2; existsSync(join(dir, `${name}.json`)); copy += 1) {
     name = `${base}-${copy.toString()}`;
