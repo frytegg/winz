@@ -53,7 +53,7 @@ start, naming each problem, when one is missing or malformed.
 | `ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND`               | no        | Of those, requests of the heavy methods. Default 4.                                   |
 | `ARC_RPC_HEAVY_METHODS`                               | no        | Comma-separated JSON-RPC methods counted as heavy. Default `eth_getLogs`.             |
 | `ARC_TX_MAX_IN_FLIGHT`                                | no        | Transactions of one key broadcast and not mined yet at once. 1 to 64, default 8.      |
-| `PORT`                                                | no        | Port of the health listener (`GET /healthz`). Unset: no listener. Railway sets it.    |
+| `PORT`                                                | no        | Port of the health listener (`GET /healthz`). Unset: no listener. Render sets it.     |
 | `ENGINE_LEASE_TTL_MS`                                 | no        | How long a renewal holds the engine lease. 10 000 to 300 000, default 15 000.         |
 | `ENGINE_LEASE_RENEW_MS`                               | no        | Renewal interval of the leader. At most (ttl - 5 000) / 3. Default 3 000.             |
 | `ENGINE_LEASE_STANDBY_POLL_MS`                        | no        | How often a standby asks for the lease. 100 to the ttl, default 1 000.                |
@@ -69,9 +69,11 @@ still waiting for their turn after 9 s are released unsent, so the engine stops 
 
 ## Deploy
 
-The engine runs as one container on Railway: `apps/engine/Dockerfile`, built from the repository
-root, and `railway.json` at the root. The step-by-step page, with the command that proves each
-step, is [`docs/deploy.md`](../../docs/deploy.md) (in French).
+The engine runs as one Docker web service on Render: `apps/engine/Dockerfile`, built from the
+repository root (Root Directory empty, Docker Build Context Directory `.`), health check path
+`/healthz`. Its settings are made in Render's dashboard; there is no `render.yaml` (the page below
+says why). The step-by-step page, with the command that proves each step, is
+[`docs/deploy.md`](../../docs/deploy.md) (in French).
 
 - **No build step.** The image runs the TypeScript sources: `node --import tsx src/index.ts`, in
   exec form, so node is PID 1 and receives SIGTERM itself (no shell, no package manager in
@@ -102,11 +104,14 @@ step, is [`docs/deploy.md`](../../docs/deploy.md) (in French).
   services and the lease are read from the process on every request, so a leader that begins to
   stop or fences itself answers 503 at once. It never answers a secret, a key's address or
   an e-mail. The listener opens as soon as the database answers (a standby has it too) and closes
-  after every service has stopped and the lease is released, before the database pool. Without
-  `PORT`, nothing listens (local runs and tests are unchanged).
-- **One replica.** `railway.json` keeps `numReplicas: 1`. A second replica would now be harmless
-  (it waits as a standby and runs no service) but would only waste a container: see the lease
-  below and [`docs/deploy.md`](../../docs/deploy.md), section 2.
+  after every service has stopped and the lease is released, before the database pool. It
+  listens on every interface (`server.listen(PORT)` with no host: `0.0.0.0`, or `::` which takes
+  IPv4 too), which is what Render asks of a web service. Without `PORT`, nothing listens (local
+  runs and tests are unchanged).
+- **One instance.** Render runs one instance of a service unless it is scaled (a Free instance
+  cannot be). A second one would now be harmless (it waits as a standby and runs no service) but
+  would only cost an instance: see the lease below and [`docs/deploy.md`](../../docs/deploy.md),
+  section 2.
 
 ```bash
 docker build -f apps/engine/Dockerfile -t winz-engine .
@@ -119,8 +124,9 @@ curl -s localhost:8080/healthz
 Every engine process holds the transaction sender's keys, a job worker, a hedger per instrument,
 the hedge charger and the settlement watcher, and several of them are serialised only inside one
 process (the charger's lock, each hedging runner's working orders). So only one process works on
-a database at a time. A Railway redeploy starts the new container before it stops the old one:
-without this, both ran every service for the start-up window.
+a database at a time. A Render deploy starts the new instance, switches traffic to it once it
+passes its health check, and sends SIGTERM to the old one 60 s later: without this, both ran
+every service for that window.
 
 **The lease** is one row of `engine_lease` (migration `20261119000000_engine_lease.sql`): the
 holder (a random id drawn at the process's start), when it was acquired, last renewed, when it
@@ -173,8 +179,11 @@ grace, and a service waiting on a database that has gone silent (it accepts conn
 answers nothing) waits for an answer that never comes (`leader.e2e.test.ts` shows it).
 So a fenced stop still running 1 s before the lease can expire (`ttl - min(1 s, margin / 4)`
 after the last renewal) is declared stuck: the leader logs it at fatal level and `src/index.ts`
-ends the process with exit code 1, before another engine can take the lease; Railway starts it
-again as a standby (`ON_FAILURE`, at most 10 restarts in a row).
+ends the process with exit code 1, before another engine can take the lease, and the restarted
+process comes back as a standby. Render's documentation does not give a restart delay for a
+process that exits: it records an `Instance Failed` event with the exit code, and it restarts an
+instance whose health checks have failed for 60 s, as they do once the process has exited; it
+suspends a service that keeps failing to start and become healthy over 24 hours.
 
 **A frozen process cannot fence itself.** A process paused longer than the ttl (a frozen VM, a
 debugger, a stop-the-world pause) runs no timer: meanwhile its lease expires and a standby takes

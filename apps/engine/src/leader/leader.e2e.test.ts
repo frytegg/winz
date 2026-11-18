@@ -11,8 +11,9 @@
  * - self-fencing: the leader's database access is cut; its services stop before the lease
  *   expires (database times), and it can lead again afterwards;
  * - a stolen lease: the leader stops at once;
- * - a redeploy as Railway does it: B starts while A leads, B's /healthz answers 200 standby, A gets
- *   its stop, B leads within 2 s, and at most one engine ever ran services.
+ * - a redeploy as Render does it (zero-downtime deploys): B starts while A leads, B's /healthz
+ *   answers 200 standby, A gets its stop, B leads within 2 s, and at most one engine ever ran
+ *   services.
  *
  * The handover and the redeploy are also run the way the process worked before the lease (each
  * engine starts its services at once): the same service log then shows two engines working.

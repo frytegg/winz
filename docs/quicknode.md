@@ -61,7 +61,7 @@ Ce que la documentation dit, et ce que le code en fait :
 1. Tableau de bord → **Endpoints** → **Create** → chaîne **Arc**, réseau **Testnet**.
 2. Copier l'URL HTTP (de la forme `https://<nom>.quiknode.pro/<jeton>/` : le jeton est dans le
    chemin, c'est un secret, jamais dans le dépôt).
-3. Sur l'hôte du **moteur** (Railway) : `ARC_RPC_URL=<cette URL>`, et
+3. Sur l'hôte du **moteur** (Render, page Environment du service) : `ARC_RPC_URL=<cette URL>`, et
    `ARC_RPC_FALLBACK_URL=https://rpc.testnet.arc.io` (la valeur par défaut, à laisser).
 4. Débit : le moteur ne dépasse jamais `ARC_RPC_MAX_REQUESTS_PER_SECOND` (défaut 10, dont 4
    `eth_getLogs` par `ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND`). Cette limite vaut pour les deux URL
