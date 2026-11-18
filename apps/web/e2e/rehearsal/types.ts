@@ -537,7 +537,8 @@ export interface RecoveryEstimate {
  * Where the result a campaign was settled with came from: it was settled on-chain before the
  * recovery started; a result was forced in the database (`demo_overrides`, still set); the
  * instrument's result was known in the database; the recovery forced NO itself because none of
- * those held (for example after the run's own reset cleared the result it had forced).
+ * those held (the run may never have forced one, or its own reset cleared the one it forced: the
+ * sentence of `RecoveryResult.differs` says which the run's receipt shows).
  */
 export type RecoveryResultSource =
   | "already settled on-chain"

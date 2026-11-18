@@ -41,7 +41,9 @@ import {
   recoveryMarkdown,
   recoveryResult,
   resultLines,
+  runForcedResult,
   settledOutcome,
+  type RunForcedResult,
 } from "./recovery";
 import {
   ReadFailedError,
@@ -349,6 +351,9 @@ describe("the receipt a recovery starts from", () => {
       driven: { bidBps: 1_000, askBps: 1_200, depth: 100_000_000n },
     });
     expect(facts.roles.buyers.map((buyer) => buyer.number)).toEqual([1, 2, 3, 4, 5, 6]);
+    // It failed at hedging, never reached settle, and its own recovery decided NO before it
+    // failed: whether that recovery forced NO, the receipt cannot show.
+    expect(facts.runForced).toEqual({ kind: "maybe", steps: ["recover"] });
     expect(recoveryBaseName(ARC_RECEIPT)).toBe("20261118T031821Z-5042002-yes-recovery");
   });
 
@@ -369,6 +374,55 @@ describe("the receipt a recovery starts from", () => {
     expect(reasons(JSON.stringify({ ...base, status: "estimate" }))[0]).toMatch(/estimate/);
     expect(reasons("not json")).toEqual(["r.json is not JSON"]);
     expect(reasons(JSON.stringify({ ...base, runId: 7 }))[0]).toMatch(/^r\.json: runId/);
+    // A receipt without its steps or its recovery is still read; what the run forced is unknown.
+    const { steps: _steps, recovery: _recovery, ...bare } = base;
+    expect(parseRunReceipt(JSON.stringify(bare), "/x/r.json").runForced).toEqual({
+      kind: "unknown",
+    });
+  });
+
+  it("says what the run forced: settle done, settle or a deciding recovery recorded, or nothing", () => {
+    const steps = (...names: string[]): { step: string; status: string }[] =>
+      names.map((name) => {
+        const [step = "", status = "done"] = name.split(":");
+        return { step, status };
+      });
+    const before = ["start-engine", "choose-game", "launch-campaign"];
+    // A passed run, or one that failed after its settle step: the force went through.
+    expect(
+      runForcedResult({
+        steps: steps(...before, "settle", "reset:failed"),
+        recoveryDecided: false,
+        failedAt: "reset",
+      }),
+    ).toEqual({ kind: "forced" });
+    // The settle step failed: the force comes first, but may not have gone through.
+    expect(
+      runForcedResult({
+        steps: steps(...before, "close-sales", "settle:failed", "recover:failed"),
+        recoveryDecided: true,
+        failedAt: "settle",
+      }),
+    ).toEqual({ kind: "maybe", steps: ["settle", "recover"] });
+    // Failed at drive-book, its own recovery stopped before deciding (no `recovery` record).
+    expect(
+      runForcedResult({
+        steps: steps(...before, "drive-book:failed", "recover:failed", "sweep:failed"),
+        recoveryDecided: false,
+        failedAt: "drive-book",
+      }),
+    ).toEqual({ kind: "none", failedAt: "drive-book" });
+    // The same failure with a recovery that decided its result: it may have forced NO.
+    expect(
+      runForcedResult({
+        steps: steps(...before, "drive-book:failed", "recover:failed"),
+        recoveryDecided: true,
+        failedAt: "drive-book",
+      }),
+    ).toEqual({ kind: "maybe", steps: ["recover"] });
+    expect(runForcedResult({ steps: null, recoveryDecided: true, failedAt: null })).toEqual({
+      kind: "unknown",
+    });
   });
 });
 
@@ -511,6 +565,7 @@ describe("where a campaign stands, and what a recovery still sends", () => {
         source: "forced by this recovery",
         scenarioOutcome: "yes",
         runId: "d171ed2352fa",
+        runForced: { kind: "maybe", steps: ["recover"] },
       }),
     });
     expect(withResult).toContain(
@@ -570,6 +625,7 @@ describe("the result a recovery settled with", () => {
       source: "already forced in the database",
       scenarioOutcome: "yes",
       runId: "d171ed2352fa",
+      runForced: { kind: "none", failedAt: "close-sales" },
     });
     expect(kept).toEqual({
       settledWith: "yes",
@@ -580,27 +636,79 @@ describe("the result a recovery settled with", () => {
     expect(resultLines(kept)).toEqual([
       "Settled with: YES (already forced in the database); the run's scenario asked for YES.",
     ]);
+    const sentence = (runForced: RunForcedResult): string | null =>
+      recoveryResult({
+        settled: 1,
+        source: "forced by this recovery",
+        scenarioOutcome: "yes",
+        runId: "d171ed2352fa",
+        runForced,
+      }).differs;
+    const opening =
+      "The campaign was settled NO, not YES as the scenario of run d171ed2352fa asked: no result was forced or known in the database when this recovery started, so the recovery forced NO; ";
+    const closing =
+      "; the money comes back all the same, through the merchant's wallet and the sweep.";
     const forced = recoveryResult({
       settled: 1,
       source: "forced by this recovery",
       scenarioOutcome: "yes",
       runId: "d171ed2352fa",
+      runForced: { kind: "forced" },
     });
     expect(forced.settledWith).toBe("no");
+    // The receipt shows the run forced its result: the reset is named, as a possible cause.
     expect(forced.differs).toBe(
-      "The campaign was settled NO, not YES as the scenario of run d171ed2352fa asked: no result was forced or known any more when this recovery started (the run's own reset clears the result it forced, even when the settlement has not landed yet), so the recovery forced NO; the money comes back all the same, through the merchant's wallet and the sweep.",
+      `${opening}the run had forced its own result (its receipt records its settle step done), and the run's reset clears every forced result, which may be why none was left${closing}`,
     );
+    // Scenario YES, failed at drive-book, nothing ever forced: no reset is blamed.
+    const neverForced = sentence({ kind: "none", failedAt: "drive-book" });
+    expect(neverForced).toBe(
+      `${opening}the run never forced a result (its receipt records a failure at drive-book, before any settle step, and no recovery of its own that got as far as deciding one)${closing}`,
+    );
+    expect(neverForced).not.toMatch(/reset/);
+    expect(sentence({ kind: "none", failedAt: null })).toContain(
+      "(its receipt records no settle step, and no recovery",
+    );
+    // The receipt cannot show it: said plainly, the reset named only as a condition.
+    expect(sentence({ kind: "maybe", steps: ["settle", "recover"] })).toBe(
+      `${opening}the run's receipt records its settle step, which forces the scenario's result before it waits for the settlement, and its own recovery past the point where it decides the result (it then forces NO when nothing is decided), but cannot show whether a result was forced there; if one was, the run's reset, which clears every forced result, would explain why none was left${closing}`,
+    );
+    expect(sentence({ kind: "unknown" })).toBe(
+      `${opening}the run's receipt lists no steps, so it cannot show whether the run had forced a result, nor what cleared one${closing}`,
+    );
+    expect(
+      resultLines(
+        recoveryResult({
+          settled: 1,
+          source: "forced by this recovery",
+          scenarioOutcome: "yes",
+          runId: "d171ed2352fa",
+          runForced: { kind: "none", failedAt: "drive-book" },
+        }),
+      ),
+    ).toEqual([
+      "Settled with: NO (forced by this recovery); the run's scenario asked for YES.",
+      "",
+      neverForced,
+    ]);
     expect(
       recoveryResult({
         settled: 1,
         source: "already settled on-chain",
         scenarioOutcome: "yes",
         runId: "d171ed2352fa",
+        runForced: { kind: "forced" },
       }).differs,
     ).toMatch(/: the campaign was already settled on-chain when this recovery started\.$/);
     // Not settled: nothing to compare.
     expect(
-      recoveryResult({ settled: null, source: null, scenarioOutcome: "yes", runId: "x" }),
+      recoveryResult({
+        settled: null,
+        source: null,
+        scenarioOutcome: "yes",
+        runId: "x",
+        runForced: { kind: "unknown" },
+      }),
     ).toEqual({ settledWith: null, source: null, scenarioOutcome: "yes", differs: null });
     expect(resultLines(undefined)).toEqual([]);
   });
