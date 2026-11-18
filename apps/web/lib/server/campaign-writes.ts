@@ -75,7 +75,7 @@ function invalid(field: string, reason: string): ApiRouteError {
   return new ApiRouteError(400, "invalid_request", `Invalid body.${field}: ${reason}`);
 }
 
-function checkCardAmount(field: string, amount: bigint): void {
+export function checkCardAmount(field: string, amount: bigint): void {
   if (amount <= 0n) throw invalid(field, "must be above zero");
   if (amount % MICRO_PER_CENT !== 0n) throw invalid(field, "must be a whole number of cents");
   if (amount < MIN_CARD_AMOUNT) throw invalid(field, "must be at least $0.50");

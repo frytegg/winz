@@ -77,6 +77,59 @@ export interface PurchaseAuthorizationInput {
   idempotencyKey: string;
 }
 
+export interface BudgetTopUpPaymentInput {
+  campaignId: string;
+  /** The merchant's `requestId`: Stripe's idempotency key is built from it. */
+  requestId: string;
+  /** The top-up, micro-USDC, whole cents. */
+  amount: bigint;
+}
+
+/** What `cancelUnpaidPaymentIntent` found. */
+export type UnpaidCancellation =
+  /** The intent is cancelled (by this call or before it): it can never be paid any more. */
+  | "canceled"
+  /** The intent is paid or being paid: it was left as it is. */
+  | "not_cancelable";
+
+/**
+ * The calls of a budget top-up (SPEC CA-6, `budget-top-up.ts`), apart from `PaymentGateway` so
+ * that the gateways written before top-ups existed keep compiling: `topUpGatewayOf` tells whether
+ * a gateway has them.
+ */
+export interface TopUpPaymentGateway {
+  /**
+   * The merchant's top-up payment, captured automatically once the card is confirmed, like the
+   * first budget. One intent per `requestId`, even if the call is retried.
+   */
+  createBudgetTopUpPayment(input: BudgetTopUpPaymentInput): Promise<CreatedPaymentIntent>;
+  /** The client secret of an intent, to answer a repeated request; null when Stripe has none. */
+  retrieveClientSecret(id: string): Promise<string | null>;
+  /**
+   * Cancels an intent nobody has paid, so that it can never be: "canceled" also when it already
+   * was, "not_cancelable" when it is paid or being paid (then nothing changed). Sent without an
+   * idempotency key of ours: cancelling is idempotent by nature, and Stripe replays the first
+   * answer to a key for a day, errors included, so a key reused after a refusal (the intent was
+   * `processing`, then failed) could never cancel the intent again.
+   */
+  cancelUnpaidPaymentIntent(id: string): Promise<UnpaidCancellation>;
+}
+
+/** The gateway with its top-up calls, or null when it has none. */
+export function topUpGatewayOf(
+  payments: PaymentGateway,
+): (PaymentGateway & TopUpPaymentGateway) | null {
+  const candidate = payments as PaymentGateway & Partial<TopUpPaymentGateway>;
+  if (
+    typeof candidate.createBudgetTopUpPayment === "function" &&
+    typeof candidate.retrieveClientSecret === "function" &&
+    typeof candidate.cancelUnpaidPaymentIntent === "function"
+  ) {
+    return candidate as PaymentGateway & TopUpPaymentGateway;
+  }
+  return null;
+}
+
 export interface PaymentGateway {
   /** The merchant's budget payment, captured automatically once the card is confirmed. */
   createBudgetPayment(input: BudgetPaymentInput): Promise<CreatedPaymentIntent>;
@@ -173,7 +226,9 @@ export function toPaymentIntentView(object: unknown): PaymentIntentView {
 /** The payment kind of an intent's metadata, or null when it is not one of ours. */
 export function paymentKindOf(intent: PaymentIntentView): StripePaymentKind | null {
   const kind = intent.metadata.kind;
-  return kind === STRIPE_PAYMENT_KINDS.campaignBudget || kind === STRIPE_PAYMENT_KINDS.purchase
+  return kind === STRIPE_PAYMENT_KINDS.campaignBudget ||
+    kind === STRIPE_PAYMENT_KINDS.purchase ||
+    kind === STRIPE_PAYMENT_KINDS.campaignBudgetTopUp
     ? kind
     : null;
 }
@@ -255,7 +310,7 @@ export interface StripeSettings {
  * The gateway on Stripe. The client is created at the first call, from settings read at that
  * moment (never at import time, so `next build` needs no secret). Live keys are refused.
  */
-export class StripePaymentGateway implements PaymentGateway {
+export class StripePaymentGateway implements PaymentGateway, TopUpPaymentGateway {
   private client: Stripe | undefined;
   private settingsCache: StripeSettings | undefined;
 
@@ -342,6 +397,74 @@ export class StripePaymentGateway implements PaymentGateway {
       },
       { idempotencyKey: input.idempotencyKey },
     );
+  }
+
+  async createBudgetTopUpPayment(input: BudgetTopUpPaymentInput): Promise<CreatedPaymentIntent> {
+    // A merchant waits on it, like the first budget's: the same short timeout and single retry.
+    return this.create(
+      {
+        amount: stripeAmount(input.amount),
+        currency: "usd",
+        capture_method: "automatic",
+        automatic_payment_methods: { enabled: true },
+        description: "Promo budget top-up",
+        metadata: {
+          kind: STRIPE_PAYMENT_KINDS.campaignBudgetTopUp,
+          campaignId: input.campaignId,
+          requestId: input.requestId,
+        },
+      },
+      {
+        // One payment per request, even if the call is retried.
+        idempotencyKey: `${STRIPE_PAYMENT_KINDS.campaignBudgetTopUp}:${input.requestId}`,
+        timeout: BUDGET_REQUEST_TIMEOUT_MS,
+        maxNetworkRetries: BUDGET_REQUEST_MAX_RETRIES,
+      },
+    );
+  }
+
+  async retrieveClientSecret(id: string): Promise<string | null> {
+    const stripe = this.stripe();
+    let intent: Stripe.PaymentIntent;
+    try {
+      intent = await stripe.paymentIntents.retrieve(id, undefined, {
+        timeout: BUDGET_REQUEST_TIMEOUT_MS,
+        maxNetworkRetries: BUDGET_REQUEST_MAX_RETRIES,
+      });
+    } catch (error: unknown) {
+      if (error instanceof Stripe.errors.StripeInvalidRequestError && error.statusCode === 404) {
+        return null;
+      }
+      throw new PaymentGatewayError(`Stripe could not retrieve PaymentIntent ${id}`, {
+        cause: error,
+      });
+    }
+    return intent.client_secret ?? null;
+  }
+
+  async cancelUnpaidPaymentIntent(id: string): Promise<UnpaidCancellation> {
+    const stripe = this.stripe();
+    try {
+      // No `idempotencyKey`: Stripe's client gives each call a fresh one (kept across its own
+      // network retries of that call), which no later call can repeat.
+      await stripe.paymentIntents.cancel(id, undefined, {
+        timeout: BUDGET_REQUEST_TIMEOUT_MS,
+        maxNetworkRetries: BUDGET_REQUEST_MAX_RETRIES,
+      });
+      return "canceled";
+    } catch (error: unknown) {
+      if (
+        !(error instanceof Stripe.errors.StripeInvalidRequestError) ||
+        error.code !== "payment_intent_unexpected_state"
+      ) {
+        throw new PaymentGatewayError(`Stripe could not cancel PaymentIntent ${id}`, {
+          cause: error,
+        });
+      }
+    }
+    // Refused for its state: read it now.
+    const current = await this.retrievePaymentIntent(id);
+    return current?.status === "canceled" ? "canceled" : "not_cancelable";
   }
 
   async retrievePaymentIntent(id: string): Promise<PaymentIntentView | null> {

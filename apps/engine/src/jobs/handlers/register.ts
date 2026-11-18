@@ -7,6 +7,7 @@ import {
   createCampaignJobSchema,
   purchaseJobSchema,
   setPausedJobSchema,
+  topUpBudgetJobSchema,
 } from "@winz/shared";
 
 import { defaultBackoff } from "../backoff";
@@ -16,8 +17,9 @@ import { createCloseSalesHandler, createSetPausedHandler } from "./campaign-acti
 import { createCampaignCreationHandler } from "./create-campaign";
 import type { JobHandlerDeps } from "./deps";
 import { createPurchaseHandler } from "./purchase";
+import { createBudgetTopUpHandler } from "./top-up-budget";
 
-/** Registers the four job handlers of the web app's job contract, each with its payload schema. */
+/** Registers the job handlers of the web app's job contract, each with its payload schema. */
 export function registerJobHandlers(
   worker: Pick<JobWorker, "register">,
   deps: JobHandlerDeps,
@@ -30,6 +32,7 @@ export function registerJobHandlers(
   worker.register(JOB_KINDS.purchase, purchaseJobSchema, createPurchaseHandler(deps));
   worker.register(JOB_KINDS.setPaused, setPausedJobSchema, createSetPausedHandler(deps));
   worker.register(JOB_KINDS.closeSales, closeSalesJobSchema, createCloseSalesHandler(deps));
+  worker.register(JOB_KINDS.topUpBudget, topUpBudgetJobSchema, createBudgetTopUpHandler(deps));
 }
 
 export interface StartJobsOptions extends JobHandlerDeps {
@@ -57,7 +60,7 @@ const DEFAULT_WORKER_CONFIG = {
 } as const;
 
 /**
- * Builds a `JobWorker` with the four handlers and starts it, in the style of `startChainIngest`:
+ * Builds a `JobWorker` with the handlers and starts it, in the style of `startChainIngest`:
  * returns at once, stops when `signal` aborts.
  *
  * Each running handler holds one pooled connection for its lock (see `withExclusiveLock`) and

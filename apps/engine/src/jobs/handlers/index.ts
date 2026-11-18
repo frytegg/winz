@@ -15,3 +15,4 @@ export {
   type StartJobsOptions,
 } from "./register";
 export { allocateSlug, campaignSlugBase, slugCandidate } from "./slug";
+export { createBudgetTopUpHandler, topUpRefundKey, topUpTxKey } from "./top-up-budget";
