@@ -291,3 +291,51 @@ Afficher le bandeau « DEMO MODE » sur tout écran dont une réponse porte un c
 `GET /api/campaigns/:id`, `GET /api/hedge-desk`, et les réponses des routes démo elles-mêmes. Une
 campagne touchée par une action démo (carnet piloté ou résultat forcé sur son instrument, vente
 rejouée) le reste pour toujours, même après `reset`.
+
+## Le test de bout en bout (`e2e/`)
+
+Le dossier `e2e/` fait tourner tout le produit d'un seul tenant, sur une chaîne locale : les
+handlers des routes de `app/api` (appelés comme Next.js les appelle, avec une `Request`), le moteur
+comme un seul processus (`startEngine`, câblé comme `apps/engine/src/index.ts`) et le vrai
+`WinzEscrow` avec son jeton de test. Seuls Gemini et Stripe sont simulés :
+
+- **Stripe** : un seul compte simulé (`e2e/support/stripe.ts`) que le web et le moteur partagent,
+  chacun par sa propre interface `PaymentGateway`. L'autorisation créée par `POST /api/checkout`
+  est donc celle que le moteur capture ou annule. Les webhooks sont signés et vérifiés par le code
+  de Stripe. Chaque appel est noté, ce qui permet de compter captures, annulations et
+  remboursements.
+- **Gemini** : l'API REST que lit la synchronisation du catalogue (un match, deux issues, puis son
+  résultat), et un flux de carnets alimenté à la main sur lequel tourne le vrai `BookFeed` du
+  moteur, qui écrit donc `book_cache` et `live_instruments` comme en production.
+
+Toutes les horloges (moteur, routes, carnets) suivent l'heure des blocs : avancer le temps de la
+chaîne fait expirer les cotations et fermer les ventes. Un scénario ne pilote que la surface
+publique (requêtes HTTP, ce que le client fait sur la feuille de paiement, webhooks signés,
+carnets, résultat du match, temps de la chaîne) ; il lit la base et la chaîne pour vérifier, sans
+jamais les écrire.
+
+Ce que les scénarios prouvent :
+
+| Fichier           | Scénario                                                                                                                                                                                                                                      |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `loop.test.ts`    | A : la boucle complète, issue OUI (création, budget, ventes, couverture maker, clôture, règlement, remboursements), l'argent vérifié au micro-USDC près ; G : la latence d'une vente ; B : issue NON ; F : deux commerçants sur le même match |
+| `pause.test.ts`   | C : carte autorisée puis vente impossible (pause du commerçant, prix au-dessus du seuil, carnet périmé) : « Promo just paused, you were not charged », autorisation annulée, rien sur la chaîne, puis la vente repart                         |
+| `demo.test.ts`    | D : le mode démo de bout en bout (carnet piloté, vente rejouée sans Stripe, résultat forcé, règlement OUI) et le champ `demo` de chaque réponse                                                                                               |
+| `restart.test.ts` | E : le moteur redémarré après un `buyFor` miné et avant la capture, puis au milieu du règlement : rien n'arrive deux fois                                                                                                                     |
+
+`e2e/support/harness.test.ts` vérifie le harnais lui-même, sans chaîne ni base : une attente
+bornée ne laisse aucun minuteur derrière elle, une erreur de route n'est pas prise pour une pause,
+le registre Stripe voit une seconde capture faite sous une autre clé d'idempotence, et la garantie
+d'un ticket ne dépasse pas `floor(payé × (marge usuelle − marge minimale) / 10 000)`.
+
+Lancer (les binaires de Postgres et `anvil` doivent être installés, comme pour les tests du
+moteur : chaque scénario a sa propre base et son propre escrow, une seule chaîne par fichier) :
+
+```bash
+pnpm --filter @winz/web exec vitest run e2e
+```
+
+Le scénario A affiche les latences mesurées (`[e2e latency] …`). Pour suivre ce que fait le
+moteur, `E2E_LOG_FILE=/chemin/engine.log` écrit tout son journal (niveau `debug`) dans ce
+fichier ; sans elle, seuls ses avertissements et erreurs sont gardés, et cités quand une attente
+échoue.
