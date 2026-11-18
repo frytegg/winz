@@ -1027,7 +1027,9 @@ describe("startSaleStates", () => {
       elapsedMs?: number;
     };
     expect(entry.level).toBe(50);
-    expect(entry.elapsedMs).toBeGreaterThanOrEqual(50);
+    // About the 50 ms of `slowPassMs`: a Node timer can fire a millisecond before the wall clock
+    // has counted its full delay, so the measured time may read 49.
+    expect(entry.elapsedMs).toBeGreaterThanOrEqual(45);
     stop.abort();
     fail(new Error("connection reset"));
     await expect(service.stopped).resolves.toBeUndefined();
