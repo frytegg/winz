@@ -61,6 +61,10 @@ export interface CampaignSaleRow {
   availableBudget: MicroUsdc;
   /** positions.exposure − positions.held of the instrument, floored at 0 (0 without a position). */
   pending: MicroContracts;
+  /** See `ManualPauseInput.pauseJobInFlight`. */
+  pauseJobInFlight: boolean;
+  /** See `ManualPauseInput.pauseEventUnprojected`. */
+  pauseEventUnprojected: boolean;
   latestPauseJob: PauseJobView | null;
   lastOnChainPauseAtMs: number | null;
   /** A `campaign.close_sales` job exists: the merchant closed sales early. */
@@ -99,6 +103,8 @@ const rowSchema = z.object({
   job_paused: z.boolean().nullable(),
   job_created_at: dateSchema.nullable(),
   last_pause_at: dateSchema.nullable(),
+  pause_job_in_flight: z.boolean(),
+  pause_event_unprojected: z.boolean(),
   close_requested: z.boolean(),
 });
 
@@ -154,6 +160,8 @@ export function parseCampaignSaleRow(row: unknown): CampaignSaleRow {
     },
     availableBudget: r.budget - r.charged - r.reserved,
     pending,
+    pauseJobInFlight: r.pause_job_in_flight,
+    pauseEventUnprojected: r.pause_event_unprojected,
     latestPauseJob,
     lastOnChainPauseAtMs: r.last_pause_at === null ? null : toMs(r.last_pause_at),
     closeRequested: r.close_requested,
@@ -194,6 +202,12 @@ async function limitStatementTime(
  * stored sale state other than `closed` (a settled campaign still shown open, a campaign whose
  * sales close passed). With `instruments`, only the campaigns on those instruments.
  *
+ * The manual pause reads, besides the status: whether a pause or resume job of the campaign is
+ * unfinished (`queued` or `running`, the worker's states before `done` or `dead`, unless the
+ * transaction it sent is already mined), whether a `CampaignPaused` of the campaign is stored and
+ * not projected, the latest pause job, and the latest projected on-chain pause (see
+ * `isManuallyPaused`).
+ *
  * Rows that do not parse are returned as errors, so one bad row never hides the others.
  */
 export async function loadCampaignSaleRows(
@@ -228,6 +242,22 @@ export async function loadCampaignSaleRows(
       pj.paused as job_paused,
       pj.created_at as job_created_at,
       ev.paused_at as last_pause_at,
+      exists (
+        select 1 from jobs fj
+        where fj.kind = ${JOB_KINDS.setPaused} and fj.payload ->> 'campaignId' = c.id::text
+          and fj.status in ('queued', 'running')
+          and not exists (
+            select 1 from chain_txs ft
+            where ft.kind = 'setPaused' and ft.status = 'mined'
+              and ft.payload ->> 'requestId' = fj.payload ->> 'requestId'
+          )
+      ) as pause_job_in_flight,
+      (c.onchain_id is not null and exists (
+        select 1 from chain_events ue
+        where ue.name = 'CampaignPaused'
+          and ue.args ->> 'id' = c.onchain_id::text
+          and ue.processed_at is null
+      )) as pause_event_unprojected,
       exists (
         select 1 from jobs cj
         where cj.kind = ${JOB_KINDS.closeSales} and cj.payload ->> 'campaignId' = c.id::text
