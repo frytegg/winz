@@ -167,13 +167,17 @@ Plus aucune route ne répond `501`.
 s'il est en gzip, puis écrit les logs de `ARC_ESCROW_ADDRESS` dans `chain_events` avec la source
 `streams`, sous la même forme que le reçu et la relecture `eth_getLogs` du moteur ; un événement
 déjà écrit par une autre source ne change rien. Le moteur l'applique comme les deux autres.
+Aucune fenêtre sur l'horodatage (secondes Unix) : QuickNode ne dit pas si une nouvelle tentative
+est signée à nouveau, et une livraison rejouée n'écrit rien de plus. Le jeton, le réseau attendu
+(`QUICKNODE_STREAMS_NETWORK`, défaut `arc-testnet`) et l'escrow viennent de la configuration du
+serveur (`serverConfigOf`, `lib/server/deps.ts`), son seul lecteur de l'environnement.
 Création de l'endpoint et du Stream : `docs/quicknode.md`.
 
 | Réponse | Quand                                                                                              |
 | ------- | -------------------------------------------------------------------------------------------------- |
 | `200`   | Livraison écrite (ou déjà écrite) ; les logs d'autres adresses sont ignorés                         |
-| `401`   | En-tête manquant, signature fausse, horodatage à plus de 5 minutes ; rien n'est écrit               |
-| `400`   | Corps qui n'est pas du JSON d'une forme documentée, livraison d'un autre réseau ou sans réseau       |
+| `401`   | En-tête manquant, signature fausse, horodatage qui n'est pas un nombre ; rien n'est écrit           |
+| `400`   | Corps qui n'est pas du JSON d'une forme documentée, nombre hors de ce que la table garde (bloc, index, date), livraison d'un autre réseau ou sans réseau |
 | `413`   | Plus de 4 Mio, compressé ou une fois décompressé                                                   |
 | `503`   | `QUICKNODE_STREAMS_TOKEN` ou `ARC_ESCROW_ADDRESS` absent (dit une fois dans les logs)               |
 | `500`   | Base indisponible : rien n'est écrit, QuickNode renvoie la livraison                               |
