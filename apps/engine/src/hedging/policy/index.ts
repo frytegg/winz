@@ -38,6 +38,8 @@ export {
 export type { PolicyParams } from "./params";
 export { PolicyRunner } from "./runner";
 export type {
+  ExposureRead,
+  ExposureReadOutcome,
   PolicyRestore,
   PolicyRunnerOptions,
   PolicyRunnerSnapshot,

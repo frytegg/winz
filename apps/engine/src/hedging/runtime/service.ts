@@ -20,7 +20,12 @@ import {
   type VenueClock,
 } from "../../venues";
 import { allocateHeldInventory } from "../allocation";
-import { PolicyRunner, type BreakerParams, type BreakerReason } from "../policy";
+import {
+  PolicyRunner,
+  type BreakerParams,
+  type BreakerReason,
+  type ExposureReadOutcome,
+} from "../policy";
 import { HedgeCharger, type ChargeTxSender } from "./charger";
 import { HedgeDeskWriter, type DeskInstrumentInfo } from "./desk";
 import {
@@ -105,20 +110,30 @@ export interface HedgingServiceOptions {
   breakerParams?: Partial<BreakerParams>;
   /** Overrides of the paper venue's defaults. */
   paperVenueConfig?: Partial<PaperVenueConfig>;
+  /** Testing seams. Never set in production. */
+  testHooks?: HedgingTestHooks;
+}
+
+/** Testing seams of the service: points where a test can hold the service still. */
+export interface HedgingTestHooks {
+  /**
+   * Awaited at the start of every reconciliation (the sales-close pass's and `finalize`'s), while
+   * it holds the instrument's reconciliation slot and before it tells the runner anything.
+   */
+  beforeReconcile?: (instrument: string) => Promise<void>;
 }
 
 interface Entry {
   info: DeskInstrumentInfo;
-  runner: PolicyRunner;
-  lastExposure: bigint;
   /**
-   * Quantity allocated to the lots of settled campaigns that the runner's H already leaves out:
-   * the restore's at creation, then every settlement handed to the runner (`applySettlements`).
+   * Owns E, H and the settled allocation H leaves out, with the version of the read they come
+   * from: every read of the exposure ledger reaches it through `handRead`, and it ignores one older
+   * than what it has (`PolicyRunner.onExposureRead`).
    */
-  settledReleased: bigint;
-  /** Part of `settledReleased` not yet taken out of `positions.held` (a write that failed). */
+  runner: PolicyRunner;
+  /** Contracts the runner released for settlements, not yet taken out of `positions.held`. */
   heldToRelease: bigint;
-  /** Exposure at which the sales-close reconciliation last completed; null before. */
+  /** E at which a reconciliation (sales close or `finalize`) last completed; null before. */
   reconciledAtExposure: bigint | null;
   /**
    * The reconciliation in progress, if any: the sales-close pass or one started by `finalize`.
@@ -171,6 +186,7 @@ export class HedgingService implements HedgeFinalizer {
   private readonly lastDeskWriteMs = new Map<string, number>();
   private readonly reconcileTimeoutMs: number;
   private readonly finalizeTimeoutMs: number;
+  private readonly testHooks: HedgingTestHooks;
   private readonly entries = new Map<string, Entry>();
   private readonly creating = new Map<string, Promise<Entry>>();
   /** Promises started from listeners and loops without being awaited there: awaited at stop. */
@@ -187,6 +203,7 @@ export class HedgingService implements HedgeFinalizer {
     this.signal = options.signal;
     this.clock = options.clock ?? SYSTEM_CLOCK;
     this.breakerParams = options.breakerParams;
+    this.testHooks = options.testHooks ?? {};
     this.exposureIntervalMs = positive(options.exposureIntervalMs ?? 1_000, "exposureIntervalMs");
     this.tickIntervalMs = positive(options.tickIntervalMs ?? 1_000, "tickIntervalMs");
     this.chargeIntervalMs = positive(options.chargeIntervalMs ?? 2_000, "chargeIntervalMs");
@@ -443,7 +460,7 @@ export class HedgingService implements HedgeFinalizer {
 
   /**
    * Reads the instruments and the exposure; starts, feeds and retires runners. Settled campaigns'
-   * contracts leave H within this pass: through the live runner (`applySettlements`), or, for an
+   * contracts leave H within this pass: through the live runner (`handRead`), or, for an
    * instrument left without a runner, straight in `positions.held` (`writeDerivedHeld`).
    */
   async syncInstruments(): Promise<void> {
@@ -512,60 +529,61 @@ export class HedgingService implements HedgeFinalizer {
 
   private async syncInstrument(row: HedgeInstrumentRow): Promise<void> {
     const entry = await this.ensureEntry(row);
-    if (row.settledAllocated < entry.settledReleased) {
-      // Read before a settlement the runner already applied (a finalize, or a runner created
-      // after this read): its exposure would undo that settlement's. The next pass reads anew.
-      return;
-    }
+    const handed = this.handRead(entry, row);
+    // Older than what the runner has (a finalize read after it, or a runner restored after it):
+    // nothing in it is news, and the next pass reads anew.
+    if (!handed.applied) return;
     entry.info = infoOf(row);
-    const previousExposure = entry.lastExposure;
-    const settled = this.applySettlements(entry, row);
-    if (!settled && row.exposure !== entry.lastExposure) {
-      entry.lastExposure = row.exposure;
-      this.track(entry.runner.onExposure(row.exposure), "runner exposure", row.symbol);
-    }
     // A new lot: contracts already held ahead of exposure cover it without a new order.
-    if (row.exposure > previousExposure || settled) await this.allocateInventory(row.symbol);
+    if (row.exposure > handed.previousExposure || handed.released > 0n) {
+      await this.allocateInventory(row.symbol);
+    }
     await this.flushHeldRelease(entry);
-    if (salesOver(row, this.clock.now()) && entry.reconciledAtExposure !== row.exposure) {
-      if (entry.reconciling === null) {
-        const run = this.claimReconcile(entry, () =>
-          this.reconcileAtSalesClose(entry, row.exposure),
-        );
-        this.track(run, "sales-close reconciliation", row.symbol);
-      }
+    if (
+      salesOver(row, this.clock.now()) &&
+      entry.reconciledAtExposure !== row.exposure &&
+      entry.reconciling === null
+    ) {
+      // It reconciles against what the runner has when it starts: never against this read, which
+      // a newer one (a finalize's, during the awaits above) may already have replaced.
+      const run = this.claimReconcile(entry, () => this.reconcileAtSalesClose(entry));
+      this.track(run, "sales-close reconciliation", row.symbol);
     }
   }
 
   /**
-   * Hands the runner the campaigns of its instrument that settled since it last heard (the
-   * allocated quantity `row` has beyond `entry.settledReleased`), with the exposure of the same
-   * read, in one step (`PolicyRunner.onSettled`). Synchronous up to the runner's own update, so
-   * two callers never release the same quantity twice. The runner is told rather than rebuilt:
-   * a rebuild stops it, and a fill of an order resting at the venue between that stop and the new
-   * runner's start would reach no listener, coming back only as a recovered position, never
-   * recorded nor allocated to a lot. Returns whether anything settled.
+   * Hands one read of the exposure ledger to the runner, which applies it unless it already has a
+   * newer one (`PolicyRunner.onExposureRead`): E becomes the read's, and the campaigns of the
+   * instrument that settled since the runner last heard (the settled allocation the read has
+   * beyond the runner's) leave H in the same step. Every caller (the exposure pass, `finalize`,
+   * a runner kept for its orders) goes through here, so the guard is the runner's own and a stale
+   * read can never set an older E, nor release a settlement twice. Synchronous: the outcome is what
+   * the runner now has. The runner is told rather than rebuilt: a rebuild stops it, and a fill of
+   * an order resting at the venue between that stop and the new runner's start would reach no
+   * listener, coming back only as a recovered position, never recorded nor allocated to a lot.
    */
-  private applySettlements(entry: Entry, row: HedgeInstrumentRow): boolean {
-    if (row.settledAllocated <= entry.settledReleased) return false;
-    const released = row.settledAllocated - entry.settledReleased;
-    entry.settledReleased = row.settledAllocated;
-    entry.heldToRelease += released;
-    entry.lastExposure = row.exposure;
-    this.track(entry.runner.onSettled(released, row.exposure), "runner settlement", row.symbol);
-    this.logger.info(
-      {
-        instrument: row.symbol,
-        released: released.toString(),
-        settledAllocated: row.settledAllocated.toString(),
-        exposure: row.exposure.toString(),
-      },
-      "campaigns settled: the contracts allocated to their lots are no longer held",
-    );
-    return true;
+  private handRead(entry: Entry, row: HedgeInstrumentRow): ExposureReadOutcome {
+    const outcome = entry.runner.onExposureRead({
+      exposure: row.exposure,
+      settledAllocated: row.settledAllocated,
+      asOf: row.asOf,
+    });
+    if (outcome.applied && outcome.released > 0n) {
+      entry.heldToRelease += outcome.released;
+      this.logger.info(
+        {
+          instrument: row.symbol,
+          released: outcome.released.toString(),
+          settledAllocated: row.settledAllocated.toString(),
+          exposure: row.exposure.toString(),
+        },
+        "campaigns settled: the contracts allocated to their lots are no longer held",
+      );
+    }
+    return outcome;
   }
 
-  /** Takes what `applySettlements` released out of `positions.held`; kept for a retry on failure. */
+  /** Takes what `handRead` released out of `positions.held`; kept for a retry on failure. */
   private async flushHeldRelease(entry: Entry): Promise<void> {
     const qty = entry.heldToRelease;
     if (qty <= 0n) return;
@@ -581,10 +599,12 @@ export class HedgingService implements HedgeFinalizer {
     }
   }
 
-  /** `applySettlements` for a row that may be older than what the runner knows, then the write. */
+  /**
+   * `handRead` (a read older than the runner's changes nothing), then the write of what it
+   * released. The runner has the read's settlements, or newer ones, as soon as this is called.
+   */
   private async followSettlements(entry: Entry, row: HedgeInstrumentRow): Promise<void> {
-    if (row.settledAllocated < entry.settledReleased) return;
-    this.applySettlements(entry, row);
+    this.handRead(entry, row);
     await this.flushHeldRelease(entry);
   }
 
@@ -648,13 +668,14 @@ export class HedgingService implements HedgeFinalizer {
         // Open orders as the database has them. The paper venue lost those of a previous process
         // (marked cancelled at startup), so only orders of this process can still be listed here.
         unsettledOrders: state.openOrders,
+        // The read `exposure` and `held` come from: a read older than it is ignored.
+        settledAllocated: state.settledAllocated,
+        asOf: state.asOf,
       },
     });
     const entry: Entry = {
       info: infoOf(row),
       runner,
-      lastExposure: state.exposure,
-      settledReleased: state.settledAllocated,
       heldToRelease: 0n,
       reconciledAtExposure: null,
       reconciling: null,
@@ -751,9 +772,9 @@ export class HedgingService implements HedgeFinalizer {
    * The last campaign selling on the instrument is past its sales close: reconcile once, wait for
    * it, then charge every remaining lot of the closed campaigns.
    */
-  private async reconcileAtSalesClose(entry: Entry, exposure: bigint): Promise<void> {
+  private async reconcileAtSalesClose(entry: Entry): Promise<void> {
     const symbol = entry.info.symbol;
-    const reconciled = await this.reconcile(entry, exposure);
+    const reconciled = await this.reconcile(entry);
     if (!reconciled.ok) {
       this.logger.warn(
         { instrument: symbol, detail: reconciled.detail },
@@ -761,6 +782,7 @@ export class HedgingService implements HedgeFinalizer {
       );
       return;
     }
+    const { exposure } = reconciled;
     entry.reconciledAtExposure = exposure;
     await this.allocateInventory(symbol);
     const campaigns = await closedCampaignsOf(this.db, symbol, this.clock.now());
@@ -780,16 +802,18 @@ export class HedgingService implements HedgeFinalizer {
 
   /**
    * Calls the runner's `reconcile()` and waits until it is no longer pending, every fill of it is
-   * written, and no order is open. `ok` once |H − E| ≤ one step.
+   * written, and no order is open. `ok` once |H − E| ≤ one step, with the E reconciled against.
+   *
+   * It hands the runner no exposure: E is the runner's own, from the newest read any caller handed
+   * it (`handRead`). An exposure passed in here would have been read before the reconciliation
+   * slot was free, and a pass may have applied a newer one (a settlement) meanwhile.
    */
   private async reconcile(
     entry: Entry,
-    exposure: bigint,
-  ): Promise<{ ok: true } | { ok: false; detail: string }> {
+  ): Promise<{ ok: true; exposure: bigint } | { ok: false; detail: string }> {
     const { runner } = entry;
     const symbol = entry.info.symbol;
-    entry.lastExposure = exposure;
-    await runner.onExposure(exposure);
+    await this.testHooks.beforeReconcile?.(symbol);
     await runner.reconcile();
     const deadline = Date.now() + this.reconcileTimeoutMs;
     for (;;) {
@@ -798,7 +822,9 @@ export class HedgingService implements HedgeFinalizer {
         !snapshot.reconcilePending &&
         snapshot.openOrders.length === 0 &&
         this.sink.pendingCount(symbol) === 0;
-      if (settled && withinOneStep(snapshot.held, snapshot.exposure)) return { ok: true };
+      if (settled && withinOneStep(snapshot.held, snapshot.exposure)) {
+        return { ok: true, exposure: snapshot.exposure };
+      }
       if (this.signal.aborted) throw new HedgingStoppedError(`reconciling ${symbol}`);
       if (Date.now() >= deadline) {
         return {
@@ -825,35 +851,7 @@ export class HedgingService implements HedgeFinalizer {
   async finalize(campaign: FinalizeCampaign): Promise<void> {
     if (this.stopped || this.signal.aborted) throw new HedgingStoppedError("finalizing");
     if (!this.ready) throw new HedgeFinalizeError(campaign.id, "the service is still starting");
-    const row = await getHedgeInstrument(this.db, campaign.instrument);
-    if (row !== null && needsRunner(row)) {
-      const entry = await this.ensureEntry(row);
-      // A runner created by this call knows settlements that `row`, read before it, may not.
-      let current = row;
-      if (current.settledAllocated < entry.settledReleased) {
-        current = (await getHedgeInstrument(this.db, campaign.instrument)) ?? current;
-      }
-      // Campaigns settled since the last pass leave H with their lots' exposure, before the
-      // reconciliation compares the two: never a sale of contracts the venue paid out.
-      await this.followSettlements(entry, current);
-      // One reconciliation at a time per runner: wait for the one running (sales close or
-      // another finalize), then start ours in the same slot if the exposure still needs it.
-      while (entry.reconciling !== null) await entry.reconciling;
-      if (entry.reconciledAtExposure !== current.exposure) {
-        const exposure = current.exposure;
-        const reconciled = await this.claimReconcile(entry, async () => {
-          const outcome = await this.reconcile(entry, exposure);
-          if (outcome.ok) entry.reconciledAtExposure = exposure;
-          return outcome;
-        });
-        if (!reconciled.ok) {
-          throw new HedgeNotReconciledError(campaign.instrument, reconciled.detail);
-        }
-      }
-    } else if (row !== null) {
-      const entry = this.entries.get(row.symbol);
-      while (entry !== undefined && entry.reconciling !== null) await entry.reconciling;
-    }
+    await this.reconcileForFinalize(campaign);
     await this.allocateInventory(campaign.instrument);
 
     const deadline = Date.now() + this.finalizeTimeoutMs;
@@ -895,6 +893,52 @@ export class HedgingService implements HedgeFinalizer {
       }
       await abortableSleep(CHARGE_POLL_MS, this.signal);
       if (this.signal.aborted) throw new HedgingStoppedError("finalizing");
+    }
+  }
+
+  /**
+   * The reconciliation part of `finalize`. One reconciliation at a time per runner: while one is
+   * running (the sales-close pass's, or another finalize's), it waits for it, then reads the
+   * instrument AGAIN. Whatever it reconciles against is read after its last wait: a settlement of
+   * another campaign applied meanwhile is never undone by an exposure read before it, and the
+   * runner ignores the read if it already has a newer one. Campaigns settled since the last pass
+   * leave H with their lots' exposure before the reconciliation compares the two: never a sale of
+   * contracts the venue paid out. The reconciliation then runs against the runner's own E, the
+   * newest any caller handed it.
+   */
+  private async reconcileForFinalize(campaign: FinalizeCampaign): Promise<void> {
+    const deadline = Date.now() + this.finalizeTimeoutMs;
+    for (;;) {
+      if (this.stopped || this.signal.aborted) throw new HedgingStoppedError("finalizing");
+      const row = await getHedgeInstrument(this.db, campaign.instrument);
+      if (row === null) return;
+      const entry = needsRunner(row) ? await this.ensureEntry(row) : this.entries.get(row.symbol);
+      if (entry === undefined) return;
+      if (entry.reconciling !== null) {
+        if (Date.now() >= deadline) {
+          throw new HedgeNotReconciledError(
+            campaign.instrument,
+            "another reconciliation of the instrument kept running until the finalizer's deadline",
+          );
+        }
+        await entry.reconciling;
+        continue;
+      }
+      // The settlement guard: campaigns settled since the runner last heard leave H with their
+      // lots' exposure, before the reconciliation compares the two.
+      await this.followSettlements(entry, row);
+      // A reconciliation started during that write: wait for it, and read again.
+      if (entry.reconciling !== null) continue;
+      // Every campaign settled and only orders left: nothing to reconcile, only to follow.
+      if (!needsRunner(row)) return;
+      if (entry.reconciledAtExposure === entry.runner.snapshot().exposure) return;
+      const reconciled = await this.claimReconcile(entry, async () => {
+        const outcome = await this.reconcile(entry);
+        if (outcome.ok) entry.reconciledAtExposure = outcome.exposure;
+        return outcome;
+      });
+      if (!reconciled.ok) throw new HedgeNotReconciledError(campaign.instrument, reconciled.detail);
+      return;
     }
   }
 

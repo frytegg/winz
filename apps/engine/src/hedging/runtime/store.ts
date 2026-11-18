@@ -13,6 +13,19 @@ export const SETTLED_CAMPAIGN_STATUSES = ["settled_yes", "settled_no", "void", "
 /** `orders.status` values of an order the venue may still fill. */
 export const OPEN_ORDER_STATUSES = ["working", "partially_filled"] as const;
 
+/**
+ * Version of the snapshot a statement reads from, to order two reads of the exposure ledger in
+ * time (`ExposureRead.asOf`): the snapshot's xmax (the first transaction id not yet assigned when
+ * it was taken) times 2^32, minus the number of transactions it saw in progress. A snapshot taken
+ * later has an xmax at least as high, and with the same xmax it sees in progress a subset of what
+ * the earlier one did (no transaction below xmax can start any more): so a later read never has a
+ * lower version, and two reads with the same version see the same committed data. Read in the
+ * statement whose data it versions (`pg_current_snapshot()` is that statement's snapshot). As text:
+ * the product does not fit a bigint once the transaction ids have wrapped an epoch.
+ */
+const SNAPSHOT_VERSION_SQL = `(pg_snapshot_xmax(pg_current_snapshot())::text::numeric * 4294967296
+  - cardinality(array(select pg_snapshot_xip(pg_current_snapshot()))))::text`;
+
 /** One instrument the hedging service may have to follow, as the database has it now. */
 export interface HedgeInstrumentRow {
   symbol: string;
@@ -33,6 +46,8 @@ export interface HedgeInstrumentRow {
   /** H as the recorded fills give it (`derivedHeldOf`), in the same statement. */
   derivedHeld: MicroContracts;
   openOrders: number;
+  /** Version of the read (see `SNAPSHOT_VERSION_SQL`): the same for every row of one listing. */
+  asOf: bigint;
   /** Campaigns on-chain and not settled. */
   unsettledCampaigns: number;
   /** Latest `sales_close` of those campaigns; null when there is none. */
@@ -74,6 +89,7 @@ export async function listHedgeInstruments(sql: AllocationSql): Promise<HedgeIns
       open_orders: bigint;
       unsettled_campaigns: bigint;
       last_sales_close: Date | null;
+      as_of: string;
     }[]
   >`
     with candidates as (
@@ -103,7 +119,8 @@ export async function listHedgeInstruments(sql: AllocationSql): Promise<HedgeIns
              as unsettled_campaigns,
            (select max(c.sales_close) from campaigns c
              where c.instrument = i.symbol and c.onchain_id is not null
-               and c.status <> all(${[...SETTLED_CAMPAIGN_STATUSES]}::text[])) as last_sales_close
+               and c.status <> all(${[...SETTLED_CAMPAIGN_STATUSES]}::text[])) as last_sales_close,
+           ${sql.unsafe(SNAPSHOT_VERSION_SQL)} as as_of
     from candidates k
     join instruments i on i.symbol = k.instrument
     join events e on e.ticker = i.event_ticker
@@ -120,6 +137,7 @@ export async function listHedgeInstruments(sql: AllocationSql): Promise<HedgeIns
     held: row.held,
     settledAllocated: row.settled_allocated,
     derivedHeld: derivedHeldOf(row.bought, row.sold, row.settled_allocated),
+    asOf: BigInt(row.as_of),
     openOrders: Number(row.open_orders),
     unsettledCampaigns: Number(row.unsettled_campaigns),
     lastSalesClose: row.last_sales_close,
@@ -165,6 +183,8 @@ export interface RestoreState {
   held: MicroContracts;
   /** The settled allocation `held` already leaves out, read in the same statement as `exposure`. */
   settledAllocated: MicroContracts;
+  /** Version of that statement's read (see `SNAPSHOT_VERSION_SQL`). */
+  asOf: bigint;
   nextOrderSeq: number;
   /** Open orders of this venue and prefix, with the quantity their recorded fills add up to. */
   openOrders: { clientOrderId: string; recordedFilledQty: MicroContracts }[];
@@ -179,7 +199,7 @@ export async function loadRestoreState(
   // One statement: the exposure and the settled allocation describe the same settlements (the
   // projection changes a campaign's status and the exposure in one transaction).
   const [position] = await sql<
-    { exposure: bigint; bought: bigint; sold: bigint; settled_allocated: bigint }[]
+    { exposure: bigint; bought: bigint; sold: bigint; settled_allocated: bigint; as_of: string }[]
   >`
     select
       coalesce((select p.exposure from positions p where p.instrument = ${instrument}), 0)::bigint
@@ -193,7 +213,8 @@ export async function loadRestoreState(
         join campaigns c on c.id = l.campaign_id
         where l.instrument = ${instrument}
           and c.status = any(${[...SETTLED_CAMPAIGN_STATUSES]}::text[]))::bigint
-        as settled_allocated
+        as settled_allocated,
+      ${sql.unsafe(SNAPSHOT_VERSION_SQL)} as as_of
   `;
   const ids = await sql<{ venue_order_id: string }[]>`
     select venue_order_id from orders
@@ -218,6 +239,7 @@ export async function loadRestoreState(
     exposure: position?.exposure ?? 0n,
     held: derivedHeldOf(position?.bought ?? 0n, position?.sold ?? 0n, settledAllocated),
     settledAllocated,
+    asOf: BigInt(position?.as_of ?? "0"),
     nextOrderSeq: maxSeq + 1,
     openOrders: open.map((row) => ({
       clientOrderId: row.venue_order_id,
