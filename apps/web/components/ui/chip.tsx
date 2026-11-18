@@ -1,11 +1,12 @@
-import type { LucideIcon } from "lucide-react";
 import type { ComponentPropsWithoutRef } from "react";
 
 import { cn } from "@/lib/utils";
 
+import type { IconComponent } from "./icons";
+
 interface ChipProps extends Omit<ComponentPropsWithoutRef<"button">, "children"> {
   label: string;
-  icon?: LucideIcon;
+  icon?: IconComponent;
   /** Whether it is the chosen one. Announced as pressed. */
   active?: boolean;
   /** `outline` for filters (sports), `fill` for a choice (category). */
