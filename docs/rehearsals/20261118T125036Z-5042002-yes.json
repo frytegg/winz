@@ -1,0 +1,4690 @@
+{
+  "version": 2,
+  "runId": "ed2acab57697",
+  "status": "passed",
+  "failure": null,
+  "startedAt": "2026-11-18T12:50:36.826Z",
+  "finishedAt": "2026-11-18T12:55:05.956Z",
+  "chain": {
+    "chainId": 5042002,
+    "name": "Arc testnet",
+    "local": false,
+    "rpcHost": "rpc.testnet.arc.io",
+    "explorer": "https://explorer.testnet.arc.io",
+    "moneyMode": "native-usdc",
+    "token": "0x3600000000000000000000000000000000000000"
+  },
+  "escrow": {
+    "address": "0x81d2d4050E617184b2B832c30BE68f8811b37D2c",
+    "deployBlock": "72727350",
+    "runStartBlock": "72851992",
+    "engineStartBlock": "72851942"
+  },
+  "roles": {
+    "relayer": "0x39bbD1b075B43194588d65209A25292C76C88D31",
+    "oracle": "0x8EECc9D6C14E99eeebC9ec078111B4c7c356c602",
+    "treasury": "0x39bbD1b075B43194588d65209A25292C76C88D31",
+    "merchant": "0x6446aF2279281EB335B44BB14E7D2134A19d2687",
+    "buyers": [
+      {
+        "number": 1,
+        "address": "0x6Fb00978c1c35CE7eEcD1f64E8481Be2cfe978C0"
+      },
+      {
+        "number": 2,
+        "address": "0xCCA15479F58b75Ce971B8927Bfc196dc923d22f9"
+      },
+      {
+        "number": 3,
+        "address": "0x05E1280Aff77E98444Bc98A2B02a37ADc439D7d6"
+      },
+      {
+        "number": 4,
+        "address": "0x6c0f2B7209327F248704f5bD6837507206f1B663"
+      },
+      {
+        "number": 5,
+        "address": "0x20d1C0B342d5Fba7A45A695402B2510a1972cb0F"
+      },
+      {
+        "number": 6,
+        "address": "0xB7b0975542043725240754Cc13372f765d192C50"
+      },
+      {
+        "number": 7,
+        "address": "0x1677887c8DdDB6899F8944B407621D9dF30ABdBd"
+      },
+      {
+        "number": 8,
+        "address": "0x6D7c2187271F2247b408EE2881087E02B9CD2f71"
+      },
+      {
+        "number": 9,
+        "address": "0x95d2CD11569C7048b8C99216621a62532C37Ee50"
+      },
+      {
+        "number": 10,
+        "address": "0x592b9bf6d662AaD4006Fd43AFe78745422136BB0"
+      },
+      {
+        "number": 11,
+        "address": "0xe81AC2Ae0d7Bc1e7FB6561751d90FdFe22171C4C"
+      },
+      {
+        "number": 12,
+        "address": "0xCcFa69859F865d26489382781295525fF51A2Ea8"
+      },
+      {
+        "number": 13,
+        "address": "0x63bCbB8722fDE496B56DD40DAb9568FB88778e81"
+      },
+      {
+        "number": 14,
+        "address": "0x42bBA12Ccea7E8EFE921C360E32a3b854B0870A5"
+      },
+      {
+        "number": 15,
+        "address": "0xF9B2849BC0f0B3A7dde4C000E1ffC726040a4000"
+      },
+      {
+        "number": 16,
+        "address": "0x51F735A6d2B591d1e904f2119FFFc0f58710484f"
+      },
+      {
+        "number": 17,
+        "address": "0x75b69fa8B9CC1c43C011E256Ce108Fa1d3Ca48C1"
+      },
+      {
+        "number": 18,
+        "address": "0x4141cdbecA2D9946B24Ed6c9044c5241d7578276"
+      },
+      {
+        "number": 19,
+        "address": "0xB68c71b944AA56D4b285d9B88722C374c0B2338D"
+      },
+      {
+        "number": 20,
+        "address": "0x6BFc9Bd897a093527bd3b57694e6f74db83ce0f6"
+      }
+    ]
+  },
+  "gemini": "live",
+  "engine": {
+    "started": true,
+    "stopped": true
+  },
+  "game": {
+    "ticker": "NCAAM-2611181700-JKST-BAY-M",
+    "title": "Jackson State vs Baylor",
+    "startsAt": "2026-11-18T17:00:00.000Z"
+  },
+  "instrument": {
+    "symbol": "GEMI-NCAAM-2611181700-JKST-BAY-M-JKST",
+    "conditionLabel": "Jackson State wins",
+    "pauseThresholdBps": 1800
+  },
+  "campaign": {
+    "id": "c83d2aa6-1292-4497-b8c4-83df608ef39b",
+    "onchainId": "9",
+    "slug": "rehearsal-merchant-jackson-state-wins"
+  },
+  "scenario": {
+    "purchases": 140,
+    "unitsPerPurchase": 1,
+    "unitPrice": "500000",
+    "refundBps": 10000,
+    "usualMarginBps": 6500,
+    "minMarginBps": 4500,
+    "budget": "14000000",
+    "outcome": "yes",
+    "buyers": 20,
+    "parallel": 3
+  },
+  "driven": {
+    "bidBps": 1000,
+    "askBps": 1200,
+    "depth": "140000000"
+  },
+  "pauseProbe": {
+    "bidBps": 1900,
+    "askBps": 2100,
+    "saleState": "paused_price",
+    "saleRefusal": "409 sales_paused",
+    "skipped": null
+  },
+  "estimate": {
+    "feePerGasWei": "29000000000",
+    "treasuryLocks": "154000000",
+    "relayerGas": "63850000",
+    "oracleGas": "18300000",
+    "sweepGas": "441000",
+    "relayerGasWei": "1851650000000000000",
+    "oracleGasWei": "530700000000000000",
+    "sweepGasWei": "12789000000000000",
+    "treasuryNeedsWithMargin": "187021980000000000000",
+    "relayerGasNeedsWithMarginWei": "2221980000000000000",
+    "oracleNeedsWithMarginWei": "636840000000000000"
+  },
+  "steps": [
+    {
+      "step": "start-engine",
+      "startedAt": "2026-11-18T12:50:37.936Z",
+      "durationMs": 6221,
+      "status": "done"
+    },
+    {
+      "step": "choose-game",
+      "startedAt": "2026-11-18T12:50:44.157Z",
+      "durationMs": 6075,
+      "status": "done"
+    },
+    {
+      "step": "launch-campaign",
+      "startedAt": "2026-11-18T12:50:50.232Z",
+      "durationMs": 2061,
+      "status": "done"
+    },
+    {
+      "step": "drive-book",
+      "startedAt": "2026-11-18T12:50:52.294Z",
+      "durationMs": 1018,
+      "status": "done"
+    },
+    {
+      "step": "pause-probe",
+      "startedAt": "2026-11-18T12:50:53.312Z",
+      "durationMs": 12092,
+      "status": "done"
+    },
+    {
+      "step": "purchases",
+      "startedAt": "2026-11-18T12:51:05.406Z",
+      "durationMs": 127559,
+      "status": "done"
+    },
+    {
+      "step": "hedging",
+      "startedAt": "2026-11-18T12:53:12.965Z",
+      "durationMs": 40789,
+      "status": "done"
+    },
+    {
+      "step": "close-sales",
+      "startedAt": "2026-11-18T12:53:53.754Z",
+      "durationMs": 2151,
+      "status": "done"
+    },
+    {
+      "step": "settle",
+      "startedAt": "2026-11-18T12:53:55.905Z",
+      "durationMs": 14668,
+      "status": "done"
+    },
+    {
+      "step": "reset",
+      "startedAt": "2026-11-18T12:54:10.573Z",
+      "durationMs": 5,
+      "status": "done"
+    },
+    {
+      "step": "stop-engine",
+      "startedAt": "2026-11-18T12:54:10.579Z",
+      "durationMs": 42,
+      "status": "done"
+    },
+    {
+      "step": "sweep",
+      "startedAt": "2026-11-18T12:54:14.863Z",
+      "durationMs": 21422,
+      "status": "done"
+    }
+  ],
+  "transactions": [
+    {
+      "kind": "createCampaignFor",
+      "signer": "relayer",
+      "hash": "0x87807cbdf0fcd1802fd655d294c045a0c0296d744841bc9c7ea6b12273b6955b",
+      "status": "mined",
+      "block": "72852019",
+      "gasUsed": "161513",
+      "feeWei": "4037825000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x87807cbdf0fcd1802fd655d294c045a0c0296d744841bc9c7ea6b12273b6955b"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x3a47ab90c1d276c4234fc4b6b621f5a0b32e3c04abc7c4eba6727de1abf4bfe0",
+      "status": "mined",
+      "block": "72852049",
+      "gasUsed": "208862",
+      "feeWei": "5221550000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x3a47ab90c1d276c4234fc4b6b621f5a0b32e3c04abc7c4eba6727de1abf4bfe0"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x335172154617a9b9544e2a7fce7c32978035965e172f9cb1bf4765313505a33c",
+      "status": "mined",
+      "block": "72852050",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x335172154617a9b9544e2a7fce7c32978035965e172f9cb1bf4765313505a33c"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x8d1a0b5bc7cc0c173b4426d84174e64147f395e2a414e891e1cc2a1377e81bd0",
+      "status": "mined",
+      "block": "72852050",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x8d1a0b5bc7cc0c173b4426d84174e64147f395e2a414e891e1cc2a1377e81bd0"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xbc36b5bae1266b3181ced3591a6b2ce27bf268111dc682f36569a8465918d747",
+      "status": "mined",
+      "block": "72852053",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xbc36b5bae1266b3181ced3591a6b2ce27bf268111dc682f36569a8465918d747"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x2af3ad861d88de610bbe72191faedc0ff863841008538e45c7be1f322fe9c5f5",
+      "status": "mined",
+      "block": "72852054",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x2af3ad861d88de610bbe72191faedc0ff863841008538e45c7be1f322fe9c5f5"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xca3cf35291c2115d10b3a53e31da74a1d2b280b5c823060e4845cd3755e5335d",
+      "status": "mined",
+      "block": "72852055",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xca3cf35291c2115d10b3a53e31da74a1d2b280b5c823060e4845cd3755e5335d"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x7ca2f3f0859ed197718136a35b85daae17e8675b5339032ebbf75ca4985a6ded",
+      "status": "mined",
+      "block": "72852059",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x7ca2f3f0859ed197718136a35b85daae17e8675b5339032ebbf75ca4985a6ded"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x4a42f634ffb899bf17aceac365f82df54c59ea2284a52520255a7ce710190a1b",
+      "status": "mined",
+      "block": "72852060",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x4a42f634ffb899bf17aceac365f82df54c59ea2284a52520255a7ce710190a1b"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x4389b9256ceeba37579e713399d70dd5adf6557ff224a20649b0e72083b74a1f",
+      "status": "mined",
+      "block": "72852060",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x4389b9256ceeba37579e713399d70dd5adf6557ff224a20649b0e72083b74a1f"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x13ec9dd098cd19cdc64ba372cdb4ac74dd6c82c7cf01a88ce60e1fe197462a7a",
+      "status": "mined",
+      "block": "72852063",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x13ec9dd098cd19cdc64ba372cdb4ac74dd6c82c7cf01a88ce60e1fe197462a7a"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x720a3dfbef0aa0de345f3e8562f390c969a0d7fc73a72a0e17371b10c43c21db",
+      "status": "mined",
+      "block": "72852064",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x720a3dfbef0aa0de345f3e8562f390c969a0d7fc73a72a0e17371b10c43c21db"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x5263e666bb7a1bcda5f25eeaa42f5c9ff9a7803d5247e77126cca0018e6e6904",
+      "status": "mined",
+      "block": "72852065",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x5263e666bb7a1bcda5f25eeaa42f5c9ff9a7803d5247e77126cca0018e6e6904"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xbc09df041ff3c9f7d4b594ed7812c63286aff7838dd43fc00caf81f7e39cb179",
+      "status": "mined",
+      "block": "72852067",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xbc09df041ff3c9f7d4b594ed7812c63286aff7838dd43fc00caf81f7e39cb179"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xeb7a51d13810c29705f0042b39fe7bea87bcfc70b03875b2459e88efbf0efa4c",
+      "status": "mined",
+      "block": "72852068",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xeb7a51d13810c29705f0042b39fe7bea87bcfc70b03875b2459e88efbf0efa4c"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xc9df4c61a3831ef58af106ef8d5ca4a73695e5c5940db06bbf10ed66e0401afd",
+      "status": "mined",
+      "block": "72852069",
+      "gasUsed": "191738",
+      "feeWei": "4793450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xc9df4c61a3831ef58af106ef8d5ca4a73695e5c5940db06bbf10ed66e0401afd"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x4564aae22c7fd467a41147373bca46c00126248808fa9d64c27a226f15a2eda1",
+      "status": "mined",
+      "block": "72852072",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x4564aae22c7fd467a41147373bca46c00126248808fa9d64c27a226f15a2eda1"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x7310156ac3d43ca8cc6504b1b7a26a81924368ea6a8915bff37c5a0acc4426ab",
+      "status": "mined",
+      "block": "72852073",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x7310156ac3d43ca8cc6504b1b7a26a81924368ea6a8915bff37c5a0acc4426ab"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x320889af952950233c5116ef17f41e2cbf6b3812182348eab5536f113b1b6578",
+      "status": "mined",
+      "block": "72852074",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x320889af952950233c5116ef17f41e2cbf6b3812182348eab5536f113b1b6578"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xf319dcdacd9974549acb64fb38fbd971f34c1c99c4bc3fdbc8d7e67e28bb86e4",
+      "status": "mined",
+      "block": "72852077",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xf319dcdacd9974549acb64fb38fbd971f34c1c99c4bc3fdbc8d7e67e28bb86e4"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x2485d20d587dbf2d4d17878af51fca89738a4cbd8a3b3f308cebb2d7be19fee6",
+      "status": "mined",
+      "block": "72852079",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x2485d20d587dbf2d4d17878af51fca89738a4cbd8a3b3f308cebb2d7be19fee6"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x754ed11bb73fa83d63933ffbf3067ea9115456933d7170ca89dbec8f9b8242e1",
+      "status": "mined",
+      "block": "72852079",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x754ed11bb73fa83d63933ffbf3067ea9115456933d7170ca89dbec8f9b8242e1"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xb86fbef1a56a2fa7e520d45ec3f18e88f50e7af6993d0330a20c2761bc0818e4",
+      "status": "mined",
+      "block": "72852082",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xb86fbef1a56a2fa7e520d45ec3f18e88f50e7af6993d0330a20c2761bc0818e4"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x20c626e366fe24837dbb1176e8162edc6efb4284fa503fcb6934e4e2f0407e79",
+      "status": "mined",
+      "block": "72852083",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x20c626e366fe24837dbb1176e8162edc6efb4284fa503fcb6934e4e2f0407e79"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xd8bee0ff804e367c1b92918833b1a6726bbf07d7dd764ba6419f7e1c9743b474",
+      "status": "mined",
+      "block": "72852084",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xd8bee0ff804e367c1b92918833b1a6726bbf07d7dd764ba6419f7e1c9743b474"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x8f60c7ed95c76772831f4c6d103f662c9c95463586e56a933d33692521e9abab",
+      "status": "mined",
+      "block": "72852087",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x8f60c7ed95c76772831f4c6d103f662c9c95463586e56a933d33692521e9abab"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xf2eed7ffc4a9fc36d1b48e96c76a6aef1e2269a57f12b1c3c6efb517259ebd73",
+      "status": "mined",
+      "block": "72852089",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xf2eed7ffc4a9fc36d1b48e96c76a6aef1e2269a57f12b1c3c6efb517259ebd73"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xb97a919eed754887d78da70f93275738210d783604e8ca861d2b1fa0d9cb0b61",
+      "status": "mined",
+      "block": "72852089",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xb97a919eed754887d78da70f93275738210d783604e8ca861d2b1fa0d9cb0b61"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xa24d89cd18e87b1d01ac2897e294901274526552d006d8f94249afdb942c6f0e",
+      "status": "mined",
+      "block": "72852093",
+      "gasUsed": "191738",
+      "feeWei": "4793450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xa24d89cd18e87b1d01ac2897e294901274526552d006d8f94249afdb942c6f0e"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xbce1d3b2166d8ced719afed83cc73e0ea6123185180d6fa12e33b6946b41c5ec",
+      "status": "mined",
+      "block": "72852094",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xbce1d3b2166d8ced719afed83cc73e0ea6123185180d6fa12e33b6946b41c5ec"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xdf7f45282062c50f079c4a8be80c88f725634b36e0a04e13451e27c1d4f5a9bd",
+      "status": "mined",
+      "block": "72852094",
+      "gasUsed": "191738",
+      "feeWei": "4793450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xdf7f45282062c50f079c4a8be80c88f725634b36e0a04e13451e27c1d4f5a9bd"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xb383c0765f05ffa47db2bf0a3c1be5fab2235c080333168c5cda4215aa1b7082",
+      "status": "mined",
+      "block": "72852097",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xb383c0765f05ffa47db2bf0a3c1be5fab2235c080333168c5cda4215aa1b7082"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x2ce42a2d4a9db26622af21300e5e99f4b19cdd29f54cc51c3c19e79090cc40b7",
+      "status": "mined",
+      "block": "72852098",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x2ce42a2d4a9db26622af21300e5e99f4b19cdd29f54cc51c3c19e79090cc40b7"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xa3afce54a6da908d45701adae4eb6046fc96d9c991271e5dedd46fc8bad450e6",
+      "status": "mined",
+      "block": "72852099",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xa3afce54a6da908d45701adae4eb6046fc96d9c991271e5dedd46fc8bad450e6"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x7e9530f0a8a9b8c4335b8d21ff34a7137fd8820305d0a19b1b5a8335d54961e5",
+      "status": "mined",
+      "block": "72852102",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x7e9530f0a8a9b8c4335b8d21ff34a7137fd8820305d0a19b1b5a8335d54961e5"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xe653a5421823100b5a99cc2d513c00b22bbd8feb90f6eebd3b5aee8451c96aac",
+      "status": "mined",
+      "block": "72852103",
+      "gasUsed": "191738",
+      "feeWei": "4793450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xe653a5421823100b5a99cc2d513c00b22bbd8feb90f6eebd3b5aee8451c96aac"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x2dabf21173e6cd846f7925d961ea30bef6bce44037fd8d86a5ef556c526bbe39",
+      "status": "mined",
+      "block": "72852104",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x2dabf21173e6cd846f7925d961ea30bef6bce44037fd8d86a5ef556c526bbe39"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x98073cfe8b2b545c5482516d9273ff92b63d596a5f71133367889c26231762a1",
+      "status": "mined",
+      "block": "72852107",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x98073cfe8b2b545c5482516d9273ff92b63d596a5f71133367889c26231762a1"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xfa3144bfd2f70cac8e3982a523b3835604f69f6208feb214a7c497cf856352a9",
+      "status": "mined",
+      "block": "72852108",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xfa3144bfd2f70cac8e3982a523b3835604f69f6208feb214a7c497cf856352a9"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xda05de88eb47c77ff84f97c058b6f2febd5875b9099b5d07929ca5856c34706a",
+      "status": "mined",
+      "block": "72852109",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xda05de88eb47c77ff84f97c058b6f2febd5875b9099b5d07929ca5856c34706a"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x91407b589abaaf8ba386cde819fc9d4dba0606a6918842d4e0a18b9835f3b328",
+      "status": "mined",
+      "block": "72852112",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x91407b589abaaf8ba386cde819fc9d4dba0606a6918842d4e0a18b9835f3b328"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x2598a09b608d0e830dac9074d80f159b6a787fd6d68e07b0d300d3c70bb73a7d",
+      "status": "mined",
+      "block": "72852112",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x2598a09b608d0e830dac9074d80f159b6a787fd6d68e07b0d300d3c70bb73a7d"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x07d06967043136168a8ece287ff9c1a6adeefdc46ed6c155697af5167801e7c0",
+      "status": "mined",
+      "block": "72852113",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x07d06967043136168a8ece287ff9c1a6adeefdc46ed6c155697af5167801e7c0"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x50b27750df38e7d2568b6b532a08280dfe60e391aa720ea8ea3bbd060a095caf",
+      "status": "mined",
+      "block": "72852116",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x50b27750df38e7d2568b6b532a08280dfe60e391aa720ea8ea3bbd060a095caf"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xd09949b6c2f4cca5eeab9389cac6e4d28548ddbb6003f8b1757ea9db54a42819",
+      "status": "mined",
+      "block": "72852117",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xd09949b6c2f4cca5eeab9389cac6e4d28548ddbb6003f8b1757ea9db54a42819"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xe432303c5368f47644a7d2fc9fdde9daf205ec4901e7fed750149ab1a4ab8b97",
+      "status": "mined",
+      "block": "72852118",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xe432303c5368f47644a7d2fc9fdde9daf205ec4901e7fed750149ab1a4ab8b97"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xe1fa02024d9b3f4d1f35f9235934b36b68dade9881907342563663d854071a4e",
+      "status": "mined",
+      "block": "72852122",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xe1fa02024d9b3f4d1f35f9235934b36b68dade9881907342563663d854071a4e"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xdedcb3bb11b8b803bd183bb2c8c12ce5b5e7eaea34e66ddfd2181d1b6fee2e29",
+      "status": "mined",
+      "block": "72852122",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xdedcb3bb11b8b803bd183bb2c8c12ce5b5e7eaea34e66ddfd2181d1b6fee2e29"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x00897d8e8e63e07e4706d1603fc2a4bab0a48ec11f3556a42b77c2fbeb01eda8",
+      "status": "mined",
+      "block": "72852122",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x00897d8e8e63e07e4706d1603fc2a4bab0a48ec11f3556a42b77c2fbeb01eda8"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x299c2da3b7facc8b2fd59648159b030368ce542433d2e51e645ac0cc99b3b619",
+      "status": "mined",
+      "block": "72852125",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x299c2da3b7facc8b2fd59648159b030368ce542433d2e51e645ac0cc99b3b619"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x626b7fa1c0c2e4ff53855b8ad2782f59a417485ebc0af857ce9afd8e8b10e8c0",
+      "status": "mined",
+      "block": "72852126",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x626b7fa1c0c2e4ff53855b8ad2782f59a417485ebc0af857ce9afd8e8b10e8c0"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xbebc648ee35db5f464bde2055fc4e9b98471838e73ced368314584bc1c9b2c61",
+      "status": "mined",
+      "block": "72852127",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xbebc648ee35db5f464bde2055fc4e9b98471838e73ced368314584bc1c9b2c61"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xeb1e9f5dfba13ee8fe2b14b04ad527902388698e7e7f0dc7f134966d9a8e3563",
+      "status": "mined",
+      "block": "72852130",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xeb1e9f5dfba13ee8fe2b14b04ad527902388698e7e7f0dc7f134966d9a8e3563"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x49809c4c88ae0bf8c3d87a801713cc5c7bd00ffdb444bf813f23372218e15cfb",
+      "status": "mined",
+      "block": "72852131",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x49809c4c88ae0bf8c3d87a801713cc5c7bd00ffdb444bf813f23372218e15cfb"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xa091143b0ba757e64ef22a5a431adf93f9411fa10724158175a66d84aa57632f",
+      "status": "mined",
+      "block": "72852132",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xa091143b0ba757e64ef22a5a431adf93f9411fa10724158175a66d84aa57632f"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x0e30974fe5740990fc9112409faa1bd39c0439e56fc3d1691e27317abd45c9b5",
+      "status": "mined",
+      "block": "72852136",
+      "gasUsed": "191738",
+      "feeWei": "4793450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x0e30974fe5740990fc9112409faa1bd39c0439e56fc3d1691e27317abd45c9b5"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x926030f32971f1958a698d2c9376cf2c2a603122cf26aadddd982cadc4a42496",
+      "status": "mined",
+      "block": "72852136",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x926030f32971f1958a698d2c9376cf2c2a603122cf26aadddd982cadc4a42496"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x162c6f95a247128d73e2a3e02d0272446f76a31d66921cd5459924bb3f77f25b",
+      "status": "mined",
+      "block": "72852136",
+      "gasUsed": "191738",
+      "feeWei": "4793450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x162c6f95a247128d73e2a3e02d0272446f76a31d66921cd5459924bb3f77f25b"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x4642a8b362c3b558c29114a21249f8856aadf77d91b530525275d182ad9e5c4e",
+      "status": "mined",
+      "block": "72852139",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x4642a8b362c3b558c29114a21249f8856aadf77d91b530525275d182ad9e5c4e"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x8c104b2966049b93872faba79e926b434f29ef67c159965372e7739928b1ee2a",
+      "status": "mined",
+      "block": "72852140",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x8c104b2966049b93872faba79e926b434f29ef67c159965372e7739928b1ee2a"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x3a6a056fec5e3afce92f13eb97aa6afe1bd4a3753ff1c690633e93c73b5e5b0f",
+      "status": "mined",
+      "block": "72852140",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x3a6a056fec5e3afce92f13eb97aa6afe1bd4a3753ff1c690633e93c73b5e5b0f"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xb92c90ab562c75d781f6c947f7d433b8828a2add5264d4578612410c17521de1",
+      "status": "mined",
+      "block": "72852143",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xb92c90ab562c75d781f6c947f7d433b8828a2add5264d4578612410c17521de1"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x2f2beb91a43e7a28435aafc59ca3bd3ac91f7a973027f021a01cc7d9ad4b8e1b",
+      "status": "mined",
+      "block": "72852144",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x2f2beb91a43e7a28435aafc59ca3bd3ac91f7a973027f021a01cc7d9ad4b8e1b"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xda3f2506cc9c08362fc87c78dd58812e2709cfe260afacc4d103fad615293ec2",
+      "status": "mined",
+      "block": "72852146",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xda3f2506cc9c08362fc87c78dd58812e2709cfe260afacc4d103fad615293ec2"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x28699e2f77025f15729f49bcd7346436bafc24f3b96146683d1b913f63dfc793",
+      "status": "mined",
+      "block": "72852149",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x28699e2f77025f15729f49bcd7346436bafc24f3b96146683d1b913f63dfc793"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x40218dd442c1735e2d7b4192eb6908f1944595f55d4de0f7d757bbda4c03eaf3",
+      "status": "mined",
+      "block": "72852150",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x40218dd442c1735e2d7b4192eb6908f1944595f55d4de0f7d757bbda4c03eaf3"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xa3b7ce9eaa13c7cf3e8e0b0687661d44955e294e6ef4a1b0c5acc2094709794a",
+      "status": "mined",
+      "block": "72852150",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xa3b7ce9eaa13c7cf3e8e0b0687661d44955e294e6ef4a1b0c5acc2094709794a"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xf0e0885d846a477a9d1d56af351d3cc6948eef7d74e0d08d5db1b407ae7d97ba",
+      "status": "mined",
+      "block": "72852152",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xf0e0885d846a477a9d1d56af351d3cc6948eef7d74e0d08d5db1b407ae7d97ba"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x2242d3da547fbe63ce4dbaef2f4d11d44075a43c093d4cb04b2d076b87fadc98",
+      "status": "mined",
+      "block": "72852154",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x2242d3da547fbe63ce4dbaef2f4d11d44075a43c093d4cb04b2d076b87fadc98"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xcdbad49d974852e98ea91b0f2af1a936dbcd0de6b63431c1bcd9b506de21faaf",
+      "status": "mined",
+      "block": "72852154",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xcdbad49d974852e98ea91b0f2af1a936dbcd0de6b63431c1bcd9b506de21faaf"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xdedf7856b37f770de49dee0e4073516fb885bbde37f20ac701f0ba31b3880c9f",
+      "status": "mined",
+      "block": "72852156",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xdedf7856b37f770de49dee0e4073516fb885bbde37f20ac701f0ba31b3880c9f"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x18e0a835ed11a019778ecd4e8376ee7ff0fcbde5dfa50bcac8712f44e37e0580",
+      "status": "mined",
+      "block": "72852160",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x18e0a835ed11a019778ecd4e8376ee7ff0fcbde5dfa50bcac8712f44e37e0580"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xc300018a19afb29fb4794df1504643d01d614ea5846cfd3e0db6101a99a4078b",
+      "status": "mined",
+      "block": "72852160",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xc300018a19afb29fb4794df1504643d01d614ea5846cfd3e0db6101a99a4078b"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x238fa48dad4bfd3075eac14e8bab8d48d796201065413f495076774413f434cc",
+      "status": "mined",
+      "block": "72852162",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x238fa48dad4bfd3075eac14e8bab8d48d796201065413f495076774413f434cc"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x0d448330873faf426e76d6c6c18d2de0547d617b41572fa67d4a315d052377fd",
+      "status": "mined",
+      "block": "72852164",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x0d448330873faf426e76d6c6c18d2de0547d617b41572fa67d4a315d052377fd"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x6394b8be8bc5dc2d97fcaea1f97fa070f7ad6f3314bd587512f3b627c367693e",
+      "status": "mined",
+      "block": "72852165",
+      "gasUsed": "191726",
+      "feeWei": "4793150000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x6394b8be8bc5dc2d97fcaea1f97fa070f7ad6f3314bd587512f3b627c367693e"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xf9ec309e5d8931ec113ecb09ce878125b68f56b92b205c58f03d9c3e1eb51bb1",
+      "status": "mined",
+      "block": "72852166",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xf9ec309e5d8931ec113ecb09ce878125b68f56b92b205c58f03d9c3e1eb51bb1"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x199aff8fe2844ec8186b819b7faf712e15547c4e3e772e14df229bedd134a63e",
+      "status": "mined",
+      "block": "72852168",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x199aff8fe2844ec8186b819b7faf712e15547c4e3e772e14df229bedd134a63e"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x91fa6745ae8016e302906d96e1590e08268533335d8b117767a76ae3528c4373",
+      "status": "mined",
+      "block": "72852169",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x91fa6745ae8016e302906d96e1590e08268533335d8b117767a76ae3528c4373"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x88589c3b30504b0a4db7dc3eb4a3198695a11c1627fa967293b1d5ff30a1d0de",
+      "status": "mined",
+      "block": "72852170",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x88589c3b30504b0a4db7dc3eb4a3198695a11c1627fa967293b1d5ff30a1d0de"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x8b10299f1942ce988ddebc409a8f73ab0019f19f77d2c46171c4e7e85e9453f7",
+      "status": "mined",
+      "block": "72852174",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x8b10299f1942ce988ddebc409a8f73ab0019f19f77d2c46171c4e7e85e9453f7"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x7b151919cfed35b3dc4d034db2bb50a697e2083688de1276a06115c8060c044e",
+      "status": "mined",
+      "block": "72852174",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x7b151919cfed35b3dc4d034db2bb50a697e2083688de1276a06115c8060c044e"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xa428aa81291843bd6dba92a6b26d721cb966f75843f4a31d864890e601e93b68",
+      "status": "mined",
+      "block": "72852176",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xa428aa81291843bd6dba92a6b26d721cb966f75843f4a31d864890e601e93b68"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xf7ce3fe50fbba4429a7837ea090ed21327f29193f14dd05322d4589eaf25f151",
+      "status": "mined",
+      "block": "72852178",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xf7ce3fe50fbba4429a7837ea090ed21327f29193f14dd05322d4589eaf25f151"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x7a3444e0665f2632775eed6ce4a99a30e5ae2ddde4b49d2a496bd814e3c2614b",
+      "status": "mined",
+      "block": "72852179",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x7a3444e0665f2632775eed6ce4a99a30e5ae2ddde4b49d2a496bd814e3c2614b"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x1f13a036a33dd16b8dd8d0edd8ac2a609c7078fe2831b786106ef06cd652804b",
+      "status": "mined",
+      "block": "72852180",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x1f13a036a33dd16b8dd8d0edd8ac2a609c7078fe2831b786106ef06cd652804b"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x6f08dc38a17598d4dba802d75d275593815d7bb3dd542cedb19da59164fbda01",
+      "status": "mined",
+      "block": "72852182",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x6f08dc38a17598d4dba802d75d275593815d7bb3dd542cedb19da59164fbda01"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xa91998bc894568c5e969fc244bfa17fb9d2c8b823fb510caf881ede9e5d08537",
+      "status": "mined",
+      "block": "72852184",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xa91998bc894568c5e969fc244bfa17fb9d2c8b823fb510caf881ede9e5d08537"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x4157c6f089d4844ed6b49f5711d74c2fe6594a18d4bfb411d1b5d4adc0f2fd4d",
+      "status": "mined",
+      "block": "72852185",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x4157c6f089d4844ed6b49f5711d74c2fe6594a18d4bfb411d1b5d4adc0f2fd4d"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x96ecfb54fb2c485eb0b098b9a7497fb9a07c14024ee98758b5fa2ba55f035ab8",
+      "status": "mined",
+      "block": "72852186",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x96ecfb54fb2c485eb0b098b9a7497fb9a07c14024ee98758b5fa2ba55f035ab8"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xec7b41f162b8f3f7061067a098b04823abadcd5b4ce13adc79a1148e77155f3d",
+      "status": "mined",
+      "block": "72852190",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xec7b41f162b8f3f7061067a098b04823abadcd5b4ce13adc79a1148e77155f3d"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x86caf03ec108e98c68a19afe5110e48433ddb512c26c6f678775e3b4b8a42a2b",
+      "status": "mined",
+      "block": "72852191",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x86caf03ec108e98c68a19afe5110e48433ddb512c26c6f678775e3b4b8a42a2b"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x54934617a525beca779744de4c61da6c3947901bc382e06a1616376d08131d31",
+      "status": "mined",
+      "block": "72852192",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x54934617a525beca779744de4c61da6c3947901bc382e06a1616376d08131d31"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x46aa6b487b973326c8906888cb677dd0f44f194f4c03cb3b7d3e45d2d41334d4",
+      "status": "mined",
+      "block": "72852194",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x46aa6b487b973326c8906888cb677dd0f44f194f4c03cb3b7d3e45d2d41334d4"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xee5e1f48ac998f6a493cc649dac5960924096a5ab584d85f71a16bc76d64fffe",
+      "status": "mined",
+      "block": "72852195",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xee5e1f48ac998f6a493cc649dac5960924096a5ab584d85f71a16bc76d64fffe"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x8305a26833fd3dd1637407fc07d683f5943c4b9f6f0e2a98ec199ffbf8b853c6",
+      "status": "mined",
+      "block": "72852196",
+      "gasUsed": "191726",
+      "feeWei": "4793150000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x8305a26833fd3dd1637407fc07d683f5943c4b9f6f0e2a98ec199ffbf8b853c6"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x6925fc1725c9b2cf434f8ad48bd89e1f928a9976472d297da4a98a57f1e34278",
+      "status": "mined",
+      "block": "72852199",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x6925fc1725c9b2cf434f8ad48bd89e1f928a9976472d297da4a98a57f1e34278"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xa2016c5847b6acbb1de5578463108df7a157ba1e2177d5d3b4dc08540c8005e5",
+      "status": "mined",
+      "block": "72852199",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xa2016c5847b6acbb1de5578463108df7a157ba1e2177d5d3b4dc08540c8005e5"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x254e404e9dfe83a273b03c591eaab7b459cfdefa42c2e8a9daa5a9f881cc1841",
+      "status": "mined",
+      "block": "72852200",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x254e404e9dfe83a273b03c591eaab7b459cfdefa42c2e8a9daa5a9f881cc1841"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xba43772a9ce7402bbe6f44f6d91ee9a8bfdea2c4c5fce1e56deafd175a88b428",
+      "status": "mined",
+      "block": "72852204",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xba43772a9ce7402bbe6f44f6d91ee9a8bfdea2c4c5fce1e56deafd175a88b428"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x0b2de22aa41ed80e074a99422a8ce03f8d74430ce09dc21e28d6e3eb360d6e3b",
+      "status": "mined",
+      "block": "72852205",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x0b2de22aa41ed80e074a99422a8ce03f8d74430ce09dc21e28d6e3eb360d6e3b"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xcfd7c7fbc0253ccd8af5f81b61ceefe717ee3db1533dd0b67abfcd329253dae3",
+      "status": "mined",
+      "block": "72852207",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xcfd7c7fbc0253ccd8af5f81b61ceefe717ee3db1533dd0b67abfcd329253dae3"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x33717bbb24183d3bdabbf71b284b346eab5007f29975d08332787c4cdf5f8e93",
+      "status": "mined",
+      "block": "72852209",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x33717bbb24183d3bdabbf71b284b346eab5007f29975d08332787c4cdf5f8e93"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x13a1f5afacac544508e4287c290c865b6441b0d805bf393e5c0429b0057f2494",
+      "status": "mined",
+      "block": "72852209",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x13a1f5afacac544508e4287c290c865b6441b0d805bf393e5c0429b0057f2494"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xab265acec23a11cce4264f0ec33ed1a55990d0b4fecf31c560cfc029e74af21e",
+      "status": "mined",
+      "block": "72852212",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xab265acec23a11cce4264f0ec33ed1a55990d0b4fecf31c560cfc029e74af21e"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x5c886a3db69aad6f7f3c044e88777697c9e54425c0ab29f975f418ec34adcf86",
+      "status": "mined",
+      "block": "72852213",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x5c886a3db69aad6f7f3c044e88777697c9e54425c0ab29f975f418ec34adcf86"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xc5a1df9834db4582db47f99ae1c606153582b9bc4fe674206f5a1c887405d7af",
+      "status": "mined",
+      "block": "72852214",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xc5a1df9834db4582db47f99ae1c606153582b9bc4fe674206f5a1c887405d7af"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xc8c8d7f6e26718606ec31219021b698cd00720632b12cccb06eb103b238f2916",
+      "status": "mined",
+      "block": "72852218",
+      "gasUsed": "191738",
+      "feeWei": "4793450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xc8c8d7f6e26718606ec31219021b698cd00720632b12cccb06eb103b238f2916"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xbf3455c9bf7c4bcfb9b59098c00a140c26ec18de2dd07cc1ce2d2a89a789e937",
+      "status": "mined",
+      "block": "72852219",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xbf3455c9bf7c4bcfb9b59098c00a140c26ec18de2dd07cc1ce2d2a89a789e937"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x2b0b59887aa6313d46712f2f6efb0f252932abc13163c5200a4852ecfb69b50e",
+      "status": "mined",
+      "block": "72852220",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x2b0b59887aa6313d46712f2f6efb0f252932abc13163c5200a4852ecfb69b50e"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xc32412b4ceb4b65de17a41f34ca40555a3fd0d95149a463b021efb0af2495210",
+      "status": "mined",
+      "block": "72852223",
+      "gasUsed": "191738",
+      "feeWei": "4793450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xc32412b4ceb4b65de17a41f34ca40555a3fd0d95149a463b021efb0af2495210"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x832d82c7412994e5edb8bee4b3c75857573f140caf04abf63f35d8d9145b693f",
+      "status": "mined",
+      "block": "72852224",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x832d82c7412994e5edb8bee4b3c75857573f140caf04abf63f35d8d9145b693f"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x76553265a1b82975317672a0ed3bcd81f809e0883fa48eb4776b05abfd159240",
+      "status": "mined",
+      "block": "72852225",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x76553265a1b82975317672a0ed3bcd81f809e0883fa48eb4776b05abfd159240"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x143970e31445fe43834faf042d19aa9c877480f75a0d4353b64c6235d702c9fe",
+      "status": "mined",
+      "block": "72852228",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x143970e31445fe43834faf042d19aa9c877480f75a0d4353b64c6235d702c9fe"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x5996be4c4bbcdbc19df56914b1d86d710ed3416331283fd802c7160a9cfed31f",
+      "status": "mined",
+      "block": "72852229",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x5996be4c4bbcdbc19df56914b1d86d710ed3416331283fd802c7160a9cfed31f"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x77c462222a1678f32b191478ceda941ee56feef3938aac7358a753c44d3e4c5b",
+      "status": "mined",
+      "block": "72852230",
+      "gasUsed": "191738",
+      "feeWei": "4793450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x77c462222a1678f32b191478ceda941ee56feef3938aac7358a753c44d3e4c5b"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x16db62f08715eb77ae54c3208672b3491f77cb089212c6a539a47831d1ee8f52",
+      "status": "mined",
+      "block": "72852230",
+      "gasUsed": "85031",
+      "feeWei": "2125775000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x16db62f08715eb77ae54c3208672b3491f77cb089212c6a539a47831d1ee8f52"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xff1099dce84cd8dc838e6f6b82e4681f1985e44c238b8fdef4aecec58de42384",
+      "status": "mined",
+      "block": "72852232",
+      "gasUsed": "96994",
+      "feeWei": "2424850000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xff1099dce84cd8dc838e6f6b82e4681f1985e44c238b8fdef4aecec58de42384"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x928f3cc2d24e9bdd08d6269057e5ef4a7ef391a2709aa311c8aa43be45c0ed64",
+      "status": "mined",
+      "block": "72852234",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x928f3cc2d24e9bdd08d6269057e5ef4a7ef391a2709aa311c8aa43be45c0ed64"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xe210c517cee46baaa1cd09e8de6ad55d5b09a6d6675f3d5a09bbdf621dda350c",
+      "status": "mined",
+      "block": "72852237",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xe210c517cee46baaa1cd09e8de6ad55d5b09a6d6675f3d5a09bbdf621dda350c"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xb0a774ced8b5c196cffd947fbd4d199602bf6c35860b4531b327785230ae669e",
+      "status": "mined",
+      "block": "72852238",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xb0a774ced8b5c196cffd947fbd4d199602bf6c35860b4531b327785230ae669e"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x6bcb102706ec6a572f9d6093731c343608bdf240be301f797c32b75894553291",
+      "status": "mined",
+      "block": "72852237",
+      "gasUsed": "96994",
+      "feeWei": "2424850000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x6bcb102706ec6a572f9d6093731c343608bdf240be301f797c32b75894553291"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x7295c5b857f73253a3c616d85053be032bae117d35456c0e67a5f95c1cc58191",
+      "status": "mined",
+      "block": "72852239",
+      "gasUsed": "85031",
+      "feeWei": "2125775000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x7295c5b857f73253a3c616d85053be032bae117d35456c0e67a5f95c1cc58191"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x64260cf47693cb4b9a06e92cc457697f6e91562024a5e0c61ce0cd8edf733887",
+      "status": "mined",
+      "block": "72852243",
+      "gasUsed": "108957",
+      "feeWei": "2723925000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x64260cf47693cb4b9a06e92cc457697f6e91562024a5e0c61ce0cd8edf733887"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x5020816278fda830e2ad43658a47dfa948fdd9aaa07ca2d35c86209aebb59b8f",
+      "status": "mined",
+      "block": "72852244",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x5020816278fda830e2ad43658a47dfa948fdd9aaa07ca2d35c86209aebb59b8f"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xb800ff78016c98e872dfb5a5c87a3b7543c6def34e1884e1cf034b8f81a94935",
+      "status": "mined",
+      "block": "72852245",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xb800ff78016c98e872dfb5a5c87a3b7543c6def34e1884e1cf034b8f81a94935"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xbbb301f1a32d741ae6e8cc8de82297a91bf46add95ba541d3b8611b8e044fdcf",
+      "status": "mined",
+      "block": "72852246",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xbbb301f1a32d741ae6e8cc8de82297a91bf46add95ba541d3b8611b8e044fdcf"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x9757679aa61d84a0fe95498e4252743abf9af45e339dbddca99279f7fdc9df46",
+      "status": "mined",
+      "block": "72852246",
+      "gasUsed": "108957",
+      "feeWei": "2723925000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x9757679aa61d84a0fe95498e4252743abf9af45e339dbddca99279f7fdc9df46"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xd461d58da5eab948ebd1119df0d1efe0df64230f2da4308120a8b30cab1bb4a0",
+      "status": "mined",
+      "block": "72852250",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xd461d58da5eab948ebd1119df0d1efe0df64230f2da4308120a8b30cab1bb4a0"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x08b91ad87e19761ceec363abe8af220d551c07d035808ca4f3cbc62c7b3ac205",
+      "status": "mined",
+      "block": "72852250",
+      "gasUsed": "108957",
+      "feeWei": "2723925000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x08b91ad87e19761ceec363abe8af220d551c07d035808ca4f3cbc62c7b3ac205"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x3cf3c5544569e15f23591cef55202913a51da7fe23d6f5910d3913edb78f956e",
+      "status": "mined",
+      "block": "72852252",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x3cf3c5544569e15f23591cef55202913a51da7fe23d6f5910d3913edb78f956e"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xac5055e05516f8e0792fbdeb661fb7b5a83398f9c8198cfa5720c7817ba44018",
+      "status": "mined",
+      "block": "72852254",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xac5055e05516f8e0792fbdeb661fb7b5a83398f9c8198cfa5720c7817ba44018"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xbcbba1ece555b33187fcfd86e16f7a9c0c1bd29e470076b2c2847ec038b4a54c",
+      "status": "mined",
+      "block": "72852256",
+      "gasUsed": "108957",
+      "feeWei": "2723925000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xbcbba1ece555b33187fcfd86e16f7a9c0c1bd29e470076b2c2847ec038b4a54c"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xfb845ff48d6834ff4db2c8f3ad8cefd501a04f02ad56137ffafa57598c4af77f",
+      "status": "mined",
+      "block": "72852258",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xfb845ff48d6834ff4db2c8f3ad8cefd501a04f02ad56137ffafa57598c4af77f"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x403adb7b399e6eaa749e02c1c48fbd9569b7f7b936ffec7f0f588223d78d56aa",
+      "status": "mined",
+      "block": "72852260",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x403adb7b399e6eaa749e02c1c48fbd9569b7f7b936ffec7f0f588223d78d56aa"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x91299f44530c19ec4f395994a1cdd4828d26620c23d0f0a741195b02d77c1251",
+      "status": "mined",
+      "block": "72852260",
+      "gasUsed": "85031",
+      "feeWei": "2125775000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x91299f44530c19ec4f395994a1cdd4828d26620c23d0f0a741195b02d77c1251"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x8cf773ddf67ca18e84c7cf5a6b5a7bf0387bd7c4fbad4dfe2644a02841e8fb8e",
+      "status": "mined",
+      "block": "72852262",
+      "gasUsed": "191738",
+      "feeWei": "4793450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x8cf773ddf67ca18e84c7cf5a6b5a7bf0387bd7c4fbad4dfe2644a02841e8fb8e"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x211538ba36542101e2f12fd358ab92f8a69866ea9126156b51a6f059211d28aa",
+      "status": "mined",
+      "block": "72852262",
+      "gasUsed": "96994",
+      "feeWei": "2424850000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x211538ba36542101e2f12fd358ab92f8a69866ea9126156b51a6f059211d28aa"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x896ccd13ea93cfc047e620fcbe7542a4e2baa31d15b98b1360e5db5d417fe02e",
+      "status": "mined",
+      "block": "72852265",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x896ccd13ea93cfc047e620fcbe7542a4e2baa31d15b98b1360e5db5d417fe02e"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xf7c8aa326f8dc79cd479e4ff1ae0018675fcfa68cc25785536e272b398d39dc8",
+      "status": "mined",
+      "block": "72852266",
+      "gasUsed": "108957",
+      "feeWei": "2723925000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xf7c8aa326f8dc79cd479e4ff1ae0018675fcfa68cc25785536e272b398d39dc8"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x27d2d6efff1a36a5fe5745a5daa686c37c4803034cedd1092c81f3f4c6d5b541",
+      "status": "mined",
+      "block": "72852266",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x27d2d6efff1a36a5fe5745a5daa686c37c4803034cedd1092c81f3f4c6d5b541"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x895b7649514c16facad32bd564455d4d13614fc48ac421113fc8f1654fb894de",
+      "status": "mined",
+      "block": "72852268",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x895b7649514c16facad32bd564455d4d13614fc48ac421113fc8f1654fb894de"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xe6953de9354d382d9fd911c6ff6472cf8ca5628bff90a0e15a3d25a773fdf28d",
+      "status": "mined",
+      "block": "72852273",
+      "gasUsed": "108957",
+      "feeWei": "2723925000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xe6953de9354d382d9fd911c6ff6472cf8ca5628bff90a0e15a3d25a773fdf28d"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x7cc98d9e0e53572825772b4234635cb81a3d16f8e28416fe906b95e2cf6e4f70",
+      "status": "mined",
+      "block": "72852273",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x7cc98d9e0e53572825772b4234635cb81a3d16f8e28416fe906b95e2cf6e4f70"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x280ef9b6d5dfe4462f29c9fcc91a43326f2c59af33a5a3a77b538b2df8655e69",
+      "status": "mined",
+      "block": "72852274",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x280ef9b6d5dfe4462f29c9fcc91a43326f2c59af33a5a3a77b538b2df8655e69"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x348f3da015db47f74bb847734207434e400d21ca132b7cda24a72a4535c0eea3",
+      "status": "mined",
+      "block": "72852277",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x348f3da015db47f74bb847734207434e400d21ca132b7cda24a72a4535c0eea3"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x74f76768d36fff9850e5a3df84b56ec1ecdd946965af3a53f26621ba4a092432",
+      "status": "mined",
+      "block": "72852276",
+      "gasUsed": "108957",
+      "feeWei": "2723925000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x74f76768d36fff9850e5a3df84b56ec1ecdd946965af3a53f26621ba4a092432"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x472d41c00e03bc120366299255c81f4fb36956fec9931837853f28dd0df5db92",
+      "status": "mined",
+      "block": "72852280",
+      "gasUsed": "96994",
+      "feeWei": "2424850000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x472d41c00e03bc120366299255c81f4fb36956fec9931837853f28dd0df5db92"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xdbc0df7ae5b7b11ac4f71784cc1f62c9c1ed6003bf713f05760444006c650a1b",
+      "status": "mined",
+      "block": "72852280",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xdbc0df7ae5b7b11ac4f71784cc1f62c9c1ed6003bf713f05760444006c650a1b"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x3b3a50b170bac469f5f7074e6c48b78cdd7995f18aa7b0d7bf4a2b22f4163b55",
+      "status": "mined",
+      "block": "72852282",
+      "gasUsed": "191738",
+      "feeWei": "4793450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x3b3a50b170bac469f5f7074e6c48b78cdd7995f18aa7b0d7bf4a2b22f4163b55"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x90da8d1b69f0d3c8e8b380ff6674e3195b9240e6ac1162d77f5e4eb18d63589c",
+      "status": "mined",
+      "block": "72852282",
+      "gasUsed": "85031",
+      "feeWei": "2125775000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x90da8d1b69f0d3c8e8b380ff6674e3195b9240e6ac1162d77f5e4eb18d63589c"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xaad836f0d665f756b39ed459f5d0ee54a98550f9de117f40223d3a13fecf761b",
+      "status": "mined",
+      "block": "72852283",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xaad836f0d665f756b39ed459f5d0ee54a98550f9de117f40223d3a13fecf761b"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xa72bbec5ae375302754bbcd12d6fc15a1477554d45fd7ce3568ff38572868cb5",
+      "status": "mined",
+      "block": "72852285",
+      "gasUsed": "108957",
+      "feeWei": "2723925000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xa72bbec5ae375302754bbcd12d6fc15a1477554d45fd7ce3568ff38572868cb5"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x0b6e0411065c5adc69c021b0cd9e36886765e9e2ff7c5f2276f976a249dfc080",
+      "status": "mined",
+      "block": "72852288",
+      "gasUsed": "191738",
+      "feeWei": "4793450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x0b6e0411065c5adc69c021b0cd9e36886765e9e2ff7c5f2276f976a249dfc080"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xfc26b50e232f17607672f03d027db6e90a694ae2eea01d5893bd19c3fe55a255",
+      "status": "mined",
+      "block": "72852289",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xfc26b50e232f17607672f03d027db6e90a694ae2eea01d5893bd19c3fe55a255"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xe10929019e8e7ae94a0aa51deb50b487ea2727c9b1067062da87de6dd72f2f14",
+      "status": "mined",
+      "block": "72852291",
+      "gasUsed": "191762",
+      "feeWei": "4794050000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xe10929019e8e7ae94a0aa51deb50b487ea2727c9b1067062da87de6dd72f2f14"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x621d5e5596a3d9530e2c5d141f74df216aada70f2e730dddc470a6e25233de62",
+      "status": "mined",
+      "block": "72852290",
+      "gasUsed": "96994",
+      "feeWei": "2424850000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x621d5e5596a3d9530e2c5d141f74df216aada70f2e730dddc470a6e25233de62"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xf174c47c150fb4d45bb881e1216a548885a063c2aa5a4a3fdc3689704691441f",
+      "status": "mined",
+      "block": "72852293",
+      "gasUsed": "85031",
+      "feeWei": "2125775000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xf174c47c150fb4d45bb881e1216a548885a063c2aa5a4a3fdc3689704691441f"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x55fb4ac436ef505ca25149824ef89a1d77b452298aa6ceedf6cbcf2732eb8731",
+      "status": "mined",
+      "block": "72852294",
+      "gasUsed": "96994",
+      "feeWei": "2424850000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x55fb4ac436ef505ca25149824ef89a1d77b452298aa6ceedf6cbcf2732eb8731"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x17873d52c9916ce98cd2d6875244b177bd9e4323b5d3dd0ebd59a745e16d47c9",
+      "status": "mined",
+      "block": "72852295",
+      "gasUsed": "85031",
+      "feeWei": "2125775000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x17873d52c9916ce98cd2d6875244b177bd9e4323b5d3dd0ebd59a745e16d47c9"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x327e5bb119612703b443352cbeb8c1382a6db8b3900ff9c1759ade81d193fae1",
+      "status": "mined",
+      "block": "72852296",
+      "gasUsed": "191750",
+      "feeWei": "4793750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x327e5bb119612703b443352cbeb8c1382a6db8b3900ff9c1759ade81d193fae1"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xd98ae6fccd505b01174b8a110ab766e02efa8d4ee532f7cd6bdae42d31951523",
+      "status": "mined",
+      "block": "72852299",
+      "gasUsed": "96994",
+      "feeWei": "2424850000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xd98ae6fccd505b01174b8a110ab766e02efa8d4ee532f7cd6bdae42d31951523"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xf1243bbab17c7e1a43719ea658c0faf8883e48b0f73b0b6e53fd2d3654abd6de",
+      "status": "mined",
+      "block": "72852300",
+      "gasUsed": "85031",
+      "feeWei": "2125775000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xf1243bbab17c7e1a43719ea658c0faf8883e48b0f73b0b6e53fd2d3654abd6de"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xafec7c1e2c9cb85313b4503e73bcc5e17f3bc1a657f515086ddba4d0743c0e4b",
+      "status": "mined",
+      "block": "72852302",
+      "gasUsed": "108957",
+      "feeWei": "2723925000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xafec7c1e2c9cb85313b4503e73bcc5e17f3bc1a657f515086ddba4d0743c0e4b"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x109bfd8d9777cac1c12ec929f93fa336f00204359bc501f1b25871d374fa57f1",
+      "status": "mined",
+      "block": "72852303",
+      "gasUsed": "96994",
+      "feeWei": "2424850000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x109bfd8d9777cac1c12ec929f93fa336f00204359bc501f1b25871d374fa57f1"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xee7de5da22383254be483e2e5c660f06ad6675d956e79f52100906c33a55da6e",
+      "status": "mined",
+      "block": "72852304",
+      "gasUsed": "85031",
+      "feeWei": "2125775000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xee7de5da22383254be483e2e5c660f06ad6675d956e79f52100906c33a55da6e"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xcb148cc28b5f3389e22919fbe92fcd962e8f2e5ac6a7a86a5c09e0eec5b9304a",
+      "status": "mined",
+      "block": "72852305",
+      "gasUsed": "97018",
+      "feeWei": "2425450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xcb148cc28b5f3389e22919fbe92fcd962e8f2e5ac6a7a86a5c09e0eec5b9304a"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xfb7876f217942e13a5cd53dc6cd779faaefe14e89c989bb3c5dcf97f96fc1ad6",
+      "status": "mined",
+      "block": "72852306",
+      "gasUsed": "85043",
+      "feeWei": "2126075000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xfb7876f217942e13a5cd53dc6cd779faaefe14e89c989bb3c5dcf97f96fc1ad6"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x6945fb0f7a8fb8e54da37399353816bb0804ff1d6a3e801abfc2c837e3ca752a",
+      "status": "mined",
+      "block": "72852308",
+      "gasUsed": "108993",
+      "feeWei": "2724825000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x6945fb0f7a8fb8e54da37399353816bb0804ff1d6a3e801abfc2c837e3ca752a"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x47cca5b504a2f3a3c2264780ff95eff360626e08b6b0ae835ca1518f9b06dab5",
+      "status": "mined",
+      "block": "72852309",
+      "gasUsed": "108993",
+      "feeWei": "2724825000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x47cca5b504a2f3a3c2264780ff95eff360626e08b6b0ae835ca1518f9b06dab5"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xed127dcf1e542a31ac9d6c8ff82bbfb2a262bd0af00928978cf1761b82025363",
+      "status": "mined",
+      "block": "72852314",
+      "gasUsed": "108993",
+      "feeWei": "2724825000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xed127dcf1e542a31ac9d6c8ff82bbfb2a262bd0af00928978cf1761b82025363"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xfb27ac104c5a0e6a0953024c12d7d4c2390ddc924404767c5507cad3331cb348",
+      "status": "mined",
+      "block": "72852314",
+      "gasUsed": "108993",
+      "feeWei": "2724825000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xfb27ac104c5a0e6a0953024c12d7d4c2390ddc924404767c5507cad3331cb348"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x90e28caddd50cc29ba53aac51b09a835cbe9d3810baa761181a834f7b35da197",
+      "status": "mined",
+      "block": "72852315",
+      "gasUsed": "85043",
+      "feeWei": "2126075000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x90e28caddd50cc29ba53aac51b09a835cbe9d3810baa761181a834f7b35da197"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x7c7427f2cf60580c6cce2e53e3eae6b906c5d80cdf80e1812b24236632336821",
+      "status": "mined",
+      "block": "72852316",
+      "gasUsed": "97018",
+      "feeWei": "2425450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x7c7427f2cf60580c6cce2e53e3eae6b906c5d80cdf80e1812b24236632336821"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xa0e16a7dc0b07dd094285d123ce6a59f71a51eec468c889226560e70dbe4e2be",
+      "status": "mined",
+      "block": "72852317",
+      "gasUsed": "85043",
+      "feeWei": "2126075000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xa0e16a7dc0b07dd094285d123ce6a59f71a51eec468c889226560e70dbe4e2be"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x8972c43f21c537a1a5c02e939e0b60c371ad70b19d4069940f83caa05dbc76f8",
+      "status": "mined",
+      "block": "72852318",
+      "gasUsed": "108993",
+      "feeWei": "2724825000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x8972c43f21c537a1a5c02e939e0b60c371ad70b19d4069940f83caa05dbc76f8"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x90f65c18d11ac1c6a557b568930c4ea359fece56d29a1853d29ebd75ce08c85b",
+      "status": "mined",
+      "block": "72852319",
+      "gasUsed": "108993",
+      "feeWei": "2724825000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x90f65c18d11ac1c6a557b568930c4ea359fece56d29a1853d29ebd75ce08c85b"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xf719086be862c092aead5232b4cb7f8bcfe1845a2bee8065ee8152970002b77e",
+      "status": "mined",
+      "block": "72852320",
+      "gasUsed": "97018",
+      "feeWei": "2425450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xf719086be862c092aead5232b4cb7f8bcfe1845a2bee8065ee8152970002b77e"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x92eef8b4b5c6e8cbc85f56118c1394e1c9d286f19274fceb6b69d76ed8cefb3e",
+      "status": "mined",
+      "block": "72852327",
+      "gasUsed": "85043",
+      "feeWei": "2126075000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x92eef8b4b5c6e8cbc85f56118c1394e1c9d286f19274fceb6b69d76ed8cefb3e"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x1f61ed9b2e423c292b8218be3daada52051b5b96389dddfdf039d1152f2a04f9",
+      "status": "mined",
+      "block": "72852328",
+      "gasUsed": "108993",
+      "feeWei": "2724825000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x1f61ed9b2e423c292b8218be3daada52051b5b96389dddfdf039d1152f2a04f9"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xb59019696484fb870cb9cdeed477100e0a131d2c976ab8fe2de4f9d4d6219d92",
+      "status": "mined",
+      "block": "72852328",
+      "gasUsed": "97018",
+      "feeWei": "2425450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xb59019696484fb870cb9cdeed477100e0a131d2c976ab8fe2de4f9d4d6219d92"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xd728964ce649df3d81f21059347664798d7a32cfcffea396549f14527b622e4c",
+      "status": "mined",
+      "block": "72852329",
+      "gasUsed": "97018",
+      "feeWei": "2425450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xd728964ce649df3d81f21059347664798d7a32cfcffea396549f14527b622e4c"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x50800f3ba43eb984972bcfc040cef40a7caa53709902285dc5654fd6a85509f4",
+      "status": "mined",
+      "block": "72852330",
+      "gasUsed": "85043",
+      "feeWei": "2126075000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x50800f3ba43eb984972bcfc040cef40a7caa53709902285dc5654fd6a85509f4"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x73a9ba2549dce7c2ae4566d6f0d06e2bee0e55ecb0a0547e220e5ef155bf6966",
+      "status": "mined",
+      "block": "72852330",
+      "gasUsed": "97018",
+      "feeWei": "2425450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x73a9ba2549dce7c2ae4566d6f0d06e2bee0e55ecb0a0547e220e5ef155bf6966"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x5c7a6d0b26545ed581c6c6724c31efa8422b659433738bb54a6452d3caf0d2a4",
+      "status": "mined",
+      "block": "72852331",
+      "gasUsed": "108993",
+      "feeWei": "2724825000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x5c7a6d0b26545ed581c6c6724c31efa8422b659433738bb54a6452d3caf0d2a4"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x7d2418b3a6b03885468a6c3a08da5ba210f3fd6509371f4ef8ea004f401ba425",
+      "status": "mined",
+      "block": "72852332",
+      "gasUsed": "108993",
+      "feeWei": "2724825000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x7d2418b3a6b03885468a6c3a08da5ba210f3fd6509371f4ef8ea004f401ba425"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x88d596c8dd4aaeb9a180830ab86959c2357b05ef47bc21ff7d0c3a514d1f40a3",
+      "status": "mined",
+      "block": "72852336",
+      "gasUsed": "97018",
+      "feeWei": "2425450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x88d596c8dd4aaeb9a180830ab86959c2357b05ef47bc21ff7d0c3a514d1f40a3"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xbed18afa00dcf7b37571bb588ec584b65ae865ac265014441cf1b18a9ef17543",
+      "status": "mined",
+      "block": "72852337",
+      "gasUsed": "85043",
+      "feeWei": "2126075000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xbed18afa00dcf7b37571bb588ec584b65ae865ac265014441cf1b18a9ef17543"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x67af8414fd950b257613a1424330e22685228dcdf86789af4fe8f88d236d9fab",
+      "status": "mined",
+      "block": "72852339",
+      "gasUsed": "97018",
+      "feeWei": "2425450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x67af8414fd950b257613a1424330e22685228dcdf86789af4fe8f88d236d9fab"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x5f1b37996496e82adb8b2ecaf6291e2ef32d67d800ddfc6f94cb9a0263bb305d",
+      "status": "mined",
+      "block": "72852340",
+      "gasUsed": "108993",
+      "feeWei": "2724825000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x5f1b37996496e82adb8b2ecaf6291e2ef32d67d800ddfc6f94cb9a0263bb305d"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x5b7294769163a26b7a0ae2ed1e3c4b464266a8fda07aa0479831c6c60ab47d24",
+      "status": "mined",
+      "block": "72852341",
+      "gasUsed": "97018",
+      "feeWei": "2425450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x5b7294769163a26b7a0ae2ed1e3c4b464266a8fda07aa0479831c6c60ab47d24"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x7c971ee466db572dd08919f06c0c88fd0105c1b11b35bfe41b2d06e93289a0fe",
+      "status": "mined",
+      "block": "72852342",
+      "gasUsed": "85043",
+      "feeWei": "2126075000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x7c971ee466db572dd08919f06c0c88fd0105c1b11b35bfe41b2d06e93289a0fe"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x8af8c2631e724f2e692fd2967f003cfe3ebe689801336f6cd5745b4da2aee1fb",
+      "status": "mined",
+      "block": "72852343",
+      "gasUsed": "85043",
+      "feeWei": "2126075000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x8af8c2631e724f2e692fd2967f003cfe3ebe689801336f6cd5745b4da2aee1fb"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xe708266064fc65e5b497b8e62cf76a051d8f718f13cf4623e42852b3f96b70e9",
+      "status": "mined",
+      "block": "72852344",
+      "gasUsed": "97018",
+      "feeWei": "2425450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xe708266064fc65e5b497b8e62cf76a051d8f718f13cf4623e42852b3f96b70e9"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x1dea9283babc7661b6974352b4fd129ac62c7095a67738fcf42145a728657ac0",
+      "status": "mined",
+      "block": "72852348",
+      "gasUsed": "108993",
+      "feeWei": "2724825000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x1dea9283babc7661b6974352b4fd129ac62c7095a67738fcf42145a728657ac0"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x644793c589e645389d51610ae20faaff21d3d7fa4628ca63b2edb4f9deaffb23",
+      "status": "mined",
+      "block": "72852349",
+      "gasUsed": "85043",
+      "feeWei": "2126075000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x644793c589e645389d51610ae20faaff21d3d7fa4628ca63b2edb4f9deaffb23"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x34d6179425f62ca5447e8be5ac4ed2b52df9ea483881aa55653a9bf9a6f97991",
+      "status": "mined",
+      "block": "72852350",
+      "gasUsed": "97018",
+      "feeWei": "2425450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x34d6179425f62ca5447e8be5ac4ed2b52df9ea483881aa55653a9bf9a6f97991"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x3ebe347da05cf9152111e50c133c4f5902acdd7db32abb00fea2b1c24dce227b",
+      "status": "mined",
+      "block": "72852350",
+      "gasUsed": "97018",
+      "feeWei": "2425450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x3ebe347da05cf9152111e50c133c4f5902acdd7db32abb00fea2b1c24dce227b"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xdba6e7bece92b0c42abbaaa5129cc6db936e3f01b4ed20dcd16aeaedd5d96a7d",
+      "status": "mined",
+      "block": "72852351",
+      "gasUsed": "85043",
+      "feeWei": "2126075000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xdba6e7bece92b0c42abbaaa5129cc6db936e3f01b4ed20dcd16aeaedd5d96a7d"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xcda7163eb39852fb5b482595b2a938fac286977cd41b1049f5e4d6bbdcef15d5",
+      "status": "mined",
+      "block": "72852352",
+      "gasUsed": "85043",
+      "feeWei": "2126075000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xcda7163eb39852fb5b482595b2a938fac286977cd41b1049f5e4d6bbdcef15d5"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xffe4210bf3012a2faa050d0270acdee002a021218c03c72440cd4a3b8bf535a1",
+      "status": "mined",
+      "block": "72852353",
+      "gasUsed": "97018",
+      "feeWei": "2425450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xffe4210bf3012a2faa050d0270acdee002a021218c03c72440cd4a3b8bf535a1"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xa6cee399cdf9d9a5800ee4ed13ef1b9cfa9d3c3a73995ad75244071074c8b8e2",
+      "status": "mined",
+      "block": "72852354",
+      "gasUsed": "97018",
+      "feeWei": "2425450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xa6cee399cdf9d9a5800ee4ed13ef1b9cfa9d3c3a73995ad75244071074c8b8e2"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xd6d974d4c954a7f804d144743d6b89cf352a14aa71ab788a06c2bc1f8792b3ac",
+      "status": "mined",
+      "block": "72852360",
+      "gasUsed": "85043",
+      "feeWei": "2126075000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xd6d974d4c954a7f804d144743d6b89cf352a14aa71ab788a06c2bc1f8792b3ac"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x53c7e2256b912de009346838a5f0ea21dc351ebf8a27b94cad1e9f7f85faed6e",
+      "status": "mined",
+      "block": "72852361",
+      "gasUsed": "85043",
+      "feeWei": "2126075000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x53c7e2256b912de009346838a5f0ea21dc351ebf8a27b94cad1e9f7f85faed6e"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x6bd4b71bc815d5f85ddf14d1c447198386b20e7fd103f6e947f0a5283b5b40db",
+      "status": "mined",
+      "block": "72852362",
+      "gasUsed": "97018",
+      "feeWei": "2425450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x6bd4b71bc815d5f85ddf14d1c447198386b20e7fd103f6e947f0a5283b5b40db"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x6a30c2ff56f08cadf7bd545c89590e2a779994dbd17f95d24ee1147f410ee332",
+      "status": "mined",
+      "block": "72852362",
+      "gasUsed": "108993",
+      "feeWei": "2724825000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x6a30c2ff56f08cadf7bd545c89590e2a779994dbd17f95d24ee1147f410ee332"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xf294157155418e054758a325316ce554018dc68a2b047bb87552f6d419bbb427",
+      "status": "mined",
+      "block": "72852364",
+      "gasUsed": "97018",
+      "feeWei": "2425450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xf294157155418e054758a325316ce554018dc68a2b047bb87552f6d419bbb427"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x6a5ee1870f657373db6676cac2dadf231fc3d392ec381dd83d5a44678df6e569",
+      "status": "mined",
+      "block": "72852365",
+      "gasUsed": "85043",
+      "feeWei": "2126075000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x6a5ee1870f657373db6676cac2dadf231fc3d392ec381dd83d5a44678df6e569"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xf5d0e28255503454c9148fec7b9981adb1a4c6b9f5ca0131c240b15dbfd5efd8",
+      "status": "mined",
+      "block": "72852365",
+      "gasUsed": "97018",
+      "feeWei": "2425450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xf5d0e28255503454c9148fec7b9981adb1a4c6b9f5ca0131c240b15dbfd5efd8"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x4a5f1fe776591f7607344679e73c5f01308da840c643e3f881ae98a1227d34f7",
+      "status": "mined",
+      "block": "72852366",
+      "gasUsed": "85043",
+      "feeWei": "2126075000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x4a5f1fe776591f7607344679e73c5f01308da840c643e3f881ae98a1227d34f7"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x0e0a34c91fbfcf70cd2c55b84a45e1abe49c81b1fd1120a3fc7ca2a8a58ef31a",
+      "status": "mined",
+      "block": "72852372",
+      "gasUsed": "97018",
+      "feeWei": "2425450000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x0e0a34c91fbfcf70cd2c55b84a45e1abe49c81b1fd1120a3fc7ca2a8a58ef31a"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xd9552904d2bba62b4eeef07dbaec06b82dbfef781ef6ed94a848fd7a0b57ef6f",
+      "status": "mined",
+      "block": "72852373",
+      "gasUsed": "85043",
+      "feeWei": "2126075000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xd9552904d2bba62b4eeef07dbaec06b82dbfef781ef6ed94a848fd7a0b57ef6f"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x6b177f21ea976161781d9c26d50c235130ac3c0ec86ec52e3802bb2151e14c27",
+      "status": "mined",
+      "block": "72852374",
+      "gasUsed": "85043",
+      "feeWei": "2126075000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x6b177f21ea976161781d9c26d50c235130ac3c0ec86ec52e3802bb2151e14c27"
+    },
+    {
+      "kind": "closeSales",
+      "signer": "relayer",
+      "hash": "0x7e0cd665f72c422136435a016d93bd6798d5cae34aa1c76b67090ce1fe6bf9fa",
+      "status": "mined",
+      "block": "72852380",
+      "gasUsed": "32662",
+      "feeWei": "816550000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x7e0cd665f72c422136435a016d93bd6798d5cae34aa1c76b67090ce1fe6bf9fa"
+    },
+    {
+      "kind": "settle",
+      "signer": "oracle",
+      "hash": "0xeb989cc004b206acbbb73334964737e5177bd62baaf43e2b74e85dcd81b663f1",
+      "status": "mined",
+      "block": "72852396",
+      "gasUsed": "57439",
+      "feeWei": "1435975000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xeb989cc004b206acbbb73334964737e5177bd62baaf43e2b74e85dcd81b663f1"
+    },
+    {
+      "kind": "refundBatch",
+      "signer": "relayer",
+      "hash": "0x47f00ee18bf18d88201057e927a2c6058f4d99a620c9b88a67ab486c12f99f9c",
+      "status": "mined",
+      "block": "72852398",
+      "gasUsed": "1894250",
+      "feeWei": "47356250000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x47f00ee18bf18d88201057e927a2c6058f4d99a620c9b88a67ab486c12f99f9c"
+    },
+    {
+      "kind": "refundBatch",
+      "signer": "relayer",
+      "hash": "0x407ea277809fa64d16d29577dcba27d1abc328501facf2599c3183a6a2faae29",
+      "status": "mined",
+      "block": "72852399",
+      "gasUsed": "1394838",
+      "feeWei": "34870950000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x407ea277809fa64d16d29577dcba27d1abc328501facf2599c3183a6a2faae29"
+    },
+    {
+      "kind": "refundBatch",
+      "signer": "relayer",
+      "hash": "0xaaaf7803652325614f25ffaf40cc5c45e57b972bbe7d695f5e667ae9ce52c9e4",
+      "status": "mined",
+      "block": "72852400",
+      "gasUsed": "1143790",
+      "feeWei": "28594750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xaaaf7803652325614f25ffaf40cc5c45e57b972bbe7d695f5e667ae9ce52c9e4"
+    },
+    {
+      "kind": "payMerchant",
+      "signer": "relayer",
+      "hash": "0x862fb3be525bc2e010a0627cdac221cd8466f28791001f9d75014da31b173247",
+      "status": "mined",
+      "block": "72852405",
+      "gasUsed": "98984",
+      "feeWei": "2474600000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x862fb3be525bc2e010a0627cdac221cd8466f28791001f9d75014da31b173247"
+    },
+    {
+      "kind": "release",
+      "signer": "relayer",
+      "hash": "0xbc01daafdacbee13564ca4d2a6b1045d300c04d52cbc4fe323bbd95a9a229cf7",
+      "status": "mined",
+      "block": "72852408",
+      "gasUsed": "70083",
+      "feeWei": "1752075000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xbc01daafdacbee13564ca4d2a6b1045d300c04d52cbc4fe323bbd95a9a229cf7"
+    },
+    {
+      "kind": "sweep",
+      "signer": "merchant",
+      "hash": "0xcdd6773098519319b06218c9107fea84d613bebf7b366848949a589a7eff1948",
+      "status": "swept",
+      "block": "72852422",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xcdd6773098519319b06218c9107fea84d613bebf7b366848949a589a7eff1948"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 1",
+      "hash": "0x73634cb47b9d0836ac696dbc4fbf9bd3473ffe982966b2705047933cf3bea6cf",
+      "status": "swept",
+      "block": "72852425",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x73634cb47b9d0836ac696dbc4fbf9bd3473ffe982966b2705047933cf3bea6cf"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 2",
+      "hash": "0x1b135c1a03e881c4275442973df47cbba22158823bd1f43bbeb119cbf05c478d",
+      "status": "swept",
+      "block": "72852427",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x1b135c1a03e881c4275442973df47cbba22158823bd1f43bbeb119cbf05c478d"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 3",
+      "hash": "0x54ac277cc944729cb19d6f99160c9aecfa1bf88cf585b92d324371e75af51975",
+      "status": "swept",
+      "block": "72852429",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x54ac277cc944729cb19d6f99160c9aecfa1bf88cf585b92d324371e75af51975"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 4",
+      "hash": "0xbf99c75b86769ace80da1d115d6f57d113fed74eb6f7765d95d5463ae3d5b6c6",
+      "status": "swept",
+      "block": "72852431",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xbf99c75b86769ace80da1d115d6f57d113fed74eb6f7765d95d5463ae3d5b6c6"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 5",
+      "hash": "0x647135511f5bdbf59732ff42bcc7d5ec3cd2be770ca5241c3d157c84edf0eb1f",
+      "status": "swept",
+      "block": "72852433",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x647135511f5bdbf59732ff42bcc7d5ec3cd2be770ca5241c3d157c84edf0eb1f"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 6",
+      "hash": "0x03170f4cbe1369223cbcd1e74e8aa762720dfc60aabf9f3edf4769840e9f108f",
+      "status": "swept",
+      "block": "72852434",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x03170f4cbe1369223cbcd1e74e8aa762720dfc60aabf9f3edf4769840e9f108f"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 7",
+      "hash": "0xb4bf5d1e75c9398a2efdedb3ec0ca5dcee80dbd15a6ececaaeff6bc7d77e023b",
+      "status": "swept",
+      "block": "72852437",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xb4bf5d1e75c9398a2efdedb3ec0ca5dcee80dbd15a6ececaaeff6bc7d77e023b"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 8",
+      "hash": "0xc271f91a550c91beaa79ef97f3144dd06fd4ca5640b5ba2d9dc4011db9e1450b",
+      "status": "swept",
+      "block": "72852439",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xc271f91a550c91beaa79ef97f3144dd06fd4ca5640b5ba2d9dc4011db9e1450b"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 9",
+      "hash": "0xde87d6070ce123b22d19c0a445c3c7592b353e8e4c3efb83a44726ccf6ac3b6e",
+      "status": "swept",
+      "block": "72852440",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xde87d6070ce123b22d19c0a445c3c7592b353e8e4c3efb83a44726ccf6ac3b6e"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 10",
+      "hash": "0x8d9823e2f416f692f2f058071cdb59514920b0d8bb38571340bb04f5307509e3",
+      "status": "swept",
+      "block": "72852442",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x8d9823e2f416f692f2f058071cdb59514920b0d8bb38571340bb04f5307509e3"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 11",
+      "hash": "0x543f1461255239512067650a20f6e1527b4942fa52b96803b835b4dba683fdfa",
+      "status": "swept",
+      "block": "72852444",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x543f1461255239512067650a20f6e1527b4942fa52b96803b835b4dba683fdfa"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 12",
+      "hash": "0xd61b4eb9abbf61b3db932b68523568459ac6d0c65b30be0367e5126a0aae766d",
+      "status": "swept",
+      "block": "72852446",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xd61b4eb9abbf61b3db932b68523568459ac6d0c65b30be0367e5126a0aae766d"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 13",
+      "hash": "0x40780fcb03eba7bfc5af6cf130bb6fa6e5dab577c58791703182b393023d2240",
+      "status": "swept",
+      "block": "72852447",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x40780fcb03eba7bfc5af6cf130bb6fa6e5dab577c58791703182b393023d2240"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 14",
+      "hash": "0x3b75fe6a1806e5260161994c477d5e3af13e487b2b4c0b8821a57d136327e0e9",
+      "status": "swept",
+      "block": "72852449",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x3b75fe6a1806e5260161994c477d5e3af13e487b2b4c0b8821a57d136327e0e9"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 15",
+      "hash": "0x31b2c61fcdda033656684e22b609f60d6b1f99490370d6bd981fc26d4e374fd7",
+      "status": "swept",
+      "block": "72852451",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x31b2c61fcdda033656684e22b609f60d6b1f99490370d6bd981fc26d4e374fd7"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 16",
+      "hash": "0x33e3da4d74a6e2d625fed98a1f08b9319a595ff5311df0d86e5bfaa7711cccb8",
+      "status": "swept",
+      "block": "72852453",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x33e3da4d74a6e2d625fed98a1f08b9319a595ff5311df0d86e5bfaa7711cccb8"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 17",
+      "hash": "0xe59f51c818fd4e11d273487c2cc3574fba8a22036a8e2235016db68d94cb1b9a",
+      "status": "swept",
+      "block": "72852454",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xe59f51c818fd4e11d273487c2cc3574fba8a22036a8e2235016db68d94cb1b9a"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 18",
+      "hash": "0x23f86aaff95027a5578b17cdf8bdef0c991d196bcc8ede9d7f96de3b3143e895",
+      "status": "swept",
+      "block": "72852457",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x23f86aaff95027a5578b17cdf8bdef0c991d196bcc8ede9d7f96de3b3143e895"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 19",
+      "hash": "0x5a961fc63ca5897af013f6d9560548f22ea766b0ad42dd62025e521669027476",
+      "status": "swept",
+      "block": "72852459",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x5a961fc63ca5897af013f6d9560548f22ea766b0ad42dd62025e521669027476"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 20",
+      "hash": "0x556969f3aff122ca00823f8129eb454f1dce4cad81b43390dcc9cf8a92aac534",
+      "status": "swept",
+      "block": "72852460",
+      "gasUsed": "21000",
+      "feeWei": "609000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x556969f3aff122ca00823f8129eb454f1dce4cad81b43390dcc9cf8a92aac534"
+    }
+  ],
+  "purchases": [
+    {
+      "index": 1,
+      "buyer": 1,
+      "qty": 1,
+      "callToTicketMs": 2533,
+      "callToDashboardMs": 2388
+    },
+    {
+      "index": 2,
+      "buyer": 2,
+      "qty": 1,
+      "callToTicketMs": 2042,
+      "callToDashboardMs": 1966
+    },
+    {
+      "index": 3,
+      "buyer": 3,
+      "qty": 1,
+      "callToTicketMs": 2546,
+      "callToDashboardMs": 2493
+    },
+    {
+      "index": 4,
+      "buyer": 4,
+      "qty": 1,
+      "callToTicketMs": 2523,
+      "callToDashboardMs": 2478
+    },
+    {
+      "index": 5,
+      "buyer": 5,
+      "qty": 1,
+      "callToTicketMs": 2523,
+      "callToDashboardMs": 2415
+    },
+    {
+      "index": 6,
+      "buyer": 6,
+      "qty": 1,
+      "callToTicketMs": 2272,
+      "callToDashboardMs": 2190
+    },
+    {
+      "index": 7,
+      "buyer": 7,
+      "qty": 1,
+      "callToTicketMs": 3026,
+      "callToDashboardMs": 2853
+    },
+    {
+      "index": 8,
+      "buyer": 8,
+      "qty": 1,
+      "callToTicketMs": 2775,
+      "callToDashboardMs": 2811
+    },
+    {
+      "index": 9,
+      "buyer": 9,
+      "qty": 1,
+      "callToTicketMs": 2773,
+      "callToDashboardMs": 2682
+    },
+    {
+      "index": 10,
+      "buyer": 10,
+      "qty": 1,
+      "callToTicketMs": 2019,
+      "callToDashboardMs": 2052
+    },
+    {
+      "index": 11,
+      "buyer": 11,
+      "qty": 1,
+      "callToTicketMs": 1767,
+      "callToDashboardMs": 1840
+    },
+    {
+      "index": 12,
+      "buyer": 12,
+      "qty": 1,
+      "callToTicketMs": 2020,
+      "callToDashboardMs": 2026
+    },
+    {
+      "index": 13,
+      "buyer": 13,
+      "qty": 1,
+      "callToTicketMs": 2014,
+      "callToDashboardMs": 1994
+    },
+    {
+      "index": 14,
+      "buyer": 14,
+      "qty": 1,
+      "callToTicketMs": 2016,
+      "callToDashboardMs": 2066
+    },
+    {
+      "index": 15,
+      "buyer": 15,
+      "qty": 1,
+      "callToTicketMs": 2017,
+      "callToDashboardMs": 2039
+    },
+    {
+      "index": 16,
+      "buyer": 16,
+      "qty": 1,
+      "callToTicketMs": 3021,
+      "callToDashboardMs": 3047
+    },
+    {
+      "index": 17,
+      "buyer": 17,
+      "qty": 1,
+      "callToTicketMs": 3270,
+      "callToDashboardMs": 3114
+    },
+    {
+      "index": 18,
+      "buyer": 18,
+      "qty": 1,
+      "callToTicketMs": 3273,
+      "callToDashboardMs": 3087
+    },
+    {
+      "index": 19,
+      "buyer": 19,
+      "qty": 1,
+      "callToTicketMs": 2261,
+      "callToDashboardMs": 2243
+    },
+    {
+      "index": 20,
+      "buyer": 20,
+      "qty": 1,
+      "callToTicketMs": 2518,
+      "callToDashboardMs": 2374
+    },
+    {
+      "index": 21,
+      "buyer": 1,
+      "qty": 1,
+      "callToTicketMs": 2274,
+      "callToDashboardMs": 2134
+    },
+    {
+      "index": 22,
+      "buyer": 2,
+      "qty": 1,
+      "callToTicketMs": 2518,
+      "callToDashboardMs": 2513
+    },
+    {
+      "index": 23,
+      "buyer": 3,
+      "qty": 1,
+      "callToTicketMs": 2017,
+      "callToDashboardMs": 1863
+    },
+    {
+      "index": 24,
+      "buyer": 4,
+      "qty": 1,
+      "callToTicketMs": 2015,
+      "callToDashboardMs": 2072
+    },
+    {
+      "index": 25,
+      "buyer": 5,
+      "qty": 1,
+      "callToTicketMs": 3269,
+      "callToDashboardMs": 3053
+    },
+    {
+      "index": 26,
+      "buyer": 6,
+      "qty": 1,
+      "callToTicketMs": 3026,
+      "callToDashboardMs": 3122
+    },
+    {
+      "index": 27,
+      "buyer": 7,
+      "qty": 1,
+      "callToTicketMs": 3275,
+      "callToDashboardMs": 3225
+    },
+    {
+      "index": 28,
+      "buyer": 8,
+      "qty": 1,
+      "callToTicketMs": 2523,
+      "callToDashboardMs": 2542
+    },
+    {
+      "index": 29,
+      "buyer": 9,
+      "qty": 1,
+      "callToTicketMs": 2019,
+      "callToDashboardMs": 2001
+    },
+    {
+      "index": 30,
+      "buyer": 10,
+      "qty": 1,
+      "callToTicketMs": 2514,
+      "callToDashboardMs": 2281
+    },
+    {
+      "index": 31,
+      "buyer": 11,
+      "qty": 1,
+      "callToTicketMs": 2028,
+      "callToDashboardMs": 1992
+    },
+    {
+      "index": 32,
+      "buyer": 12,
+      "qty": 1,
+      "callToTicketMs": 2031,
+      "callToDashboardMs": 1917
+    },
+    {
+      "index": 33,
+      "buyer": 13,
+      "qty": 1,
+      "callToTicketMs": 2012,
+      "callToDashboardMs": 1983
+    },
+    {
+      "index": 34,
+      "buyer": 14,
+      "qty": 1,
+      "callToTicketMs": 2776,
+      "callToDashboardMs": 2820
+    },
+    {
+      "index": 35,
+      "buyer": 15,
+      "qty": 1,
+      "callToTicketMs": 2516,
+      "callToDashboardMs": 2539
+    },
+    {
+      "index": 36,
+      "buyer": 16,
+      "qty": 1,
+      "callToTicketMs": 2768,
+      "callToDashboardMs": 2834
+    },
+    {
+      "index": 37,
+      "buyer": 17,
+      "qty": 1,
+      "callToTicketMs": 2266,
+      "callToDashboardMs": 2270
+    },
+    {
+      "index": 38,
+      "buyer": 18,
+      "qty": 1,
+      "callToTicketMs": 2517,
+      "callToDashboardMs": 2348
+    },
+    {
+      "index": 39,
+      "buyer": 19,
+      "qty": 1,
+      "callToTicketMs": 2265,
+      "callToDashboardMs": 2181
+    },
+    {
+      "index": 40,
+      "buyer": 20,
+      "qty": 1,
+      "callToTicketMs": 2523,
+      "callToDashboardMs": 2446
+    },
+    {
+      "index": 41,
+      "buyer": 1,
+      "qty": 1,
+      "callToTicketMs": 2015,
+      "callToDashboardMs": 1958
+    },
+    {
+      "index": 42,
+      "buyer": 2,
+      "qty": 1,
+      "callToTicketMs": 2015,
+      "callToDashboardMs": 1935
+    },
+    {
+      "index": 43,
+      "buyer": 3,
+      "qty": 1,
+      "callToTicketMs": 3020,
+      "callToDashboardMs": 2919
+    },
+    {
+      "index": 44,
+      "buyer": 4,
+      "qty": 1,
+      "callToTicketMs": 2266,
+      "callToDashboardMs": 2264
+    },
+    {
+      "index": 45,
+      "buyer": 5,
+      "qty": 1,
+      "callToTicketMs": 3024,
+      "callToDashboardMs": 3000
+    },
+    {
+      "index": 46,
+      "buyer": 6,
+      "qty": 1,
+      "callToTicketMs": 2772,
+      "callToDashboardMs": 2770
+    },
+    {
+      "index": 47,
+      "buyer": 7,
+      "qty": 1,
+      "callToTicketMs": 2017,
+      "callToDashboardMs": 1932
+    },
+    {
+      "index": 48,
+      "buyer": 8,
+      "qty": 1,
+      "callToTicketMs": 2021,
+      "callToDashboardMs": 1904
+    },
+    {
+      "index": 49,
+      "buyer": 9,
+      "qty": 1,
+      "callToTicketMs": 2025,
+      "callToDashboardMs": 1920
+    },
+    {
+      "index": 50,
+      "buyer": 10,
+      "qty": 1,
+      "callToTicketMs": 2013,
+      "callToDashboardMs": 2003
+    },
+    {
+      "index": 51,
+      "buyer": 11,
+      "qty": 1,
+      "callToTicketMs": 2012,
+      "callToDashboardMs": 1992
+    },
+    {
+      "index": 52,
+      "buyer": 12,
+      "qty": 1,
+      "callToTicketMs": 2770,
+      "callToDashboardMs": 2796
+    },
+    {
+      "index": 53,
+      "buyer": 13,
+      "qty": 1,
+      "callToTicketMs": 3037,
+      "callToDashboardMs": 2995
+    },
+    {
+      "index": 54,
+      "buyer": 14,
+      "qty": 1,
+      "callToTicketMs": 3038,
+      "callToDashboardMs": 2985
+    },
+    {
+      "index": 55,
+      "buyer": 15,
+      "qty": 1,
+      "callToTicketMs": 2089,
+      "callToDashboardMs": 2117
+    },
+    {
+      "index": 56,
+      "buyer": 16,
+      "qty": 1,
+      "callToTicketMs": 2062,
+      "callToDashboardMs": 1840
+    },
+    {
+      "index": 57,
+      "buyer": 17,
+      "qty": 1,
+      "callToTicketMs": 1842,
+      "callToDashboardMs": 1725
+    },
+    {
+      "index": 58,
+      "buyer": 18,
+      "qty": 1,
+      "callToTicketMs": 2016,
+      "callToDashboardMs": 1968
+    },
+    {
+      "index": 59,
+      "buyer": 19,
+      "qty": 1,
+      "callToTicketMs": 2018,
+      "callToDashboardMs": 2041
+    },
+    {
+      "index": 60,
+      "buyer": 20,
+      "qty": 1,
+      "callToTicketMs": 2016,
+      "callToDashboardMs": 1936
+    },
+    {
+      "index": 61,
+      "buyer": 1,
+      "qty": 1,
+      "callToTicketMs": 2522,
+      "callToDashboardMs": 2502
+    },
+    {
+      "index": 62,
+      "buyer": 2,
+      "qty": 1,
+      "callToTicketMs": 2772,
+      "callToDashboardMs": 2673
+    },
+    {
+      "index": 63,
+      "buyer": 3,
+      "qty": 1,
+      "callToTicketMs": 3025,
+      "callToDashboardMs": 2990
+    },
+    {
+      "index": 64,
+      "buyer": 4,
+      "qty": 1,
+      "callToTicketMs": 2013,
+      "callToDashboardMs": 2099
+    },
+    {
+      "index": 65,
+      "buyer": 5,
+      "qty": 1,
+      "callToTicketMs": 2014,
+      "callToDashboardMs": 2024
+    },
+    {
+      "index": 66,
+      "buyer": 6,
+      "qty": 1,
+      "callToTicketMs": 2019,
+      "callToDashboardMs": 1874
+    },
+    {
+      "index": 67,
+      "buyer": 7,
+      "qty": 1,
+      "callToTicketMs": 2011,
+      "callToDashboardMs": 2102
+    },
+    {
+      "index": 68,
+      "buyer": 8,
+      "qty": 1,
+      "callToTicketMs": 3038,
+      "callToDashboardMs": 2973
+    },
+    {
+      "index": 69,
+      "buyer": 9,
+      "qty": 1,
+      "callToTicketMs": 3028,
+      "callToDashboardMs": 3031
+    },
+    {
+      "index": 70,
+      "buyer": 10,
+      "qty": 1,
+      "callToTicketMs": 2032,
+      "callToDashboardMs": 2096
+    },
+    {
+      "index": 71,
+      "buyer": 11,
+      "qty": 1,
+      "callToTicketMs": 2518,
+      "callToDashboardMs": 2574
+    },
+    {
+      "index": 72,
+      "buyer": 12,
+      "qty": 1,
+      "callToTicketMs": 2267,
+      "callToDashboardMs": 2114
+    },
+    {
+      "index": 73,
+      "buyer": 13,
+      "qty": 1,
+      "callToTicketMs": 2769,
+      "callToDashboardMs": 2601
+    },
+    {
+      "index": 74,
+      "buyer": 14,
+      "qty": 1,
+      "callToTicketMs": 2015,
+      "callToDashboardMs": 2064
+    },
+    {
+      "index": 75,
+      "buyer": 15,
+      "qty": 1,
+      "callToTicketMs": 2268,
+      "callToDashboardMs": 2167
+    },
+    {
+      "index": 76,
+      "buyer": 16,
+      "qty": 1,
+      "callToTicketMs": 2018,
+      "callToDashboardMs": 1837
+    },
+    {
+      "index": 77,
+      "buyer": 17,
+      "qty": 1,
+      "callToTicketMs": 2016,
+      "callToDashboardMs": 2052
+    },
+    {
+      "index": 78,
+      "buyer": 18,
+      "qty": 1,
+      "callToTicketMs": 2268,
+      "callToDashboardMs": 2219
+    },
+    {
+      "index": 79,
+      "buyer": 19,
+      "qty": 1,
+      "callToTicketMs": 2017,
+      "callToDashboardMs": 2037
+    },
+    {
+      "index": 80,
+      "buyer": 20,
+      "qty": 1,
+      "callToTicketMs": 3022,
+      "callToDashboardMs": 3014
+    },
+    {
+      "index": 81,
+      "buyer": 1,
+      "qty": 1,
+      "callToTicketMs": 2767,
+      "callToDashboardMs": 2615
+    },
+    {
+      "index": 82,
+      "buyer": 2,
+      "qty": 1,
+      "callToTicketMs": 3028,
+      "callToDashboardMs": 2892
+    },
+    {
+      "index": 83,
+      "buyer": 3,
+      "qty": 1,
+      "callToTicketMs": 2017,
+      "callToDashboardMs": 2004
+    },
+    {
+      "index": 84,
+      "buyer": 4,
+      "qty": 1,
+      "callToTicketMs": 2269,
+      "callToDashboardMs": 2175
+    },
+    {
+      "index": 85,
+      "buyer": 5,
+      "qty": 1,
+      "callToTicketMs": 2768,
+      "callToDashboardMs": 2730
+    },
+    {
+      "index": 86,
+      "buyer": 6,
+      "qty": 1,
+      "callToTicketMs": 1768,
+      "callToDashboardMs": 1692
+    },
+    {
+      "index": 87,
+      "buyer": 7,
+      "qty": 1,
+      "callToTicketMs": 3025,
+      "callToDashboardMs": 2989
+    },
+    {
+      "index": 88,
+      "buyer": 8,
+      "qty": 1,
+      "callToTicketMs": 2266,
+      "callToDashboardMs": 2298
+    },
+    {
+      "index": 89,
+      "buyer": 9,
+      "qty": 1,
+      "callToTicketMs": 2770,
+      "callToDashboardMs": 2787
+    },
+    {
+      "index": 90,
+      "buyer": 10,
+      "qty": 1,
+      "callToTicketMs": 2769,
+      "callToDashboardMs": 2613
+    },
+    {
+      "index": 91,
+      "buyer": 11,
+      "qty": 1,
+      "callToTicketMs": 2771,
+      "callToDashboardMs": 2675
+    },
+    {
+      "index": 92,
+      "buyer": 12,
+      "qty": 1,
+      "callToTicketMs": 2268,
+      "callToDashboardMs": 2126
+    },
+    {
+      "index": 93,
+      "buyer": 13,
+      "qty": 1,
+      "callToTicketMs": 2015,
+      "callToDashboardMs": 1837
+    },
+    {
+      "index": 94,
+      "buyer": 14,
+      "qty": 1,
+      "callToTicketMs": 2011,
+      "callToDashboardMs": 2002
+    },
+    {
+      "index": 95,
+      "buyer": 15,
+      "qty": 1,
+      "callToTicketMs": 2012,
+      "callToDashboardMs": 1960
+    },
+    {
+      "index": 96,
+      "buyer": 16,
+      "qty": 1,
+      "callToTicketMs": 2265,
+      "callToDashboardMs": 2250
+    },
+    {
+      "index": 97,
+      "buyer": 17,
+      "qty": 1,
+      "callToTicketMs": 2267,
+      "callToDashboardMs": 2104
+    },
+    {
+      "index": 98,
+      "buyer": 18,
+      "qty": 1,
+      "callToTicketMs": 2766,
+      "callToDashboardMs": 2687
+    },
+    {
+      "index": 99,
+      "buyer": 19,
+      "qty": 1,
+      "callToTicketMs": 3017,
+      "callToDashboardMs": 3033
+    },
+    {
+      "index": 100,
+      "buyer": 20,
+      "qty": 1,
+      "callToTicketMs": 3018,
+      "callToDashboardMs": 2989
+    },
+    {
+      "index": 101,
+      "buyer": 1,
+      "qty": 1,
+      "callToTicketMs": 3517,
+      "callToDashboardMs": 3402
+    },
+    {
+      "index": 102,
+      "buyer": 2,
+      "qty": 1,
+      "callToTicketMs": 2013,
+      "callToDashboardMs": 2018
+    },
+    {
+      "index": 103,
+      "buyer": 3,
+      "qty": 1,
+      "callToTicketMs": 1761,
+      "callToDashboardMs": 1663
+    },
+    {
+      "index": 104,
+      "buyer": 4,
+      "qty": 1,
+      "callToTicketMs": 2522,
+      "callToDashboardMs": 2416
+    },
+    {
+      "index": 105,
+      "buyer": 5,
+      "qty": 1,
+      "callToTicketMs": 2266,
+      "callToDashboardMs": 2117
+    },
+    {
+      "index": 106,
+      "buyer": 6,
+      "qty": 1,
+      "callToTicketMs": 2769,
+      "callToDashboardMs": 2643
+    },
+    {
+      "index": 107,
+      "buyer": 7,
+      "qty": 1,
+      "callToTicketMs": 3020,
+      "callToDashboardMs": 2951
+    },
+    {
+      "index": 108,
+      "buyer": 8,
+      "qty": 1,
+      "callToTicketMs": 3525,
+      "callToDashboardMs": 3435
+    },
+    {
+      "index": 109,
+      "buyer": 9,
+      "qty": 1,
+      "callToTicketMs": 3021,
+      "callToDashboardMs": 2826
+    },
+    {
+      "index": 110,
+      "buyer": 10,
+      "qty": 1,
+      "callToTicketMs": 2522,
+      "callToDashboardMs": 2561
+    },
+    {
+      "index": 111,
+      "buyer": 11,
+      "qty": 1,
+      "callToTicketMs": 2015,
+      "callToDashboardMs": 1910
+    },
+    {
+      "index": 112,
+      "buyer": 12,
+      "qty": 1,
+      "callToTicketMs": 2264,
+      "callToDashboardMs": 2120
+    },
+    {
+      "index": 113,
+      "buyer": 13,
+      "qty": 1,
+      "callToTicketMs": 2515,
+      "callToDashboardMs": 2365
+    },
+    {
+      "index": 114,
+      "buyer": 14,
+      "qty": 1,
+      "callToTicketMs": 3020,
+      "callToDashboardMs": 2869
+    },
+    {
+      "index": 115,
+      "buyer": 15,
+      "qty": 1,
+      "callToTicketMs": 3273,
+      "callToDashboardMs": 3155
+    },
+    {
+      "index": 116,
+      "buyer": 16,
+      "qty": 1,
+      "callToTicketMs": 4804,
+      "callToDashboardMs": 4640
+    },
+    {
+      "index": 117,
+      "buyer": 17,
+      "qty": 1,
+      "callToTicketMs": 4277,
+      "callToDashboardMs": 4094
+    },
+    {
+      "index": 118,
+      "buyer": 18,
+      "qty": 1,
+      "callToTicketMs": 4278,
+      "callToDashboardMs": 4243
+    },
+    {
+      "index": 119,
+      "buyer": 19,
+      "qty": 1,
+      "callToTicketMs": 3525,
+      "callToDashboardMs": 3341
+    },
+    {
+      "index": 120,
+      "buyer": 20,
+      "qty": 1,
+      "callToTicketMs": 3787,
+      "callToDashboardMs": 3760
+    },
+    {
+      "index": 121,
+      "buyer": 1,
+      "qty": 1,
+      "callToTicketMs": 3281,
+      "callToDashboardMs": 3147
+    },
+    {
+      "index": 122,
+      "buyer": 2,
+      "qty": 1,
+      "callToTicketMs": 3587,
+      "callToDashboardMs": 3577
+    },
+    {
+      "index": 123,
+      "buyer": 3,
+      "qty": 1,
+      "callToTicketMs": 3350,
+      "callToDashboardMs": 3301
+    },
+    {
+      "index": 124,
+      "buyer": 4,
+      "qty": 1,
+      "callToTicketMs": 4860,
+      "callToDashboardMs": 4785
+    },
+    {
+      "index": 125,
+      "buyer": 5,
+      "qty": 1,
+      "callToTicketMs": 4278,
+      "callToDashboardMs": 4211
+    },
+    {
+      "index": 126,
+      "buyer": 6,
+      "qty": 1,
+      "callToTicketMs": 4528,
+      "callToDashboardMs": 4490
+    },
+    {
+      "index": 127,
+      "buyer": 7,
+      "qty": 1,
+      "callToTicketMs": 3273,
+      "callToDashboardMs": 3191
+    },
+    {
+      "index": 128,
+      "buyer": 8,
+      "qty": 1,
+      "callToTicketMs": 3523,
+      "callToDashboardMs": 3412
+    },
+    {
+      "index": 129,
+      "buyer": 9,
+      "qty": 1,
+      "callToTicketMs": 3023,
+      "callToDashboardMs": 3014
+    },
+    {
+      "index": 130,
+      "buyer": 10,
+      "qty": 1,
+      "callToTicketMs": 3021,
+      "callToDashboardMs": 3075
+    },
+    {
+      "index": 131,
+      "buyer": 11,
+      "qty": 1,
+      "callToTicketMs": 4275,
+      "callToDashboardMs": 4329
+    },
+    {
+      "index": 132,
+      "buyer": 12,
+      "qty": 1,
+      "callToTicketMs": 4023,
+      "callToDashboardMs": 4014
+    },
+    {
+      "index": 133,
+      "buyer": 13,
+      "qty": 1,
+      "callToTicketMs": 5027,
+      "callToDashboardMs": 4925
+    },
+    {
+      "index": 134,
+      "buyer": 14,
+      "qty": 1,
+      "callToTicketMs": 3269,
+      "callToDashboardMs": 3275
+    },
+    {
+      "index": 135,
+      "buyer": 15,
+      "qty": 1,
+      "callToTicketMs": 3269,
+      "callToDashboardMs": 3130
+    },
+    {
+      "index": 136,
+      "buyer": 16,
+      "qty": 1,
+      "callToTicketMs": 3027,
+      "callToDashboardMs": 2979
+    },
+    {
+      "index": 137,
+      "buyer": 17,
+      "qty": 1,
+      "callToTicketMs": 4781,
+      "callToDashboardMs": 4663
+    },
+    {
+      "index": 138,
+      "buyer": 18,
+      "qty": 1,
+      "callToTicketMs": 5038,
+      "callToDashboardMs": 4936
+    },
+    {
+      "index": 139,
+      "buyer": 19,
+      "qty": 1,
+      "callToTicketMs": 5030,
+      "callToDashboardMs": 4906
+    },
+    {
+      "index": 140,
+      "buyer": 20,
+      "qty": 1,
+      "callToTicketMs": 2272,
+      "callToDashboardMs": 2324
+    }
+  ],
+  "timings": {
+    "callToTicket": {
+      "count": 140,
+      "minMs": 1761,
+      "medianMs": 2523,
+      "maxMs": 5038
+    },
+    "callToDashboard": {
+      "count": 140,
+      "minMs": 1663,
+      "medianMs": 2498,
+      "maxMs": 4936
+    },
+    "refunds": {
+      "settleBlock": "72852396",
+      "lastRefundBlock": "72852400",
+      "blocks": "4",
+      "chainSeconds": "2",
+      "wallMs": 1390,
+      "batches": [
+        {
+          "hash": "0x47f00ee18bf18d88201057e927a2c6058f4d99a620c9b88a67ab486c12f99f9c",
+          "tickets": 50,
+          "gasUsed": "1894250",
+          "sentAt": "2026-11-18T12:54:03.619Z",
+          "blockTime": "2026-11-18T12:54:04.000Z"
+        },
+        {
+          "hash": "0x407ea277809fa64d16d29577dcba27d1abc328501facf2599c3183a6a2faae29",
+          "tickets": 50,
+          "gasUsed": "1394838",
+          "sentAt": "2026-11-18T12:54:04.339Z",
+          "blockTime": "2026-11-18T12:54:04.000Z"
+        },
+        {
+          "hash": "0xaaaf7803652325614f25ffaf40cc5c45e57b972bbe7d695f5e667ae9ce52c9e4",
+          "tickets": 40,
+          "gasUsed": "1143790",
+          "sentAt": "2026-11-18T12:54:04.614Z",
+          "blockTime": "2026-11-18T12:54:05.000Z"
+        }
+      ]
+    }
+  },
+  "hedging": {
+    "orders": 20,
+    "makerOrders": 9,
+    "takerOrders": 11,
+    "fills": 20,
+    "makersFilledByTheRehearsal": 1,
+    "charges": 140,
+    "hedgeSpent": "8091500",
+    "makerSavings": "327750",
+    "guaranteeLossesDelta": "0",
+    "heldAtClose": "70000000",
+    "exposureAtClose": "70000000"
+  },
+  "invariants": [
+    {
+      "name": "every sale ticketed on-chain",
+      "passed": true,
+      "details": "140 tickets for 140 units on-chain; 140 sales of 1 unit(s) replayed"
+    },
+    {
+      "name": "no sale above the pause threshold",
+      "passed": true,
+      "details": "highest ask driven while sales were open: 1200 bps; pause threshold 1800 bps; book driven to bid 1900 / ask 2100 bps: page answered paused_price, demo sale refused (409 sales_paused)"
+    },
+    {
+      "name": "no sale beyond the budget",
+      "passed": true,
+      "details": "guarantees reserved 9618000, hedge spent 8091500, budget 14000000 (micro-USDC)"
+    },
+    {
+      "name": "no hedge charge above its quote's guarantee",
+      "passed": true,
+      "details": "140 charges, 8091500 charged for 9618000 guaranteed (micro-USDC)"
+    },
+    {
+      "name": "no guarantee above the margins' cap",
+      "passed": true,
+      "details": "highest guarantee 1374 bps of the price paid; cap 2000 bps (usual margin − minimum margin); 0 above"
+    },
+    {
+      "name": "unhedged notional under its limit (at most 5 s above)",
+      "passed": true,
+      "details": "197 samples of the Hedge desk; highest 6720000 micro-USDC; limit 300000000; longest above 0 ms"
+    },
+    {
+      "name": "the escrow holds nothing for the campaign",
+      "passed": true,
+      "details": "released true, locked refunds 0, merchant due 0, hedge reserved 0; escrow balance change 0 (18 decimals)"
+    },
+    {
+      "name": "every refund equals the ticket's refundable amount",
+      "passed": true,
+      "details": "140 refunds, 70000000 micro-USDC, outcome yes"
+    },
+    {
+      "name": "the money adds up to the micro-unit, gas apart",
+      "passed": true,
+      "details": "24 accounts; every change equals the campaign's events; total 0"
+    },
+    {
+      "name": "every answer about the campaign said demo",
+      "passed": true,
+      "details": "1537 answers carrying demo after the first demo action; 0 false"
+    },
+    {
+      "name": "no demo payment reached the simulated Stripe",
+      "passed": true,
+      "details": "2 calls to the simulated Stripe, all for the budget payment: true; intents other than the budget: 0; demo payment ids seen: 0"
+    }
+  ],
+  "balances": {
+    "before": [
+      {
+        "role": "treasury, relayer",
+        "address": "0x39bbD1b075B43194588d65209A25292C76C88D31",
+        "moneyWei": "292856696524058639286",
+        "nativeWei": "292856696524058639286"
+      },
+      {
+        "role": "oracle",
+        "address": "0x8EECc9D6C14E99eeebC9ec078111B4c7c356c602",
+        "moneyWei": "5415724425000000000",
+        "nativeWei": "5415724425000000000"
+      },
+      {
+        "role": "escrow",
+        "address": "0x81d2d4050E617184b2B832c30BE68f8811b37D2c",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "merchant",
+        "address": "0x6446aF2279281EB335B44BB14E7D2134A19d2687",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 1",
+        "address": "0x6Fb00978c1c35CE7eEcD1f64E8481Be2cfe978C0",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 2",
+        "address": "0xCCA15479F58b75Ce971B8927Bfc196dc923d22f9",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 3",
+        "address": "0x05E1280Aff77E98444Bc98A2B02a37ADc439D7d6",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 4",
+        "address": "0x6c0f2B7209327F248704f5bD6837507206f1B663",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 5",
+        "address": "0x20d1C0B342d5Fba7A45A695402B2510a1972cb0F",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 6",
+        "address": "0xB7b0975542043725240754Cc13372f765d192C50",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 7",
+        "address": "0x1677887c8DdDB6899F8944B407621D9dF30ABdBd",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 8",
+        "address": "0x6D7c2187271F2247b408EE2881087E02B9CD2f71",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 9",
+        "address": "0x95d2CD11569C7048b8C99216621a62532C37Ee50",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 10",
+        "address": "0x592b9bf6d662AaD4006Fd43AFe78745422136BB0",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 11",
+        "address": "0xe81AC2Ae0d7Bc1e7FB6561751d90FdFe22171C4C",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 12",
+        "address": "0xCcFa69859F865d26489382781295525fF51A2Ea8",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 13",
+        "address": "0x63bCbB8722fDE496B56DD40DAb9568FB88778e81",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 14",
+        "address": "0x42bBA12Ccea7E8EFE921C360E32a3b854B0870A5",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 15",
+        "address": "0xF9B2849BC0f0B3A7dde4C000E1ffC726040a4000",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 16",
+        "address": "0x51F735A6d2B591d1e904f2119FFFc0f58710484f",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 17",
+        "address": "0x75b69fa8B9CC1c43C011E256Ce108Fa1d3Ca48C1",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 18",
+        "address": "0x4141cdbecA2D9946B24Ed6c9044c5241d7578276",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 19",
+        "address": "0xB68c71b944AA56D4b285d9B88722C374c0B2338D",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 20",
+        "address": "0x6BFc9Bd897a093527bd3b57694e6f74db83ce0f6",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      }
+    ],
+    "afterSettlement": [
+      {
+        "role": "treasury, relayer",
+        "address": "0x39bbD1b075B43194588d65209A25292C76C88D31",
+        "moneyWei": "146156717024058639286",
+        "nativeWei": "146156717024058639286"
+      },
+      {
+        "role": "oracle",
+        "address": "0x8EECc9D6C14E99eeebC9ec078111B4c7c356c602",
+        "moneyWei": "5240868850000000000",
+        "nativeWei": "5240868850000000000"
+      },
+      {
+        "role": "escrow",
+        "address": "0x81d2d4050E617184b2B832c30BE68f8811b37D2c",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "merchant",
+        "address": "0x6446aF2279281EB335B44BB14E7D2134A19d2687",
+        "moneyWei": "75908500000000000000",
+        "nativeWei": "75908500000000000000"
+      },
+      {
+        "role": "buyer 1",
+        "address": "0x6Fb00978c1c35CE7eEcD1f64E8481Be2cfe978C0",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      },
+      {
+        "role": "buyer 2",
+        "address": "0xCCA15479F58b75Ce971B8927Bfc196dc923d22f9",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      },
+      {
+        "role": "buyer 3",
+        "address": "0x05E1280Aff77E98444Bc98A2B02a37ADc439D7d6",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      },
+      {
+        "role": "buyer 4",
+        "address": "0x6c0f2B7209327F248704f5bD6837507206f1B663",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      },
+      {
+        "role": "buyer 5",
+        "address": "0x20d1C0B342d5Fba7A45A695402B2510a1972cb0F",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      },
+      {
+        "role": "buyer 6",
+        "address": "0xB7b0975542043725240754Cc13372f765d192C50",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      },
+      {
+        "role": "buyer 7",
+        "address": "0x1677887c8DdDB6899F8944B407621D9dF30ABdBd",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      },
+      {
+        "role": "buyer 8",
+        "address": "0x6D7c2187271F2247b408EE2881087E02B9CD2f71",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      },
+      {
+        "role": "buyer 9",
+        "address": "0x95d2CD11569C7048b8C99216621a62532C37Ee50",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      },
+      {
+        "role": "buyer 10",
+        "address": "0x592b9bf6d662AaD4006Fd43AFe78745422136BB0",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      },
+      {
+        "role": "buyer 11",
+        "address": "0xe81AC2Ae0d7Bc1e7FB6561751d90FdFe22171C4C",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      },
+      {
+        "role": "buyer 12",
+        "address": "0xCcFa69859F865d26489382781295525fF51A2Ea8",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      },
+      {
+        "role": "buyer 13",
+        "address": "0x63bCbB8722fDE496B56DD40DAb9568FB88778e81",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      },
+      {
+        "role": "buyer 14",
+        "address": "0x42bBA12Ccea7E8EFE921C360E32a3b854B0870A5",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      },
+      {
+        "role": "buyer 15",
+        "address": "0xF9B2849BC0f0B3A7dde4C000E1ffC726040a4000",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      },
+      {
+        "role": "buyer 16",
+        "address": "0x51F735A6d2B591d1e904f2119FFFc0f58710484f",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      },
+      {
+        "role": "buyer 17",
+        "address": "0x75b69fa8B9CC1c43C011E256Ce108Fa1d3Ca48C1",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      },
+      {
+        "role": "buyer 18",
+        "address": "0x4141cdbecA2D9946B24Ed6c9044c5241d7578276",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      },
+      {
+        "role": "buyer 19",
+        "address": "0xB68c71b944AA56D4b285d9B88722C374c0B2338D",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      },
+      {
+        "role": "buyer 20",
+        "address": "0x6BFc9Bd897a093527bd3b57694e6f74db83ce0f6",
+        "moneyWei": "3500000000000000000",
+        "nativeWei": "3500000000000000000"
+      }
+    ],
+    "afterSweep": [
+      {
+        "role": "treasury, relayer",
+        "address": "0x39bbD1b075B43194588d65209A25292C76C88D31",
+        "moneyWei": "292052428024058639286",
+        "nativeWei": "292052428024058639286"
+      },
+      {
+        "role": "oracle",
+        "address": "0x8EECc9D6C14E99eeebC9ec078111B4c7c356c602",
+        "moneyWei": "5240868850000000000",
+        "nativeWei": "5240868850000000000"
+      },
+      {
+        "role": "escrow",
+        "address": "0x81d2d4050E617184b2B832c30BE68f8811b37D2c",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "merchant",
+        "address": "0x6446aF2279281EB335B44BB14E7D2134A19d2687",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 1",
+        "address": "0x6Fb00978c1c35CE7eEcD1f64E8481Be2cfe978C0",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 2",
+        "address": "0xCCA15479F58b75Ce971B8927Bfc196dc923d22f9",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 3",
+        "address": "0x05E1280Aff77E98444Bc98A2B02a37ADc439D7d6",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 4",
+        "address": "0x6c0f2B7209327F248704f5bD6837507206f1B663",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 5",
+        "address": "0x20d1C0B342d5Fba7A45A695402B2510a1972cb0F",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 6",
+        "address": "0xB7b0975542043725240754Cc13372f765d192C50",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 7",
+        "address": "0x1677887c8DdDB6899F8944B407621D9dF30ABdBd",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 8",
+        "address": "0x6D7c2187271F2247b408EE2881087E02B9CD2f71",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 9",
+        "address": "0x95d2CD11569C7048b8C99216621a62532C37Ee50",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 10",
+        "address": "0x592b9bf6d662AaD4006Fd43AFe78745422136BB0",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 11",
+        "address": "0xe81AC2Ae0d7Bc1e7FB6561751d90FdFe22171C4C",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 12",
+        "address": "0xCcFa69859F865d26489382781295525fF51A2Ea8",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 13",
+        "address": "0x63bCbB8722fDE496B56DD40DAb9568FB88778e81",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 14",
+        "address": "0x42bBA12Ccea7E8EFE921C360E32a3b854B0870A5",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 15",
+        "address": "0xF9B2849BC0f0B3A7dde4C000E1ffC726040a4000",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 16",
+        "address": "0x51F735A6d2B591d1e904f2119FFFc0f58710484f",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 17",
+        "address": "0x75b69fa8B9CC1c43C011E256Ce108Fa1d3Ca48C1",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 18",
+        "address": "0x4141cdbecA2D9946B24Ed6c9044c5241d7578276",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 19",
+        "address": "0xB68c71b944AA56D4b285d9B88722C374c0B2338D",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 20",
+        "address": "0x6BFc9Bd897a093527bd3b57694e6f74db83ce0f6",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      }
+    ]
+  },
+  "netCostWei": "979124075000000000",
+  "gasWei": "979124075000000000",
+  "sweep": [
+    {
+      "wallet": "merchant",
+      "address": "0x6446aF2279281EB335B44BB14E7D2134A19d2687",
+      "status": "swept",
+      "sentWei": "75907891000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0xcdd6773098519319b06218c9107fea84d613bebf7b366848949a589a7eff1948"
+    },
+    {
+      "wallet": "buyer 1",
+      "address": "0x6Fb00978c1c35CE7eEcD1f64E8481Be2cfe978C0",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0x73634cb47b9d0836ac696dbc4fbf9bd3473ffe982966b2705047933cf3bea6cf"
+    },
+    {
+      "wallet": "buyer 2",
+      "address": "0xCCA15479F58b75Ce971B8927Bfc196dc923d22f9",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0x1b135c1a03e881c4275442973df47cbba22158823bd1f43bbeb119cbf05c478d"
+    },
+    {
+      "wallet": "buyer 3",
+      "address": "0x05E1280Aff77E98444Bc98A2B02a37ADc439D7d6",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0x54ac277cc944729cb19d6f99160c9aecfa1bf88cf585b92d324371e75af51975"
+    },
+    {
+      "wallet": "buyer 4",
+      "address": "0x6c0f2B7209327F248704f5bD6837507206f1B663",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0xbf99c75b86769ace80da1d115d6f57d113fed74eb6f7765d95d5463ae3d5b6c6"
+    },
+    {
+      "wallet": "buyer 5",
+      "address": "0x20d1C0B342d5Fba7A45A695402B2510a1972cb0F",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0x647135511f5bdbf59732ff42bcc7d5ec3cd2be770ca5241c3d157c84edf0eb1f"
+    },
+    {
+      "wallet": "buyer 6",
+      "address": "0xB7b0975542043725240754Cc13372f765d192C50",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0x03170f4cbe1369223cbcd1e74e8aa762720dfc60aabf9f3edf4769840e9f108f"
+    },
+    {
+      "wallet": "buyer 7",
+      "address": "0x1677887c8DdDB6899F8944B407621D9dF30ABdBd",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0xb4bf5d1e75c9398a2efdedb3ec0ca5dcee80dbd15a6ececaaeff6bc7d77e023b"
+    },
+    {
+      "wallet": "buyer 8",
+      "address": "0x6D7c2187271F2247b408EE2881087E02B9CD2f71",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0xc271f91a550c91beaa79ef97f3144dd06fd4ca5640b5ba2d9dc4011db9e1450b"
+    },
+    {
+      "wallet": "buyer 9",
+      "address": "0x95d2CD11569C7048b8C99216621a62532C37Ee50",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0xde87d6070ce123b22d19c0a445c3c7592b353e8e4c3efb83a44726ccf6ac3b6e"
+    },
+    {
+      "wallet": "buyer 10",
+      "address": "0x592b9bf6d662AaD4006Fd43AFe78745422136BB0",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0x8d9823e2f416f692f2f058071cdb59514920b0d8bb38571340bb04f5307509e3"
+    },
+    {
+      "wallet": "buyer 11",
+      "address": "0xe81AC2Ae0d7Bc1e7FB6561751d90FdFe22171C4C",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0x543f1461255239512067650a20f6e1527b4942fa52b96803b835b4dba683fdfa"
+    },
+    {
+      "wallet": "buyer 12",
+      "address": "0xCcFa69859F865d26489382781295525fF51A2Ea8",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0xd61b4eb9abbf61b3db932b68523568459ac6d0c65b30be0367e5126a0aae766d"
+    },
+    {
+      "wallet": "buyer 13",
+      "address": "0x63bCbB8722fDE496B56DD40DAb9568FB88778e81",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0x40780fcb03eba7bfc5af6cf130bb6fa6e5dab577c58791703182b393023d2240"
+    },
+    {
+      "wallet": "buyer 14",
+      "address": "0x42bBA12Ccea7E8EFE921C360E32a3b854B0870A5",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0x3b75fe6a1806e5260161994c477d5e3af13e487b2b4c0b8821a57d136327e0e9"
+    },
+    {
+      "wallet": "buyer 15",
+      "address": "0xF9B2849BC0f0B3A7dde4C000E1ffC726040a4000",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0x31b2c61fcdda033656684e22b609f60d6b1f99490370d6bd981fc26d4e374fd7"
+    },
+    {
+      "wallet": "buyer 16",
+      "address": "0x51F735A6d2B591d1e904f2119FFFc0f58710484f",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0x33e3da4d74a6e2d625fed98a1f08b9319a595ff5311df0d86e5bfaa7711cccb8"
+    },
+    {
+      "wallet": "buyer 17",
+      "address": "0x75b69fa8B9CC1c43C011E256Ce108Fa1d3Ca48C1",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0xe59f51c818fd4e11d273487c2cc3574fba8a22036a8e2235016db68d94cb1b9a"
+    },
+    {
+      "wallet": "buyer 18",
+      "address": "0x4141cdbecA2D9946B24Ed6c9044c5241d7578276",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0x23f86aaff95027a5578b17cdf8bdef0c991d196bcc8ede9d7f96de3b3143e895"
+    },
+    {
+      "wallet": "buyer 19",
+      "address": "0xB68c71b944AA56D4b285d9B88722C374c0B2338D",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0x5a961fc63ca5897af013f6d9560548f22ea766b0ad42dd62025e521669027476"
+    },
+    {
+      "wallet": "buyer 20",
+      "address": "0x6BFc9Bd897a093527bd3b57694e6f74db83ce0f6",
+      "status": "swept",
+      "sentWei": "3499391000000000000",
+      "gasWei": "609000000000000",
+      "txHash": "0x556969f3aff122ca00823f8129eb454f1dce4cad81b43390dcc9cf8a92aac534"
+    }
+  ],
+  "leftBehind": [],
+  "unread": [],
+  "rpc": {
+    "requests": 626,
+    "refused": 0,
+    "rateLimited": 0,
+    "retried": 0,
+    "perStep": [
+      {
+        "step": "start-engine",
+        "requests": 49,
+        "durationMs": 6221
+      },
+      {
+        "step": "choose-game",
+        "requests": 0,
+        "durationMs": 6075
+      },
+      {
+        "step": "launch-campaign",
+        "requests": 0,
+        "durationMs": 2061
+      },
+      {
+        "step": "drive-book",
+        "requests": 0,
+        "durationMs": 1018
+      },
+      {
+        "step": "pause-probe",
+        "requests": 0,
+        "durationMs": 12092
+      },
+      {
+        "step": "purchases",
+        "requests": 0,
+        "durationMs": 127559
+      },
+      {
+        "step": "hedging",
+        "requests": 34,
+        "durationMs": 40789
+      },
+      {
+        "step": "close-sales",
+        "requests": 3,
+        "durationMs": 2151
+      },
+      {
+        "step": "settle",
+        "requests": 36,
+        "durationMs": 14668
+      },
+      {
+        "step": "reset",
+        "requests": 0,
+        "durationMs": 5
+      },
+      {
+        "step": "stop-engine",
+        "requests": 0,
+        "durationMs": 42
+      },
+      {
+        "step": "sweep",
+        "requests": 151,
+        "durationMs": 21422
+      },
+      {
+        "step": "preflight",
+        "requests": 11,
+        "durationMs": 0
+      },
+      {
+        "step": "outside a step",
+        "requests": 342,
+        "durationMs": 0
+      }
+    ],
+    "limiter": {
+      "started": 2357,
+      "rateLimited": 0,
+      "coolDowns": 0
+    }
+  },
+  "recovery": null,
+  "stranded": false
+}
