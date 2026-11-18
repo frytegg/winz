@@ -162,6 +162,12 @@ describe("pause, then the authorization is cancelled", () => {
         return { ok: onchain.status === 1, seen: onchain };
       });
       expect((await api.publicCampaign(campaign.slug)).saleState).toBe("paused_manual");
+      // The merchant sees the pause on their dashboard (the on-chain pause has been projected)
+      // before they resume.
+      await w.waitFor("the pause on the merchant's dashboard", async () => {
+        const detail = await api.campaign(campaign.merchant.headers, campaign.id);
+        return { ok: detail.status === "paused", seen: detail.status };
+      });
 
       // The merchant resumes: the promo sells again at once (a manual pause has no delay).
       await api.resume(campaign.merchant.headers, campaign.id);
