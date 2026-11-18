@@ -1,6 +1,6 @@
 "use client";
 
-import { apiExamples } from "@winz/shared";
+import { SPORTS, apiExamples } from "@winz/shared";
 import {
   ArrowDownLeft,
   Beer,
@@ -30,6 +30,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Sheet } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
+import { SPORT_ICONS } from "@/components/ui/sport-icons";
 import { Stepper } from "@/components/ui/stepper";
 import { useToast } from "@/components/ui/toast";
 import { BalancePill } from "@/components/winz/balance-pill";
@@ -285,6 +286,16 @@ export function KitDemo(): React.JSX.Element {
             onClick={() => setSport("football")}
           />
           <Chip label={copy.sports.basketball} disabled />
+        </ChipRow>
+        <ChipRow label="Sport icons">
+          {SPORTS.map((value) => (
+            <Chip
+              key={value}
+              label={copy.sports[value]}
+              icon={SPORT_ICONS[value]}
+              active={value === "football"}
+            />
+          ))}
         </ChipRow>
         <ChipRow label="Category">
           {(
