@@ -47,6 +47,9 @@ export const engineEnvSchema = z
           .min(1, "must name at least one method"),
       )
       .optional(),
+    // Transactions of one signer broadcast and not mined yet at the same time (chain/tx-sender.ts;
+    // only the kinds of chain/tx-kinds.ts travel together). Unset: 8. 1 sends one at a time.
+    ARC_TX_MAX_IN_FLIGHT: z.coerce.number().int().min(1).max(64).optional(),
 
     GEMINI_API_URL: z.string().url().default("https://api.gemini.com"),
     GEMINI_WS_URL: z.string().url().default("wss://ws.gemini.com"),

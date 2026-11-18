@@ -100,7 +100,13 @@ export {
   type RpcLimiterStats,
   type RpcLimits,
 } from "./rpc-limiter";
-export { resolveTxSenderSettings, type TxSenderSettings } from "./settings";
+export {
+  DEFAULT_MAX_IN_FLIGHT,
+  MAX_IN_FLIGHT_LIMIT,
+  resolveTxSenderSettings,
+  type TxSenderSettings,
+} from "./settings";
+export { INDEPENDENT_TX_KINDS, isIndependentTxKind } from "./tx-kinds";
 export { TxSender, type TxSenderDeps } from "./tx-sender";
 export type {
   ChainClient,
