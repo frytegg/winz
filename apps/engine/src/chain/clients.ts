@@ -13,6 +13,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { ARC_TESTNET_CHAIN_ID, ARC_TESTNET_EXPLORER_URL } from "@winz/shared";
 
 import type { EngineEnv } from "../config/env";
+import { explicitLogRange } from "./log-range";
 import { rateLimitedTransport, RpcLimiter, type RpcLimits } from "./rpc-limiter";
 import type { SignerAccounts } from "./types";
 
@@ -91,6 +92,9 @@ function limitsFromEnv(env: ArcClientEnv): Partial<RpcLimits> {
  * cool-downs. The limiter counts one request per try of the endpoint list; the fallback endpoint
  * is asked within the same turn when the primary fails, so neither endpoint ever gets more than
  * the limiter lets through.
+ *
+ * Every `eth_getLogs` is sent with an explicit `toBlock` ("latest" when the caller named none):
+ * the public RPC of Arc testnet keeps answering an open-ended filter with its first answer.
  */
 export function createArcClients(env: ArcClientEnv, options: ArcClientOptions = {}): ArcClients {
   const urls = [env.ARC_RPC_URL, env.ARC_RPC_FALLBACK_URL].filter(
@@ -132,7 +136,8 @@ export function createArcClients(env: ArcClientEnv, options: ArcClientOptions = 
   }
   const publicClient = createPublicClient({
     chain,
-    transport,
+    // Outermost, so that it holds with or without the limiter (see log-range.ts).
+    transport: explicitLogRange(transport),
     pollingInterval: options.pollingIntervalMs ?? 300,
   });
   return {
