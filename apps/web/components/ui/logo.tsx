@@ -7,15 +7,18 @@ import { cn } from "@/lib/utils";
  */
 export function Logo({
   variant = "wordmark",
+  tone = "lime",
   className,
 }: {
   variant?: "wordmark" | "glyph";
+  /** `dark` is the ink one, for a lime screen (REFUNDED). */
+  tone?: "lime" | "dark";
   className?: string;
 }): React.JSX.Element {
   if (variant === "glyph") {
     return (
       <img
-        src="/brand/icon-winz-lime.svg"
+        src={`/brand/icon-winz-${tone}.svg`}
         alt={copy.brand.name}
         width={87}
         height={71}
@@ -26,7 +29,7 @@ export function Logo({
   }
   return (
     <img
-      src="/brand/logo-winz-lime.svg"
+      src={`/brand/logo-winz-${tone}.svg`}
       alt={copy.brand.name}
       width={83}
       height={26}
