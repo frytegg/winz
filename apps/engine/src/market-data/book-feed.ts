@@ -11,6 +11,7 @@ import type {
   BookTransportListener,
   TradePrint,
 } from "./book-transport";
+import { parseDemoBook, PgDemoBookStore, type DemoBookStore } from "./demo-book-store";
 import { describeError } from "./errors";
 import { RestBookPoller, type BookFetcher } from "./rest-book-poller";
 import { systemScheduler, type CancelTimer, type Scheduler } from "./scheduler";
@@ -36,6 +37,8 @@ export interface BookFeedStats {
   ignoredRestWhileWsLive: number;
   /** live_instruments.stale updates that failed (each is retried on the next watchdog tick). */
   failedStaleMarks: number;
+  /** Gemini books (socket or REST) of an instrument whose demo book was in force, set aside. */
+  ignoredWhileDemo: number;
   trades: number;
   failedWrites: number;
 }
@@ -57,6 +60,13 @@ export interface BookFeedOptions {
   staleAfterMs?: number;
   /** With the socket up, an instrument without a socket book for this long is polled over REST. */
   wsGapMs?: number;
+  /**
+   * Demo books (SPEC MDB-4, demo_overrides). Absent or null: no demo mode, the feed behaves as
+   * if the table did not exist.
+   */
+  demo?: DemoBookStore | null;
+  /** How often demo_overrides is read and the demo books re-stamped. Default 1 000. */
+  demoRefreshMs?: number;
 }
 
 export interface BookFeedRun {
@@ -90,6 +100,17 @@ interface WriteState {
  * the socket has been silent on for `wsGapMs`. Every accepted book is held in memory (`getBook`,
  * `subscribe`) and written, at most once per `writeThrottleMs` per instrument, to book_cache and
  * live_instruments. A watchdog flags an instrument stale once its book is older than 10 s.
+ *
+ * Demo mode (MDB-4, option `demo`): a small layer inside the feed, not a transport, because a
+ * demo book is not something the feed asks for, it is something the feed must obey. Every
+ * `demoRefreshMs` the valid demo_overrides books are read; each one is THE book of its
+ * instrument: published with source 'demo', written to book_cache (source 'demo') and
+ * live_instruments, and re-stamped with the current time on every pass so it never turns stale
+ * while the row exists. Its instrument is tracked even if no campaign uses it. Gemini books of
+ * that instrument keep their ordering checks but are set aside (`ignoredWhileDemo`); the latest
+ * one is kept so that, the moment the row is removed, it replaces the demo book in memory and in
+ * Postgres (`DemoBookStore.releaseDemoBook`) without waiting for the demo book to age out. An
+ * invalid row is ignored (as if absent) and logged once per distinct content.
  */
 export class BookFeed {
   private readonly store: BookStore;
@@ -118,12 +139,28 @@ export class BookFeed {
   private readonly writes = new Map<string, WriteState>();
   private readonly dbChains = new Map<string, Promise<void>>();
   private readonly listeners = new Set<BookFeedListener>();
+  private readonly demo: DemoBookStore | null;
+  private readonly demoRefreshMs: number;
+  /** Instruments whose demo book is in force. */
+  private readonly demoActive = new Set<string>();
+  /** The latest Gemini book of each instrument in demo, restored when the override goes. */
+  private readonly liveShadow = new Map<string, HeldBook>();
+  /** Releases whose Postgres write failed, retried on the next demo pass: symbol → demo stamp. */
+  private readonly pendingReleases = new Map<string, number>();
+  /** Invalid demo rows already logged: symbol → the raw content that was logged. */
+  private readonly invalidDemoLogged = new Map<string, string>();
+  /** The tracked set as Postgres last gave it (campaigns and tracked_instruments). */
+  private storeTracked: ReadonlySet<string> = new Set<string>();
+  private demoInFlight: Promise<void> = Promise.resolve();
+  private demoFailing = false;
+  private cancelDemo: CancelTimer | null = null;
   private readonly counters: BookFeedStats = {
-    accepted: { ws: 0, rest: 0 },
-    written: { ws: 0, rest: 0 },
+    accepted: { ws: 0, rest: 0, demo: 0 },
+    written: { ws: 0, rest: 0, demo: 0 },
     ignoredOutOfOrder: 0,
     ignoredRestWhileWsLive: 0,
     failedStaleMarks: 0,
+    ignoredWhileDemo: 0,
     trades: 0,
     failedWrites: 0,
   };
@@ -145,6 +182,8 @@ export class BookFeed {
     this.writeThrottleMs = options.writeThrottleMs ?? 500;
     this.staleAfterMs = options.staleAfterMs ?? BOOK_STALE_AFTER_MS;
     this.wsGapMs = options.wsGapMs ?? 3_000;
+    this.demo = options.demo ?? null;
+    this.demoRefreshMs = options.demoRefreshMs ?? 1_000;
   }
 
   /** The latest book of a followed instrument, or null. Check `observedAtMs` before pricing on it. */
@@ -175,6 +214,7 @@ export class BookFeed {
       ignoredOutOfOrder: this.counters.ignoredOutOfOrder,
       ignoredRestWhileWsLive: this.counters.ignoredRestWhileWsLive,
       failedStaleMarks: this.counters.failedStaleMarks,
+      ignoredWhileDemo: this.counters.ignoredWhileDemo,
       trades: this.counters.trades,
       failedWrites: this.counters.failedWrites,
     };
@@ -208,6 +248,7 @@ export class BookFeed {
       { transports: this.ws === null ? ["rest"] : ["ws", "rest"] },
       "book feed started",
     );
+    if (this.demo !== null) this.refreshDemo();
     this.refreshTracked();
     this.scheduleWatchdog();
     return { stopped };
@@ -260,7 +301,9 @@ export class BookFeed {
   private accept(raw: Book, source: BookSource, sequence: number | null): void {
     const symbol = raw.instrumentSymbol;
     if (this.stopping || !this.tracked.has(symbol)) return;
-    const held = this.books.get(symbol);
+    const inDemo = this.demoActive.has(symbol);
+    // In demo, Gemini books are checked against the last Gemini book, not against the demo book.
+    const held = inDemo ? this.liveShadow.get(symbol) : this.books.get(symbol);
     if (sequence !== null) {
       const last = this.lastSequence.get(symbol);
       if (last !== undefined && sequence < last) {
@@ -284,6 +327,14 @@ export class BookFeed {
       return;
     }
     const book = normalizeBook(raw);
+    if (inDemo) {
+      this.liveShadow.set(symbol, { book, source });
+      if (sequence !== null) this.lastSequence.set(symbol, sequence);
+      if (source === "ws") this.wsCoveredAtMs.set(symbol, this.scheduler.now());
+      this.counters.ignoredWhileDemo += 1;
+      this.logger.debug({ symbol, source }, "gemini book set aside, a demo book is in force");
+      return;
+    }
     this.books.set(symbol, { book, source });
     // The write below sets stale = false: a pending stale flag must not be retried after it.
     this.staleMarks.delete(symbol);
@@ -459,7 +510,13 @@ export class BookFeed {
     if (this.refreshFailing) this.logger.info("tracked instruments readable again");
     this.refreshFailing = false;
     if (this.stopping) return;
-    this.applyTracked(new Set(symbols));
+    this.storeTracked = new Set(symbols);
+    this.applyTracked(this.wantedSymbols());
+  }
+
+  /** What Postgres asks for, plus every instrument whose demo book is in force. */
+  private wantedSymbols(): Set<string> {
+    return new Set([...this.storeTracked, ...this.demoActive]);
   }
 
   private applyTracked(wanted: ReadonlySet<string>): void {
@@ -485,6 +542,8 @@ export class BookFeed {
   private untrack(symbol: string): void {
     this.tracked.delete(symbol);
     this.books.delete(symbol);
+    this.demoActive.delete(symbol);
+    this.liveShadow.delete(symbol);
     this.lastSequence.delete(symbol);
     this.wsCoveredAtMs.delete(symbol);
     this.stale.delete(symbol);
@@ -495,6 +554,174 @@ export class BookFeed {
     // Nobody refreshes it any more: whatever live_instruments holds can no longer be trusted.
     this.markStale(symbol);
     this.logger.info({ symbol }, "instrument untracked");
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Demo books (SPEC MDB-4)
+  // ---------------------------------------------------------------------------------------------
+
+  private refreshDemo(): void {
+    this.cancelDemo = null;
+    if (this.stopping) return;
+    this.demoInFlight = this.loadDemo()
+      .catch((error: unknown) => {
+        this.logger.error({ err: describeError(error) }, "demo book refresh failed");
+      })
+      .finally(() => {
+        if (this.stopping) return;
+        this.cancelDemo = this.scheduler.setTimeout(() => {
+          this.refreshDemo();
+        }, this.demoRefreshMs);
+      });
+  }
+
+  private async loadDemo(): Promise<void> {
+    const store = this.demo;
+    if (store === null) return;
+    let rows: { symbol: string; book: unknown }[];
+    try {
+      rows = await store.listDemoBooks();
+    } catch (error: unknown) {
+      // The books in force are not re-stamped: if this lasts, the watchdog flags them stale.
+      if (!this.demoFailing) {
+        this.logger.error(
+          { err: describeError(error) },
+          "demo overrides could not be read, demo books not refreshed",
+        );
+      }
+      this.demoFailing = true;
+      return;
+    }
+    if (this.demoFailing) this.logger.info("demo overrides readable again");
+    this.demoFailing = false;
+    if (this.stopping) return;
+    this.guard(() => {
+      this.applyDemo(rows);
+    });
+  }
+
+  private applyDemo(rows: readonly { symbol: string; book: unknown }[]): void {
+    const nowMs = this.scheduler.now();
+    const valid = new Map<string, Book>();
+    for (const row of rows) {
+      let book: Book;
+      try {
+        book = parseDemoBook(row.symbol, row.book, nowMs);
+      } catch (error: unknown) {
+        this.logInvalidDemo(row.symbol, row.book, error);
+        continue;
+      }
+      this.invalidDemoLogged.delete(row.symbol);
+      valid.set(row.symbol, book);
+    }
+    for (const symbol of [...this.invalidDemoLogged.keys()]) {
+      if (!rows.some((row) => row.symbol === symbol)) this.invalidDemoLogged.delete(symbol);
+    }
+
+    // Overrides that went away (or turned invalid): live books again, at once.
+    for (const symbol of [...this.demoActive]) {
+      if (!valid.has(symbol)) this.releaseDemo(symbol);
+    }
+    for (const [symbol, demoAtMs] of [...this.pendingReleases]) {
+      if (valid.has(symbol)) this.pendingReleases.delete(symbol);
+      else this.sendRelease(symbol, demoAtMs, null);
+    }
+
+    const entering = [...valid.keys()].filter((symbol) => !this.demoActive.has(symbol));
+    for (const symbol of entering) {
+      this.demoActive.add(symbol);
+      // The Gemini book held now is the one to restore if the override goes before another comes.
+      const held = this.books.get(symbol);
+      if (held !== undefined) this.liveShadow.set(symbol, held);
+      this.logger.info({ symbol }, "demo book in force, gemini books set aside");
+    }
+    this.applyTracked(this.wantedSymbols());
+
+    for (const [symbol, raw] of valid) {
+      if (!this.tracked.has(symbol)) continue;
+      const book = normalizeBook(raw);
+      this.books.set(symbol, { book, source: "demo" });
+      this.staleMarks.delete(symbol);
+      this.counters.accepted.demo += 1;
+      if (this.stale.delete(symbol))
+        this.logger.info({ symbol, source: "demo" }, "instrument fresh");
+      this.emit({ kind: "book", book, source: "demo" });
+      this.scheduleWrite(symbol);
+    }
+  }
+
+  private logInvalidDemo(symbol: string, raw: unknown, error: unknown): void {
+    let content: string;
+    try {
+      content = JSON.stringify(raw) ?? "null";
+    } catch {
+      content = String(raw);
+    }
+    if (this.invalidDemoLogged.get(symbol) === content) return;
+    this.invalidDemoLogged.set(symbol, content);
+    this.logger.error(
+      { symbol, err: describeError(error) },
+      "demo override ignored: its book is invalid",
+    );
+  }
+
+  /**
+   * The override of `symbol` is gone: the latest Gemini book (if still fresh and the instrument
+   * stays tracked) takes the demo book's place in memory and in Postgres, or the demo book is
+   * removed from both and the instrument waits for the next Gemini book.
+   */
+  private releaseDemo(symbol: string): void {
+    this.demoActive.delete(symbol);
+    const held = this.books.get(symbol);
+    const demoAtMs = held?.source === "demo" ? held.book.observedAtMs : this.scheduler.now();
+    const shadow = this.liveShadow.get(symbol);
+    this.liveShadow.delete(symbol);
+    const nowMs = this.scheduler.now();
+    const restored =
+      shadow !== undefined &&
+      this.storeTracked.has(symbol) &&
+      nowMs - shadow.book.observedAtMs <= this.staleAfterMs
+        ? shadow
+        : null;
+
+    // Pending throttled writes would write the demo book again: drop them.
+    const state = this.writeState(symbol);
+    state.cancelTimer?.();
+    state.cancelTimer = null;
+    state.dirty = false;
+    // With nothing restored, the next Gemini book is written as soon as it comes.
+    state.lastWriteAtMs = restored === null ? Number.NEGATIVE_INFINITY : nowMs;
+    state.writtenObservedAtMs = restored?.book.observedAtMs ?? Number.NEGATIVE_INFINITY;
+
+    if (restored === null) {
+      this.books.delete(symbol);
+    } else {
+      this.books.set(symbol, restored);
+      this.emit({ kind: "book", book: restored.book, source: restored.source });
+    }
+    this.logger.info(
+      { symbol, restored: restored?.source ?? null },
+      "demo book removed, back to gemini books",
+    );
+    this.sendRelease(symbol, demoAtMs, restored);
+  }
+
+  private sendRelease(symbol: string, demoAtMs: number, live: HeldBook | null): void {
+    const store = this.demo;
+    if (store === null) return;
+    this.pendingReleases.delete(symbol);
+    this.enqueueDb(symbol, async () => {
+      try {
+        await store.releaseDemoBook(symbol, demoAtMs, live);
+      } catch (error: unknown) {
+        this.counters.failedWrites += 1;
+        // Retried (without the live book: a newer one may have come) on the next demo pass.
+        if (!this.demoActive.has(symbol)) this.pendingReleases.set(symbol, demoAtMs);
+        this.logger.error({ symbol, err: describeError(error) }, "demo book release failed");
+        return;
+      }
+      if (live !== null) this.counters.written[live.source] += 1;
+    });
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -538,6 +765,8 @@ export class BookFeed {
         this.markStale(symbol);
       }
 
+      // A demo book needs no REST poll: Gemini's books are set aside anyway.
+      if (this.demoActive.has(symbol)) continue;
       const coveredAtMs = this.wsCoveredAtMs.get(symbol) ?? sinceMs;
       const gap = !wsUp || nowMs - coveredAtMs > this.wsGapMs;
       if (gap) needRest.add(symbol);
@@ -563,8 +792,11 @@ export class BookFeed {
     this.cancelRefresh = null;
     this.cancelWatchdog?.();
     this.cancelWatchdog = null;
+    this.cancelDemo?.();
+    this.cancelDemo = null;
     await Promise.allSettled([this.ws?.stop() ?? Promise.resolve(), this.rest.stop()]);
     await this.refreshInFlight;
+    await this.demoInFlight;
     // The latest state of every instrument still waiting for its throttle slot is written now.
     for (const [symbol, state] of this.writes) {
       if (state.cancelTimer !== null) {
@@ -629,9 +861,19 @@ export interface CreateBookFeedOptions {
   /** Ceiling of the REST poller, see `RestBookPollerOptions.maxRequestsPerMinute`. */
   restMaxRequestsPerMinute?: number;
   scheduler?: Scheduler;
+  /**
+   * Obey demo_overrides books (SPEC MDB-4). Default true: rows are only written by the admin
+   * routes behind the admin demo key, and with the table empty the feed is unchanged.
+   */
+  demoBooks?: boolean;
+  /** See `BookFeedOptions.demoRefreshMs`. */
+  demoRefreshMs?: number;
 }
 
-/** The feed with its production parts: Postgres store, Gemini WebSocket, REST poller. */
+/**
+ * The feed with its production parts: Postgres store, Gemini WebSocket, REST poller, and the
+ * demo_overrides books unless `demoBooks` is false.
+ */
 export function createBookFeed(options: CreateBookFeedOptions): BookFeed {
   const scheduler = options.scheduler ?? systemScheduler;
   const ws =
@@ -655,5 +897,7 @@ export function createBookFeed(options: CreateBookFeedOptions): BookFeed {
     ws,
     logger: options.logger,
     scheduler,
+    demo: options.demoBooks === false ? null : new PgDemoBookStore(options.db),
+    demoRefreshMs: options.demoRefreshMs,
   });
 }

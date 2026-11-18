@@ -1,7 +1,10 @@
 import type { Book, Bps, MicroContracts } from "@winz/shared";
 
-/** Where a book came from; the `source` column of book_cache. */
-export type BookSource = "ws" | "rest";
+/**
+ * Where a book came from; the `source` column of book_cache. 'demo' is a book driven from the
+ * admin panel (demo_overrides, SPEC MDB-4), never a transport's: see `DemoBookStore`.
+ */
+export type BookSource = "ws" | "rest" | "demo";
 
 /** One trade printed on Gemini, YES side. */
 export interface TradePrint {
