@@ -404,8 +404,9 @@ Dans l'ordre :
    ce qui a été rapatrié, ce qui n'a pas pu être relu (« Could not be read »), et le nombre de
    requêtes de la répétition au nœud, refusées et relancées, étape par étape, avec les compteurs du
    limiteur (section « Node », aussi affichée en fin de répétition). Jamais une clé ni la graine :
-   les deux fichiers sont vérifiés avant d'être écrits. Sur Arc testnet il va dans `docs/rehearsals/` ; le reçu d'une chaîne locale ne va
-   jamais sous `docs/` (un dossier temporaire par défaut).
+   les deux fichiers sont vérifiés avant d'être écrits. Sur Arc testnet il va dans
+   `docs/rehearsals/` ; le reçu d'une chaîne locale ne va jamais sous `docs/` (un dossier
+   temporaire par défaut).
 
 En cas d'échec d'une étape, ou de Ctrl-C, une fois la campagne en ligne, la répétition la récupère
 d'abord, moteur encore en marche (étape `recover`, que Ctrl-C n'interrompt plus ; chaque attente
@@ -435,8 +436,19 @@ rapatriement ont échoué sur la même réponse : la campagne est restée dans l
   son propre délai, puis dit ce qu'elle attendait et la dernière erreur vue ; les lectures hors
   attente (soldes, reçus de transactions, événements de la campagne) sont relancées avec un délai
   qui double, six fois en une demi-minute environ, et le reçu dit précisément ce qui n'a pas pu
-  être lu au lieu de perdre le reste ; le rapatriement relance chaque portefeuille de la même
-  façon, et ne renvoie jamais un transfert déjà parti dont la réponse s'est perdue. Est passager :
+  être lu au lieu de perdre le reste (un solde après règlement qui manque est dit non lu, jamais
+  remplacé par le solde d'avant) ; le rapatriement relance chaque portefeuille de la même façon ;
+- le rapatriement ne perd ni ne double un transfert dont la réponse s'est perdue : chaque
+  transfert est signé sur place et noté par son hash, calculé sur les octets signés, **avant**
+  `eth_sendRawTransaction`. Si la diffusion échoue, ou si le nœud l'a acceptée et que sa réponse
+  s'est perdue (un délai dépassé, une connexion coupée), la répétition demande d'abord au nœud ce
+  qu'il sait de ce hash : miné, en attente ou inconnu. Un transfert qu'il connaît est attendu,
+  jamais signé à nouveau ; un transfert qu'il ne connaît pas lui est renvoyé tel quel (les mêmes
+  octets, donc le même hash : « already known » ou « nonce too low » en réponse valent succès) ;
+  seul un refus net du nœud, qui ne le connaît pas, fait signer un nouveau transfert. La ligne du
+  portefeuille nomme alors ce hash et le montant réellement envoyé, sur Arc comme avec le jeton
+  de test. Un portefeuille dont le rapatriement a échoué n'est dit laissé en plan que si son
+  solde relu après le rapatriement n'est pas nul (ou n'a pas pu être relu). Est passager :
   une limite de débit (quel que soit le libellé du nœud), un délai dépassé, un 408, 425, 429 ou
   5xx, une connexion refusée ou coupée (le nœud comme Postgres). Le reste fait échouer l'étape
   tout de suite : un refus du produit (une route qui répond un autre 4xx), un revert, une plage de
@@ -490,11 +502,24 @@ acheteur du reçu).
 Elle écrit un **nouveau** reçu à côté du premier (même nom suivi de `-recovery`, JSON et
 Markdown ; `-recovery-2` au passage suivant), qui nomme le reçu qu'il récupère, chaque transaction
 causée avec son hash, l'état de la campagne avant et après, les soldes avant et après, ce qui a
-été rapatrié et ce qui reste ; le reçu d'origine n'est jamais réécrit. Code de sortie : 0
-seulement si la campagne est libérée et que rien ne reste (ou après `--estimate`), 1 sinon, 2 si
-elle a refusé. On peut la relancer sans risque : sur une campagne déjà libérée, elle ne fait que
-rapatrier ce qui reste et le dit ; interrompue (Ctrl-C arrête le moteur, rapatrie et écrit son
-reçu), elle reprend où en est la chaîne. Une fois sortie avec 0 : arrêter le serveur Postgres
+été rapatrié et ce qui reste ; le reçu d'origine n'est jamais réécrit. Il dit aussi avec quel
+résultat la campagne a été réglée (lu dans son événement `CampaignSettled`) et d'où il vient :
+déjà réglée on-chain, déjà forcé dans la base, connu dans la base, ou forcé par cette
+récupération (champ `result`, optionnel : le reçu reste en version 2). Quand ce résultat n'est
+pas celui que demandait le scénario du reçu d'origine, une phrase le dit. C'est le cas d'une
+répétition qui avait forcé OUI et dont la propre remise à zéro a effacé ce résultat avant que le
+règlement n'aboutisse : la récupération ne trouve plus rien de forcé et force NON. Pour l'argent,
+cela ne change rien (tout revient par le portefeuille du commerçant et le rapatriement), mais le
+reçu ne le tait pas. Code de sortie : 0 seulement si la campagne est libérée et que rien ne reste
+(ou après `--estimate`), 1 sinon, 2 si elle a refusé (par exemple quand le gaz de l'oracle ou du
+relayer, ou la trésorerie, ne couvre pas avec 20 % de marge ce qui reste à envoyer : la phrase
+nomme le manque, et rien n'est envoyé). On peut la relancer sans risque : sur une campagne déjà
+libérée, elle ne fait que rapatrier ce qui reste et le dit ; interrompue (Ctrl-C arrête le
+moteur, rapatrie et écrit son reçu), elle reprend où en est la chaîne, sans rien renvoyer, et
+chacun des deux reçus ne liste que les transactions de son propre passage. Un reçu dont `driven`
+vaut `null` (la répétition a échoué avant de piloter le carnet, donc avant toute vente) est
+récupéré sans piloter le carnet ni attendre de couverture : clôture, NON forcé, règlement,
+libération et rapatriement. Une fois sortie avec 0 : arrêter le serveur Postgres
 (`pg_ctl -D <dossier affiché> stop`) et supprimer son dossier.
 
 En dernier recours, sans moteur, le contrat ouvre sa voie d'urgence 7 jours après la clôture des
@@ -545,10 +570,18 @@ débit de la répétition mesuré pendant la couverture et le règlement ; NON s
 même escrow, depuis le bloc de déploiement ; chaque refus ; une étape en échec, une vente en
 échec, Ctrl-C avant les ventes et pendant la couverture, chacun suivi de sa récupération ;
 60 ventes pour le temps des remboursements ; le rapatriement en USDC natif sur un nœud qui
-refuse ; et trois campagnes laissées en plan comme sur Arc puis finies par `--recover`, deux fois
-chacune : une lecture qui ne revient jamais pendant la clôture puis un OUI déjà forcé, des tickets
-non facturés avec les refus et `--estimate`, et tous les tickets facturés ventes ouvertes ;
-environ 10 minutes, dont 7 avant `--recover`, le limiteur du moteur compris) :
+refuse ; et quatre campagnes laissées en plan comme sur Arc puis finies par `--recover` : une
+lecture qui ne revient jamais pendant la clôture puis un OUI déjà forcé, avec d'abord un refus
+pour une trésorerie qui ne couvre pas le dû du commerçant ; des tickets non facturés avec les
+refus, la commande `run.ts --recover` elle-même qui sort avec 2 quand le gaz de l'oracle et du
+relayer manque, et `--estimate`, puis un NON forcé que le reçu dit différent du OUI demandé ;
+tous les tickets facturés ventes ouvertes, avec une récupération interrompue par le signal
+d'arrêt après la clôture puis relancée ; et une répétition arrêtée avant de piloter le carnet
+(`driven` à `null`). Chacune est relancée une fois de plus, sauf la dernière. Environ 12 minutes,
+dont 7 avant `--recover`, le limiteur du moteur compris). `e2e/rehearsal/sweep.unit.test.ts`
+rapatrie un portefeuille à travers un nœud qui accepte le transfert et perd sa réponse, en minage
+immédiat et avec un bloc par seconde, en USDC natif et avec le jeton de test : un seul transfert
+atteint le nœud, la ligne dit `swept` avec son hash et son montant, le portefeuille finit à zéro :
 
 ```bash
 pnpm --filter @winz/web exec vitest run e2e/rehearsal

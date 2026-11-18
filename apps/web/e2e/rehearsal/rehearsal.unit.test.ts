@@ -31,10 +31,10 @@ import {
   stats,
   writeReceipt,
 } from "./receipt";
-import { describeEngineWarnings, rpcSecrets, runSecrets } from "./runner";
+import { describeEngineWarnings, moneyPartiesOf, rpcSecrets, runSecrets } from "./runner";
 import { buyerOf, defaultBudget, resolveScenario } from "./scenario";
 import { keepsThrowawayDatabase } from "./throwaway-db";
-import { SecretLeakError, type RehearsalReceipt, type Scenario } from "./types";
+import { SecretLeakError, type BalanceRow, type RehearsalReceipt, type Scenario } from "./types";
 
 /** The pure parts of the rehearsal: scenario, estimate, invariants, receipt, command line. */
 
@@ -234,6 +234,42 @@ describe("invariants", () => {
       ),
     };
     expect(moneyAddsUp(withGas).passed).toBe(true);
+  });
+
+  it("an account whose balance after settlement was not read is reported unread, never given its balance before", () => {
+    const rows = (pick: (party: (typeof input.parties)[number]) => bigint): BalanceRow[] =>
+      input.parties.map((party) => ({
+        role: party.role,
+        address: party.address,
+        moneyWei: pick(party),
+        nativeWei: 0n,
+      }));
+    const before = rows((party) => party.beforeWei);
+    const after = rows((party) => party.afterWei);
+    const gas = new Map<Address, bigint>([[treasury, 7n]]);
+    const complete = moneyPartiesOf(before, after, "erc20", gas);
+    expect(complete.unread).toEqual([]);
+    expect(complete.parties).toEqual(input.parties);
+    // On Arc the gas a signer paid is money: it is carried into the check.
+    expect(
+      moneyPartiesOf(before, after, "native-usdc", gas).parties.find(
+        (party) => party.address === treasury,
+      )?.gasWei,
+    ).toBe(7n);
+    // The merchant's balance after settlement is missing from the snapshot.
+    const missing = moneyPartiesOf(
+      before,
+      after.filter((row) => row.address !== merchant),
+      "erc20",
+      gas,
+    );
+    expect(missing.unread).toEqual([
+      `the balance of merchant ${merchant} after settlement: not read`,
+    ]);
+    expect(missing.parties.map((party) => party.role)).toEqual(["treasury", "escrow", "buyer 1"]);
+    const check = moneyAddsUp({ ...input, parties: missing.parties });
+    expect(check.passed).toBe(false);
+    expect(check.details).toContain(`${merchant} not measured`);
   });
 
   it("flags a charge above its guarantee, an ask at the threshold, a false demo flag, a stray Stripe call", () => {

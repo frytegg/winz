@@ -21,7 +21,14 @@ import { winzEscrowAbi } from "@winz/shared";
 import { RpcLimiterClosedError } from "../../../engine/src/chain";
 import { ApiCallError } from "../support/api";
 import { WaitTimeoutError } from "../support/wait";
-import { BlockClock, escrowHolds, logSpans, stageOf, type OnchainCampaignState } from "./chain";
+import {
+  BlockClock,
+  escrowHolds,
+  logSpans,
+  stageOf,
+  walletsLeftBehind,
+  type OnchainCampaignState,
+} from "./chain";
 import { CliError, parseCli } from "./cli";
 import { GAS_UNITS } from "./estimate";
 import {
@@ -32,6 +39,9 @@ import {
   readRunReceipt,
   recoveryBaseName,
   recoveryMarkdown,
+  recoveryResult,
+  resultLines,
+  settledOutcome,
 } from "./recovery";
 import {
   ReadFailedError,
@@ -47,8 +57,10 @@ import { ENGINE_START_MARGIN_BLOCKS, engineStartBlockOf } from "./runner";
 import {
   InjectedFailureError,
   RehearsalAbortedError,
+  type BalanceRow,
   type CampaignStateRecord,
   type RecoveryReceipt,
+  type SweepRecordRow,
 } from "./types";
 
 /**
@@ -490,6 +502,107 @@ describe("where a campaign stands, and what a recovery still sends", () => {
     expect(text).toContain("- sales closed through the merchant's route");
     expect(text).toContain("## Could not be read");
     expect(text).toContain("- campaign 2 is not released");
+    // A receipt written before `result` existed reads as before; one with it names the result.
+    expect(text).not.toContain("Settled with");
+    const withResult = recoveryMarkdown({
+      ...receipt,
+      result: recoveryResult({
+        settled: 1,
+        source: "forced by this recovery",
+        scenarioOutcome: "yes",
+        runId: "d171ed2352fa",
+      }),
+    });
+    expect(withResult).toContain(
+      "Settled with: NO (forced by this recovery); the run's scenario asked for YES.",
+    );
+    expect(withResult).toContain("\nThe campaign was settled NO, not YES as the scenario of run");
+  });
+});
+
+describe("what a sweep left behind, from the balances read after it", () => {
+  const wallet = (n: number): Address => `0x${n.toString(16).padStart(40, "0")}` as Address;
+  const wallets = [1, 2, 3, 4].map((n) => ({ label: `buyer ${n.toString()}`, address: wallet(n) }));
+  const row = (n: number, status: string): SweepRecordRow => ({
+    wallet: `buyer ${n.toString()}`,
+    address: wallet(n),
+    status,
+    sentWei: 0n,
+    gasWei: 0n,
+    txHash: null,
+  });
+  const balance = (n: number, moneyWei: bigint): BalanceRow => ({
+    role: `buyer ${n.toString()}`,
+    address: wallet(n),
+    moneyWei,
+    nativeWei: moneyWei,
+  });
+
+  it("a failed row whose wallet is read at zero leaves nothing; money or an unread balance does", () => {
+    const sweep = [row(1, "failed"), row(2, "failed"), row(3, "swept"), row(4, "failed")];
+    const after = [balance(1, 0n), balance(2, 5n * 10n ** 17n), balance(3, 10n ** 12n)];
+    expect(walletsLeftBehind(sweep, after, wallets)).toEqual([
+      `buyer 2 ${wallet(2)} was not swept: it still holds 0.5 USDC`,
+      `buyer 3 ${wallet(3)} still holds 0.000001 USDC after the sweep`,
+      `buyer 4 ${wallet(4)} was not swept, and its balance after the sweep could not be read`,
+    ]);
+    // No balance read at all: only the failed rows are named.
+    expect(walletsLeftBehind(sweep, null, wallets)).toEqual(
+      [1, 2, 4].map(
+        (n) =>
+          `buyer ${n.toString()} ${wallet(n)} was not swept, and its balance after the sweep could not be read`,
+      ),
+    );
+    expect(
+      walletsLeftBehind([row(1, "swept"), row(2, "empty")], [balance(1, 0n)], wallets),
+    ).toEqual([]);
+  });
+});
+
+describe("the result a recovery settled with", () => {
+  it("reads the escrow's outcome: 0 YES, 1 NO, 2 VOID", () => {
+    expect([0, 1, 2, 3].map(settledOutcome)).toEqual(["yes", "no", "void", null]);
+  });
+
+  it("says nothing more when it is the run's, and one sentence naming why when it is not", () => {
+    const kept = recoveryResult({
+      settled: 0,
+      source: "already forced in the database",
+      scenarioOutcome: "yes",
+      runId: "d171ed2352fa",
+    });
+    expect(kept).toEqual({
+      settledWith: "yes",
+      source: "already forced in the database",
+      scenarioOutcome: "yes",
+      differs: null,
+    });
+    expect(resultLines(kept)).toEqual([
+      "Settled with: YES (already forced in the database); the run's scenario asked for YES.",
+    ]);
+    const forced = recoveryResult({
+      settled: 1,
+      source: "forced by this recovery",
+      scenarioOutcome: "yes",
+      runId: "d171ed2352fa",
+    });
+    expect(forced.settledWith).toBe("no");
+    expect(forced.differs).toBe(
+      "The campaign was settled NO, not YES as the scenario of run d171ed2352fa asked: no result was forced or known any more when this recovery started (the run's own reset clears the result it forced, even when the settlement has not landed yet), so the recovery forced NO; the money comes back all the same, through the merchant's wallet and the sweep.",
+    );
+    expect(
+      recoveryResult({
+        settled: 1,
+        source: "already settled on-chain",
+        scenarioOutcome: "yes",
+        runId: "d171ed2352fa",
+      }).differs,
+    ).toMatch(/: the campaign was already settled on-chain when this recovery started\.$/);
+    // Not settled: nothing to compare.
+    expect(
+      recoveryResult({ settled: null, source: null, scenarioOutcome: "yes", runId: "x" }),
+    ).toEqual({ settledWith: null, source: null, scenarioOutcome: "yes", differs: null });
+    expect(resultLines(undefined)).toEqual([]);
   });
 });
 
