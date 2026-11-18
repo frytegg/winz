@@ -152,6 +152,7 @@ export type SaleStateReason =
   | "quote_accepted"
   | "resume_delay"
   | "resume_margin"
+  | "startup_grace"
   | "evaluation_failed";
 
 export interface SaleStateDecision {
@@ -307,6 +308,74 @@ export function evaluateSaleState(input: SaleStateInput): SaleStateDecision {
     reason: "quote_accepted",
     detail: null,
     memory: { state: "open", acceptedSinceMs, clearSinceMs, priceRefused: false },
+  };
+}
+
+/**
+ * Breaker reasons that, before the instrument's first book, only say that no book has come yet.
+ *
+ * The hedging lane's breaker (`hedging/policy/breaker.ts`, `stepBreaker`) starts inactive at every
+ * start and has three causes. `stale_book` is computed from the book's age and, with no book at
+ * all, from the time since the instrument started being followed: before the first book it trips
+ * on nothing but the missing book (after `staleAfterMs`, 10 s by default). `venue_down` comes from
+ * failed venue calls and `unhedged_limit` from the unhedged notional, which the runner cannot even
+ * measure without a book: neither depends on the missing book, so both pause at once, as does a
+ * breaker whose status could not be read. During the quiet period the breaker keeps showing its
+ * last cause; a `stale_book` shown there before any book is still the missing book.
+ */
+export const BOOK_CAUSED_BREAKER_REASONS: readonly string[] = ["stale_book"];
+
+/** Whether an active breaker reports only the instrument's missing book (see above). */
+export function isBookCausedBreaker(breaker: BreakerView): boolean {
+  return (
+    breaker.active &&
+    breaker.reason !== null &&
+    BOOK_CAUSED_BREAKER_REASONS.includes(breaker.reason)
+  );
+}
+
+/** The start-up grace of one campaign's instrument, as the service sees it at this evaluation. */
+export interface StartupGrace {
+  /** The campaign's stored sale state (`campaigns.sale_state`), kept while the grace holds. */
+  storedState: SaleState;
+}
+
+/**
+ * `evaluateSaleState` with the start-up grace (SPEC CA-5, 4.5; follow-up of H-02). Pure.
+ *
+ * `grace` is null when the grace does not apply to the campaign's instrument: the service has
+ * been up longer than its grace, the instrument has had a book from the feed since the service
+ * started, or the grace is turned off. The decision is then exactly `evaluateSaleState(input)`.
+ *
+ * Otherwise, and as long as `input.book` is null, the rules that need no book apply as usual
+ * (closed, then the manual pause, then a breaker active for a reason other than the missing book,
+ * see `isBookCausedBreaker`), and the book-dependent outcome is not acted on: the stored state is
+ * kept, whatever it is, with a fresh memory of it (`freshMemory`), so that a stored automatic
+ * pause still waits its full delay, with the one-tick margin for a price pause, once books come.
+ * The grace never decides `open`: it only refrains from pausing. A book in `input` ends it.
+ */
+export function evaluateSaleStateWithGrace(
+  input: SaleStateInput,
+  grace: StartupGrace | null,
+): SaleStateDecision {
+  if (grace === null || input.book !== null) return evaluateSaleState(input);
+  const previous = input.previous;
+  const priceRefusedBefore =
+    previous !== null && isAutomaticPause(previous.state) && previous.priceRefused;
+
+  const closed = closedReason(input);
+  if (closed !== null) return blocked("closed", closed, null, false);
+  if (input.manualPause) return blocked("paused_manual", "manual", null, false);
+  if (input.breaker.active && !isBookCausedBreaker(input.breaker)) {
+    return blocked("paused_breaker", "breaker", input.breaker.reason, priceRefusedBefore);
+  }
+  return {
+    state: grace.storedState,
+    reason: "startup_grace",
+    detail: "no book since the start, the stored state is kept",
+    couldOpen: false,
+    effectivePriceBps: null,
+    memory: freshMemory(grace.storedState, priceRefusedBefore),
   };
 }
 

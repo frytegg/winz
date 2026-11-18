@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { computeQuote, maxCostBps } from "@winz/pricing";
-import type { Book } from "@winz/shared";
+import type { Book, SaleState } from "@winz/shared";
 
 import {
+  AUTOMATIC_PAUSES,
   RESUME_DELAY_MS,
   RESUME_MARGIN_BPS,
   evaluateSaleState,
+  evaluateSaleStateWithGrace,
   freshMemory,
   isAutomaticPause,
   type SaleStateInput,
@@ -166,5 +168,85 @@ describe("evaluateSaleState: properties over random sequences", () => {
     // The sequences do exercise both directions.
     expect(pauses).toBeGreaterThan(100);
     expect(reopenings).toBeGreaterThan(100);
+  });
+});
+
+describe("evaluateSaleStateWithGrace: properties over random restarts", () => {
+  const GRACE_MS = 10_000;
+  const STORED: readonly SaleState[] = ["open", "closed", "paused_manual", ...AUTOMATIC_PAUSES];
+
+  it("changes nothing outside the grace, and never writes open during it unless already open", () => {
+    let graceSteps = 0;
+    let keptSteps = 0;
+    let pausedInGrace = 0;
+    let afterGrace = 0;
+    for (let seed = 1; seed <= SEEDS; seed += 1) {
+      const random = seededRandom(10_000 + seed);
+      const startMs = T0;
+      let nowMs = startMs;
+      // What the service does after a restart: it starts from the stored state, with no history.
+      let stored: SaleState = STORED[Math.floor(random() * STORED.length)] ?? "open";
+      let previous: SaleStateMemory = freshMemory(stored);
+      let market: Market = { mode: "none", priceBps: 1_500n };
+      let graceOver = false;
+      // Most restarts get their first book within the grace; some never do.
+      const firstBookMs = random() < 0.7 ? Math.floor(random() * 12_000) : Number.POSITIVE_INFINITY;
+
+      for (let i = 0; i < 80; i += 1) {
+        nowMs += Math.floor(random() * 1_000);
+        const elapsed = nowMs - startMs;
+        if (elapsed >= firstBookMs)
+          market = nextMarket(random, {
+            ...market,
+            mode: market.mode === "none" ? "fresh" : market.mode,
+          });
+        const book = elapsed >= firstBookMs ? bookOf(random, market, nowMs) : null;
+        const breakerRoll = random();
+        const breaker =
+          breakerRoll < 0.05
+            ? { active: true, reason: "venue_down" }
+            : breakerRoll < 0.15
+              ? { active: true, reason: "stale_book" }
+              : { active: false, reason: null };
+        const input = liveInput(nowMs, {
+          book,
+          bookFlaggedStale: random() < 0.02,
+          manualPause: random() < 0.02,
+          salesCloseMs: random() < 0.01 ? nowMs : nowMs + 3_600_000,
+          breaker,
+          previous,
+        });
+        // The runner's rule: a book or the end of the time ends the grace, for good.
+        if (book !== null || elapsed >= GRACE_MS) graceOver = true;
+        const grace = graceOver ? null : { storedState: stored };
+        const decision = evaluateSaleStateWithGrace(input, grace);
+        const context = `seed ${String(seed)}, step ${String(i)}`;
+
+        if (grace === null) {
+          afterGrace += 1;
+          expect(decision, context).toEqual(evaluateSaleState(input));
+        } else {
+          graceSteps += 1;
+          if (decision.state === "open") expect(stored, context).toBe("open");
+          expect(decision.couldOpen, context).toBe(false);
+          if (decision.reason === "startup_grace") {
+            keptSteps += 1;
+            expect(decision.state, context).toBe(stored);
+            expect(decision.memory, context).toEqual(
+              freshMemory(stored, isAutomaticPause(previous.state) && previous.priceRefused),
+            );
+          } else if (decision.state !== stored) {
+            pausedInGrace += 1;
+          }
+        }
+        stored = decision.state;
+        previous = decision.memory;
+      }
+    }
+    // The sequences do exercise the grace, its exceptions and what follows it.
+    expect(graceSteps).toBeGreaterThan(1_000);
+    expect(keptSteps).toBeGreaterThan(1_000);
+    expect(pausedInGrace).toBeGreaterThan(50);
+    expect(afterGrace).toBeGreaterThan(1_000);
   });
 });
