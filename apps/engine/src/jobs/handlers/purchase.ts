@@ -620,7 +620,9 @@ class Purchase {
     let wallet: string;
     let normalised: string;
     try {
-      const user = await resolveUserWallet(this.deps.db, this.deps.identity, email, "fan");
+      const user = await resolveUserWallet(this.deps.db, this.deps.identity, email, "fan", {
+        logger: this.log,
+      });
       wallet = user.walletAddress;
       normalised = user.email;
     } catch (error: unknown) {
