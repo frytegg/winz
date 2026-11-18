@@ -214,3 +214,26 @@ export async function stepTxs(db: Db, prefix: string): Promise<StepTxRow[]> {
     lastError: row.last_error,
   }));
 }
+
+/** A `chargeHedge` of the outbox not final yet, whoever enqueued it. */
+export interface OpenChargeTx {
+  id: string;
+  idempotencyKey: string;
+  /** The call data, from which its tickets are read (`chargeHedge(ticketIds, amounts)`). */
+  data: string;
+}
+
+/**
+ * Every `chargeHedge` still `queued` or `sent`, oldest first: the safety net's own and the hedging
+ * lane's. The lane's rows name neither their campaign in the payload nor in the key
+ * (`chargeHedge:rt:<hash>:<n>`); their tickets are in the call data and in `payload.ticketIds`.
+ */
+export async function openChargeTxs(db: Db): Promise<OpenChargeTx[]> {
+  const rows = await db<{ id: string; idempotency_key: string; data: string }[]>`
+    select id, idempotency_key, data
+    from chain_txs
+    where kind = 'chargeHedge' and status in ('queued', 'sent')
+    order by created_at, idempotency_key
+  `;
+  return rows.map((row) => ({ id: row.id, idempotencyKey: row.idempotency_key, data: row.data }));
+}

@@ -7,7 +7,7 @@ import { encodeFunctionData, getAddress, parseEventLogs, type Address, type Hex 
 
 import { winzEscrowAbi, type Outcome, type Quote } from "@winz/shared";
 
-import { startChainIngest, TxSender, type TxSenderConfig } from "../chain";
+import { startChainIngest, TxSender, type ChainClient, type TxSenderConfig } from "../chain";
 import {
   capturingLogger,
   EscrowDriver,
@@ -122,6 +122,8 @@ export interface SettlementEnvOptions {
   blockTime?: number;
   /** Settings of the env's transaction senders over `TEST_SENDER_CONFIG`. */
   sender?: Partial<TxSenderConfig>;
+  /** The node as the env's transaction senders see it. Default: the chain's public client. */
+  senderClient?: (client: ChainClient) => ChainClient;
 }
 
 /** Creates a fresh chain, database, projection and merchant. The treasury has its own key. */
@@ -257,7 +259,7 @@ export async function createSettlementEnv(
     const createSender = (): TxSender => {
       const sender = new TxSender({
         db,
-        client: env.publicClient,
+        client: options.senderClient?.(env.publicClient) ?? env.publicClient,
         accounts: { relayer: env.accounts.relayer, oracle: env.accounts.oracle },
         logger: logger.child({ module: "tx-sender" }),
         config: {

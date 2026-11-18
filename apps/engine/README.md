@@ -77,7 +77,14 @@ place, `src/chain/tx-kinds.ts`, with the reason it is safe:
 - `buyFor`: a ticket of a live campaign. The engine checks the budget and the sale state before
   every quote, and a purchase that reverts on-chain (two purchases together over the budget) ends
   the payment exactly as a purchase refused in simulation does.
-- `chargeHedge`: tickets already mined, never the same ticket in two charges in flight.
+- `chargeHedge`: tickets already mined, never the same ticket in two charges in flight. Once the
+  hedge finalizer has failed, the settlement's safety net first waits (up to its transaction wait)
+  for every `chargeHedge` still queued or sent that holds one of the campaign's uncharged tickets,
+  the hedging lane's included, then reads the tickets again: a ticket the lane charged meanwhile
+  is left out instead of being charged a second time, which with a window passes its simulation
+  and reverts on-chain with `HedgeAlreadyCharged`, gas paid. The lane's rows name no campaign: the
+  tickets are decoded from their call data. Only a lane charge still not final after that wait can
+  still overlap.
 - `refundBatch`: disjoint tickets of a campaign already settled YES; a batch skips a ticket already
   paid and never reverts because of another batch.
 
@@ -105,6 +112,16 @@ What does not change:
   `pending` as `latest`, a load-balanced RPC, a node that keeps evicting it and taking it back)
   cannot hold off the fee bump and the alert. A nonce taken by a transaction the engine did not
   sign fails that one transaction; the later ones are judged on their own nonces.
+- A transaction cannot be mined before the one before it, so the time it waited behind a stalled
+  earliest one does not count in full: when it becomes the earliest (the one before it recorded
+  mined, reverted or failed), its replacement timer is moved so that at least `resendCheckMs`
+  (3 s) remain before it can be replaced; with `resendCheckMs` at or above `replaceAfterMs` the
+  timer simply restarts. A window that waited behind a stalled transaction is then mined one per
+  block without a fee bump each (and without spending one of each one's 3 bumps), and under a
+  real fee spike it recovers one transaction per 3 s, not one per 15 s.
+- At `start()` every `sent` row is broadcast again from its stored bytes in the worker's first
+  pass, in nonce order, before any receipt or count is read, whatever the window: nothing waits
+  for the pending-count check or, with one in flight, for a fee bump 15 s later.
 - `ARC_TX_MAX_IN_FLIGHT=1` is the one-at-a-time sender, request for request: the simulation, the
   gas estimate and a fresh fee suggestion are read one after the other for every transaction (a
   call that reverts costs its simulation only), and the pending count is never asked.
