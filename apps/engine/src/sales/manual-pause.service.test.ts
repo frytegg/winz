@@ -126,6 +126,11 @@ class Actors {
     return job;
   }
 
+  /** The request id the web API stamped on the job `name`. */
+  requestIdOf(name: string): string {
+    return this.job(name).requestId;
+  }
+
   /** The web API: a pause writes paused_manual at once and enqueues; a resume only enqueues. */
   async request(name: string, at: Date): Promise<void> {
     const paused = name.startsWith("pause");
@@ -865,5 +870,159 @@ describe("the store's exception for a job whose transaction is mined", () => {
     await actors.claim("resume1");
     await actors.nothingSent("resume1");
     expect(await pass()).toMatchObject({ sale: "open", live: "open" });
+  });
+});
+
+/**
+ * `job_pause_projected` (store.ts, `pauseJoins`) asks four things of the rows of the request's own
+ * `setPaused` transaction: the row is `mined`, and its hash carries a `CampaignPaused` naming the
+ * campaign, with `paused = true`, projected. These cases write the rows by hand so that exactly one
+ * of them is missing, the job finished (nothing in flight) and the status `live` (no projection
+ * ran): only (d) of the rule is left to decide, and it must keep the pause.
+ */
+describe("the request's own pause: each condition of the lookup decides", () => {
+  interface OwnRows {
+    /** `chain_txs.status` of the request's own setPaused row. */
+    status: "mined" | "reverted" | "failed" | "sent";
+    /** The `CampaignPaused` logs stored under its hash, all projected. */
+    events: (campaign: Campaign) => { id: string; paused: boolean }[];
+    /** How the job ended. */
+    job: "done" | "dead";
+    /** `chain_events.source`: a receipt (the sender), or a log poller. */
+    source: "receipt" | "logs";
+  }
+
+  /** The request's own setPaused row and the events under its hash, written by hand. */
+  async function writeOwnRows(campaign: Campaign, requestId: string, rows: OwnRows): Promise<void> {
+    counter += 1;
+    const txHash = `0x${counter.toString(16).padStart(64, "0")}`;
+    const final = rows.status === "mined" || rows.status === "reverted";
+    const at = new Date(T0);
+    await db.begin(async (tx) => {
+      await tx`
+        insert into chain_txs (idempotency_key, signer, kind, to_address, data, payload, nonce,
+                               signer_address, chain_id, tx_hash, status, attempts,
+                               block_number, sent_at, mined_at, last_error)
+        values (${`setPaused:${requestId}`}, 'relayer', 'setPaused', ${ESCROW}, '0x',
+                ${db.json({ campaignId: campaign.id, paused: true, requestId })},
+                ${rows.status === "failed" ? null : counter}, ${RELAYER}, 31337, ${txHash},
+                ${rows.status}, 1, ${final ? counter : null}, ${at}, ${final ? at : null},
+                ${rows.status === "mined" || rows.status === "sent" ? null : "test: not mined"})
+      `;
+      for (const [logIndex, event] of rows.events(campaign).entries()) {
+        await tx`
+          insert into chain_events (tx_hash, log_index, block_number, block_time, name, args,
+                                    source, processed_at)
+          values (${txHash}, ${logIndex}, ${counter}, ${at}, 'CampaignPaused',
+                  ${db.json({ id: event.id, paused: event.paused })}, ${rows.source}, now())
+        `;
+      }
+    });
+  }
+
+  const ownPause = (campaign: Campaign): { id: string; paused: boolean }[] => [
+    { id: campaign.onchainId, paused: true },
+  ];
+
+  /** Plays a pause request whose job ends as `rows.job`, with `rows` as its own rows. */
+  async function pauseWith(rows: OwnRows): Promise<{
+    campaign: Campaign;
+    pass: () => Promise<{ sale: string; status: string; live: string | null }>;
+  }> {
+    const { actors, campaign, clock, pass } = await setup();
+    expect((await pass()).sale).toBe("open");
+    await actors.request("pause", new Date(clock.nowMs));
+    await actors.claim("pause");
+    await writeOwnRows(campaign, actors.requestIdOf("pause"), rows);
+    if (rows.job === "done") await actors.done("pause");
+    else await actors.dead("pause");
+    return { campaign, pass };
+  }
+
+  const missing: [string, OwnRows][] = [
+    // `pt.status = 'mined'`. A `sent` row whose event a log poller stored and the projector
+    // projected before the sender read the receipt is what the system can write; a `reverted` or
+    // `failed` row with events under its hash it cannot (see the comment in store.ts).
+    [
+      "its row is still sent, the event stored and projected from the logs",
+      { status: "sent", events: ownPause, job: "dead", source: "logs" },
+    ],
+    [
+      "its row is reverted while an event of its hash is projected",
+      { status: "reverted", events: ownPause, job: "dead", source: "receipt" },
+    ],
+    [
+      "its row is failed while an event of its hash is projected",
+      { status: "failed", events: ownPause, job: "dead", source: "logs" },
+    ],
+    // `pe.args ->> 'id' = c.onchain_id::text`.
+    [
+      "its mined hash carries the CampaignPaused of another campaign only",
+      {
+        status: "mined",
+        events: (campaign) => [
+          { id: (BigInt(campaign.onchainId) + 1000n).toString(), paused: true },
+        ],
+        job: "done",
+        source: "receipt",
+      },
+    ],
+    // `(pe.args ->> 'paused')::boolean`.
+    [
+      "its mined hash carries a CampaignPaused(paused = false) of the campaign",
+      {
+        status: "mined",
+        events: (campaign) => [{ id: campaign.onchainId, paused: false }],
+        job: "done",
+        source: "receipt",
+      },
+    ],
+  ];
+
+  it.each(missing)("not seen when %s: the rule keeps the pause", async (_name, rows) => {
+    const { campaign, pass } = await pauseWith(rows);
+    const input = await loadManualPauseInput(db, campaign.id);
+    expect(input).toEqual({
+      status: "live",
+      pauseJobInFlight: false,
+      pauseEventUnprojected: false,
+      latestPauseJob: { paused: true, pauseProjected: false },
+    });
+    expect(input === null ? null : isManuallyPaused(input)).toBe(true);
+    const { rows: saleRows } = await loadCampaignSaleRows(db, [SYMBOL]);
+    expect(saleRows.find((row) => row.id === campaign.id)?.latestPauseJob).toEqual({
+      paused: true,
+      pauseProjected: false,
+    });
+    expect(await pass()).toEqual({ sale: "paused_manual", live: "paused_manual", status: "live" });
+  });
+
+  it("seen with the same rows once nothing is missing (the cases above differ by one field)", async () => {
+    const { campaign } = await pauseWith({
+      status: "mined",
+      events: ownPause,
+      job: "done",
+      source: "receipt",
+    });
+    expect((await loadManualPauseInput(db, campaign.id))?.latestPauseJob).toEqual({
+      paused: true,
+      pauseProjected: true,
+    });
+  });
+
+  it("seen when the hash also carries another campaign's event besides its own", async () => {
+    const { campaign } = await pauseWith({
+      status: "mined",
+      events: (c) => [
+        { id: (BigInt(c.onchainId) + 1000n).toString(), paused: true },
+        { id: c.onchainId, paused: true },
+      ],
+      job: "done",
+      source: "receipt",
+    });
+    expect((await loadManualPauseInput(db, campaign.id))?.latestPauseJob).toEqual({
+      paused: true,
+      pauseProjected: true,
+    });
   });
 });
