@@ -171,3 +171,69 @@ describe("the allocation as the store plays it, from what the tables record", ()
     expect(totals.replacements).toBeGreaterThan(50);
   });
 });
+
+describe("rebuildInventory where the takes' rounding outgrows the fill's cost", () => {
+  it("clamps the rest of a fee-only fill at zero, exactly as the live allocation leaves it", () => {
+    // The smallest case: a fill of 0.03 contract at 0 bps with a fee of 1 costs 1 micro-USDC.
+    // A lot takes 0.01 first: ceil(1 × 1 / 3) = 1, the whole cost. A resale of 0.01 then costs
+    // soldCost(0.01) = ceil(1 × 1 / 3) = 1 by the formula, capped at the 0 left. What is left,
+    // 0.01, costs 1 − 1 − 1 = −1 by the raw difference: 0 once clamped. (A fill of two parts
+    // cannot reach it: the second take exhausts it and gets exactly what is left; nor can a
+    // resale before the lot: the resale then takes the 1 and the lot's take is capped at 0.)
+    const fills: HeldFill[] = [];
+    const lot: AllocationLot = {
+      lotId: "L1",
+      seq: 1n,
+      campaignId: "A",
+      qty: STEP,
+      filledQty: 0n,
+      cost: 0n,
+      maxHedgeCost: 1_000n,
+    };
+    const cost = fillCost(0n, 3n * STEP, 1n);
+    expect(cost).toBe(1n);
+    fills.push({
+      fillId: "F",
+      fillQty: 3n * STEP,
+      fillCost: cost,
+      allocatedQty: 0n,
+      allocatedCost: 0n,
+    });
+
+    // The buy fill: the lot takes 0.01 of it.
+    const covered = allocateInventory([lot], rebuildInventory("X", fills, 0n).pieces);
+    expect(covered.allocations).toEqual([{ lotId: "L1", fillId: "F", qty: STEP, cost: 1n }]);
+    const fill = fills[0];
+    if (fill === undefined) throw new Error("no fill");
+    fill.allocatedQty = STEP;
+    fill.allocatedCost = 1n;
+    expect(view(covered.inventory)).toEqual([["F", 2n * STEP, 0n, 0n]]);
+    expect(view(rebuildInventory("X", fills, 0n).pieces)).toEqual(view(covered.inventory));
+
+    // The resale of 0.01: its cost basis is capped at the 0 left.
+    const sale = sellFromInventory("X", rebuildInventory("X", fills, 0n).pieces, {
+      fillId: "S",
+      priceBps: 5_000n,
+      qty: STEP,
+      fee: 0n,
+    });
+    expect(sale.costBasis).toBe(0n);
+    expect(view(sale.inventory)).toEqual([["F", STEP, 0n, STEP]]);
+
+    // Rebuilt from the records: lots took 1, soldCost(0.01) is 1, the fill cost 1: clamped to 0.
+    const rebuilt = rebuildInventory("X", fills, STEP);
+    expect(rebuilt.shortQty).toBe(0n);
+    expect(view(rebuilt.pieces)).toEqual(view(sale.inventory));
+    // Every micro-USDC accounted for: the lot 1, the resale 0, the inventory 0.
+    expect(covered.lots[0]?.cost).toBe(1n);
+    expect(1n + sale.costBasis + inventoryTotals(rebuilt.pieces).cost).toBe(cost);
+
+    // The rest still covers a later lot at no cost, and the books still close.
+    const next = allocateInventory(
+      [{ ...lot, lotId: "L2", seq: 2n }],
+      rebuildInventory("X", fills, STEP).pieces,
+    );
+    expect(next.allocations).toEqual([{ lotId: "L2", fillId: "F", qty: STEP, cost: 0n }]);
+    expect(next.inventory).toEqual([]);
+  });
+});
