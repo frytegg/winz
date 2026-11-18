@@ -9,9 +9,9 @@ import { GET as getCampaigns } from "@/app/api/campaigns/route";
 import { GET as getEvents } from "@/app/api/events/route";
 import { GET as getMe } from "@/app/api/me/route";
 import { POST as postMerchants } from "@/app/api/merchants/route";
-import { POST as postQuicknode } from "@/app/api/webhooks/quicknode/route";
 
 import { createTestDatabase, type TestDatabase } from "../../../engine/src/testing/postgres";
+import { apiRoute } from "./api-route";
 import { setServerDepsForTesting } from "./deps";
 import { FakeIdentity, randomWallet, serverDepsFor } from "./testing/fixtures";
 
@@ -102,8 +102,10 @@ describe("route handlers with authentication wired", () => {
     expect(await campaigns.json()).toEqual({ campaigns: [] });
   });
 
-  it("still answers 501 on a route that is not implemented yet", async () => {
-    const response = await postQuicknode(
+  it("still answers 501 on a route registered without an implementation", async () => {
+    // Every route file has an implementation now (the QuickNode webhook was the last one).
+    const unimplemented = apiRoute("quicknodeWebhook");
+    const response = await unimplemented(
       new Request("http://localhost/api/webhooks/quicknode", { method: "POST", body: "{}" }),
       noParams,
     );

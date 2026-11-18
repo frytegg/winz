@@ -17,7 +17,8 @@
     "db:test": "bash supabase/tests/run.sh",
     "completion-check": "node scripts/completion-check.mjs",
     "env:check": "tsx scripts/env-check.mjs",
-    "smoke": "tsx scripts/smoke.mjs"
+    "smoke": "tsx scripts/smoke.mjs",
+    "quicknode:record": "node scripts/quicknode-record.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

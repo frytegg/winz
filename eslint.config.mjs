@@ -13,6 +13,9 @@ export default tseslint.config(
       "packages/contracts/out/**",
       "packages/contracts/cache/**",
       "packages/contracts/broadcast/**",
+      // The service worker next build writes (git-ignored): generated, minified code.
+      "apps/web/public/sw.js",
+      "apps/web/public/swe-worker-*.js",
       ".claude/**",
     ],
   },

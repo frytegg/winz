@@ -154,10 +154,29 @@ apparaît donc quelques secondes après la réponse de la route, quand le moteur
 | `POST /api/checkout/:pi/confirm`, `GET /api/checkout/:pi` | Déclenche l'achat, puis suit son état                                                            |
 | `GET /api/t/:token`, `GET /api/tickets`                | Ticket par lien secret, tickets du fan connecté                                                     |
 | `POST /api/webhooks/stripe`                            | Webhook Stripe, signature vérifiée sur le corps brut                                                |
+| `POST /api/webhooks/quicknode`                         | Webhook QuickNode Streams : les logs de l'escrow dans `chain_events`, une fois (HE-1)               |
 | `GET /api/hedge-desk`                                  | Hedge desk public : instruments couverts, lieu d'exécution, paramètres, totaux, contrôle sandbox    |
 | `POST /api/admin/demo/book`, `/result`, `/sale`, `/reset` | Mode démo, derrière la clé admin                                                                 |
 
-Répond encore `501` : `POST /api/webhooks/quicknode`.
+Plus aucune route ne répond `501`.
+
+### Le webhook QuickNode Streams
+
+`POST /api/webhooks/quicknode` vérifie la signature (`x-qn-nonce`, `x-qn-timestamp`,
+`x-qn-signature`, HMAC-SHA256 du jeton `QUICKNODE_STREAMS_TOKEN`) sur le corps brut, décompressé
+s'il est en gzip, puis écrit les logs de `ARC_ESCROW_ADDRESS` dans `chain_events` avec la source
+`streams`, sous la même forme que le reçu et la relecture `eth_getLogs` du moteur ; un événement
+déjà écrit par une autre source ne change rien. Le moteur l'applique comme les deux autres.
+Création de l'endpoint et du Stream : `docs/quicknode.md`.
+
+| Réponse | Quand                                                                                              |
+| ------- | -------------------------------------------------------------------------------------------------- |
+| `200`   | Livraison écrite (ou déjà écrite) ; les logs d'autres adresses sont ignorés                         |
+| `401`   | En-tête manquant, signature fausse, horodatage à plus de 5 minutes ; rien n'est écrit               |
+| `400`   | Corps qui n'est pas du JSON d'une forme documentée, livraison d'un autre réseau ou sans réseau       |
+| `413`   | Plus de 4 Mio, compressé ou une fois décompressé                                                   |
+| `503`   | `QUICKNODE_STREAMS_TOKEN` ou `ARC_ESCROW_ADDRESS` absent (dit une fois dans les logs)               |
+| `500`   | Base indisponible : rien n'est écrit, QuickNode renvoie la livraison                               |
 
 ### Créer une campagne (M7)
 
