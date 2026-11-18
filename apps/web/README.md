@@ -3,6 +3,9 @@
 L'application Next.js de Winz : les écrans (commerçant, page de campagne, ticket) et les routes
 HTTP de `/api`.
 
+Mise en ligne (Supabase, Railway, Vercel, Stripe), réglages du projet Vercel et variables : voir
+[`docs/deploy.md`](../../docs/deploy.md).
+
 ## Construire les écrans sans le back : l'API simulée
 
 Toutes les routes de la section 10 de `SPEC.md` existent déjà. En mode simulé, chacune renvoie une
