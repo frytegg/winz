@@ -10,6 +10,7 @@ import type { MicroContracts } from "@winz/shared";
 
 import { createTestDatabase, type TestDatabase } from "../../testing/postgres";
 import type { VenueFill, VenueOrder } from "../../venues";
+import { heldInventoryOf } from "../allocation";
 import {
   createCampaign,
   createLot,
@@ -85,6 +86,7 @@ function fillEvent(
   qty: MicroContracts,
   side: "buy" | "sell" = "buy",
   priceBps = 4100n,
+  fee = 0n,
 ): PolicyEvent {
   const fill: VenueFill = {
     fillId,
@@ -94,7 +96,7 @@ function fillEvent(
     kind: "maker",
     priceBps,
     qty,
-    fee: 0n,
+    fee,
     atMs: Date.now(),
     bookRef: {
       source: "trade",
@@ -311,6 +313,62 @@ describe("PgPolicySink", () => {
     expect(pnl?.resale_result).toBe(1_350_000n - 1_200_000n);
     const [position] = await db<{ held: bigint }[]>`select held from positions`;
     expect(position?.held).toBe(1n * C);
+  });
+
+  it("books a buy that replaces an over-sale on the resales: proceeds − cost basis − replacement cost", async () => {
+    const db = database.db;
+    const campaign = await createCampaign(db, market);
+    await createLot(db, market, campaign, 1n * C, 1_000_000n);
+    const recorded: FillRecorded[] = [];
+    const sink = new PgPolicySink({
+      db,
+      venue: "paper",
+      logger,
+      onFillRecorded: (e) => recorded.push(e),
+    });
+
+    // 3 contracts at $0.41, fee 7: 1 230 007. The lot takes one: ceil(1 230 007 / 3) = 410 003.
+    await sink.record(intent("wz.t-1", 3n * C));
+    await sink.record(fillEvent("wz.t-1", "buy-1", 3n * C, "buy", 4100n, 7n));
+    // 5 sold at $0.45, fee 3, while 2 were held: proceeds 2 249 997, cost basis 820 004 (what
+    // the 2 held still carried), 3 over-sold.
+    await sink.record(intent("wz.t-2", 5n * C, "sell"));
+    await sink.record(fillEvent("wz.t-2", "sell-1", 5n * C, "sell", 4500n, 3n));
+    const resaleResult = async (): Promise<bigint | undefined> => {
+      const [row] = await db<{ resale_result: bigint }[]>`
+        select resale_result from engine_pnl where event_ticker = ${market.eventTicker}
+      `;
+      return row?.resale_result;
+    };
+    expect(await resaleResult()).toBe(2_249_997n - 820_004n);
+
+    // 4 bought at $0.37, fee 5: 1 480 005. 3 replace the over-sale: ceil(1 480 005 × 3 / 4) =
+    // 1 110 004; 1 stays in inventory at 370 001.
+    await sink.record(intent("wz.t-3", 4n * C));
+    const replacement = fillEvent("wz.t-3", "buy-2", 4n * C, "buy", 3700n, 5n);
+    await sink.record(replacement);
+    await sink.record(replacement); // delivered twice: booked once
+    expect(recorded).toHaveLength(3);
+    expect(recorded[1]?.result.sale).toMatchObject({
+      proceeds: 2_249_997n,
+      costBasis: 820_004n,
+      shortQty: 3n * C,
+    });
+    expect(recorded[2]?.result.replacedShort).toEqual({ qty: 3n * C, cost: 1_110_004n });
+
+    expect(await resaleResult()).toBe(2_249_997n - 820_004n - 1_110_004n);
+    expect(await resaleResult()).toBe(319_989n);
+
+    // Every micro-USDC the buy fills cost is somewhere: the lot, the resale's cost basis, the
+    // replacement, the inventory.
+    const paid = 1_230_007n + 1_480_005n;
+    const [lot] = await db<
+      { cost: bigint; filled_qty: bigint }[]
+    >`select cost, filled_qty from lots`;
+    expect(lot).toEqual({ cost: 410_003n, filled_qty: 1n * C });
+    const inventory = await heldInventoryOf(db, market.instrument);
+    expect(inventory).toEqual({ qty: 1n * C, cost: 370_001n, shortQty: 0n });
+    expect(410_003n + 820_004n + 1_110_004n + inventory.cost).toBe(paid);
   });
 
   it("refuses to place an order whose intent cannot be written", async () => {

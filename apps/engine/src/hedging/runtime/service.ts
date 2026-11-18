@@ -102,9 +102,12 @@ export interface HedgingServiceOptions {
   chargeIntervalMs?: number;
   /** Least time between two writes of one instrument's `live_hedge_desk` row. Default 1 000. */
   deskMinIntervalMs?: number;
-  /** Longest wait for a reconciliation inside `finalize`. Default 30 000. */
+  /** Longest wait for one reconciliation (the sales-close pass's or `finalize`'s). Default 30 000. */
   reconcileTimeoutMs?: number;
-  /** Longest wait for the charges of a campaign inside `finalize`. Default 120 000. */
+  /**
+   * Longest a `finalize` call runs, from its start: the reconciliation it waits for or runs and
+   * the wait for the campaign's charges share this one deadline. Default 120 000.
+   */
   finalizeTimeoutMs?: number;
   /** Overrides of the circuit breaker's defaults (HE-5). */
   breakerParams?: Partial<BreakerParams>;
@@ -803,6 +806,8 @@ export class HedgingService implements HedgeFinalizer {
   /**
    * Calls the runner's `reconcile()` and waits until it is no longer pending, every fill of it is
    * written, and no order is open. `ok` once |H − E| ≤ one step, with the E reconciled against.
+   * It waits `reconcileTimeoutMs` at most, and never past `notAfter` (epoch ms) when one is given:
+   * the deadline of the `finalize` it runs for.
    *
    * It hands the runner no exposure: E is the runner's own, from the newest read any caller handed
    * it (`handRead`). An exposure passed in here would have been read before the reconciliation
@@ -810,12 +815,14 @@ export class HedgingService implements HedgeFinalizer {
    */
   private async reconcile(
     entry: Entry,
+    notAfter?: number,
   ): Promise<{ ok: true; exposure: bigint } | { ok: false; detail: string }> {
     const { runner } = entry;
     const symbol = entry.info.symbol;
     await this.testHooks.beforeReconcile?.(symbol);
     await runner.reconcile();
-    const deadline = Date.now() + this.reconcileTimeoutMs;
+    const own = Date.now() + this.reconcileTimeoutMs;
+    const deadline = notAfter === undefined ? own : Math.min(own, notAfter);
     for (;;) {
       const snapshot = runner.snapshot();
       const settled =
@@ -844,17 +851,21 @@ export class HedgingService implements HedgeFinalizer {
    * every remaining lot of the campaign on-chain and waits for those transactions. Idempotent: on
    * a campaign already finalized it finds nothing to charge and returns.
    *
+   * One deadline, `finalizeTimeoutMs` from the call: the reconciliation and the wait for the
+   * charges share it, so a call never runs much longer than that (one database round or poll
+   * past it at most), however long the reconciliation took.
+   *
    * Throws `HedgeNotReconciledError` when the position cannot be brought within one step (no book,
-   * stale book, breaker), `HedgeFinalizeError` when charges are not final in time, and
-   * `HedgingStoppedError` once the service stops. All are retryable.
+   * stale book, breaker) by the deadline, `HedgeFinalizeError` when charges are not final by it,
+   * and `HedgingStoppedError` once the service stops. All are retryable.
    */
   async finalize(campaign: FinalizeCampaign): Promise<void> {
     if (this.stopped || this.signal.aborted) throw new HedgingStoppedError("finalizing");
     if (!this.ready) throw new HedgeFinalizeError(campaign.id, "the service is still starting");
-    await this.reconcileForFinalize(campaign);
+    const deadline = Date.now() + this.finalizeTimeoutMs;
+    await this.reconcileForFinalize(campaign, deadline);
     await this.allocateInventory(campaign.instrument);
 
-    const deadline = Date.now() + this.finalizeTimeoutMs;
     for (let round = 1; ; round += 1) {
       await this.charger.chargeRemaining([campaign.id]);
       await this.waitForCharges(campaign, deadline);
@@ -904,10 +915,10 @@ export class HedgingService implements HedgeFinalizer {
    * runner ignores the read if it already has a newer one. Campaigns settled since the last pass
    * leave H with their lots' exposure before the reconciliation compares the two: never a sale of
    * contracts the venue paid out. The reconciliation then runs against the runner's own E, the
-   * newest any caller handed it.
+   * newest any caller handed it. Every wait in it ends at `deadline` (epoch ms), the deadline of
+   * the `finalize` call.
    */
-  private async reconcileForFinalize(campaign: FinalizeCampaign): Promise<void> {
-    const deadline = Date.now() + this.finalizeTimeoutMs;
+  private async reconcileForFinalize(campaign: FinalizeCampaign, deadline: number): Promise<void> {
     for (;;) {
       if (this.stopped || this.signal.aborted) throw new HedgingStoppedError("finalizing");
       const row = await getHedgeInstrument(this.db, campaign.instrument);
@@ -915,13 +926,12 @@ export class HedgingService implements HedgeFinalizer {
       const entry = needsRunner(row) ? await this.ensureEntry(row) : this.entries.get(row.symbol);
       if (entry === undefined) return;
       if (entry.reconciling !== null) {
-        if (Date.now() >= deadline) {
+        if (!(await this.waitUntil(entry.reconciling, deadline))) {
           throw new HedgeNotReconciledError(
             campaign.instrument,
             "another reconciliation of the instrument kept running until the finalizer's deadline",
           );
         }
-        await entry.reconciling;
         continue;
       }
       // The settlement guard: campaigns settled since the runner last heard leave H with their
@@ -932,13 +942,43 @@ export class HedgingService implements HedgeFinalizer {
       // Every campaign settled and only orders left: nothing to reconcile, only to follow.
       if (!needsRunner(row)) return;
       if (entry.reconciledAtExposure === entry.runner.snapshot().exposure) return;
+      if (Date.now() >= deadline) {
+        throw new HedgeNotReconciledError(
+          campaign.instrument,
+          "the finalizer's deadline passed before its reconciliation could start",
+        );
+      }
       const reconciled = await this.claimReconcile(entry, async () => {
-        const outcome = await this.reconcile(entry);
+        const outcome = await this.reconcile(entry, deadline);
         if (outcome.ok) entry.reconciledAtExposure = outcome.exposure;
         return outcome;
       });
       if (!reconciled.ok) throw new HedgeNotReconciledError(campaign.instrument, reconciled.detail);
       return;
+    }
+  }
+
+  /**
+   * Waits for `work` until `deadline` (epoch ms): true once it settled, false when the deadline
+   * came first (`work` goes on; only the wait ends). Throws `HedgingStoppedError` on a stop.
+   */
+  private async waitUntil(work: Promise<void>, deadline: number): Promise<boolean> {
+    const timer = new AbortController();
+    const onAbort = (): void => timer.abort();
+    this.signal.addEventListener("abort", onAbort, { once: true });
+    try {
+      const settled = await Promise.race([
+        work.then(
+          () => true,
+          () => true,
+        ),
+        abortableSleep(deadline - Date.now(), timer.signal).then(() => false),
+      ]);
+      if (!settled && this.signal.aborted) throw new HedgingStoppedError("finalizing");
+      return settled;
+    } finally {
+      timer.abort();
+      this.signal.removeEventListener("abort", onAbort);
     }
   }
 
