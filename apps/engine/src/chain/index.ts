@@ -69,6 +69,7 @@ export {
   type LogPollerConfig,
   type PollResult,
 } from "./log-poller";
+export { explicitLogRange, withExplicitToBlock } from "./log-range";
 export {
   campaignOnchainIdOf,
   ChainProjector,
