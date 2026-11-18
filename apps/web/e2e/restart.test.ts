@@ -78,31 +78,49 @@ const BOOK_HELD_MS = 1_500;
 
 /**
  * Starts the engine (`start`) with the instrument's book held back from the new feed for
- * `BOOK_HELD_MS`, then lets it through.
+ * `BOOK_HELD_MS`, then lets it through. The timer that lets it through is added to `timers`, which
+ * the scenario clears in its `finally`, so a scenario that fails early leaves no timer behind
+ * acting on a closed world.
  */
 async function startWithoutBook(
   w: World,
   symbol: string,
+  timers: Set<NodeJS.Timeout>,
   start: () => Promise<void>,
 ): Promise<void> {
   w.gemini.silence(symbol);
   try {
     await start();
   } finally {
-    setTimeout(() => {
+    const timer = setTimeout(() => {
+      timers.delete(timer);
       w.gemini.resume(symbol);
     }, BOOK_HELD_MS);
+    timers.add(timer);
+  }
+}
+
+/** Raised in one branch of `buyRightAfterRestart` when the other one failed first. */
+class OtherBranchFailedError extends Error {
+  constructor(branch: string) {
+    super(`${branch} stopped: the other check failed first`);
+    this.name = "OtherBranchFailedError";
   }
 }
 
 /**
  * Polls the public campaign page from now for `forMs` and fails on the first answer that is not
- * open. Returns the number of answers read.
+ * open. Returns the number of answers read. Stops when `stop` is aborted.
  */
-async function expectOpenThroughout(slug: string, forMs: number): Promise<number> {
+async function expectOpenThroughout(
+  slug: string,
+  forMs: number,
+  stop: AbortSignal,
+): Promise<number> {
   const startedAt = Date.now();
   let answers = 0;
   while (Date.now() - startedAt < forMs) {
+    if (stop.aborted) throw new OtherBranchFailedError("the open-throughout check");
     const page = await api.publicCampaign(slug);
     answers += 1;
     expect(
@@ -114,9 +132,13 @@ async function expectOpenThroughout(slug: string, forMs: number): Promise<number
   return answers;
 }
 
-/** Waits until a checkout is ticketed, and fails at once if the promo cancelled it as paused. */
-async function expectTicketedWithoutPause(w: World, pi: string): Promise<void> {
+/**
+ * Waits until a checkout is ticketed, and fails at once if the promo cancelled it as paused. Stops
+ * when `stop` is aborted.
+ */
+async function expectTicketedWithoutPause(w: World, pi: string, stop: AbortSignal): Promise<void> {
   await w.waitFor(`the checkout ${pi} to be ticketed`, async () => {
+    if (stop.aborted) throw new OtherBranchFailedError("the purchase check");
     const status = await api.checkoutStatus(pi);
     if (status.status === "cancelled_paused" || status.status === "failed") {
       throw new Error(`checkout ${pi} answered ${status.status} after the restart`);
@@ -127,7 +149,9 @@ async function expectTicketedWithoutPause(w: World, pi: string): Promise<void> {
 
 /**
  * Right after a restart: watches the campaign page for `OPEN_WATCH_MS` while a customer buys at
- * once, and checks that the purchase is ticketed with no pause in between.
+ * once, and checks that the purchase is ticketed with no pause in between. When one branch fails,
+ * the other stops at its next poll, and the first failure is the one reported once both have
+ * settled (nothing keeps polling routes after the world is closed).
  */
 async function buyRightAfterRestart(
   w: World,
@@ -135,17 +159,32 @@ async function buyRightAfterRestart(
   qty: number,
   email: string,
 ): Promise<Purchase> {
-  const [answers, purchase] = await Promise.all([
-    expectOpenThroughout(slug, OPEN_WATCH_MS),
-    (async (): Promise<Purchase> => {
-      const bought = await buy(w, slug, qty, email);
-      await expectTicketedWithoutPause(w, bought.pi);
-      return bought;
-    })(),
+  const stop = new AbortController();
+  let firstFailure: { error: unknown } | null = null;
+  const failFast = <T>(branch: Promise<T>): Promise<T> =>
+    branch.catch((error: unknown) => {
+      firstFailure ??= { error };
+      stop.abort();
+      throw error;
+    });
+  const [watched, bought] = await Promise.allSettled([
+    failFast(expectOpenThroughout(slug, OPEN_WATCH_MS, stop.signal)),
+    failFast(
+      (async (): Promise<Purchase> => {
+        const purchase = await buy(w, slug, qty, email);
+        await expectTicketedWithoutPause(w, purchase.pi, stop.signal);
+        return purchase;
+      })(),
+    ),
   ]);
+  const failure = firstFailure as { error: unknown } | null;
+  if (failure !== null) throw failure.error;
+  if (watched.status !== "fulfilled" || bought.status !== "fulfilled") {
+    throw new Error("unreachable: a branch failed without being recorded");
+  }
   // The page was actually read throughout the window, not once.
-  expect(answers).toBeGreaterThan(10);
-  return purchase;
+  expect(watched.value).toBeGreaterThan(10);
+  return bought.value;
 }
 
 function signal(): { promise: Promise<void>; fire: () => void } {
@@ -161,98 +200,108 @@ describe("restarts in the middle of the loop", () => {
     "E: the engine restarts after a buyFor is mined and during settlement; nothing happens twice",
     { timeout: 120_000 },
     async () => {
-      const w = await createWorld(anvil);
-      world = w;
-      const symbol = w.game.away.symbol;
-      w.gemini.setBook(symbol, QUIET_BOOK);
-      const treasury = w.escrow.accounts.treasury.address;
-      const treasuryBefore = await tokenBalance(w, treasury);
-      const merchant = await signUpMerchant(w, "Joe's Pizza", "pizza");
-      const campaign = await launchCampaign(w, merchant, symbol);
+      // Timers that let a held book through; cleared however the scenario ends.
+      const bookTimers = new Set<NodeJS.Timeout>();
+      try {
+        const w = await createWorld(anvil);
+        world = w;
+        const symbol = w.game.away.symbol;
+        w.gemini.setBook(symbol, QUIET_BOOK);
+        const treasury = w.escrow.accounts.treasury.address;
+        const treasuryBefore = await tokenBalance(w, treasury);
+        const merchant = await signUpMerchant(w, "Joe's Pizza", "pizza");
+        const campaign = await launchCampaign(w, merchant, symbol);
 
-      // Restart 1: the capture call arrives (so the ticket is on-chain), the engine is stopped and
-      // the call fails as if the process died before Stripe got it.
-      const captureReached = signal();
-      let interrupted = false;
-      w.stripe.setInterceptor("capture", () => {
-        if (interrupted) return;
-        interrupted = true;
-        captureReached.fire();
-        w.abortEngine();
-        throw transientStripeError("capture");
-      });
-      const first = await buy(w, campaign.slug, 1, customerEmail("ann"));
-      await within(captureReached.promise, 20_000, "the capture of the first purchase");
-      await w.engineStopped();
-      w.stripe.clearInterceptor("capture");
-      // Between the two processes: the ticket exists on-chain, nobody was charged.
-      expect(await ticketCount(w)).toBe(1n);
-      expect(w.stripe.intent(first.pi)).toMatchObject({ status: "requires_capture", captures: 0 });
-      expect((await api.checkoutStatus(first.pi)).status).toBe("processing");
+        // Restart 1: the capture call arrives (so the ticket is on-chain), the engine is stopped and
+        // the call fails as if the process died before Stripe got it.
+        const captureReached = signal();
+        let interrupted = false;
+        w.stripe.setInterceptor("capture", () => {
+          if (interrupted) return;
+          interrupted = true;
+          captureReached.fire();
+          w.abortEngine();
+          throw transientStripeError("capture");
+        });
+        const first = await buy(w, campaign.slug, 1, customerEmail("ann"));
+        await within(captureReached.promise, 20_000, "the capture of the first purchase");
+        await w.engineStopped();
+        w.stripe.clearInterceptor("capture");
+        // Between the two processes: the ticket exists on-chain, nobody was charged.
+        expect(await ticketCount(w)).toBe(1n);
+        expect(w.stripe.intent(first.pi)).toMatchObject({
+          status: "requires_capture",
+          captures: 0,
+        });
+        expect((await api.checkoutStatus(first.pi)).status).toBe("processing");
 
-      await startWithoutBook(w, symbol, () => w.startEngine());
-      // From the restart on, the promo keeps selling: no wait for a reopening.
-      const second = await buyRightAfterRestart(w, campaign.slug, 2, customerEmail("bob"));
-      await waitTicketed(w, first.pi);
-      expect(await ticketCount(w)).toBe(2n);
-      await fillRestingMaker(w, campaign, 2);
-      // Hedging moved the book; it is back to quiet and the promo sells before the next restart.
-      await waitSaleState(w, campaign.slug, "open", 5_000);
+        await startWithoutBook(w, symbol, bookTimers, () => w.startEngine());
+        // From the restart on, the promo keeps selling: no wait for a reopening.
+        const second = await buyRightAfterRestart(w, campaign.slug, 2, customerEmail("bob"));
+        await waitTicketed(w, first.pi);
+        expect(await ticketCount(w)).toBe(2n);
+        await fillRestingMaker(w, campaign, 2);
+        // Hedging moved the book; it is back to quiet and the promo sells before the next restart.
+        await waitSaleState(w, campaign.slug, "open", 5_000);
 
-      // Restart 2: the engine stops right after `settle` is mined, before refunds and payouts.
-      const settled = signal();
-      let stopped = false;
-      await startWithoutBook(w, symbol, () =>
-        w.restartEngine({
-          tuning: {
-            settlement: {
-              onStep: (event) => {
-                if (stopped || event.step !== "settle" || event.phase !== "done") return;
-                stopped = true;
-                settled.fire();
-                w.abortEngine();
+        // Restart 2: the engine stops right after `settle` is mined, before refunds and payouts.
+        const settled = signal();
+        let stopped = false;
+        await startWithoutBook(w, symbol, bookTimers, () =>
+          w.restartEngine({
+            tuning: {
+              settlement: {
+                onStep: (event) => {
+                  if (stopped || event.step !== "settle" || event.phase !== "done") return;
+                  stopped = true;
+                  settled.fire();
+                  w.abortEngine();
+                },
               },
             },
-          },
-        }),
-      );
-      const third = await buyRightAfterRestart(w, campaign.slug, 1, customerEmail("cat"));
-      const purchases: Purchase[] = [first, second, third];
-      await fillRestingMaker(w, campaign, purchases.length);
-      await closeSales(w, campaign);
-      await w.waitFor("the hedge reservation back to zero", async () => {
-        const onchain = await onchainCampaign(w, campaign.onchainId);
-        return { ok: onchain.hedgeReserved === 0n, seen: onchain };
-      });
-      w.gemini.settle({ home: "no", away: "yes" });
-      await within(settled.promise, 30_000, "the settle step of the campaign");
-      await w.engineStopped();
-      expect(await countFor(w, "CampaignSettled", campaign.onchainId)).toBe(1);
-      const mid = await onchainCampaign(w, campaign.onchainId);
-      expect(mid.status).toBe(2);
-      expect(mid.released).toBe(false);
+          }),
+        );
+        const third = await buyRightAfterRestart(w, campaign.slug, 1, customerEmail("cat"));
+        const purchases: Purchase[] = [first, second, third];
+        await fillRestingMaker(w, campaign, purchases.length);
+        await closeSales(w, campaign);
+        await w.waitFor("the hedge reservation back to zero", async () => {
+          const onchain = await onchainCampaign(w, campaign.onchainId);
+          return { ok: onchain.hedgeReserved === 0n, seen: onchain };
+        });
+        w.gemini.settle({ home: "no", away: "yes" });
+        await within(settled.promise, 30_000, "the settle step of the campaign");
+        await w.engineStopped();
+        expect(await countFor(w, "CampaignSettled", campaign.onchainId)).toBe(1);
+        const mid = await onchainCampaign(w, campaign.onchainId);
+        expect(mid.status).toBe(2);
+        expect(mid.released).toBe(false);
 
-      await w.startEngine();
-      await waitSettled(w, campaign, "yes");
+        await w.startEngine();
+        await waitSettled(w, campaign, "yes");
 
-      // Nothing happened twice.
-      const tickets = await soldTickets(w, campaign.onchainId);
-      expect(tickets).toHaveLength(purchases.length);
-      const [rows] = await w.db<{ n: bigint }[]>`select count(*)::bigint as n from tickets`;
-      expect(rows?.n).toBe(BigInt(purchases.length));
-      const charges = await hedgeCharges(w, campaign.onchainId);
-      expect(charges).toHaveLength(tickets.length);
-      expect(new Set(charges.map((charge) => charge.ticketId)).size).toBe(tickets.length);
-      expect(await countFor(w, "CampaignSettled", campaign.onchainId)).toBe(1);
-      const refunds = (await escrowEvents(w, "TicketRefunded")).map((event) => event.ticketId);
-      expect(refunds).toHaveLength(tickets.length);
-      expect(new Set(refunds).size).toBe(tickets.length);
-      expectEachCapturedOnce(w, purchases);
-      await expectYesLedger(w, campaign, tickets, charges, treasury, treasuryBefore);
-      for (const purchase of purchases) {
-        await waitTicketPhase(w, await waitTicketed(w, purchase.pi), "refunded");
+        // Nothing happened twice.
+        const tickets = await soldTickets(w, campaign.onchainId);
+        expect(tickets).toHaveLength(purchases.length);
+        const [rows] = await w.db<{ n: bigint }[]>`select count(*)::bigint as n from tickets`;
+        expect(rows?.n).toBe(BigInt(purchases.length));
+        const charges = await hedgeCharges(w, campaign.onchainId);
+        expect(charges).toHaveLength(tickets.length);
+        expect(new Set(charges.map((charge) => charge.ticketId)).size).toBe(tickets.length);
+        expect(await countFor(w, "CampaignSettled", campaign.onchainId)).toBe(1);
+        const refunds = (await escrowEvents(w, "TicketRefunded")).map((event) => event.ticketId);
+        expect(refunds).toHaveLength(tickets.length);
+        expect(new Set(refunds).size).toBe(tickets.length);
+        expectEachCapturedOnce(w, purchases);
+        await expectYesLedger(w, campaign, tickets, charges, treasury, treasuryBefore);
+        for (const purchase of purchases) {
+          await waitTicketPhase(w, await waitTicketed(w, purchase.pi), "refunded");
+        }
+        expectReport(await api.campaign(merchant.headers, campaign.id), tickets, charges, "yes");
+      } finally {
+        for (const timer of bookTimers) clearTimeout(timer);
+        bookTimers.clear();
       }
-      expectReport(await api.campaign(merchant.headers, campaign.id), tickets, charges, "yes");
     },
   );
 });

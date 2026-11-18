@@ -299,6 +299,8 @@ export class SaleStateRunner {
       salesCloseMs: row.salesCloseMs,
       manualPause: isManuallyPaused({
         status: row.status,
+        pauseJobInFlight: row.pauseJobInFlight,
+        pauseEventUnprojected: row.pauseEventUnprojected,
         latestPauseJob: row.latestPauseJob,
         lastOnChainPauseAtMs: row.lastOnChainPauseAtMs,
       }),
