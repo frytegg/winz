@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { startAnvil, type AnvilInstance } from "../testing/anvil";
 import { createArcClients, type ArcClientEnv } from "./clients";
+import { FakeRpcNode } from "./fake-rpc-node";
 
 const DEAD_RPC_URL = "http://127.0.0.1:1";
 
@@ -50,6 +51,30 @@ describe("createArcClients", () => {
       { retryCount: 0, requestTimeoutMs: 2_000 },
     );
     await expect(clients.publicClient.getChainId()).rejects.toThrow();
+  });
+
+  it("sends an open-ended eth_getLogs with toBlock latest, with or without the limiter", async () => {
+    const escrow = "0x81d2d4050E617184b2B832c30BE68f8811b37D2c";
+    for (const rateLimit of [undefined, false] as const) {
+      const node = new FakeRpcNode({ head: 500n });
+      const url = await node.listen();
+      const clients = createArcClients(
+        { ...env, ARC_RPC_URL: url, ARC_RPC_FALLBACK_URL: url },
+        { retryCount: 0, ...(rateLimit === false ? { rateLimit } : {}) },
+      );
+      try {
+        await clients.publicClient.getLogs({ address: escrow, fromBlock: 16n });
+        await clients.publicClient.getLogs({ address: escrow, fromBlock: 16n, toBlock: 32n });
+        const filters = node.callsOf("eth_getLogs").map((call) => call.params[0]);
+        expect(filters).toEqual([
+          { address: escrow, fromBlock: "0x10", toBlock: "latest", topics: [] },
+          { address: escrow, fromBlock: "0x10", toBlock: "0x20", topics: [] },
+        ]);
+      } finally {
+        clients.limiter?.close();
+        await node.close();
+      }
+    }
   });
 
   it("does not expose the private keys on what it returns", () => {
