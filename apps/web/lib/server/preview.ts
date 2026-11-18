@@ -76,13 +76,16 @@ export function closedPreview(response: CampaignPreviewResponse): CampaignPrevie
 }
 
 /**
- * Asks the engine to follow `symbol` for the next ten minutes (it picks the row up within a
- * couple of seconds). A second request only pushes the expiry further.
+ * Asks the engine to follow `symbol` for the ten minutes after `now` (it picks the row up within a
+ * couple of seconds). A second request only pushes the expiry further. The times come from the
+ * server's clock, not Postgres': the engine reads `expires_at` against its own clock, which the
+ * routes' injected clock stands for.
  */
-export async function trackInstrument(db: Db, symbol: string): Promise<void> {
+export async function trackInstrument(db: Db, symbol: string, now: Date): Promise<void> {
+  const expiresAt = new Date(now.getTime() + TRACKING_TTL_MINUTES * 60_000);
   await db`
     insert into tracked_instruments (symbol, requested_at, expires_at)
-    values (${symbol}, now(), now() + make_interval(mins => ${TRACKING_TTL_MINUTES}))
+    values (${symbol}, ${now}, ${expiresAt})
     on conflict (symbol) do update set
       requested_at = excluded.requested_at,
       expires_at = greatest(tracked_instruments.expires_at, excluded.expires_at)
@@ -114,7 +117,7 @@ export async function previewCampaign(
   }
   const salesClosed = now.getTime() >= instrument.sales_close_at.getTime();
 
-  if (!salesClosed) await trackInstrument(db, instrument.symbol);
+  if (!salesClosed) await trackInstrument(db, instrument.symbol, now);
   const [book, pending] = await Promise.all([
     readCachedBook(db, instrument.symbol),
     unhedgedExposure(db, instrument.symbol),
