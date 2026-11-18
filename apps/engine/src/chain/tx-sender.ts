@@ -23,6 +23,8 @@ import {
 import { decodeEscrowLogs, readChainEvents } from "./events";
 import { addGasMargin, backoffDelayMs, bumpFees, computeFees, type Fees } from "./fees";
 import { normalizeTxRequest } from "./request";
+import { isRateLimitedError } from "./rpc-errors";
+import { isRpcLimiterClosedError } from "./rpc-limiter";
 import { resolveTxSenderSettings, type TxSenderSettings } from "./settings";
 import { ChainTxStore, readSenderState, type SigningKey } from "./store";
 import {
@@ -67,6 +69,8 @@ interface Worker {
   dirty: boolean;
   wake: (() => void) | null;
   loop: Promise<void> | null;
+  /** Rate-limit answers in a row while preparing: they set the pause, not the give-up count. */
+  rateLimitedPrepares: number;
 }
 
 function isTerminal(tx: ChainTx): boolean {
@@ -139,8 +143,8 @@ export class TxSender {
       throw new TxSenderConfigError("The relayer and the oracle must be two different keys");
     }
     this.workers = {
-      relayer: { nextNonce: null, dirty: false, wake: null, loop: null },
-      oracle: { nextNonce: null, dirty: false, wake: null, loop: null },
+      relayer: { nextNonce: null, dirty: false, wake: null, loop: null, rateLimitedPrepares: 0 },
+      oracle: { nextNonce: null, dirty: false, wake: null, loop: null, rateLimitedPrepares: 0 },
     };
   }
 
@@ -352,10 +356,24 @@ export class TxSender {
         // row: the next pass reads it again, and the nonce is derived again.
         failures += 1;
         worker.nextNonce = null;
-        log.error(
-          { err: describeError(error), failures },
-          "transaction worker failed, retrying after a pause",
-        );
+        if (isRpcLimiterClosedError(error)) {
+          // The engine is stopping and its RPC limiter released the request unsent.
+          log.warn(
+            { err: describeError(error), failures },
+            "node request not sent, the RPC limiter is closed; the transaction is left as it was",
+          );
+        } else if (isRateLimitedError(error)) {
+          // Nothing was signed with the nonce being read: the row is as it was.
+          log.warn(
+            { err: describeError(error), failures },
+            "node rate limited the transaction worker, retrying after a pause",
+          );
+        } else {
+          log.error(
+            { err: describeError(error), failures },
+            "transaction worker failed, retrying after a pause",
+          );
+        }
         await this.pause(this.backoff(failures));
       }
     }
@@ -437,6 +455,36 @@ export class TxSender {
         }
         return;
       }
+      const preparing = this.workers[signer];
+      if (isRpcLimiterClosedError(error)) {
+        // The engine is stopping and its RPC limiter released the request without sending it:
+        // nothing about this transaction or the node. The row is left exactly as it was (no
+        // attempt counted, no error recorded, never given up for it); the next start prepares it.
+        log.warn(
+          { id: tx.id, kind: tx.kind, error: verdict.reason },
+          "node request not sent, the RPC limiter is closed; the transaction is left as it was",
+        );
+        await this.pause(this.backoff(1));
+        return;
+      }
+      if (isRateLimitedError(error)) {
+        // The node refuses this client for now, not this transaction: the row is left exactly as
+        // it was (no attempt counted, no error recorded, never given up for it), and asked again
+        // after a pause that grows while the refusals last.
+        preparing.rateLimitedPrepares += 1;
+        log.warn(
+          {
+            id: tx.id,
+            kind: tx.kind,
+            inARow: preparing.rateLimitedPrepares,
+            error: verdict.reason,
+          },
+          "node rate limited the preparation of a transaction, retrying after a pause",
+        );
+        await this.pause(this.backoff(preparing.rateLimitedPrepares));
+        return;
+      }
+      preparing.rateLimitedPrepares = 0;
       const failure = await this.store.recordPrepareFailure(tx.id, verdict.reason);
       // The row changed under us (another sender?): the next pass reads it again.
       if (!failure) return;
@@ -460,10 +508,11 @@ export class TxSender {
       return;
     }
 
+    const worker = this.workers[signer];
+    worker.rateLimitedPrepares = 0;
     // Stopping before anything is signed leaves the row exactly as it was.
     if (this.stopping) return;
 
-    const worker = this.workers[signer];
     const nonce = await this.nextNonce(signer);
     const fees = computeFees(suggestion, this.settings.feePolicy);
     const attempt = await this.sign(account, tx, { nonce, gas, fees });
@@ -518,7 +567,7 @@ export class TxSender {
     tx: ChainTx,
     attempt: SignedAttempt,
     log: Logger,
-  ): Promise<{ accepted: true } | { accepted: false; error: string }> {
+  ): Promise<{ accepted: true } | { accepted: false; error: string; rateLimited: boolean }> {
     try {
       await this.client.sendRawTransaction({ serializedTransaction: attempt.raw });
       return { accepted: true };
@@ -535,8 +584,15 @@ export class TxSender {
         return { accepted: true };
       }
       const description = describeError(error);
+      if (isRateLimitedError(error)) {
+        log.warn(
+          { id: tx.id, txHash: attempt.hash, err: description },
+          "broadcast rate limited by the node, the same signed transaction is sent again",
+        );
+        return { accepted: false, error: description, rateLimited: true };
+      }
       log.warn({ id: tx.id, txHash: attempt.hash, err: description }, "broadcast failed, retrying");
-      return { accepted: false, error: description };
+      return { accepted: false, error: description, rateLimited: false };
     }
   }
 
@@ -572,6 +628,7 @@ export class TxSender {
     let state = initial;
     let needsBroadcast = true;
     let broadcastFailures = 0;
+    let rateLimitedBroadcasts = 0;
     let nextBroadcastAt = 0;
     let lastBroadcastAt = this.nowMs();
     let rpcFailures = 0;
@@ -590,7 +647,26 @@ export class TxSender {
           if (result.accepted) {
             needsBroadcast = false;
             broadcastFailures = 0;
+            rateLimitedBroadcasts = 0;
             lastBroadcastAt = this.nowMs();
+          } else if (result.rateLimited) {
+            // The node refuses this client for now: not a refusal of the transaction, so it does
+            // not count towards the alert. The same stored bytes go out again after a pause.
+            rateLimitedBroadcasts += 1;
+            nextBroadcastAt = this.nowMs() + this.backoff(rateLimitedBroadcasts);
+            if (rateLimitedBroadcasts === BROADCAST_FAILURES_BEFORE_ALERT && !this.stopping) {
+              // Once per stretch of refusals, where an operator looks; the row is not touched
+              // (no `last_error`): the transaction itself is not refused.
+              log.error(
+                {
+                  id: tx.id,
+                  nonce: nonce.toString(),
+                  rateLimited: rateLimitedBroadcasts,
+                  err: result.error,
+                },
+                "broadcast still rate limited by the node, the signer's queue waits behind it",
+              );
+            }
           } else {
             broadcastFailures += 1;
             nextBroadcastAt = this.nowMs() + this.backoff(broadcastFailures);
@@ -739,6 +815,9 @@ export class TxSender {
       const block = await this.client.getBlock({ blockNumber });
       return new Date(Number(block.timestamp) * 1000);
     } catch (error: unknown) {
+      // A rate limit says nothing about the block: the receipt is looked up again after a pause
+      // rather than recorded without its time.
+      if (isRateLimitedError(error)) throw error;
       log.warn(
         { blockNumber: blockNumber.toString(), err: describeError(error) },
         "block time could not be read, the transaction is recorded without it",
@@ -764,6 +843,8 @@ export class TxSender {
     } catch (error: unknown) {
       const verdict = classifySimulationError(error);
       if (verdict.kind === "revert") return verdict.reason;
+      // Asked again after a pause, rather than recorded as a bare "execution reverted".
+      if (isRateLimitedError(error)) throw error;
     }
     return "execution reverted";
   }

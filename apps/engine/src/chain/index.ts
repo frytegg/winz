@@ -54,11 +54,15 @@ export {
 } from "./ingest-errors";
 export {
   DEFAULT_MAX_BLOCK_RANGE,
+  DEFAULT_MIN_REQUEST_GAP_MS,
+  DEFAULT_RATE_LIMIT_BASE_DELAY_MS,
+  DEFAULT_RATE_LIMIT_MAX_DELAY_MS,
   defaultCursorName,
   insertLogEvents,
   isRangeRefusal,
   LOGS_SOURCE,
   LogPoller,
+  rateLimitDelayMs,
   readCursor,
   writeCursor,
   type LogClient,
@@ -76,6 +80,25 @@ export {
   type StoredChainEvent,
 } from "./projector";
 export { normalizeTxRequest } from "./request";
+export {
+  classifyRpcRefusal,
+  isRateLimitedError,
+  isRetryableRpcError,
+  type RpcRefusal,
+} from "./rpc-errors";
+export {
+  DEFAULT_RPC_LIMITS,
+  isRpcLimiterClosedError,
+  rateLimitedTransport,
+  resolveRpcLimits,
+  RpcLimiter,
+  RpcLimiterClosedError,
+  RpcLimiterConfigError,
+  RpcRequestAbortedError,
+  type RateLimitedTransportOptions,
+  type RpcLimiterStats,
+  type RpcLimits,
+} from "./rpc-limiter";
 export { resolveTxSenderSettings, type TxSenderSettings } from "./settings";
 export { TxSender, type TxSenderDeps } from "./tx-sender";
 export type {

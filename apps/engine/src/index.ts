@@ -12,6 +12,16 @@ import { DemoPaymentGateway, RoutingPaymentGateway, StripePaymentGateway } from 
 /** How long subsystems get to finish what they are doing before the process exits anyway. */
 const SHUTDOWN_GRACE_MS = 15_000;
 
+/**
+ * After this long into a shutdown, the RPC limiter releases the requests still waiting for their
+ * turn (`RpcLimiterClosedError`, never sent). viem does not pass the stop signal down to the
+ * transport, so a request held by a long cool-down (up to 16 s, several times) would otherwise
+ * keep its loop, and the stop, waiting past the grace period. Not at once: the services first get
+ * time to stop on their own (the job worker aborts its handlers, the transaction sender finishes
+ * the broadcast it started), and 6 s remain to close the database.
+ */
+const RPC_LIMITER_RELEASE_MS = SHUTDOWN_GRACE_MS - 6_000;
+
 function loadEnvOrExit(): EngineEnv {
   try {
     return loadEngineEnv();
@@ -87,7 +97,9 @@ async function main(): Promise<void> {
     log.warn("Privy is not configured: buyers get demo wallets derived from the demo seed");
   }
 
-  const arc = createArcClients(env);
+  // Every request to the node goes through one limiter (ARC_RPC_* variables), shared by every
+  // service through this one client.
+  const arc = createArcClients(env, { logger: moduleLogger(root, "rpc") });
   let engine: Engine;
   try {
     engine = await startEngine({
@@ -119,6 +131,7 @@ async function main(): Promise<void> {
     });
   } catch (error: unknown) {
     log.fatal({ err: error }, "engine could not start");
+    arc.limiter?.close();
     await db.end({ timeout: 5 }).catch(() => undefined);
     process.exit(1);
   }
@@ -134,8 +147,13 @@ async function main(): Promise<void> {
       process.exit(exitCode === 0 ? 1 : exitCode);
     }, SHUTDOWN_GRACE_MS);
     forced.unref();
+    arc.limiter?.closeAfter(RPC_LIMITER_RELEASE_MS);
     void engine.stopped
-      .then(() => db.end({ timeout: 5 }))
+      .then(() => {
+        // Nothing uses the node any more: a request still waiting for its turn is released.
+        arc.limiter?.close();
+        return db.end({ timeout: 5 });
+      })
       .catch((error: unknown) => log.error({ err: error }, "error while stopping"))
       .finally(() => process.exit(exitCode));
   };

@@ -43,6 +43,18 @@ start, naming each problem, when one is missing or malformed.
 | `APP_DEMO_WALLET_SEED`                                | see above | 32-byte hex secret from which demo wallets are derived.                               |
 | `APP_EXECUTION_VENUE`                                 | no        | `paper` (default): fills simulated against the live Gemini book.                      |
 | `DB_POOL_MAX`                                         | no        | Default 20.                                                                           |
+| `ARC_RPC_MAX_REQUESTS_PER_SECOND`                     | no        | Requests the engine starts in any one second, every method counted. Default 10.       |
+| `ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND`               | no        | Of those, requests of the heavy methods. Default 4.                                   |
+| `ARC_RPC_HEAVY_METHODS`                               | no        | Comma-separated JSON-RPC methods counted as heavy. Default `eth_getLogs`.             |
+
+Every request the engine makes to its node goes through one limiter shared by all its services:
+the limits above, kept under what Arc's public RPC accepts (it refuses the 13th `eth_getLogs`
+within 1.4 s). When the node still answers "rate limited", every request waits a cool-down
+(1 s, doubled while it lasts, at most 16 s, one warning each) and the refused one is sent
+again. On a first start far behind the head, the event reader catches up in ranges of 2 000
+blocks, four a second: 60 000 blocks take about 30 requests and 8 s. On shutdown, requests
+still waiting for their turn after 9 s are released unsent, so the engine stops within its
+15 s grace period.
 
 ## Demo mode
 
