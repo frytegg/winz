@@ -9,6 +9,14 @@ import type { ManualPauseInput, PauseJobView } from "./manual-pause";
  * module's API (not exported by `index.ts`).
  */
 
+/** A scenario the model cannot play: a step out of order, or orders that leave a job stuck. */
+export class PauseModelError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PauseModelError";
+  }
+}
+
 /** What happens to a pause or resume job and its transaction. */
 export type PausePhase =
   /** The web API enqueued the job (`queued`). */
@@ -50,6 +58,16 @@ interface ModelJob {
   status: ModelJobStatus;
   /** Its transaction is mined (`chain_txs.status = 'mined'`). */
   txMined: boolean;
+  /** Transient failures so far (`retry` steps). */
+  retries: number;
+}
+
+/** A job of the model as a test reads it. */
+export interface ModelJobView {
+  job: string;
+  paused: boolean;
+  status: ModelJobStatus;
+  txMined: boolean;
 }
 
 interface ModelEvent {
@@ -73,22 +91,24 @@ export class PauseModel {
   apply(step: PauseStep, nowMs: number): void {
     const job = this.jobs.get(step.job);
     if (step.phase === "requested") {
-      if (job !== undefined) throw new Error(`${stepName(step)}: requested twice`);
+      if (job !== undefined) throw new PauseModelError(`${stepName(step)}: requested twice`);
       this.jobs.set(step.job, {
         paused: asksPause(step.job),
         createdAtMs: nowMs,
         status: "queued",
         txMined: false,
+        retries: 0,
       });
       return;
     }
-    if (job === undefined) throw new Error(`${stepName(step)}: never requested`);
+    if (job === undefined) throw new PauseModelError(`${stepName(step)}: never requested`);
     switch (step.phase) {
       case "running":
         job.status = "running";
         return;
       case "retry":
         job.status = "queued";
+        job.retries += 1;
         return;
       case "dead":
         job.status = "dead";
@@ -107,7 +127,7 @@ export class PauseModel {
         return;
       case "projected": {
         const event = this.events.find((candidate) => candidate.job === step.job);
-        if (event === undefined) throw new Error(`${stepName(step)}: nothing mined`);
+        if (event === undefined) throw new PauseModelError(`${stepName(step)}: nothing mined`);
         event.projected = true;
         // The projector sets the status from the LAST stored event in chain order, not from the
         // event it applies (chain/projector.ts: latestPauseState).
@@ -117,6 +137,60 @@ export class PauseModel {
         return;
       }
     }
+  }
+
+  /** The jobs requested so far, in the order of their requests. */
+  jobsView(): ModelJobView[] {
+    return [...this.jobs.entries()].map(([job, state]) => ({
+      job,
+      paused: state.paused,
+      status: state.status,
+      txMined: state.txMined,
+    }));
+  }
+
+  /** The merchant's latest request, or null before the first. */
+  latest(): ModelJobView | null {
+    return this.jobsView().at(-1) ?? null;
+  }
+
+  /**
+   * The steps the job worker, the handler (`jobs/handlers/campaign-actions.ts`), the transaction
+   * sender and the projector can take next, for the jobs requested so far (the merchant's next
+   * request is the caller's). A job takes at most `maxRetries` transient failures.
+   *
+   * - a `queued` job is claimed (`running`);
+   * - a `running` job whose transaction is not mined decides, under the campaign's lock (held by
+   *   a running job whose transaction is mined until it has projected it), with the chain final
+   *   (every other action's transaction mined: a decision and its mining are one step here, the
+   *   store reads only mined transactions): superseded by a later request, or the chain already
+   *   as asked, it sends nothing (`nothing-sent`); otherwise its transaction is mined (`mined`);
+   * - a running job whose transaction is mined projects it and ends (`projected`);
+   * - a running job can fail transiently (`retry`) before or after its transaction is mined.
+   */
+  nextSteps(maxRetries = 0): PauseStep[] {
+    const steps: PauseStep[] = [];
+    const names = [...this.jobs.keys()];
+    const latest = names[names.length - 1];
+    const lockHolder = names.find((name) => {
+      const job = this.jobs.get(name);
+      return job !== undefined && job.status === "running" && job.txMined;
+    });
+    for (const [name, job] of this.jobs) {
+      if (job.status === "queued") {
+        steps.push({ job: name, phase: "running" });
+        continue;
+      }
+      if (job.status !== "running") continue;
+      if (job.retries < maxRetries) steps.push({ job: name, phase: "retry" });
+      if (job.txMined) {
+        steps.push({ job: name, phase: "projected" });
+      } else if (lockHolder === undefined) {
+        const nothingToSend = name !== latest || this.chainPaused() === job.paused;
+        steps.push({ job: name, phase: nothingToSend ? "nothing-sent" : "mined" });
+      }
+    }
+    return steps;
   }
 
   /** What the escrow says: the `paused` argument of the last mined `CampaignPaused`. */
@@ -193,4 +267,102 @@ export function pauseResumeOrders(
   };
   walk(0, 0, []);
   return orders;
+}
+
+export interface RequestOrdersOptions {
+  /** Steps played first (a pause already on-chain, for instance). Default none. */
+  prefix?: readonly PauseStep[];
+  /** Transient failures each job may take (`PauseModel.nextSteps`). Default 0. */
+  maxRetries?: number;
+  /** Stops after this many orders (a guard against a scenario too large). Default 200 000. */
+  limit?: number;
+}
+
+/** The time of the `index`-th step of a scenario: one second apart. */
+export function stepTime(t0Ms: number, index: number): number {
+  return t0Ms + index * 1_000;
+}
+
+/** A model with `steps` played one second apart from `t0Ms`. */
+export function replay(steps: readonly PauseStep[], t0Ms: number): PauseModel {
+  const model = new PauseModel();
+  steps.forEach((step, index) => {
+    model.apply(step, stepTime(t0Ms, index));
+  });
+  return model;
+}
+
+/**
+ * Every order in which the merchant's `requests` (job names, in the merchant's order, each made
+ * at any point after the one before) and the system's steps (`PauseModel.nextSteps`, which decide
+ * what each job does from the state it finds) can happen, after `prefix`. Each order ends when no
+ * step is left; a job not ended then is stuck, and throws `PauseModelError`.
+ */
+export function requestOrders(
+  requests: readonly string[],
+  options: RequestOrdersOptions = {},
+): PauseStep[][] {
+  const prefix = options.prefix ?? [];
+  const maxRetries = options.maxRetries ?? 0;
+  const limit = options.limit ?? 200_000;
+  const t0 = 0;
+  const orders: PauseStep[][] = [];
+  const walk = (path: PauseStep[], requested: number): void => {
+    const model = replay([...prefix, ...path], t0);
+    const candidates = model.nextSteps(maxRetries);
+    const next = requests[requested];
+    if (next !== undefined) candidates.push({ job: next, phase: "requested" });
+    if (candidates.length === 0) {
+      const stuck = model.jobsView().filter((job) => job.status !== "done");
+      if (stuck.length > 0) {
+        throw new PauseModelError(
+          `stuck after ${path.map(stepName).join(", ")}: ${stuck.map((job) => job.job).join(", ")}`,
+        );
+      }
+      orders.push(path);
+      if (orders.length > limit) {
+        throw new PauseModelError(`more than ${String(limit)} orders`);
+      }
+      return;
+    }
+    for (const step of candidates) {
+      walk([...path, step], step.phase === "requested" ? requested + 1 : requested);
+    }
+  };
+  walk([], 0);
+  return orders;
+}
+
+/**
+ * One order of `requestOrders`, drawn at random: at each point, one of the possible next steps
+ * (the merchant's next request among them), chosen with `random` (in [0, 1)). For scenarios too
+ * large to walk in full (retries, many requests). Throws `PauseModelError` on a stuck job.
+ */
+export function randomRequestOrder(
+  requests: readonly string[],
+  random: () => number,
+  options: Omit<RequestOrdersOptions, "limit"> = {},
+): PauseStep[] {
+  const prefix = options.prefix ?? [];
+  const maxRetries = options.maxRetries ?? 0;
+  const path: PauseStep[] = [];
+  let requested = 0;
+  for (;;) {
+    const model = replay([...prefix, ...path], 0);
+    const candidates = model.nextSteps(maxRetries);
+    const next = requests[requested];
+    if (next !== undefined) candidates.push({ job: next, phase: "requested" });
+    const step = candidates[Math.floor(random() * candidates.length)];
+    if (step === undefined) {
+      const stuck = model.jobsView().filter((job) => job.status !== "done");
+      if (stuck.length > 0) {
+        throw new PauseModelError(
+          `stuck after ${path.map(stepName).join(", ")}: ${stuck.map((job) => job.job).join(", ")}`,
+        );
+      }
+      return path;
+    }
+    path.push(step);
+    if (step.phase === "requested") requested += 1;
+  }
 }

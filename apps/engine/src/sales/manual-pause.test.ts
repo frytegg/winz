@@ -3,9 +3,13 @@ import { describe, expect, it } from "vitest";
 import { isManuallyPaused, type ManualPauseInput } from "./manual-pause";
 import {
   PauseModel,
+  PauseModelError,
   minedJobSteps,
   pauseResumeOrders,
+  randomRequestOrder,
+  requestOrders,
   stepName,
+  stepTime,
   type PauseStep,
 } from "./pause-model";
 import { seededRandom } from "./test-support";
@@ -298,5 +302,162 @@ describe("isManuallyPaused: retried and dead jobs", () => {
     // Mined and stored: the event is not projected yet, paused by (c), not by (b).
     expect(model.input()).toMatchObject({ pauseJobInFlight: false, pauseEventUnprojected: true });
     expect(isManuallyPaused(model.input())).toBe(true);
+  });
+});
+
+/**
+ * Plays `prefix` then `order` one second apart and returns the first broken promise, or null:
+ *
+ * - the rule says "not paused" only while the chain is live AND the merchant's latest request is
+ *   a resume whose job has ended (mined and projected, or nothing to send: the chain was live);
+ * - once it says "not paused", it keeps saying so until the merchant's next request (no flap);
+ * - at the end every job has ended, the chain is in the state of the latest request, and so is
+ *   the rule.
+ */
+function brokenPromise(prefix: readonly PauseStep[], order: readonly PauseStep[]): string | null {
+  const model = new PauseModel();
+  const steps = [...prefix, ...order];
+  const name = steps.map(stepName).join(" → ");
+  let reopened = false;
+  for (const [index, step] of steps.entries()) {
+    model.apply(step, stepTime(T0, index));
+    const manual = isManuallyPaused(model.input());
+    const latest = model.latest();
+    const where = `after ${stepName(step)} (step ${String(index + 1)}) in ${name}`;
+    if (!manual) {
+      if (model.chainPaused()) return `not paused while the chain is paused, ${where}`;
+      if (latest === null || latest.paused || latest.status !== "done") {
+        return `not paused before the latest request is a resume that landed, ${where}`;
+      }
+    }
+    if (step.phase === "requested") reopened = false;
+    else if (reopened && manual) return `paused again without a new request, ${where}`;
+    if (!manual) reopened = true;
+  }
+  const latest = model.latest();
+  if (latest === null) return `no request in ${name}`;
+  const unfinished = model.jobsView().filter((job) => job.status !== "done");
+  if (unfinished.length > 0) {
+    return `jobs not ended: ${unfinished.map((job) => job.job).join(", ")} in ${name}`;
+  }
+  if (model.chainPaused() !== latest.paused)
+    return `the chain ends against ${latest.job} in ${name}`;
+  if (isManuallyPaused(model.input()) !== latest.paused) {
+    return `the rule ends against ${latest.job} in ${name}`;
+  }
+  return null;
+}
+
+function expectEveryOrderHolds(prefix: readonly PauseStep[], orders: readonly PauseStep[][]): void {
+  const broken = orders.map((order) => brokenPromise(prefix, order)).filter((b) => b !== null);
+  expect(broken.slice(0, 3)).toEqual([]);
+}
+
+describe("isManuallyPaused: any number of requests, the handler deciding what each job does", () => {
+  it("the model's handler: a superseded request, or the chain already as asked, sends nothing", () => {
+    const model = new PauseModel();
+    model.apply({ job: "pause", phase: "requested" }, T0);
+    model.apply({ job: "resume", phase: "requested" }, T0 + 1_000);
+    model.apply({ job: "pause", phase: "running" }, T0 + 2_000);
+    // The pause is superseded; the resume is not claimed yet.
+    expect(model.nextSteps()).toEqual([
+      { job: "pause", phase: "nothing-sent" },
+      { job: "resume", phase: "running" },
+    ]);
+    model.apply({ job: "pause", phase: "nothing-sent" }, T0 + 3_000);
+    model.apply({ job: "resume", phase: "running" }, T0 + 4_000);
+    // The chain is live, as the resume asks.
+    expect(model.nextSteps(1)).toEqual([
+      { job: "resume", phase: "retry" },
+      { job: "resume", phase: "nothing-sent" },
+    ]);
+  });
+
+  it("the campaign's lock: no job decides while another has a mined transaction to project", () => {
+    const model = new PauseModel();
+    for (const [index, step] of [
+      { job: "pause", phase: "requested" },
+      { job: "pause", phase: "running" },
+      { job: "pause", phase: "mined" },
+      { job: "resume", phase: "requested" },
+      { job: "resume", phase: "running" },
+    ].entries()) {
+      model.apply(step as PauseStep, stepTime(T0, index));
+    }
+    expect(model.nextSteps()).toEqual([{ job: "pause", phase: "projected" }]);
+  });
+
+  it("the model refuses an impossible step with its own error", () => {
+    const model = new PauseModel();
+    expect(() => {
+      model.apply({ job: "pause", phase: "running" }, T0);
+    }).toThrow(PauseModelError);
+    model.apply({ job: "pause", phase: "requested" }, T0);
+    expect(() => {
+      model.apply({ job: "pause", phase: "requested" }, T0);
+    }).toThrow(PauseModelError);
+    expect(() => {
+      model.apply({ job: "pause", phase: "projected" }, T0);
+    }).toThrow(PauseModelError);
+  });
+
+  it("pause, resume, pause again: every order", () => {
+    const orders = requestOrders(["pause", "resume", "pause2"]);
+    expect(orders.length).toBeGreaterThan(100);
+    // Among them, the pause again before the resume lands, mined or not.
+    const names = orders.map((order) => order.map(stepName).join(","));
+    expect(names.some((n) => /resume:mined,pause2:requested/.test(n))).toBe(true);
+    expect(names.some((n) => /resume:requested,pause2:requested/.test(n))).toBe(true);
+    expectEveryOrderHolds([], orders);
+  });
+
+  it("pause, resume, pause again: random orders with up to two transient failures per job (seeded)", () => {
+    const random = seededRandom(20261119);
+    const orders: PauseStep[][] = [];
+    for (let round = 0; round < 3_000; round += 1) {
+      orders.push(randomRequestOrder(["pause", "resume", "pause2"], random, { maxRetries: 2 }));
+    }
+    expect(orders.some((order) => order.some((step) => step.phase === "retry"))).toBe(true);
+    expectEveryOrderHolds([], orders);
+  });
+
+  it("after a pause on-chain: resume, pause, resume, every order", () => {
+    const prefix = minedJobSteps("pause");
+    const orders = requestOrders(["resume", "pause2", "resume2"], { prefix });
+    expect(orders.length).toBeGreaterThan(100);
+    // Among them, the pause requested once the resume is mined, before it is projected, and the
+    // pause requested before the resume is claimed (the resume is then superseded).
+    const names = orders.map((order) => order.map(stepName).join(","));
+    expect(names.some((n) => n.includes("resume:mined,pause2:requested"))).toBe(true);
+    expect(names.some((n) => n.includes("pause2:requested,resume:running"))).toBe(true);
+    expectEveryOrderHolds(prefix, orders);
+  });
+
+  it("after a pause on-chain: resume, pause, resume, random orders with transient failures (seeded)", () => {
+    const prefix = minedJobSteps("pause");
+    const random = seededRandom(20261120);
+    const orders: PauseStep[][] = [];
+    for (let round = 0; round < 3_000; round += 1) {
+      orders.push(
+        randomRequestOrder(["resume", "pause2", "resume2"], random, { prefix, maxRetries: 2 }),
+      );
+    }
+    expectEveryOrderHolds(prefix, orders);
+  });
+
+  it("pause, resume, pause, resume: every order", () => {
+    const orders = requestOrders(["pause", "resume", "pause2", "resume2"]);
+    expect(orders.length).toBeGreaterThan(10_000);
+    expectEveryOrderHolds([], orders);
+  });
+
+  it("six requests in a row, random orders with transient failures (seeded)", () => {
+    const requests = ["pause", "resume", "pause2", "resume2", "pause3", "resume3"];
+    const random = seededRandom(20261121);
+    const orders: PauseStep[][] = [];
+    for (let round = 0; round < 3_000; round += 1) {
+      orders.push(randomRequestOrder(requests, random, { maxRetries: 1 }));
+    }
+    expectEveryOrderHolds([], orders);
   });
 });

@@ -35,6 +35,7 @@ export {
 export {
   DEFAULT_STATEMENT_TIMEOUT_MS,
   loadCampaignSaleRows,
+  loadManualPauseInput,
   parseCampaignSaleRow,
   writeSaleState,
   type CampaignSaleRow,
