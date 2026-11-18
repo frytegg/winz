@@ -12,12 +12,18 @@
  * module writes strictly increasing per instrument under the lock), minus its `lot_fills`, minus
  * the quantity of every sell fill of the instrument, taken from the front. Lots and sales both
  * take from the front of that queue, so the rebuilt suffix is exact in quantity, and its cost is
- * each fill's cost minus what its takes cost: nothing is created or lost. A sale beyond what was
- * held unallocated (an over-sale on the venue) is still recorded; the excess is derived the same
- * way (`InventoryState.shortQty`) and the next buy fills replace it before covering any lot.
+ * each fill's cost minus what its takes cost (`takeFromPiece` for a lot, `soldCost` for what was
+ * resold, in core.ts), however many resales took from it: nothing is created or lost. A sale
+ * beyond what was held unallocated (an over-sale on the venue) is still recorded; the excess is
+ * derived the same way (`InventoryState.shortQty`) and the next buy fills replace it before
+ * covering any lot.
  *
- * Not stored, for want of a column (a schema change): the platform's result on a resale (proceeds
- * minus cost basis, signed) and the cost of replacing an over-sale. `recordFill` returns them.
+ * Not stored here, for want of a column (a schema change): the platform's result on a resale
+ * (proceeds minus cost basis, signed) and the cost of the buys that replace an over-sale (the
+ * rest of that over-sale's cost basis). `recordFill` returns both (`sale`, `replacedShort`) and the
+ * hedging sink books both on `engine_pnl.resale_result`. So, to the micro-USDC, what the buy fills
+ * cost is what the lots were allocated, plus the resales' cost bases, plus the replacements'
+ * cost, plus what the inventory still carries.
  *
  * Charges are not marked here: the chain projection sets `lots.charged` when `HedgeCharged`
  * arrives. `pendingCharges` leaves out every ticket that a `chargeHedge` transaction of the outbox
@@ -40,7 +46,6 @@ import {
   allocateInventory,
   chargeForLot,
   fillCost,
-  inventoryPiece,
   inventoryTotals,
   makerSaving,
   rebuildInventory,
@@ -169,6 +174,12 @@ export type RecordFillResult =
         result: bigint;
         shortQty: MicroContracts;
       } | null;
+      /**
+       * For a buy only, when an earlier over-sale left a short: the contracts of this fill that
+       * replaced it, and what they cost. That cost belongs to no lot and is not in the inventory:
+       * it is the rest of the over-sale's cost basis, to be booked on the resales. Null otherwise.
+       */
+      replacedShort: { qty: MicroContracts; cost: MicroUsdc } | null;
     });
 
 /** One `chargeHedge` call: parallel arrays, at most `MAX_CHARGE_BATCH` tickets. */
@@ -556,6 +567,13 @@ export async function recordFill(
     if (side === "buy") {
       // The new fill was written last in the queue, so it is the last piece of the inventory.
       const inventory = await loadInventory(tx, order.instrument, null);
+      const cost = fillCost(fill.priceBps, fill.qty, fill.fee);
+      // No lot took from this fill yet: whatever of it the rebuild consumed, the sold quantity
+      // consumed, which only happens when an earlier over-sale left a short.
+      const left = inventory.pieces.find((piece) => piece.fillId === row.id);
+      const replacedQty = fill.qty - (left?.remainingQty ?? 0n);
+      const replacedShort =
+        replacedQty > 0n ? { qty: replacedQty, cost: cost - (left?.remainingCost ?? 0n) } : null;
       const outcome = await allocateAndWrite(
         tx,
         order.instrument,
@@ -576,14 +594,10 @@ export async function recordFill(
         fillId: row.id,
         instrument: order.instrument,
         side,
-        cost: inventoryPiece({
-          fillId: row.id,
-          priceBps: fill.priceBps,
-          qty: fill.qty,
-          fee: fill.fee,
-        }).fillCost,
+        cost,
         makerSaving: saving,
         sale: null,
+        replacedShort,
         allocations: outcome.allocations,
         coveredLots: outcome.coveredLots,
         inventory: outcome.inventory,
@@ -627,6 +641,7 @@ export async function recordFill(
         result: sale.result,
         shortQty: sale.shortQty,
       },
+      replacedShort: null,
       allocations: outcome.allocations,
       coveredLots: outcome.coveredLots,
       inventory: outcome.inventory,

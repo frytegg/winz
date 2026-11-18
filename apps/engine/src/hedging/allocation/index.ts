@@ -10,6 +10,8 @@ export {
   makerSaving,
   rebuildInventory,
   sellFromInventory,
+  sellFromPiece,
+  soldCost,
   takeFromPiece,
   takerCost,
 } from "./core";
