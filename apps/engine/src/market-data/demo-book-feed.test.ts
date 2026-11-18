@@ -501,11 +501,21 @@ describe("BookFeed with demo books", () => {
     // Let the pass in flight end: from now on no pass re-stamps the demo book.
     await advance(h, 1_250);
     const stampMs = h.feed.getBook(NYK)?.observedAtMs ?? 0;
-    // The rest of the feed keeps working: another instrument's Gemini book is served and written.
+    // The rest of the feed keeps working: another instrument's Gemini book is still received and
+    // written while the overrides cannot be read. Which transport's book lands first depends on
+    // timing (the socket's snapshot can carry the stamp of a REST book just written, and is then
+    // not written itself), so the check is that the stored book keeps being renewed.
+    const murrStampOf = async (): Promise<number> =>
+      (await bookCacheRow(h.db, MURR))?.observed_at.getTime() ?? 0;
+    const murrBefore = await murrStampOf();
     h.sockets.latest().receive(snapshot(MURR, 1, [["0.2100", "1.00"]], [["0.2300", "1.00"]]));
-    await vi.waitFor(async () => {
-      expect((await bookCacheRow(h.db, MURR))?.source).toBe("ws");
-    });
+    await vi.waitFor(
+      async () => {
+        await advance(h, 250);
+        expect(await murrStampOf()).toBeGreaterThan(murrBefore);
+      },
+      { timeout: 5_000 },
+    );
 
     // Not stale before 10 s...
     await advance(h, stampMs + 9_500 - h.scheduler.now());
