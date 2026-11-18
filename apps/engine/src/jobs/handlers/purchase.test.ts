@@ -424,6 +424,23 @@ describe("purchase job: the sale cannot go on-chain now", () => {
     expect(await txRows(harness, `buyFor:${pi}:`)).toHaveLength(0);
   });
 
+  it.each(["paused_price", "paused_budget", "paused_depth", "paused_stale", "paused_breaker"])(
+    "signs no quote while the sale state is %s, even on a book that would sell",
+    async (saleState) => {
+      // The automatic pause is still in force (its ten-second return has not elapsed) although
+      // the book of this instant would pass every pricing rule.
+      const held = await createLiveCampaign(harness, `held-${saleState}`);
+      harness.books.set(held.symbol, { asks: FRESH_ASKS, bids: BIDS });
+      const pi = await buy(held);
+      await harness.db`
+        update campaigns set sale_state = ${saleState} where id = ${held.campaignId}
+      `;
+      await runHandler(harness, purchase(), { paymentIntentId: pi });
+      await expectCancelledPaused(pi);
+      expect(await txRows(harness, `buyFor:${pi}:`)).toHaveLength(0);
+    },
+  );
+
   it("refuses once sales are closed", async () => {
     const closed = await createLiveCampaign(harness, "closed");
     harness.books.set(closed.symbol, { asks: FRESH_ASKS, bids: BIDS });

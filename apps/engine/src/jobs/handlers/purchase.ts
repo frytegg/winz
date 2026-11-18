@@ -313,12 +313,12 @@ class Purchase {
       };
     }
     if (campaign.onchain_id === null) return { ok: false, reason: "not_live" };
-    // Pricing decides the automatic pauses below; these states are decided elsewhere
-    // (the merchant, the close, the circuit breaker) and no quote is signed under them.
+    // The sale state is decided continuously by the sale-state service: the merchant's pause, the
+    // close, the circuit breaker, and the automatic pauses with their ten-second return. No quote
+    // is signed outside `open` (SPEC CA-5, CO-4). The pricing below applies the same rules again
+    // to the book of this instant, so a sale state that lags can never let a sale through.
     if (campaign.sale_state === "closed") return { ok: false, reason: "closed" };
-    if (campaign.sale_state === "paused_manual" || campaign.sale_state === "paused_breaker") {
-      return { ok: false, reason: "paused" };
-    }
+    if (campaign.sale_state !== "open") return { ok: false, reason: "paused" };
     if (nowMs >= campaign.sales_close.getTime()) return { ok: false, reason: "closed" };
 
     const [book, pending, availableBudget] = await Promise.all([
