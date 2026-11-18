@@ -43,7 +43,55 @@ export interface PolicyRestore {
    * persistence layer: none of its fills is in `held`, so all of them are recovered.
    */
   unsettledOrders?: readonly { clientOrderId: string; recordedFilledQty: MicroContracts }[];
+  /**
+   * The quantity allocated to the lots of the instrument's settled campaigns that `held` already
+   * leaves out, read with `exposure`. `onExposureRead` releases only what a read has beyond it.
+   * Defaults to 0.
+   */
+  settledAllocated?: MicroContracts;
+  /** Version of the read `exposure` and `settledAllocated` come from (`ExposureRead.asOf`). */
+  asOf?: bigint;
 }
+
+/**
+ * One read of the exposure ledger, as the owner hands it to the runner (`onExposureRead`): E, the
+ * settled allocation of the same read, and the read's version.
+ */
+export interface ExposureRead {
+  /** E: the total exposure of every unsettled campaign of the instrument (HE-3). */
+  exposure: MicroContracts;
+  /**
+   * Quantity allocated to the lots of the instrument's settled campaigns, read in the same
+   * statement as `exposure`: contracts the venue paid out. It only ever grows.
+   */
+  settledAllocated: MicroContracts;
+  /**
+   * Where the read stands in time: a read that sees everything an earlier one saw never has a
+   * lower version. Two reads with the same version saw the same data.
+   */
+  asOf: bigint;
+}
+
+/** What the runner did with an `ExposureRead`. */
+export type ExposureReadOutcome =
+  | {
+      applied: true;
+      /** Contracts the read's new settlements released from H (0 when it brought none). */
+      released: MicroContracts;
+      /** E before the read. */
+      previousExposure: MicroContracts;
+      /** Whether E or H changed: a cycle was requested only then. */
+      changed: boolean;
+    }
+  | {
+      applied: false;
+      /**
+       * `older_read`: the read is older than one the runner already has. `older_settlements`: it
+       * knows fewer settlements than the runner already applied. Either way E and H are left as
+       * they are: the runner's are newer.
+       */
+      reason: "older_read" | "older_settlements";
+    };
 
 export interface PolicyRunnerOptions {
   instrumentSymbol: string;
@@ -159,6 +207,10 @@ export class PolicyRunner {
 
   private exposure: MicroContracts;
   private held: MicroContracts;
+  /** Version of the newest `ExposureRead` applied (or of the restore); null before any. */
+  private readAsOf: bigint | null;
+  /** Settled allocation that H already leaves out (`ExposureRead.settledAllocated`). */
+  private settledAllocated: MicroContracts;
   private nextOrderSeq: number;
   private book: Book | null = null;
   private breaker: BreakerState = INITIAL_BREAKER_STATE;
@@ -205,8 +257,10 @@ export class PolicyRunner {
     }
     const restore = options.restore ?? null;
     if (restore !== null) {
-      if (restore.exposure < 0n || restore.held < 0n) {
-        throw new PolicyInputError("restore: exposure and held must not be negative");
+      if (restore.exposure < 0n || restore.held < 0n || (restore.settledAllocated ?? 0n) < 0n) {
+        throw new PolicyInputError(
+          "restore: exposure, held and settledAllocated must not be negative",
+        );
       }
       if (!Number.isSafeInteger(restore.nextOrderSeq) || restore.nextOrderSeq < 1) {
         throw new PolicyInputError("restore: nextOrderSeq must be an integer >= 1");
@@ -227,6 +281,8 @@ export class PolicyRunner {
     this.restoreInput = restore;
     this.exposure = restore?.exposure ?? 0n;
     this.held = restore?.held ?? 0n;
+    this.settledAllocated = restore?.settledAllocated ?? 0n;
+    this.readAsOf = restore?.asOf ?? null;
     this.nextOrderSeq = restore?.nextOrderSeq ?? 1;
     this.startedAtMs = this.nowMs();
   }
@@ -284,7 +340,11 @@ export class PolicyRunner {
     await this.requestCycle();
   }
 
-  /** E changed: the total exposure of every campaign of the instrument (HE-3). */
+  /**
+   * E changed: the total exposure of every campaign of the instrument (HE-3). Unversioned, so not
+   * guarded: an owner that reads E from the exposure ledger, beside other readers, hands it with
+   * its version through `onExposureRead` instead.
+   */
   async onExposure(exposure: MicroContracts): Promise<void> {
     if (typeof exposure !== "bigint" || exposure < 0n) {
       throw new PolicyInputError(`exposure must be a bigint >= 0, got ${String(exposure)}`);
@@ -311,6 +371,79 @@ export class PolicyRunner {
     if (typeof exposure !== "bigint" || exposure < 0n) {
       throw new PolicyInputError(`exposure must be a bigint >= 0, got ${String(exposure)}`);
     }
+    this.settledAllocated += releasedQty;
+    this.release(releasedQty, exposure);
+    await this.requestCycle();
+  }
+
+  /**
+   * A read of the exposure ledger (`ExposureRead`): the guard every owner goes through. A read
+   * older than one the runner already has (a lower `asOf`), or one that knows fewer settlements
+   * than the runner already applied, is ignored: handing it on would set an E older than the
+   * runner's, and a cycle would buy back what a settlement just released (or sell what a sale just
+   * added). Otherwise E becomes the read's, and the contracts its new settlements released leave H
+   * in the same step (`onSettled`), before any cycle sees either.
+   *
+   * Synchronous: the decision and the state change are made before it returns, so an owner that
+   * reads the outcome knows what the runner has. A cycle is requested (not awaited) when E or H
+   * changed; `stop` waits for it.
+   */
+  onExposureRead(read: ExposureRead): ExposureReadOutcome {
+    if (typeof read.exposure !== "bigint" || read.exposure < 0n) {
+      throw new PolicyInputError(`exposure must be a bigint >= 0, got ${String(read.exposure)}`);
+    }
+    if (typeof read.settledAllocated !== "bigint" || read.settledAllocated < 0n) {
+      throw new PolicyInputError(
+        `settled allocation must be a bigint >= 0, got ${String(read.settledAllocated)}`,
+      );
+    }
+    if (typeof read.asOf !== "bigint") {
+      throw new PolicyInputError(`read version must be a bigint, got ${String(read.asOf)}`);
+    }
+    const stale: "older_read" | "older_settlements" | null =
+      this.readAsOf !== null && read.asOf < this.readAsOf
+        ? "older_read"
+        : read.settledAllocated < this.settledAllocated
+          ? "older_settlements"
+          : null;
+    if (stale !== null) {
+      this.logger.info(
+        {
+          reason: stale,
+          readAsOf: read.asOf.toString(),
+          runnerAsOf: this.readAsOf?.toString() ?? null,
+          readExposure: read.exposure.toString(),
+          exposure: this.exposure.toString(),
+          readSettledAllocated: read.settledAllocated.toString(),
+          settledAllocated: this.settledAllocated.toString(),
+        },
+        "exposure read older than what the runner has: ignored",
+      );
+      return { applied: false, reason: stale };
+    }
+    const previousExposure = this.exposure;
+    const previousHeld = this.held;
+    const released = read.settledAllocated - this.settledAllocated;
+    this.readAsOf = read.asOf;
+    this.settledAllocated = read.settledAllocated;
+    if (released > 0n) this.release(released, read.exposure);
+    else this.exposure = read.exposure;
+    const changed = this.exposure !== previousExposure || this.held !== previousHeld;
+    if (changed) {
+      this.requestCycle().catch((error: unknown) => {
+        this.logger.error({ err: error }, "policy cycle after an exposure read failed");
+      });
+    }
+    return { applied: true, released, previousExposure, changed };
+  }
+
+  /** The version and the settled allocation of the newest exposure read the runner applied. */
+  exposureReadState(): { asOf: bigint | null; settledAllocated: MicroContracts } {
+    return { asOf: this.readAsOf, settledAllocated: this.settledAllocated };
+  }
+
+  /** H stops counting `releasedQty` (never below zero) and E becomes `exposure`, in one step. */
+  private release(releasedQty: MicroContracts, exposure: MicroContracts): void {
     const before = this.held;
     this.held = before > releasedQty ? before - releasedQty : 0n;
     this.exposure = exposure;
@@ -328,7 +461,6 @@ export class PolicyRunner {
       },
       "settled campaigns' contracts no longer held",
     );
-    await this.requestCycle();
   }
 
   /** Clock tick: TTLs, staleness and the breaker's timers advance. */
