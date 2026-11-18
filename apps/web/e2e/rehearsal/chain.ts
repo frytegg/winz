@@ -102,18 +102,35 @@ export interface Party {
   address: Address;
 }
 
-/** Each party's money and native balance, at the latest block. A repeated address is read once. */
+/** How one request of a larger read is made: the runner passes its retry (`read`). */
+export type ReadEach = <T>(what: string, body: () => Promise<T>) => Promise<T>;
+
+const readOnce: ReadEach = (_what, body) => body();
+
+/**
+ * Each party's money and native balance, at the latest block. A repeated address is read once.
+ *
+ * Every request goes through `each` on its own, so that a retry repeats the one request a node
+ * refused and keeps the balances already read. Retrying the snapshot as a whole instead repeats
+ * every request of it (two per party) for one refusal, and the more parties, the less likely an
+ * attempt gets through: on the test's node, which refuses a share of the reads, eight attempts at
+ * the balances after settlement all failed in a CI run and in one local run of two (18 Nov), and
+ * the run then had no invariant to show. A public node that rate-limits does the same.
+ */
 export async function snapshot(
   client: PublicClient,
   mode: MoneyMode,
   token: Address,
   parties: readonly Party[],
+  each: ReadEach = readOnce,
 ): Promise<BalanceRow[]> {
   const rows: BalanceRow[] = [];
   for (const party of parties) {
     const [moneyWei, nativeWei] = await Promise.all([
-      moneyOf(client, mode, token, party.address),
-      client.getBalance({ address: party.address }),
+      each(`the money of ${party.role}`, () => moneyOf(client, mode, token, party.address)),
+      each(`the native balance of ${party.role}`, () =>
+        client.getBalance({ address: party.address }),
+      ),
     ]);
     rows.push({ role: party.role, address: party.address, moneyWei, nativeWei });
   }

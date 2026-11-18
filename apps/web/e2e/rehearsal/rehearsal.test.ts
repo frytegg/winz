@@ -260,6 +260,8 @@ function expectPassed(receipt: RehearsalReceipt): void {
   const failed = receipt.invariants.filter((invariant) => !invariant.passed);
   expect(receipt.failure, JSON.stringify(receipt.failure)).toBeNull();
   expect(failed, JSON.stringify(failed)).toEqual([]);
+  // Named first: a final read that could not be made leaves no invariant at all.
+  expect(receipt.unread).toEqual([]);
   expect(receipt.invariants.length).toBeGreaterThanOrEqual(11);
   expect(receipt.status).toBe("passed");
   expect(receipt.engine).toEqual({ started: true, stopped: true });
