@@ -389,12 +389,13 @@ Dans l'ordre :
    sur une chaîne locale, le jeton de test, après un `anvil_setBalance` qui paie le gaz).
 5. Les invariants (Q-04, critères 3, 4 et 5) : chaque vente a son ticket ; aucune vente au-dessus du
    seuil de pause (le carnet piloté pendant les ventes est resté sous le seuil, aucun prix par vente
-   n'étant stocké, et la sonde a vu le moteur suspendre les ventes au-dessus) ni au-delà du budget ; aucune facturation au-dessus de la garantie de son devis,
-   aucune garantie au-dessus du plafond des marges ; la position non couverte sous `U_max` (au plus
-   5 s au-dessus, le Hedge desk lu chaque seconde) ; l'escrow ne détient plus rien pour la
-   campagne ; chaque remboursement égal au remboursable du ticket ; l'argent juste au micro-USDC
-   près entre trésorerie, acheteurs, commerçant et escrow, gaz à part ; chaque réponse portant
-   `demo` pour cette campagne à `true` ; rien de la vente démo n'a atteint Stripe.
+   n'étant stocké, et la sonde a vu le moteur suspendre les ventes au-dessus) ni au-delà du budget ;
+   aucune facturation au-dessus de la garantie de son devis, aucune garantie au-dessus du plafond
+   des marges ; la position non couverte sous `U_max` (au plus 5 s au-dessus, le Hedge desk lu
+   chaque seconde) ; l'escrow ne détient plus rien pour la campagne ; chaque remboursement égal au
+   remboursable du ticket ; l'argent juste au micro-USDC près entre trésorerie, acheteurs,
+   commerçant et escrow, gaz à part ; chaque réponse portant `demo` pour cette campagne à `true` ;
+   rien de la vente démo n'a atteint Stripe.
 6. Le reçu, JSON et Markdown, nommé par l'heure UTC de départ, la chaîne et l'issue : chaîne,
    escrow, adresses des rôles et des portefeuilles (acheteurs numérotés, aucune adresse e-mail),
    match et contrat, scénario, chaque transaction (hash, nature, bloc, gaz, frais, lien vers
@@ -499,28 +500,33 @@ remboursements, du paiement du commerçant et de la libération ; puis `POST /ap
 arrêt du moteur et rapatriement de chaque portefeuille de la répétition (le commerçant et chaque
 acheteur du reçu).
 
-Elle écrit un **nouveau** reçu à côté du premier (même nom suivi de `-recovery`, JSON et
-Markdown ; `-recovery-2` au passage suivant), qui nomme le reçu qu'il récupère, chaque transaction
-causée avec son hash, l'état de la campagne avant et après, les soldes avant et après, ce qui a
-été rapatrié et ce qui reste ; le reçu d'origine n'est jamais réécrit. Il dit aussi avec quel
-résultat la campagne a été réglée (lu dans son événement `CampaignSettled`) et d'où il vient :
-déjà réglée on-chain, déjà forcé dans la base, connu dans la base, ou forcé par cette
-récupération (champ `result`, optionnel : le reçu reste en version 2). Quand ce résultat n'est
-pas celui que demandait le scénario du reçu d'origine, une phrase le dit. C'est le cas d'une
-répétition qui avait forcé OUI et dont la propre remise à zéro a effacé ce résultat avant que le
-règlement n'aboutisse : la récupération ne trouve plus rien de forcé et force NON. Pour l'argent,
-cela ne change rien (tout revient par le portefeuille du commerçant et le rapatriement), mais le
-reçu ne le tait pas. Code de sortie : 0 seulement si la campagne est libérée et que rien ne reste
-(ou après `--estimate`), 1 sinon, 2 si elle a refusé (par exemple quand le gaz de l'oracle ou du
-relayer, ou la trésorerie, ne couvre pas avec 20 % de marge ce qui reste à envoyer : la phrase
-nomme le manque, et rien n'est envoyé). On peut la relancer sans risque : sur une campagne déjà
-libérée, elle ne fait que rapatrier ce qui reste et le dit ; interrompue (Ctrl-C arrête le
-moteur, rapatrie et écrit son reçu), elle reprend où en est la chaîne, sans rien renvoyer, et
-chacun des deux reçus ne liste que les transactions de son propre passage. Un reçu dont `driven`
-vaut `null` (la répétition a échoué avant de piloter le carnet, donc avant toute vente) est
-récupéré sans piloter le carnet ni attendre de couverture : clôture, NON forcé, règlement,
-libération et rapatriement. Une fois sortie avec 0 : arrêter le serveur Postgres
-(`pg_ctl -D <dossier affiché> stop`) et supprimer son dossier.
+Elle écrit un **nouveau** reçu à côté du premier (même nom suivi de `-recovery`, JSON et Markdown ;
+`-recovery-2` au passage suivant), qui nomme le reçu qu'il récupère, chaque transaction causée avec
+son hash, l'état de la campagne avant et après, les soldes avant et après, ce qui a été rapatrié et
+ce qui reste ; le reçu d'origine n'est jamais réécrit. Il dit aussi avec quel résultat la campagne a
+été réglée (lu dans son événement `CampaignSettled`) et d'où il vient : déjà réglée on-chain, déjà
+forcé dans la base, connu dans la base, ou forcé par cette récupération (champ `result`, optionnel :
+le reçu reste en version 2). Quand ce résultat n'est pas celui que demandait le scénario du reçu
+d'origine, une phrase le dit. Quand la récupération a forcé NON elle-même (rien n'était forcé ni
+connu dans la base à son départ), la phrase dit ce que montre le reçu d'origine, et rien de plus :
+une répétition qui n'a jamais forcé de résultat (son reçu ne note ni étape `settle` ni récupération
+à elle allée jusqu'à décider le résultat, par exemple après un échec à `drive-book` avec le scénario
+OUI) est dite telle ; une étape `settle` notée réussie montre que la répétition avait forcé son
+résultat, et sa propre remise à zéro, qui efface tout résultat forcé, est nommée comme cause
+possible ; une étape qui force un résultat notée sans que le reçu puisse montrer si le résultat a
+été forcé (`settle` en échec, ou sa récupération une fois le résultat décidé), ou un reçu qui ne
+liste pas ses étapes, est dit tel quel, la remise à zéro n'étant alors nommée que sous condition.
+Pour l'argent, cela ne change rien (tout revient par le portefeuille du commerçant et le
+rapatriement), mais le reçu ne le tait pas. Code de sortie : 0 seulement si la campagne est libérée
+et que rien ne reste (ou après `--estimate`), 1 sinon, 2 si elle a refusé (par exemple quand le gaz
+de l'oracle ou du relayer, ou la trésorerie, ne couvre pas avec 20 % de marge ce qui reste à envoyer : la phrase nomme le manque, et rien n'est envoyé). On peut la relancer sans risque : sur une
+campagne déjà libérée, elle ne fait que rapatrier ce qui reste et le dit ; interrompue (Ctrl-C
+arrête le moteur, rapatrie et écrit son reçu), elle reprend où en est la chaîne, sans rien renvoyer,
+et chacun des deux reçus ne liste que les transactions de son propre passage. Un reçu dont `driven`
+vaut `null` (la répétition a échoué avant de piloter le carnet, donc avant toute vente) est récupéré
+sans piloter le carnet ni attendre de couverture : clôture, NON forcé, règlement, libération et
+rapatriement. Une fois sortie avec 0 : arrêter le serveur Postgres (`pg_ctl -D <dossier affiché>
+stop`) et supprimer son dossier.
 
 En dernier recours, sans moteur, le contrat ouvre sa voie d'urgence 7 jours après la clôture des
 ventes : n'importe qui peut alors appeler `emergencyClaim` pour chaque ticket et
@@ -529,11 +535,10 @@ ventes : n'importe qui peut alors appeler `emergencyClaim` pour chaque ticket et
 ### Ce que ça coûte
 
 Rien ne se perd sauf le gaz : la trésorerie avance le budget, chaque vente et, sur OUI, ce qui est
-dû au commerçant (13,20 USDC pour le scénario par défaut : 12 ventes de 0,50 USDC, remboursement
-100 %, budget 1,20), et tout revient par les facturations de couverture et le rapatriement. Le gaz
-se paie en USDC sur Arc : au pire 9,2 millions de gaz pour le scénario par défaut, soit 0,18 USDC
-au plancher de 20 gwei ; une répétition locale de 6 ventes en a consommé 2,1 millions, rapatriement compris. Le chiffre
-exact, au prix du moment, est celui de `--estimate`.
+dû au commerçant (13,20 USDC pour le scénario par défaut : 12 ventes de 0,50 USDC, remboursement 100 %, budget 1,20), et tout revient par les facturations de couverture et le rapatriement. Le gaz se
+paie en USDC sur Arc : au pire 9,2 millions de gaz pour le scénario par défaut, soit 0,18 USDC au
+plancher de 20 gwei ; une répétition locale de 6 ventes en a consommé 2,1 millions, rapatriement
+compris. Le chiffre exact, au prix du moment, est celui de `--estimate`.
 
 Le prix unitaire ne descend pas sous 0,50 USDC : la route de création n'accepte qu'un montant
 payable par carte (au moins 0,50 $ en centimes entiers). La mesure du critère 6 à 300 tickets
@@ -565,23 +570,32 @@ pnpm exec tsx e2e/rehearsal/run.ts --gemini simulated --throwaway-db --purchases
 `--throwaway-db` démarre un Postgres jetable avec toutes les migrations (l'outil des tests du
 moteur) ; sinon `--db-url` ou `DB_URL`. Les tests de la répétition font la même chose sous Vitest
 (`e2e/rehearsal/rehearsal.test.ts` : OUI sur un nœud qui refuse au hasard une part des lectures de
-la répétition et toutes pendant une seconde sur neuf, base neuve lue près de la tête, avec le
-débit de la répétition mesuré pendant la couverture et le règlement ; NON sur la même base et le
-même escrow, depuis le bloc de déploiement ; chaque refus ; une étape en échec, une vente en
-échec, Ctrl-C avant les ventes et pendant la couverture, chacun suivi de sa récupération ;
-60 ventes pour le temps des remboursements ; le rapatriement en USDC natif sur un nœud qui
-refuse ; et quatre campagnes laissées en plan comme sur Arc puis finies par `--recover` : une
-lecture qui ne revient jamais pendant la clôture puis un OUI déjà forcé, avec d'abord un refus
-pour une trésorerie qui ne couvre pas le dû du commerçant ; des tickets non facturés avec les
-refus, la commande `run.ts --recover` elle-même qui sort avec 2 quand le gaz de l'oracle et du
-relayer manque, et `--estimate`, puis un NON forcé que le reçu dit différent du OUI demandé ;
-tous les tickets facturés ventes ouvertes, avec une récupération interrompue par le signal
-d'arrêt après la clôture puis relancée ; et une répétition arrêtée avant de piloter le carnet
-(`driven` à `null`). Chacune est relancée une fois de plus, sauf la dernière. Environ 12 minutes,
-dont 7 avant `--recover`, le limiteur du moteur compris). `e2e/rehearsal/sweep.unit.test.ts`
-rapatrie un portefeuille à travers un nœud qui accepte le transfert et perd sa réponse, en minage
-immédiat et avec un bloc par seconde, en USDC natif et avec le jeton de test : un seul transfert
-atteint le nœud, la ligne dit `swept` avec son hash et son montant, le portefeuille finit à zéro :
+la répétition et toutes pendant une seconde sur neuf, base neuve lue près de la tête, avec le débit
+de la répétition mesuré pendant la couverture et le règlement ; NON sur la même base et le même
+escrow, depuis le bloc de déploiement ; chaque refus ; une étape en échec, une vente en échec,
+Ctrl-C avant les ventes et pendant la couverture, chacun suivi de sa récupération ; 60 ventes pour
+le temps des remboursements ; le rapatriement en USDC natif sur un nœud qui refuse ; et quatre
+campagnes laissées en plan comme sur Arc puis finies par `--recover` : une lecture qui ne revient
+jamais pendant la clôture puis un OUI déjà forcé, avec d'abord un refus pour une trésorerie qui ne
+couvre pas le dû du commerçant ; des tickets non facturés avec les refus, la commande `run.ts
+--recover` elle-même qui sort avec 2 quand le gaz de l'oracle et du relayer manque, et `--estimate`,
+puis un NON forcé que le reçu dit différent du OUI demandé ; tous les tickets facturés ventes
+ouvertes, avec une récupération interrompue par le signal d'arrêt après la clôture puis relancée ;
+et une répétition arrêtée avant de piloter le carnet (`driven` à `null`). Chacune est relancée une
+fois de plus, sauf la dernière. Environ 12 minutes, dont 7 avant `--recover`, le limiteur du moteur
+compris). `e2e/rehearsal/sweep.unit.test.ts` rapatrie un portefeuille à travers un nœud qui accepte
+le transfert et perd sa réponse, en minage immédiat et avec un bloc par seconde, en USDC natif et
+avec le jeton de test : un seul transfert atteint le nœud, la ligne dit `swept` avec son hash et son
+montant, le portefeuille finit à zéro. Il y ajoute trois chemins : la recherche qui suit la réponse
+perdue refusée (un 429 sur `eth_getTransactionReceipt`, une connexion coupée sur
+`eth_getTransactionByHash`), rien n'étant miné tant que la relance n'a pas trouvé le transfert en
+attente, qui est attendu et jamais signé à nouveau ; une diffusion qui n'a jamais atteint le nœud,
+les frais ayant changé entre les tentatives (le frais de base divisé par deux par anvil) : les
+octets qui finissent par arriver sont ceux de la première signature, une seconde signature porterait
+d'autres frais ; et un transfert du jeton miné qui revert (le jeton bloque la destination, comme la
+liste noire d'USDC) : la ligne dit `failed` avec son hash, l'erreur est `SweepRevertedError`,
+définitive, donc aucun second transfert, et le portefeuille est dit laissé en plan avec ce qu'il
+détient encore :
 
 ```bash
 pnpm --filter @winz/web exec vitest run e2e/rehearsal

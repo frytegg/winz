@@ -1368,8 +1368,12 @@ describe("a campaign left behind, finished by --recover", () => {
       expect(recovered.actions.join("\n")).toMatch(/ticket\(s\) hedged and charged \(2 sold\)/);
       expect(recovered.actions).toContain("sales closed through the merchant's route");
       expect(recovered.actions).toContain("result NO forced through the demo route");
-      // The run asked for YES; its own reset cleared every override (none is left for the
-      // instrument), so the recovery forced NO and says so.
+      // The run asked for YES and never forced it: it failed at hedging, before its settle step,
+      // and its own recovery was stranded before deciding a result (no `recovery` record). No
+      // override is set for the instrument, so the recovery forced NO, and its sentence says
+      // what the run's receipt shows without blaming the run's reset.
+      expect(receipt.recovery).toBeNull();
+      expect(receipt.steps.map((item) => item.step)).not.toContain("settle");
       const [overrides] = await s.database.db<{ n: number }[]>`
         select count(*)::int as n from demo_overrides
         where instrument = ${receipt.instrument?.symbol ?? ""}
@@ -1377,8 +1381,8 @@ describe("a campaign left behind, finished by --recover", () => {
       expect(overrides?.n).toBe(0);
       expect(recovered.result?.settledWith).toBe("no");
       expect(recovered.result?.source).toBe("forced by this recovery");
-      expect(recovered.result?.differs).toMatch(
-        /^The campaign was settled NO, not YES as the scenario of run [0-9a-f]{12} asked: no result was forced or known any more when this recovery started/,
+      expect(recovered.result?.differs).toBe(
+        `The campaign was settled NO, not YES as the scenario of run ${receipt.runId} asked: no result was forced or known in the database when this recovery started, so the recovery forced NO; the run never forced a result (its receipt records a failure at hedging, before any settle step, and no recovery of its own that got as far as deciding one); the money comes back all the same, through the merchant's wallet and the sweep.`,
       );
       expect(recoveryLines).toContain(recovered.result?.differs);
       expect(readFileSync(recovered.files?.markdown ?? "", "utf8")).toContain(
@@ -1443,6 +1447,12 @@ describe("a campaign left behind, finished by --recover", () => {
       }
       expect(pollErrors).toEqual([]);
       expect(controller.signal.aborted).toBe(true);
+      expect(first.stateBefore).toMatchObject({
+        stage: "selling",
+        ticketsSold: 2,
+        ticketsCharged: 2,
+        released: false,
+      });
       expect(first.status).toBe("failed");
       expect(first.failure).toEqual({ step: "recover", reason: "interrupted" });
       expect(first.engine).toEqual({ started: true, stopped: true });
@@ -1534,6 +1544,12 @@ describe("a campaign left behind, finished by --recover", () => {
         "buyer 1:empty",
       ]);
       expect(recovered.result?.source).toBe("forced by this recovery");
+      // Scenario YES, nothing ever forced: the sentence says so, and blames no reset.
+      expect(run.receipt.scenario?.outcome).toBe("yes");
+      expect(recovered.result?.differs).toBe(
+        `The campaign was settled NO, not YES as the scenario of run ${run.receipt.runId} asked: no result was forced or known in the database when this recovery started, so the recovery forced NO; the run never forced a result (its receipt records a failure at drive-book, before any settle step, and no recovery of its own that got as far as deciding one); the money comes back all the same, through the merchant's wallet and the sweep.`,
+      );
+      expect(lines).toContain(recovered.result?.differs);
       await expectReleasedAndSwept(s, run, recovered);
       expectRecoveryClean(s, recovered, lines, 1);
     },
