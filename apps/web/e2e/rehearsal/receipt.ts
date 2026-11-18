@@ -3,7 +3,16 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { formatMicro, formatWei } from "./estimate";
-import { SecretLeakError, type RehearsalReceipt, type RpcRecord, type Stats } from "./types";
+import {
+  SecretLeakError,
+  type InvariantResult,
+  type LagStats,
+  type OddsReaderRecord,
+  type OddsRecord,
+  type RehearsalReceipt,
+  type RpcRecord,
+  type Stats,
+} from "./types";
 
 /**
  * The receipt of a run: a JSON file and a Markdown file named by the UTC start time, the chain id
@@ -100,6 +109,83 @@ function ms(value: number | null): string {
 
 function statsRow(name: string, value: Stats): string {
   return `| ${name} | ${value.count.toString()} | ${ms(value.minMs)} | ${ms(value.medianMs)} | ${ms(value.maxMs)} |`;
+}
+
+function lagRow(path: string, from: string, reader: OddsReaderRecord, lag: LagStats): string {
+  return `| ${path} | ${reader.source} | ${from} | ${lag.count.toString()} | ${reader.failed.toString()} | ${ms(lag.minMs)} | ${ms(lag.medianMs)} | ${ms(lag.p95Ms)} | ${ms(lag.maxMs)} |`;
+}
+
+/** The section "Ticket odds": both paths, what they are judged from, and what they leave out. */
+export function oddsMarkdown(odds: OddsRecord | null): string[] {
+  const lines: string[] = ["## Ticket odds", ""];
+  if (odds === null) {
+    lines.push("Not measured: the run stopped before the engine started.");
+    return lines;
+  }
+  lines.push(
+    `How late the odds a ticket shows are on the book they come from (criterion 7: under 2 s). Engine settings: a book is written at most once per ${ms(odds.writeThrottleMs)} per instrument (\`writeThrottleMs\`), demo books are read every ${ms(odds.demoRefreshMs)} (\`demoRefreshMs\`). Each source read every ${odds.pollMs.toString()} ms; a driven price not readable within ${odds.sampleTimeoutMs.toString()} ms is a failed sample. The live_instruments row was ${odds.rowAccess}.`,
+  );
+  lines.push("");
+  const rows: string[] = [];
+  if (odds.driven.measured) {
+    for (const reader of odds.driven.readers) {
+      rows.push(lagRow("driven", "call returned", reader, reader.lag));
+      if (reader.lagFromSent !== null) {
+        rows.push(lagRow("driven", "call sent", reader, reader.lagFromSent));
+      }
+    }
+  }
+  if (odds.live.measured) {
+    for (const reader of odds.live.readers) {
+      rows.push(lagRow("live", "observed_at", reader, reader.lag));
+    }
+  }
+  if (rows.length > 0) {
+    lines.push("| Path | Read at | From | Samples | Failed | Min | Median | p95 | Max |");
+    lines.push("|---|---|---|---|---|---|---|---|---|");
+    lines.push(...rows);
+    lines.push("");
+  }
+  const driven = odds.driven;
+  lines.push(
+    driven.measured
+      ? `Driven book (\`${driven.instrument ?? "–"}\`): ${driven.samples.length.toString()} prices, mids ${driven.samples.map((sample) => sample.midBps.toString()).join(", ")} bps; the call that set the book took ${lagText(driven.samples.map((sample) => sample.callMs))}.`
+      : `Driven book: not measured (${driven.note ?? "–"}).`,
+  );
+  const live = odds.live;
+  lines.push(
+    live.measured
+      ? `Live feed (\`${live.instrument ?? "–"}\`, watched ${(live.windowMs / 1_000).toString()} s before the book was driven): ${live.lagsMs.length.toString()} updates seen.`
+      : `Live feed: not measured (${live.note ?? "–"}).`,
+  );
+  for (const reader of [...driven.readers, ...live.readers]) {
+    if (reader.readErrors > 0) {
+      lines.push(
+        `${reader.source}: ${reader.readErrors.toString()} reads answered an error (read again at the next poll); last: ${reader.lastError ?? "–"}.`,
+      );
+    }
+  }
+  lines.push("");
+  lines.push(odds.judgedFrom);
+  lines.push("");
+  lines.push(odds.observedAt);
+  lines.push("");
+  lines.push(odds.measurementError);
+  lines.push("");
+  lines.push(odds.excludes);
+  return lines;
+}
+
+function lagText(values: readonly number[]): string {
+  if (values.length === 0) return "–";
+  const sorted = [...values].sort((a, b) => a - b);
+  return `${(sorted[0] ?? 0).toString()} to ${(sorted[sorted.length - 1] ?? 0).toString()} ms`;
+}
+
+/** PASSED, FAILED, or NOT MEASURED (never passed). */
+export function verdictOf(invariant: InvariantResult): string {
+  if (invariant.measured === false) return "NOT MEASURED";
+  return invariant.passed ? "PASSED" : "FAILED";
 }
 
 function hashCell(hash: string, url: string | null): string {
@@ -232,6 +318,11 @@ export function receiptMarkdown(receipt: RehearsalReceipt): string {
   for (const step of receipt.steps) {
     lines.push(`- ${step.step}: ${step.status}, ${ms(step.durationMs)}`);
   }
+  // Receipts written before the measure have no `odds` at all: no section.
+  if (receipt.odds !== undefined) {
+    lines.push("");
+    lines.push(...oddsMarkdown(receipt.odds));
+  }
 
   if (receipt.hedging !== null) {
     const hedging = receipt.hedging;
@@ -248,9 +339,7 @@ export function receiptMarkdown(receipt: RehearsalReceipt): string {
   lines.push("");
   if (receipt.invariants.length === 0) lines.push("Not checked.");
   for (const invariant of receipt.invariants) {
-    lines.push(
-      `- ${invariant.passed ? "PASSED" : "FAILED"}: ${invariant.name}. ${invariant.details}`,
-    );
+    lines.push(`- ${verdictOf(invariant)}: ${invariant.name}. ${invariant.details}`);
   }
 
   lines.push("");

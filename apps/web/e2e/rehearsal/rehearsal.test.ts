@@ -31,6 +31,7 @@ import {
   runRehearsal,
   secretsOf,
 } from "./runner";
+import { ODDS_INVARIANT } from "./invariants";
 import { buyerEmail, merchantEmail } from "./scenario";
 import {
   RehearsalRefusedError,
@@ -145,6 +146,9 @@ function optionsFor(
     // Shorter delays than production's (1 s doubling to 16 s), long enough to outlast a burst of
     // refusals of the faulty node below.
     readRetry: READ_RETRY,
+    // Three prices of the driven book instead of ten for the ticket's odds (Q-03): each one costs
+    // about a second and a half. The YES run measures the default ten.
+    oddsLag: { samples: 3 },
     // As in the other end-to-end scenarios: E2E_LOG_FILE collects the engine's log when set.
     ...(process.env.E2E_LOG_FILE === undefined || process.env.E2E_LOG_FILE === ""
       ? {}
@@ -265,6 +269,45 @@ function expectPassed(receipt: RehearsalReceipt): void {
   expect(receipt.invariants.length).toBeGreaterThanOrEqual(11);
   expect(receipt.status).toBe("passed");
   expect(receipt.engine).toEqual({ started: true, stopped: true });
+}
+
+/**
+ * The ticket's odds were measured on the driven book, on both sources the ticket reads, with real
+ * numbers under the limit; the live path, on the simulated Gemini, is said not measured.
+ */
+function expectOddsFollowed(receipt: RehearsalReceipt, samples: number): void {
+  const odds = receipt.odds;
+  if (odds === null || odds === undefined) throw new Error("no odds record");
+  expect(odds.driven.measured, odds.driven.note ?? "").toBe(true);
+  expect(odds.driven.samples).toHaveLength(samples);
+  expect(odds.driven.readers.map((reader) => reader.source)).toEqual([
+    "live_instruments read as anon",
+    "GET /api/t/:token",
+  ]);
+  expect(odds.rowAccess).toMatch(/^read as the anonymous role/);
+  for (const reader of odds.driven.readers) {
+    expect(reader.failed, reader.source).toBe(0);
+    expect(reader.lag.count).toBe(samples);
+    expect(reader.lag.p95Ms ?? Infinity).toBeLessThan(2_000);
+    expect(reader.lagFromSent?.count).toBe(samples);
+    process.stdout.write(
+      `[rehearsal] ticket odds, driven book, ${reader.source}: ${reader.lag.count.toString()} samples, min ${String(reader.lag.minMs)} ms, median ${String(reader.lag.medianMs)} ms, p95 ${String(reader.lag.p95Ms)} ms, max ${String(reader.lag.maxMs)} ms from the call's return (median ${String(reader.lagFromSent?.medianMs)} ms from its sending); longest read ${String(reader.longestReadMs)} ms\n`,
+    );
+  }
+  expect(odds.writeThrottleMs).toBe(500);
+  expect(odds.demoRefreshMs).toBe(1_000);
+  expect(odds.live.measured).toBe(false);
+  expect(odds.live.note).toMatch(/simulated Gemini/);
+  // Every price stayed under the pause threshold: the sales stayed open.
+  const threshold = receipt.instrument?.pauseThresholdBps ?? 0;
+  for (const sample of odds.driven.samples) expect(sample.askBps).toBeLessThan(threshold);
+  const invariant = receipt.invariants.find((item) => item.name === ODDS_INVARIANT);
+  expect(invariant).toMatchObject({ passed: true, measured: true });
+  expect(invariant?.details).toContain("live feed: not measured");
+  expect(receipt.steps.some((item) => item.step === "odds-driven" && item.status === "done")).toBe(
+    true,
+  );
+  expect(receipt.steps.some((item) => item.step === "odds-live")).toBe(false);
 }
 
 function expectMined(receipt: RehearsalReceipt): void {
@@ -459,7 +502,7 @@ describe("the whole loop in real time", () => {
       const options = optionsFor(
         s,
         { purchases: 6, buyers: 3, outcome: "yes" },
-        { startNearHead: true, nodeFaults: flakyNode(log) },
+        { startNearHead: true, nodeFaults: flakyNode(log), oddsLag: {} },
       );
       const receipt = await runRehearsal(options);
       expectPassed(receipt);
@@ -532,6 +575,7 @@ describe("the whole loop in real time", () => {
       );
       expect(receipt.recovery).toBeNull();
       expect(receipt.stranded).toBe(false);
+      expectOddsFollowed(receipt, 10);
       expect(receipt.sweep.map((row) => row.status)).toEqual(["swept", "swept", "swept", "swept"]);
       expectSweptAndReconciled(receipt);
       expect(receipt.files).toBeDefined();
@@ -540,7 +584,11 @@ describe("the whole loop in real time", () => {
       };
       expect(json.status).toBe("passed");
       expect(receipt.files?.json).toMatch(/\d{8}T\d{6}Z-31337-yes\.json$/);
-      expect(readFileSync(receipt.files?.markdown ?? "", "utf8")).toContain(": PASSED");
+      const markdown = readFileSync(receipt.files?.markdown ?? "", "utf8");
+      expect(markdown).toContain(": PASSED");
+      expect(markdown).toContain("## Ticket odds");
+      expect(markdown).toContain(`- PASSED: ${ODDS_INVARIANT}.`);
+      expect(json).toHaveProperty("odds.driven.readers.0.lag.p95Ms");
       expectNoSecrets(s, options, receipt);
     },
   );
@@ -744,6 +792,66 @@ describe("criterion 6: the refunds of 60 tickets", () => {
       expect(
         getAddress(receipt.roles.treasury ?? "0x0000000000000000000000000000000000000000"),
       ).toBe(s.escrow.accounts.treasury.address);
+      expectSweptAndReconciled(receipt);
+      expectNoSecrets(s, options, receipt);
+    },
+  );
+});
+
+describe("criterion 7: the ticket's odds when the engine's write is blocked", () => {
+  it(
+    "a driven price that never reaches the ticket is a failed sample: the twelfth invariant fails, the run goes on to the end",
+    { timeout: RUN_TIMEOUT_MS },
+    async () => {
+      const s = await setup();
+      // The fault: as the measure starts, every live_instruments row is locked for 3 s, so the
+      // engine's write of the first price waits behind the lock (the readers still see the old
+      // row). The first price is not readable within its 1.5 s: a failed sample, kept.
+      let blocked: Promise<void> | null = null;
+      let lockedAt: number | null = null;
+      const options = optionsFor(
+        s,
+        { purchases: 1, buyers: 1, outcome: "no" },
+        {
+          oddsLag: { samples: 3, sampleTimeoutMs: 1_500 },
+          onStep: (step) => {
+            if (step !== "odds-driven") return;
+            blocked = s.database.db
+              .begin(async (sql) => {
+                await sql`select symbol from live_instruments for update`;
+                lockedAt = Date.now();
+                await new Promise<void>((resolveHold) => {
+                  setTimeout(resolveHold, 3_000);
+                });
+              })
+              .then(() => undefined);
+          },
+        },
+      );
+      const receipt = await runRehearsal(options);
+      await (blocked as Promise<void> | null);
+      expect(lockedAt).not.toBeNull();
+      // Nothing else failed: the run went to the end, swept, and only the odds invariant failed.
+      expect(receipt.failure, JSON.stringify(receipt.failure)).toBeNull();
+      expect(receipt.status).toBe("failed");
+      const failed = receipt.invariants.filter((item) => !item.passed);
+      expect(failed.map((item) => item.name)).toEqual([ODDS_INVARIANT]);
+      expect(failed[0]?.measured).toBe(true);
+      const odds = receipt.odds;
+      if (odds === null || odds === undefined) throw new Error("no odds record");
+      expect(odds.driven.samples).toHaveLength(3);
+      expect(odds.driven.samples[0]?.lagsMs).toEqual([null, null]);
+      for (const reader of odds.driven.readers) {
+        expect(reader.failed, reader.source).toBeGreaterThanOrEqual(1);
+        expect(reader.lag.count + reader.failed).toBe(3);
+      }
+      expect(failed[0]?.details).toMatch(
+        /live_instruments read as anon: \d\/3 samples appeared \([1-3] failed\)/,
+      );
+      const markdown = readFileSync(receipt.files?.markdown ?? "", "utf8");
+      expect(markdown).toContain(`- FAILED: ${ODDS_INVARIANT}.`);
+      expect(markdown).toContain("Live feed: not measured");
+      expect(receipt.stranded).toBe(false);
       expectSweptAndReconciled(receipt);
       expectNoSecrets(s, options, receipt);
     },
@@ -1135,7 +1243,7 @@ describe("a campaign left behind, finished by --recover", () => {
         /^timed out after 8000 ms waiting for the sales closed on-chain; last error: Request exceeds defined limit\./,
       );
       // FAILED, and still holds everything recorded before and after.
-      expect(receipt.steps.map((item) => `${item.step}:${item.status}`).slice(0, 8)).toEqual([
+      expect(receipt.steps.map((item) => `${item.step}:${item.status}`).slice(0, 9)).toEqual([
         "start-engine:done",
         "choose-game:done",
         "launch-campaign:done",
@@ -1143,6 +1251,7 @@ describe("a campaign left behind, finished by --recover", () => {
         "pause-probe:done",
         "purchases:done",
         "hedging:done",
+        "odds-driven:done",
         "close-sales:failed",
       ]);
       expect(receipt.purchases).toHaveLength(2);
