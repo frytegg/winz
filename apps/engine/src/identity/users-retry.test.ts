@@ -75,22 +75,62 @@ function retryWarnings(): Record<string, unknown>[] {
   return logged.filter((entry) => entry.level === 40);
 }
 
+/** How long `statementBlocked` waits for the call's statement to wait for the lock. */
+const LOCK_WAIT_DEADLINE_MS = 10_000;
+
 /**
- * Waits until a backend of this database waits for a row or transaction lock in an insert into
- * `users`: the call's upsert, blocked behind the test's transaction.
+ * Waits until a backend of this database waits for a row or transaction lock in a statement whose
+ * text contains `statement`: the call's write, blocked behind the test's transaction.
  */
-async function upsertBlocked(): Promise<void> {
-  const deadline = Date.now() + 10_000;
+async function statementBlocked(statement: string): Promise<void> {
+  const deadline = Date.now() + LOCK_WAIT_DEADLINE_MS;
+  const pattern = `%${statement}%`;
   for (;;) {
     const [row] = await db<{ n: bigint }[]>`
       select count(*)::bigint as n from pg_stat_activity
       where datname = current_database() and wait_event_type = 'Lock'
-        and wait_event in ('transactionid', 'tuple') and query ilike '%insert into users%'
+        and wait_event in ('transactionid', 'tuple') and query ilike ${pattern}
     `;
     if (row?.n === 1n) return;
-    if (Date.now() > deadline) throw new Error("the call's upsert never waited for the lock");
+    if (Date.now() > deadline) {
+      throw new Error(`the call's statement (${statement}) never waited for the lock`);
+    }
     await sleep(5);
   }
+}
+
+/** The call's upsert, blocked behind the test's transaction. */
+function upsertBlocked(): Promise<void> {
+  return statementBlocked("insert into users");
+}
+
+/**
+ * The second half of a real-conflict test: waits for `blocked`, opens the gate the test's other
+ * transaction waits on, then awaits that transaction and the call, and returns the call's result.
+ * Every exit path opens the gate and settles both before it returns or throws, so a failure never
+ * leaves a transaction waiting on a promise nobody resolves, nor a call nobody awaits: the
+ * connections they hold go back to the pool, and the next test runs. When `blocked` fails, its
+ * error is the test's failure; what the transaction and the call do after the gate opens late is
+ * the expected aftermath of that failure, and is not reported over it.
+ */
+async function releaseAfterBlocked<T>(
+  blocked: () => Promise<void>,
+  open: () => void,
+  other: Promise<void>,
+  call: Promise<T>,
+): Promise<T> {
+  let waitFailure: { error: unknown } | undefined;
+  try {
+    await blocked();
+  } catch (error: unknown) {
+    waitFailure = { error };
+  }
+  open();
+  const [otherResult, callResult] = await Promise.allSettled([other, call]);
+  if (waitFailure !== undefined) throw waitFailure.error;
+  if (otherResult.status === "rejected") throw otherResult.reason;
+  if (callResult.status === "rejected") throw callResult.reason;
+  return callResult.value;
 }
 
 /** Resolves with the call's rejection, or fails the test if it succeeded. */
@@ -140,6 +180,52 @@ function failingTransactions(
   return { db: wrapped, begins: () => begins, injected };
 }
 
+/** The text of a tagged-template query, its parameters left out. */
+function queryText(args: readonly unknown[]): string | undefined {
+  const first: unknown = args[0];
+  if (!Array.isArray(first) || !("raw" in first)) return undefined;
+  return (first as readonly string[]).join("?");
+}
+
+/**
+ * `inner`, whose statements whose text contains `statement` are counted, the first `failures` of
+ * them failing with `code` without running: a statement outside a transaction block that hits a
+ * deadlock or a serialization failure is rolled back by Postgres, so it leaves nothing either.
+ * Every other statement runs as it is.
+ */
+function failingStatements(
+  inner: Db,
+  statement: string,
+  failures: number,
+  code: string,
+): { db: Db; runs: () => number; injected: InjectedDbError[] } {
+  let runs = 0;
+  const injected: InjectedDbError[] = [];
+  const wrapped = new Proxy(inner, {
+    apply(target: Db, thisArg: unknown, args: unknown[]): unknown {
+      const text = queryText(args);
+      if (text === undefined || !text.includes(statement)) {
+        return Reflect.apply(target, thisArg, args) as unknown;
+      }
+      runs += 1;
+      if (runs > failures) return Reflect.apply(target, thisArg, args) as unknown;
+      const error = new InjectedDbError(code);
+      injected.push(error);
+      return Promise.reject(error);
+    },
+  });
+  return { db: wrapped, runs: () => runs, injected };
+}
+
+/** A directory the call must not ask: the users row already holds the wallet. */
+const NEVER_ASKED: IdentityDirectory = {
+  findOrCreateWalletByEmail: (): Promise<Answer> =>
+    Promise.reject(new Error("the directory was asked although the row holds a wallet")),
+};
+
+/** The statement of `addRole` (apps/engine/src/identity/users.ts). */
+const ADD_ROLE_UPDATE = "update users set roles = array_append(roles";
+
 describe("resolveUserWallet retries a deadlock or a serialization failure", () => {
   it("a real deadlock with a writer that locks in the other order: retried, one row, the directory's wallet", async () => {
     const email = "deadlock@example.com";
@@ -162,11 +248,11 @@ describe("resolveUserWallet retries a deadlock or a serialization failure", () =
       await callBlocked;
       await tx`select pg_advisory_xact_lock(hashtextextended(${usersLockKey(email)}, 0))`;
     });
-    await rowInserted;
+    // Settles too if the other transaction fails before its insert: the test never waits for a
+    // gate that will not open.
+    await Promise.race([rowInserted, other]);
     const call = resolveUserWallet(db, answering(answer), email, "fan", { logger });
-    await upsertBlocked();
-    blocked();
-    const [, resolved] = await Promise.all([other, call]);
+    const resolved = await releaseAfterBlocked(upsertBlocked, blocked, other, call);
 
     expect(resolved).toMatchObject({ email, walletAddress: answer.walletAddress });
     expect(await rowsOf(email)).toEqual([
@@ -212,11 +298,9 @@ describe("resolveUserWallet retries a deadlock or a serialization failure", () =
         locked();
         await callBlocked;
       });
-      await rowLocked;
+      await Promise.race([rowLocked, other]);
       const call = resolveUserWallet(repeatable, answering(answer), email, "fan", { logger });
-      await upsertBlocked();
-      blocked();
-      const [, resolved] = await Promise.all([other, call]);
+      const resolved = await releaseAfterBlocked(upsertBlocked, blocked, other, call);
 
       expect(resolved).toMatchObject({ email, walletAddress: answer.walletAddress });
       expect(await rowsOf(email)).toEqual([
@@ -349,5 +433,104 @@ describe("resolveUserWallet retries a deadlock or a serialization failure", () =
       { email, privy_id: "did:privy:fifth", wallet: wallet(7), roles: ["fan"] },
     ]);
     expect(retryWarnings()).toHaveLength(4);
+  });
+});
+
+describe("the role added to an existing user retries a deadlock or a serialization failure", () => {
+  it.each([
+    { code: "40P01", n: 10 },
+    { code: "40001", n: 12 },
+  ])(
+    "$code once on the role's update: retried, the role added once, one warning",
+    async ({ code, n }) => {
+      const email = `add-role-${code.toLowerCase()}@example.com`;
+      await db`
+        insert into users (email, privy_id, wallet, roles)
+        values (${email}, ${`did:privy:${email}`}, ${wallet(n)}, '{merchant}')
+      `;
+      // A second failure is not queued: one retry is what this case pins.
+      const failing = failingStatements(db, ADD_ROLE_UPDATE, 1, code);
+      const resolved = await resolveUserWallet(failing.db, NEVER_ASKED, email, "fan", { logger });
+
+      expect(resolved).toMatchObject({ email, walletAddress: wallet(n), fromDirectory: false });
+      expect(failing.injected).toHaveLength(1);
+      // The failed update, then the one that ran.
+      expect(failing.runs()).toBe(2);
+      expect(await rowsOf(email)).toEqual([
+        {
+          email,
+          privy_id: `did:privy:${email}`,
+          wallet: wallet(n),
+          roles: ["merchant", "fan"],
+        },
+      ]);
+      expect(
+        retryWarnings().map((entry) => ({
+          what: entry.what,
+          code: entry.code,
+          attempt: entry.attempt,
+        })),
+      ).toEqual([{ what: "users write", code, attempt: 1 }]);
+      expect(JSON.stringify(logged)).not.toContain(email);
+    },
+  );
+
+  it("a real serialization failure under repeatable read: retried, the role added once, one warning", async () => {
+    const email = "add-role-real-40001@example.com";
+    await db`
+      insert into users (email, privy_id, wallet, roles)
+      values (${email}, 'did:privy:add-role-real', ${wallet(11)}, '{merchant}')
+    `;
+    const repeatable = postgres(database.url, {
+      max: 2,
+      prepare: false,
+      types: { bigint: postgres.BigInt },
+      onnotice: () => undefined,
+      connection: { default_transaction_isolation: "repeatable read" },
+    });
+    try {
+      const counting = failingStatements(repeatable, ADD_ROLE_UPDATE, 0, "40001");
+      let locked!: () => void;
+      const rowLocked = new Promise<void>((resolve) => {
+        locked = resolve;
+      });
+      let blocked!: () => void;
+      const callBlocked = new Promise<void>((resolve) => {
+        blocked = resolve;
+      });
+      // The other writer updates the row (not committed). The call reads the row without waiting,
+      // then its update, whose snapshot predates the other's commit, waits for the row and fails
+      // with 40001 once the other commits.
+      const other = db.begin(async (tx): Promise<void> => {
+        await tx`update users set roles = array['merchant']::text[] where email = ${email}`;
+        locked();
+        await callBlocked;
+      });
+      await Promise.race([rowLocked, other]);
+      const call = resolveUserWallet(counting.db, NEVER_ASKED, email, "fan", { logger });
+      const resolved = await releaseAfterBlocked(
+        () => statementBlocked(ADD_ROLE_UPDATE),
+        blocked,
+        other,
+        call,
+      );
+
+      expect(resolved).toMatchObject({ email, walletAddress: wallet(11), fromDirectory: false });
+      expect(counting.runs()).toBe(2);
+      expect(await rowsOf(email)).toEqual([
+        {
+          email,
+          privy_id: "did:privy:add-role-real",
+          wallet: wallet(11),
+          roles: ["merchant", "fan"],
+        },
+      ]);
+      expect(
+        retryWarnings().map((entry) => ({ code: entry.code, attempt: entry.attempt })),
+      ).toEqual([{ code: "40001", attempt: 1 }]);
+      expect(JSON.stringify(logged)).not.toContain(email);
+    } finally {
+      await repeatable.end({ timeout: 5 });
+    }
   });
 });
