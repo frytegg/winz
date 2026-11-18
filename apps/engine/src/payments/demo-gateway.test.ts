@@ -129,6 +129,75 @@ describe("DemoPaymentGateway", () => {
     });
   });
 
+  it("replays the first answer of a key once the intent has moved on: capture", async () => {
+    const gateway = new DemoPaymentGateway(db);
+    // Not authorized yet: the capture is refused, and that refusal is the answer of its key.
+    const id = await demoPayment("requires_payment");
+    const refused = { retryable: false, code: "payment_intent_unexpected_state" };
+    await expect(gateway.capturePaymentIntent(id, `capture:${id}`)).rejects.toMatchObject(refused);
+    await db`update payments set status = 'processing' where stripe_pi = ${id}`;
+    expect((await gateway.retrievePaymentIntent(id))?.status).toBe("requires_capture");
+    // As Stripe does: the same key answers what it answered first, and captures nothing.
+    await expect(gateway.capturePaymentIntent(id, `capture:${id}`)).rejects.toMatchObject(refused);
+    expect((await gateway.retrievePaymentIntent(id))?.status).toBe("requires_capture");
+    // A new key is a new request.
+    await gateway.capturePaymentIntent(id, `capture-2:${id}`);
+    expect((await gateway.retrievePaymentIntent(id))?.status).toBe("succeeded");
+
+    // A capture that succeeded stays a success for its key, even once the row cannot be read.
+    const gone = await demoPayment();
+    await gateway.capturePaymentIntent(gone, `capture:${gone}`);
+    await db`delete from payments where stripe_pi = ${gone}`;
+    await gateway.capturePaymentIntent(gone, `capture:${gone}`);
+    await expect(gateway.capturePaymentIntent(gone, "fresh-key")).rejects.toMatchObject({
+      code: "resource_missing",
+    });
+  });
+
+  it("replays the first answer of a key once the intent has moved on: cancel", async () => {
+    const gateway = new DemoPaymentGateway(db);
+    // Captured: the cancel is refused for its key.
+    const id = await demoPayment("ticketed");
+    const refused = { retryable: false, code: "payment_intent_unexpected_state" };
+    await expect(gateway.cancelPaymentIntent(id, `cancel:${id}`)).rejects.toMatchObject(refused);
+    await db`update payments set status = 'failed' where stripe_pi = ${id}`;
+    expect((await gateway.retrievePaymentIntent(id))?.status).toBe("canceled");
+    // Cancelling a cancelled intent would succeed; the reused key still answers its refusal.
+    await expect(gateway.cancelPaymentIntent(id, `cancel:${id}`)).rejects.toMatchObject(refused);
+    await gateway.cancelPaymentIntent(id, `cancel-2:${id}`);
+
+    const gone = await demoPayment();
+    await gateway.cancelPaymentIntent(gone, `cancel:${gone}`);
+    await db`delete from payments where stripe_pi = ${gone}`;
+    await gateway.cancelPaymentIntent(gone, `cancel:${gone}`);
+    await expect(gateway.cancelPaymentIntent(gone, "fresh-key")).rejects.toMatchObject({
+      code: "resource_missing",
+    });
+  });
+
+  it("replays the first answer of a key once the intent has moved on: refund", async () => {
+    const gateway = new DemoPaymentGateway(db);
+    // Authorized only: nothing to refund yet.
+    const id = await demoPayment();
+    const refused = { retryable: false, code: "charge_not_refundable" };
+    await expect(gateway.refundPaymentIntent(id, `refund:${id}`)).rejects.toMatchObject(refused);
+    await gateway.capturePaymentIntent(id, `capture:${id}`);
+    expect((await gateway.retrievePaymentIntent(id))?.status).toBe("succeeded");
+    // Now refundable, but the reused key replays its refusal and records no refund.
+    await expect(gateway.refundPaymentIntent(id, `refund:${id}`)).rejects.toMatchObject(refused);
+    expect(gateway.wasRefunded(id)).toBe(false);
+    await gateway.refundPaymentIntent(id, `refund-2:${id}`);
+    expect(gateway.wasRefunded(id)).toBe(true);
+
+    const gone = await demoPayment("ticketed");
+    await gateway.refundPaymentIntent(gone, `refund:${gone}`);
+    await db`delete from payments where stripe_pi = ${gone}`;
+    await gateway.refundPaymentIntent(gone, `refund:${gone}`);
+    await expect(gateway.refundPaymentIntent(gone, "fresh-key")).rejects.toMatchObject({
+      code: "resource_missing",
+    });
+  });
+
   it("refuses a mutating call on an unknown demo id, and any non-demo id", async () => {
     const gateway = new DemoPaymentGateway(db);
     await expect(gateway.capturePaymentIntent("pi_demo_nope", "k1")).rejects.toMatchObject({
