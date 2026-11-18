@@ -16,3 +16,7 @@ supabase/migrations
 e2e/fixtures
 apps/engine/fixtures
 packages/contracts/deployments
+
+# Receipts of rehearsals: written by the runner and kept byte for byte (their Markdown twins are
+# covered by *.md above). JSON.stringify puts one number per line, which Prettier would reflow.
+docs/rehearsals/*.json
