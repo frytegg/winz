@@ -81,6 +81,18 @@ export class PrivyIdentityDirectory implements IdentityDirectory {
 
     let wallet = ethereumEmbeddedWallet(user.linked_accounts);
     if (wallet === null) {
+      // RACE, NOT HANDLED YET: two concurrent calls for an existing Privy user without an
+      // embedded wallet (a double tap, two tabs, a first purchase racing a first sign-in) both
+      // read "no wallet" above and both pre-generate one. The advisory lock of the users row
+      // (users.ts) is taken only after this call returns, so it does not serialise them. What
+      // happens next depends on Privy and must be probed against the live service (task S-02):
+      // does a second `pregenerateWallets` for a user who now has an Ethereum embedded wallet
+      // fail (which error, 409?), return the user with the wallet the first call created, or
+      // create a second embedded wallet (and then which one does `linked_accounts` list first,
+      // and which one does the user see after an OTP login)? If either of the last two, the two
+      // calls can answer different wallets, and the second to write the users row is refused
+      // with IdentityConflictError; the fix would be to read the user again on a conflict, or to
+      // take the e-mail's lock around this call too.
       user = await users.pregenerateWallets(user.id, { wallets: [{ chain_type: "ethereum" }] });
       wallet = ethereumEmbeddedWallet(user.linked_accounts);
     }

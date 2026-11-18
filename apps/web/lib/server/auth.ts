@@ -1,9 +1,14 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
+import type { TransactionSql } from "postgres";
+
 import { ADMIN_KEY_HEADER, USER_ROLES, type RouteAuth, type UserRole } from "@winz/shared";
 
 import type { Db } from "./db";
+import { serverLogger } from "./logger";
 import { ApiRouteError } from "./route";
+
+const log = serverLogger("auth");
 
 // ---------------------------------------------------------------------------------------------
 // Identity provider contracts (implemented on Privy in privy.ts, faked in tests)
@@ -180,22 +185,107 @@ async function selectByPrivyId(db: Db, privyUserId: string): Promise<UserRow | u
   return rows[0];
 }
 
-function isUniqueViolation(error: unknown, constraint: string): boolean {
+const UNIQUE_VIOLATION = "23505";
+/** Postgres errors after which a whole transaction is safe to run again. */
+const RETRYABLE_CODES: ReadonlySet<string> = new Set([
+  "40P01", // deadlock_detected
+  "40001", // serialization_failure
+]);
+/** Attempts of one users write, the first included, before its retryable error is let through. */
+const USERS_WRITE_ATTEMPTS = 5;
+/** Wait before the second attempt; doubled for each later one. */
+const USERS_WRITE_BACKOFF_MS = 10;
+
+function errorField(error: unknown, field: string): unknown {
+  return typeof error === "object" && error !== null && field in error
+    ? (error as Record<string, unknown>)[field]
+    : undefined;
+}
+
+/** A unique violation; of `constraint` only, when given. */
+function isUniqueViolation(error: unknown, constraint?: string): boolean {
   return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    error.code === "23505" &&
-    "constraint_name" in error &&
-    error.constraint_name === constraint
+    errorField(error, "code") === UNIQUE_VIOLATION &&
+    (constraint === undefined || errorField(error, "constraint_name") === constraint)
   );
 }
 
+function isRetryable(error: unknown): boolean {
+  const code = errorField(error, "code");
+  return typeof code === "string" && RETRYABLE_CODES.has(code);
+}
+
+/** Namespace of the advisory lock that serialises the writes of one e-mail's users row. */
+const USERS_LOCK_PREFIX = "winz:users:";
+
 /**
- * The `users` row of a verified identity, created at the first signed-in request. Safe under
- * concurrency: two first requests of the same person meet on the unique e-mail and end with one
- * row. A row that already exists for the e-mail (a fan whose wallet was pre-generated at purchase)
- * is adopted: its privy id and wallet are filled in when they were missing.
+ * The text whose `hashtextextended(…, 0)` is the advisory lock of one e-mail's users row: the
+ * namespace, then the normalised e-mail. The engine, which writes the row of a buyer at their
+ * first purchase (apps/engine/src/identity/users.ts, `usersLockKey`), takes the same lock;
+ * packages/shared is frozen, so this recipe is written on both sides, and auth-race.test.ts checks
+ * that the two agree. Change both or neither.
+ */
+export function usersLockKey(email: string): string {
+  return `${USERS_LOCK_PREFIX}${normalizeEmail(email)}`;
+}
+
+/**
+ * Takes the advisory lock of one e-mail's users row, held until `tx` ends. Transaction-scoped, so
+ * it works through Supabase's transaction pooler, which keeps no session state between
+ * transactions.
+ */
+export async function lockUsersEmail(tx: TransactionSql, email: string): Promise<void> {
+  await tx`select pg_advisory_xact_lock(hashtextextended(${usersLockKey(email)}, 0))`;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Runs `write` in a transaction that first takes the lock of `email`'s users row, so that it never
+ * overlaps another locked write of that row (another sign-in, or the engine creating the row at
+ * the person's first purchase). A deadlock or a serialization failure, which a writer that does
+ * not take the lock can still cause, runs the whole transaction again, at most
+ * `USERS_WRITE_ATTEMPTS` times in all; any other error is let through at once.
+ */
+async function writeUsersRow(
+  db: Db,
+  email: string,
+  write: (tx: TransactionSql) => Promise<void>,
+): Promise<void> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await db.begin(async (tx): Promise<void> => {
+        await lockUsersEmail(tx, email);
+        await write(tx);
+      });
+      return;
+    } catch (error: unknown) {
+      if (!isRetryable(error) || attempt >= USERS_WRITE_ATTEMPTS) throw error;
+      // The e-mail is personal data: never logged.
+      log.warn(
+        { code: errorField(error, "code"), attempt, of: USERS_WRITE_ATTEMPTS },
+        "users write retried",
+      );
+      await sleep(USERS_WRITE_BACKOFF_MS * 2 ** (attempt - 1));
+    }
+  }
+}
+
+/**
+ * The `users` row of a verified identity, created at the first signed-in request. A row that
+ * already exists for the e-mail (a fan whose wallet was pre-generated at purchase) is adopted: its
+ * privy id and wallet are filled in when they were missing.
+ *
+ * Safe under concurrency: every write of the row runs under the e-mail's advisory lock, the same
+ * one the engine takes when it creates the row at a first purchase (`usersLockKey`), so two first
+ * requests of the same person, or a first sign-in racing a first purchase, end with one row and
+ * both succeed. A writer that does not take the lock can still make the write fail: a unique
+ * violation is then forgiven when a fresh read shows the row is this person's own, and a deadlock
+ * or serialization failure is retried a bounded number of times. A real conflict is refused as
+ * before: 409 when the e-mail's row holds another Privy user, the database's unique violation
+ * when the wallet belongs to another e-mail's row.
  */
 export async function findOrCreateUser(
   db: Db,
@@ -209,7 +299,17 @@ export async function findOrCreateUser(
     // first API call: pick it up as soon as the directory has it.
     const { walletAddress } = await directory.getUser(privyUserId);
     if (walletAddress === null) return toPrincipal(existing, privyUserId);
-    await db`update users set wallet = ${walletAddress} where id = ${existing.id} and wallet is null`;
+    try {
+      await writeUsersRow(db, existing.email, async (tx): Promise<void> => {
+        await tx`update users set wallet = ${walletAddress} where id = ${existing.id} and wallet is null`;
+      });
+    } catch (error: unknown) {
+      if (!isUniqueViolation(error)) throw error;
+      // A writer that does not lock filled this row with the same wallet a moment earlier: the
+      // row is this person's own. Any other row holding the wallet is a real conflict.
+      const current = await selectByPrivyId(db, privyUserId);
+      if (current?.wallet !== walletAddress) throw error;
+    }
     const refreshed = await selectByPrivyId(db, privyUserId);
     return toPrincipal(refreshed ?? existing, privyUserId);
   }
@@ -220,20 +320,34 @@ export async function findOrCreateUser(
   }
   const email = normalizeEmail(profile.email);
   try {
-    const [row] = await db<{ id: string; privy_id: string | null }[]>`
-      insert into users (email, privy_id, wallet)
-      values (${email}, ${privyUserId}, ${profile.walletAddress})
-      on conflict (email) do update set
-        privy_id = coalesce(users.privy_id, excluded.privy_id),
-        wallet = coalesce(users.wallet, excluded.wallet)
-      returning id, privy_id
-    `;
-    if (row && row.privy_id !== privyUserId) {
-      throw new ApiRouteError(409, "conflict", "This e-mail belongs to another account");
-    }
+    await writeUsersRow(db, email, async (tx): Promise<void> => {
+      const [row] = await tx<{ id: string; privy_id: string | null }[]>`
+        insert into users (email, privy_id, wallet)
+        values (${email}, ${privyUserId}, ${profile.walletAddress})
+        on conflict (email) do update set
+          privy_id = coalesce(users.privy_id, excluded.privy_id),
+          wallet = coalesce(users.wallet, excluded.wallet)
+        returning id, privy_id
+      `;
+      // Thrown inside the transaction, so the other account's row is left as it was.
+      if (row && row.privy_id !== privyUserId) {
+        throw new ApiRouteError(409, "conflict", "This e-mail belongs to another account");
+      }
+    });
   } catch (error: unknown) {
+    if (!isUniqueViolation(error)) throw error;
     // The privy id is already on another row (the e-mail changed at the provider): use that row.
-    if (!isUniqueViolation(error, "users_privy_id_key")) throw error;
+    if (!isUniqueViolation(error, "users_privy_id_key")) {
+      // A writer that does not lock wrote this e-mail's row first, with this person's Privy id and
+      // wallet: Postgres raises the violation only once that write has committed, so a fresh read
+      // sees it. Anything else (the wallet is another e-mail's) is a real conflict.
+      const [current] = await db<{ privy_id: string | null; wallet: string | null }[]>`
+        select privy_id, wallet from users where email = ${email}
+      `;
+      if (current?.privy_id !== privyUserId || current.wallet !== profile.walletAddress) {
+        throw error;
+      }
+    }
   }
   const created = await selectByPrivyId(db, privyUserId);
   if (!created) throw new Error(`users row of ${privyUserId} vanished right after its upsert`);

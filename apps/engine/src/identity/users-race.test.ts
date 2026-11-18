@@ -65,7 +65,16 @@ class GatedDirectory implements IdentityDirectory {
       this.waiting = [];
       for (const release of released) release();
     }
-    await Promise.race([gate, sleep(GATE_TIMEOUT_MS)]);
+    // The timeout's timer is cleared once the gate opens, so no round leaves one pending.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, GATE_TIMEOUT_MS);
+    });
+    try {
+      await Promise.race([gate, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
     await sleep(ANSWER_DELAY_MS);
     return this.inner.findOrCreateWalletByEmail(email);
   }
@@ -236,6 +245,43 @@ describe("resolveUserWallet under concurrency", () => {
           roles: ["fan"],
         },
       ]);
+    }
+  });
+
+  it("concurrent calls on a row that already holds a wallet add each role once", async () => {
+    // The fast path: the directory is not asked, and every call reads the row before any adds
+    // its role, so only the condition `addRole` evaluates again on the locked row keeps a role
+    // from being appended twice.
+    const cases: { label: string; roles: UserRole[]; expected: string[] }[] = [
+      {
+        label: "two roles",
+        roles: ["fan", "merchant", "fan", "merchant"],
+        expected: ["fan", "merchant"],
+      },
+      { label: "one role", roles: ["fan", "fan", "fan", "fan"], expected: ["fan"] },
+    ];
+    for (const { label, roles, expected } of cases) {
+      for (let round = 0; round < 60; round += 1) {
+        const email = `fast-${label.replace(" ", "-")}-${round}@example.com`;
+        const [row] = await db<{ id: string }[]>`
+          insert into users (email, privy_id, wallet, roles)
+          values (${email}, ${`did:privy:fast-${label.length}-${round}`},
+            ${wallet(10_000 + label.length * 1_000 + round)}, '{}')
+          returning id
+        `;
+        const directory = new FakeIdentityDirectory();
+        const results = await Promise.allSettled(
+          roles.map((role) => resolveUserWallet(db, directory, email, role)),
+        );
+        expect(results.filter((result) => result.status === "rejected")).toEqual([]);
+        for (const result of results) {
+          if (result.status === "fulfilled") expect(result.value.userId).toBe(row?.id);
+        }
+        expect(directory.lookups).toEqual([]);
+        const rows = await rowsOf(email);
+        expect(rows).toHaveLength(1);
+        expect([...(rows[0]?.roles ?? [])].sort()).toEqual(expected);
+      }
     }
   });
 

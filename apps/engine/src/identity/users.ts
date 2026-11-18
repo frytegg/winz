@@ -14,6 +14,17 @@ const UNIQUE_VIOLATION = "23505";
 /** Namespace of the advisory lock that serialises the writes of one e-mail's users row. */
 const USERS_LOCK_PREFIX = "winz:users:";
 
+/**
+ * The text whose `hashtextextended(…, 0)` is the advisory lock of one e-mail's users row: the
+ * namespace, then the normalised e-mail. The web sign-in (apps/web/lib/server/auth.ts,
+ * `usersLockKey`) takes the same lock; packages/shared is frozen, so this recipe is written on
+ * both sides, and apps/web/lib/server/auth-race.test.ts checks that the two agree. Change both or
+ * neither.
+ */
+export function usersLockKey(email: string): string {
+  return `${USERS_LOCK_PREFIX}${normalizeEmail(email)}`;
+}
+
 export interface ResolvedUser {
   userId: string;
   /** Normalised. Personal data: never logged. */
@@ -104,7 +115,7 @@ export async function resolveUserWallet(
       // Calls for one e-mail write one after the other: two concurrent inserts of the same new
       // row otherwise meet on the unique indexes in an order Postgres cannot settle, and one of
       // them fails (a unique violation on `privy_id` or `wallet`, or a deadlock).
-      await tx`select pg_advisory_xact_lock(hashtextextended(${`${USERS_LOCK_PREFIX}${email}`}, 0))`;
+      await tx`select pg_advisory_xact_lock(hashtextextended(${usersLockKey(email)}, 0))`;
       const [written] = await tx<UserRow[]>`
         insert into users (email, privy_id, wallet, roles)
         values (${email}, ${found.privyUserId}, ${wallet}, array[${role}::text])
