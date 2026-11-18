@@ -3009,6 +3009,7 @@ async function recover(input: RecoveryOptions): Promise<RecoveryReceipt> {
     source,
     scenarioOutcome: facts.scenario.outcome,
     runId: facts.runId,
+    runForced: facts.runForced,
   });
   if (receipt.result.differs !== null) out(receipt.result.differs);
   if (receipt.stateAfter !== null) {

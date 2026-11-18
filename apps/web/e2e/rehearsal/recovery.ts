@@ -94,7 +94,49 @@ const receiptSchema = z.object({
   driven: z
     .object({ bidBps: z.number().int(), askBps: z.number().int(), depth: bigintText })
     .nullable(),
+  // Read only to say whether the run forced a result; a receipt without them is still accepted.
+  steps: z.array(z.object({ step: z.string(), status: z.string() })).optional(),
+  recovery: z.unknown().optional(),
 });
+
+/**
+ * What the run's receipt shows of a result the run itself forced through the demo route. Its
+ * `settle` step forces the scenario's result before it waits for the settlement; its own
+ * `recover` step, once it has decided the result, forces NO when none was forced or known. The
+ * run's reset then clears every forced result, settled or not.
+ * - `forced`: the `settle` step is recorded done, so its force went through.
+ * - `maybe`: a step that forces a result is recorded (`settle` failed; the run's own recovery
+ *   with its `recovery` record, written once it had decided), but not whether the force went
+ *   through.
+ * - `none`: the receipt lists its steps and none of them forced a result.
+ * - `unknown`: the receipt lists no steps.
+ */
+export type RunForcedResult =
+  | { kind: "forced" }
+  | { kind: "maybe"; steps: ("settle" | "recover")[] }
+  | { kind: "none"; failedAt: string | null }
+  | { kind: "unknown" };
+
+/** What a run's receipt shows of a result the run forced, from its steps and its recovery. Pure. */
+export function runForcedResult(receipt: {
+  steps: readonly { step: string; status: string }[] | null;
+  /** The receipt holds the record its own recovery writes once it has decided the result. */
+  recoveryDecided: boolean;
+  failedAt: string | null;
+}): RunForcedResult {
+  const steps = receipt.steps;
+  if (steps === null) return { kind: "unknown" };
+  if (steps.some((item) => item.step === "settle" && item.status === "done")) {
+    return { kind: "forced" };
+  }
+  const maybe: ("settle" | "recover")[] = [];
+  if (steps.some((item) => item.step === "settle")) maybe.push("settle");
+  if (receipt.recoveryDecided && steps.some((item) => item.step === "recover")) {
+    maybe.push("recover");
+  }
+  if (maybe.length > 0) return { kind: "maybe", steps: maybe };
+  return { kind: "none", failedAt: receipt.failedAt };
+}
 
 /** What a recovery takes from the receipt of the run it finishes. */
 export interface RunReceiptFacts {
@@ -126,6 +168,8 @@ export interface RunReceiptFacts {
   instrument: string;
   scenario: Scenario;
   driven: { bidBps: number; askBps: number; depth: bigint } | null;
+  /** What the receipt shows of a result the run itself forced. */
+  runForced: RunForcedResult;
 }
 
 /** Parses a receipt's JSON text. Throws `RecoveryReceiptError` listing every problem. */
@@ -194,6 +238,11 @@ export function parseRunReceipt(text: string, file: string): RunReceiptFacts {
     instrument: receipt.instrument.symbol,
     scenario: receipt.scenario,
     driven: receipt.driven,
+    runForced: runForcedResult({
+      steps: receipt.steps ?? null,
+      recoveryDecided: receipt.recovery !== undefined && receipt.recovery !== null,
+      failedAt: receipt.failure?.step ?? null,
+    }),
   };
 }
 
@@ -314,10 +363,38 @@ export function settledOutcome(onchain: number): Outcome | "void" | null {
   return ONCHAIN_OUTCOMES[onchain] ?? null;
 }
 
-function why(source: RecoveryResultSource | null, settled: string): string {
+const FORCING_STEPS: Record<"settle" | "recover", string> = {
+  settle: "its settle step, which forces the scenario's result before it waits for the settlement",
+  recover:
+    "its own recovery past the point where it decides the result (it then forces NO when nothing is decided)",
+};
+
+/**
+ * What the run's receipt says of a result the run forced: the run's own reset (which clears
+ * every forced result) is named as a possible cause only when the receipt shows the run forced
+ * one, and as a conditional one when the receipt cannot show it.
+ */
+function whatTheRunForced(runForced: RunForcedResult): string {
+  switch (runForced.kind) {
+    case "forced":
+      return "the run had forced its own result (its receipt records its settle step done), and the run's reset clears every forced result, which may be why none was left";
+    case "maybe":
+      return `the run's receipt records ${runForced.steps.map((step) => FORCING_STEPS[step]).join(", and ")}, but cannot show whether a result was forced there; if one was, the run's reset, which clears every forced result, would explain why none was left`;
+    case "none":
+      return `the run never forced a result (its receipt records ${runForced.failedAt === null ? "no settle step" : `a failure at ${runForced.failedAt}, before any settle step`}, and no recovery of its own that got as far as deciding one)`;
+    case "unknown":
+      return "the run's receipt lists no steps, so it cannot show whether the run had forced a result, nor what cleared one";
+  }
+}
+
+function why(
+  source: RecoveryResultSource | null,
+  settled: string,
+  runForced: RunForcedResult,
+): string {
   switch (source) {
     case "forced by this recovery":
-      return "no result was forced or known any more when this recovery started (the run's own reset clears the result it forced, even when the settlement has not landed yet), so the recovery forced NO; the money comes back all the same, through the merchant's wallet and the sweep";
+      return `no result was forced or known in the database when this recovery started, so the recovery forced NO; ${whatTheRunForced(runForced)}; the money comes back all the same, through the merchant's wallet and the sweep`;
     case "already forced in the database":
       return `the result ${settled} was already forced in the database when this recovery started, and the recovery kept it`;
     case "known in the database":
@@ -332,19 +409,22 @@ function why(source: RecoveryResultSource | null, settled: string): string {
 /**
  * The result a recovery settled the campaign with (`settled`: the outcome of its
  * `CampaignSettled` event, null when it is not settled), where it came from, and one sentence
- * when it is not the outcome the run's scenario asked for. Pure.
+ * when it is not the outcome the run's scenario asked for. When the recovery forced NO itself,
+ * the sentence says what the run's receipt shows of a result the run had forced (`runForced`),
+ * and no more. Pure.
  */
 export function recoveryResult(input: {
   settled: number | null;
   source: RecoveryResultSource | null;
   scenarioOutcome: Outcome;
   runId: string;
+  runForced: RunForcedResult;
 }): RecoveryResult {
   const settledWith = input.settled === null ? null : settledOutcome(input.settled);
   const differs =
     settledWith === null || settledWith === input.scenarioOutcome
       ? null
-      : `The campaign was settled ${settledWith.toUpperCase()}, not ${input.scenarioOutcome.toUpperCase()} as the scenario of run ${input.runId} asked: ${why(input.source, settledWith.toUpperCase())}.`;
+      : `The campaign was settled ${settledWith.toUpperCase()}, not ${input.scenarioOutcome.toUpperCase()} as the scenario of run ${input.runId} asked: ${why(input.source, settledWith.toUpperCase(), input.runForced)}.`;
   return {
     settledWith,
     source: input.source,
