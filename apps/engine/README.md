@@ -16,8 +16,12 @@ The web app never does either: it writes rows and enqueues jobs, and the engine 
 | `hedging`     | One policy runner per instrument: orders, fills, allocation to sales, `chargeHedge`, the Hedge desk rows.  |
 | `sale-states` | Decides every second whether each campaign can sell, and why not.                                          |
 | `settlement`  | Once a game is decided: final hedge charges, `settle`, refunds in batches of 50, payout, release.          |
-| `jobs`        | The work the web app enqueues: create a campaign, sell a ticket, pause, close sales.                       |
+| `jobs`        | The work the web app enqueues: create a campaign, sell a ticket, pause, close sales, top up a budget.      |
 | `catalog-sync`| Gemini's catalogue of games and their results, every minute.                                               |
+
+The budget top-up job (`campaign.top_up`, one per paid top-up, SPEC CA-6) sends
+`topUpBudgetFor` (key `topUpBudget:<payment id>`, a barrier) and projects its `BudgetToppedUp`,
+or, when the campaign can no longer take it, refunds the merchant's card once: never both.
 
 Every service resumes from the database and the chain after a restart: a transaction signed
 before a crash is re-broadcast as it was, never signed twice. Run **one engine per database**.

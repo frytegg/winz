@@ -61,6 +61,7 @@ réponse.
 | `POST /api/campaigns/:id/pause`  | `default`                                                                  |
 | `POST /api/campaigns/:id/resume` | `default`                                                                  |
 | `POST /api/campaigns/:id/close`  | `default`                                                                  |
+| `POST /api/campaigns/:id/top-up` | `default`, `created`, `repeated`, `credited`                               |
 | `GET /api/c/:slug`               | `default`, `live`, `paused`, `salesClosed`, `settledYes`, `settledNo`      |
 | `POST /api/checkout`             | `default`, `salesPaused`, `salesClosed`                                    |
 | `POST /api/checkout/:pi/confirm` | `default`, `processing`, `ticketed`, `cancelledPaused`, `failed`           |
@@ -144,6 +145,7 @@ apparaît donc quelques secondes après la réponse de la route, quand le moteur
 | `POST /api/campaigns`                                  | Crée la campagne (`funding`) et le paiement du budget (écran M7)                                    |
 | `GET /api/campaigns`, `GET /api/campaigns/:id`         | Liste et détail du commerçant connecté                                                              |
 | `POST /api/campaigns/:id/pause`, `/resume`, `/close`   | Pause, reprise et clôture manuelles                                                                 |
+| `POST /api/campaigns/:id/top-up`                       | Recharge le budget d'une campagne en cours, payée par carte (CA-6)                                  |
 | `GET /api/c/:slug`                                     | Page publique de la campagne                                                                        |
 | `POST /api/checkout`                                   | Vérifie que la promo vend, crée l'autorisation de la carte                                          |
 | `POST /api/checkout/:pi/confirm`, `GET /api/checkout/:pi` | Déclenche l'achat, puis suit son état                                                            |
@@ -178,6 +180,19 @@ passe `live` avec son `slug` : relire `GET /api/campaigns/:id` jusqu'à voir `li
 La réponse est l'état tel que le commerçant le verra en relisant le détail, pas l'état futur.
 Une action impossible dans l'état actuel (déjà en pause, ventes closes, campagne réglée) répond
 `409 conflict` ; la campagne d'un autre commerçant répond `404`.
+
+### Recharger le budget (CA-6)
+
+`POST /api/campaigns/:id/top-up` prend `{ amount, requestId }` (micro-USDC, un `uuid` gardé par le
+front pour ses nouvelles tentatives) et répond comme la création : `budgetPayment.clientSecret` pour
+le Payment Element, et `status` (`requires_payment`). Le même `requestId` rend le même paiement
+avec son `status` du moment (`processing` une fois payée, `credited` une fois versée : rien à
+payer) ; une recharge finie autrement (annulée, refusée, remplacée, remboursée) répond `409` : il
+faut une nouvelle demande. Refus : `409` si la campagne n'est pas en ligne, ventes closes
+(`sales_closed`), réglée, ou si une recharge payée est en route (une recharge pas encore payée est
+remplacée, son paiement annulé) ; `400` hors 0,50 $–999 999,99 $ ou si le budget total dépasserait
+999 999,99 $. Le budget du détail change quand le moteur l'a versé. Stripe n'est jamais appelé
+pendant que la ligne de la campagne est verrouillée : une recharge lente ne retient pas ses ventes.
 
 ### Le parcours d'achat, côté front
 
@@ -322,6 +337,7 @@ Ce que les scénarios prouvent :
 | `pause.test.ts`   | C : carte autorisée puis vente impossible (pause du commerçant, prix au-dessus du seuil, carnet périmé) : « Promo just paused, you were not charged », autorisation annulée, rien sur la chaîne, puis la vente repart                         |
 | `demo.test.ts`    | D : le mode démo de bout en bout (carnet piloté, vente rejouée sans Stripe, résultat forcé, règlement OUI) et le champ `demo` de chaque réponse                                                                                               |
 | `restart.test.ts` | E : le moteur redémarré après un `buyFor` miné et avant la capture, puis au milieu du règlement : rien n'arrive deux fois                                                                                                                     |
+| `top-up.test.ts`  | CA-6 : une promo au budget épuisé est rechargée par la route et le webhook Stripe, revend sans autre action, puis réglée OUI rend le budget non dépensé, recharge comprise, au micro-USDC près                                               |
 
 `e2e/support/harness.test.ts` vérifie le harnais lui-même, sans chaîne ni base : une attente
 bornée ne laisse aucun minuteur derrière elle, une erreur de route n'est pas prise pour une pause,

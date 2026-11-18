@@ -8,6 +8,7 @@ import {
   WebhookSignatureError,
   paymentKindOf,
   stripeAmount,
+  topUpGatewayOf,
   toPaymentIntentView,
   verifyStripeWebhook,
 } from "./payments-gateway";
@@ -142,7 +143,7 @@ describe("toPaymentIntentView", () => {
     expect(() => toPaymentIntentView({ ...base, status: "weird" })).toThrow(PaymentGatewayError);
   });
 
-  it("knows our two payment kinds only", () => {
+  it("maps our payment kinds, and nothing that is not ours", () => {
     const view = toPaymentIntentView(base);
     expect(paymentKindOf({ ...view, metadata: { kind: "purchase" } })).toBe("purchase");
     expect(paymentKindOf({ ...view, metadata: { kind: "campaign_budget" } })).toBe(
@@ -408,5 +409,149 @@ describe("StripePaymentGateway over Stripe's real client (fake HTTP layer)", () 
     await expect(refused.gateway.retrievePaymentIntent("pi_1")).rejects.toThrow(
       PaymentGatewayError,
     );
+  });
+});
+
+describe("StripePaymentGateway: the calls of a budget top-up (CA-6)", () => {
+  const unexpectedState = {
+    status: 400,
+    body: {
+      error: {
+        type: "invalid_request_error",
+        code: "payment_intent_unexpected_state",
+        message: "You cannot cancel this PaymentIntent because it has a status of succeeded.",
+      },
+    },
+  };
+
+  function intentWithStatus(status: string): unknown {
+    return {
+      id: "pi_top_1",
+      object: "payment_intent",
+      status,
+      amount: 50000,
+      currency: "usd",
+      client_secret: "pi_top_1_secret_xyz",
+      metadata: { kind: "campaign_budget_top_up", campaignId: "c", requestId: "r" },
+    };
+  }
+
+  it("creates the top-up captured automatically, keyed on the request", async () => {
+    const { gateway, sent } = stripeOverFakeHttp((request) => ({
+      status: 200,
+      body: intentAnswer(request),
+    }));
+    const created = await gateway.createBudgetTopUpPayment({
+      campaignId: "22222222-2222-4222-8222-222222222222",
+      requestId: "33333333-3333-4333-8333-333333333333",
+      amount: 500_000_000n,
+    });
+    expect(created).toEqual({ id: "pi_real_1", clientSecret: "pi_real_1_secret_abc" });
+    const [request] = sent as [SentRequest];
+    expect(request.url.pathname).toBe("/v1/payment_intents");
+    expect(request.headers.get("idempotency-key")).toBe(
+      "campaign_budget_top_up:33333333-3333-4333-8333-333333333333",
+    );
+    expect(Object.fromEntries(request.form)).toEqual({
+      amount: "50000",
+      currency: "usd",
+      capture_method: "automatic",
+      "automatic_payment_methods[enabled]": "true",
+      description: "Promo budget top-up",
+      "metadata[kind]": "campaign_budget_top_up",
+      "metadata[campaignId]": "22222222-2222-4222-8222-222222222222",
+      "metadata[requestId]": "33333333-3333-4333-8333-333333333333",
+    });
+    expect(paymentKindOf(toPaymentIntentView(intentWithStatus("succeeded")))).toBe(
+      "campaign_budget_top_up",
+    );
+  });
+
+  it("reads back the client secret of an intent, null for an unknown one", async () => {
+    const known = stripeOverFakeHttp(() => ({ status: 200, body: intentWithStatus("succeeded") }));
+    expect(await known.gateway.retrieveClientSecret("pi_top_1")).toBe("pi_top_1_secret_xyz");
+    expect((known.sent[0] as SentRequest).url.pathname).toBe("/v1/payment_intents/pi_top_1");
+    const missing = stripeOverFakeHttp(() => ({
+      status: 404,
+      body: { error: { type: "invalid_request_error", code: "resource_missing", message: "No" } },
+    }));
+    expect(await missing.gateway.retrieveClientSecret("pi_nope")).toBeNull();
+  });
+
+  it("cancels an unpaid intent without a key of ours: each call gets a fresh one", async () => {
+    const { gateway, sent } = stripeOverFakeHttp(() => ({
+      status: 200,
+      body: intentWithStatus("canceled"),
+    }));
+    expect(await gateway.cancelUnpaidPaymentIntent("pi_top_1")).toBe("canceled");
+    expect(await gateway.cancelUnpaidPaymentIntent("pi_top_1")).toBe("canceled");
+    expect(sent.map((request) => [request.method, request.url.pathname])).toEqual([
+      ["POST", "/v1/payment_intents/pi_top_1/cancel"],
+      ["POST", "/v1/payment_intents/pi_top_1/cancel"],
+    ]);
+    const keys = sent.map((request) => request.headers.get("idempotency-key") ?? "");
+    // Stripe's client keys every POST itself, with a key no later call repeats: a refusal Stripe
+    // saved for one call is never replayed to the next.
+    for (const key of keys) expect(key).toMatch(/^stripe-node-retry-[0-9a-f-]{36}$/);
+    expect(new Set(keys).size).toBe(2);
+  });
+
+  it("keeps the client's key across the network retries of one cancel", async () => {
+    let calls = 0;
+    const { gateway, sent } = stripeOverFakeHttp(() => {
+      calls += 1;
+      return calls === 1
+        ? {
+            status: 503,
+            body: { error: { type: "api_error", message: "unavailable" } },
+            headers: { "stripe-should-retry": "true" },
+          }
+        : { status: 200, body: intentWithStatus("canceled") };
+    });
+    expect(await gateway.cancelUnpaidPaymentIntent("pi_top_1")).toBe("canceled");
+    expect(sent).toHaveLength(2);
+    expect(new Set(sent.map((request) => request.headers.get("idempotency-key"))).size).toBe(1);
+  }, 20_000);
+
+  it("reads the intent when Stripe refuses the cancel for its state", async () => {
+    const paid = stripeOverFakeHttp((request) =>
+      request.url.pathname.endsWith("/cancel")
+        ? unexpectedState
+        : { status: 200, body: intentWithStatus("succeeded") },
+    );
+    expect(await paid.gateway.cancelUnpaidPaymentIntent("pi_top_1")).toBe("not_cancelable");
+    expect(paid.sent.map((request) => request.method)).toEqual(["POST", "GET"]);
+
+    const alreadyCancelled = stripeOverFakeHttp((request) =>
+      request.url.pathname.endsWith("/cancel")
+        ? unexpectedState
+        : { status: 200, body: intentWithStatus("canceled") },
+    );
+    expect(await alreadyCancelled.gateway.cancelUnpaidPaymentIntent("pi_top_1")).toBe("canceled");
+  });
+
+  it("reports any other failure of a cancel as a gateway error", async () => {
+    const refused = stripeOverFakeHttp(() => ({
+      status: 401,
+      body: { error: { type: "invalid_request_error", message: "Invalid API Key" } },
+    }));
+    await expect(refused.gateway.cancelUnpaidPaymentIntent("pi_top_1")).rejects.toThrow(
+      PaymentGatewayError,
+    );
+  });
+
+  it("tells a gateway with the top-up calls from one without", () => {
+    const { gateway } = stripeOverFakeHttp(() => ({ status: 200, body: {} }));
+    expect(topUpGatewayOf(gateway)).toBe(gateway);
+    expect(
+      topUpGatewayOf({
+        createBudgetPayment: () => Promise.reject(new Error("unused")),
+        createPurchaseAuthorization: () => Promise.reject(new Error("unused")),
+        retrievePaymentIntent: () => Promise.resolve(null),
+        parseWebhook: () => {
+          throw new Error("unused");
+        },
+      }),
+    ).toBeNull();
   });
 });

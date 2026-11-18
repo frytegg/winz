@@ -295,6 +295,36 @@ export const campaignActionResponseSchema = z.object({
   saleState: saleStateSchema,
 });
 
+/**
+ * POST /api/campaigns/:id/top-up (SPEC CA-6): the merchant adds hedge budget to their running
+ * campaign, paid by card like the first budget. `requestId` makes the request idempotent: sent
+ * again, it answers the same payment and creates nothing.
+ */
+export const topUpCampaignRequestSchema = z.object({
+  /** The top-up, micro-USDC, a whole number of cents between $0.50 and $999,999.99. */
+  amount: positiveMicroUsdcSchema,
+  /** Chosen by the front once per top-up and kept for its retries. */
+  requestId: z.uuid(),
+});
+export const topUpCampaignResponseSchema = z.object({
+  campaignId: z.string(),
+  requestId: z.uuid(),
+  /** The top-up, micro-USDC. */
+  amount: microUsdcSchema,
+  /** Same shape as `createCampaignResponseSchema.budgetPayment`: what Stripe's sheet needs. */
+  budgetPayment: z.object({
+    paymentIntentId: z.string(),
+    clientSecret: z.string(),
+    amount: microUsdcSchema,
+  }),
+  /**
+   * Where the top-up stands: `requires_payment` (the sheet can be paid), `processing` (paid, on
+   * its way to the escrow) or `credited` (in the budget: nothing more to pay). A repeated request
+   * for a top-up that ended otherwise (cancelled, declined, replaced, refunded) answers 409.
+   */
+  status: z.enum(["requires_payment", "processing", "credited"]).optional(),
+});
+
 // ---------------------------------------------------------------------------------------------
 // Public campaign page: GET /api/c/:slug
 // ---------------------------------------------------------------------------------------------
@@ -583,3 +613,5 @@ export type DemoSaleRequest = z.infer<typeof demoSaleRequestSchema>;
 export type DemoResponse = z.infer<typeof demoResponseSchema>;
 export type LiveInstrumentRow = z.infer<typeof liveInstrumentRowSchema>;
 export type LiveCampaignRow = z.infer<typeof liveCampaignRowSchema>;
+export type TopUpCampaignRequest = z.infer<typeof topUpCampaignRequestSchema>;
+export type TopUpCampaignResponse = z.infer<typeof topUpCampaignResponseSchema>;
