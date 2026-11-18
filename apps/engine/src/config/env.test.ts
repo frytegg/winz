@@ -125,6 +125,52 @@ describe("loadEngineEnv", () => {
     );
   });
 
+  it("reads the engine lease's three settings, with their defaults", () => {
+    const defaults = loadEngineEnv(valid);
+    expect(defaults.ENGINE_LEASE_TTL_MS).toBe(15_000);
+    expect(defaults.ENGINE_LEASE_RENEW_MS).toBe(3_000);
+    expect(defaults.ENGINE_LEASE_STANDBY_POLL_MS).toBe(1_000);
+    const set = loadEngineEnv({
+      ...valid,
+      ENGINE_LEASE_TTL_MS: "30000",
+      ENGINE_LEASE_RENEW_MS: "5000",
+      ENGINE_LEASE_STANDBY_POLL_MS: "500",
+    });
+    expect(set.ENGINE_LEASE_TTL_MS).toBe(30_000);
+    expect(set.ENGINE_LEASE_RENEW_MS).toBe(5_000);
+    expect(set.ENGINE_LEASE_STANDBY_POLL_MS).toBe(500);
+  });
+
+  it.each([
+    ["ENGINE_LEASE_TTL_MS", "9999"],
+    ["ENGINE_LEASE_TTL_MS", "300001"],
+    ["ENGINE_LEASE_TTL_MS", "15s"],
+    ["ENGINE_LEASE_RENEW_MS", "199"],
+    ["ENGINE_LEASE_RENEW_MS", "2.5"],
+    ["ENGINE_LEASE_STANDBY_POLL_MS", "99"],
+  ])("refuses %s=%s, out of its bounds", (name, value) => {
+    expect(issuesOf(() => loadEngineEnv({ ...valid, [name]: value }))).toContain(name);
+  });
+
+  it("refuses a renewal that is not well under the ttl, and a standby slower than the ttl", () => {
+    // Fence after 15 000 - 5 000 ms: three renewals must fit, so at most 3 333 ms each.
+    expect(loadEngineEnv({ ...valid, ENGINE_LEASE_RENEW_MS: "3333" }).ENGINE_LEASE_RENEW_MS).toBe(
+      3_333,
+    );
+    expect(issuesOf(() => loadEngineEnv({ ...valid, ENGINE_LEASE_RENEW_MS: "3334" }))).toMatch(
+      /ENGINE_LEASE_RENEW_MS: the lease renewal \(3334 ms\) must be at most a third/,
+    );
+    expect(
+      issuesOf(() =>
+        loadEngineEnv({
+          ...valid,
+          ENGINE_LEASE_TTL_MS: "10000",
+          ENGINE_LEASE_STANDBY_POLL_MS: "10001",
+        }),
+      ),
+    ).toMatch(/ENGINE_LEASE_STANDBY_POLL_MS: the standby poll \(10001 ms\) must not exceed/);
+  });
+
   it("refuses RPC limits that cannot work", () => {
     expect(
       issuesOf(() => loadEngineEnv({ ...valid, ARC_RPC_MAX_REQUESTS_PER_SECOND: "0" })),

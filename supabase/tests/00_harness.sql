@@ -145,7 +145,8 @@ select unnest(array[
   'users', 'merchants', 'events', 'instruments', 'campaigns', 'payments', 'tickets',
   'chain_events', 'chain_cursor', 'chain_txs', 'lots', 'positions', 'orders', 'fills',
   'lot_fills', 'engine_pnl', 'engine_params', 'demo_overrides', 'venue_checks',
-  'push_subscriptions', 'jobs', 'book_cache', 'tracked_instruments', 'budget_top_ups'
+  'push_subscriptions', 'jobs', 'book_cache', 'tracked_instruments', 'budget_top_ups',
+  'engine_lease'
 ]) as name;
 
 create view test.live_tables as

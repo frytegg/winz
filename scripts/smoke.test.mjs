@@ -22,6 +22,8 @@ const HEALTHY_ENGINE = {
   db: "ok",
   sender: "running",
   jobs: "running",
+  role: "leader",
+  lease: { holder: "eng-0123456789ab", heldForS: 12, renewedAgoMs: 800 },
 };
 
 let shared;

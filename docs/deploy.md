@@ -76,7 +76,7 @@ que `pnpm env:check` relit avant chaque collage dans Railway ou Vercel.
    de Supabase ou avec `psql "$DB_URL"` :
 
    ```sql
-   -- Les 7 migrations sont appliquées.
+   -- Toutes les migrations de supabase/migrations sont appliquées (une ligne par fichier).
    select version from supabase_migrations.schema_migrations order by version;
    -- Aucune table publique sans RLS : doit répondre 0 ligne.
    select relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -209,6 +209,9 @@ Le moteur n'a pas d'étape de build : il exécute ses sources TypeScript avec ts
    | `ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND` | non |  |
    | `ARC_RPC_HEAVY_METHODS` | non |  |
    | `ARC_TX_MAX_IN_FLIGHT` | non |  |
+   | `ENGINE_LEASE_TTL_MS` | non | `15000` |
+   | `ENGINE_LEASE_RENEW_MS` | non | `3000` |
+   | `ENGINE_LEASE_STANDBY_POLL_MS` | non | `1000` |
    | `GEMINI_API_URL` | non | `https://api.gemini.com` |
    | `GEMINI_WS_URL` | non | `wss://ws.gemini.com` |
    | `GEMINI_SANDBOX_API_URL` | non | `https://api.sandbox.gemini.com` |
@@ -227,39 +230,79 @@ Le moteur n'a pas d'étape de build : il exécute ses sources TypeScript avec ts
    rejouées par le mode démo, et Privy ou la graine démo est exigé (le schéma refuse l'un sans
    l'autre). Pour la porte G1, `STRIPE_SECRET_KEY` (la même clé `sk_test_` que Vercel) est requise.
 
-3. **Une seule réplique.** Settings → Deploy → Replicas : 1 (le défaut ; `numReplicas` n'est plus
-   une clé de `railway.json` dans la référence actuelle, seulement sous `multiRegionConfig`).
-   Le moteur détient les nonces de deux clés et le seul worker des transactions : deux moteurs sur
-   la même base se disputeraient les mêmes nonces. Ce que le code garantit et ne garantit pas :
-   - l'index unique `(signer_address, chain_id, nonce)` de `chain_txs` et le `where status =
-     'queued'` du passage à `sent` empêchent qu'un même nonce soit enregistré deux fois ou qu'une
-     même ligne soit envoyée par les deux : le second moteur échoue sur ces gardes au lieu de
-     signer en double ;
-   - les jobs sont pris avec `for update skip locked` et les écritures sensibles sont sous verrou
-     consultatif de transaction : deux workers ne prennent jamais le même job ;
-   - mais **rien n'empêche deux moteurs de tourner** : pas de verrou de singleton. Deux couvertures
-     tourneraient par instrument, et les files des deux expéditeurs se bloqueraient l'une l'autre.
-   - Un déploiement Railway démarre le nouveau conteneur avant d'arrêter l'ancien : avec un
-     contrôle de santé, le nouveau devient actif quand `/healthz` répond 2xx ; sans, dès que son
-     conteneur a démarré. Ensuite l'ancien reste actif `RAILWAY_DEPLOYMENT_OVERLAP_SECONDS`
-     (0 par défaut), puis reçoit SIGTERM et a `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` avant le
-     SIGKILL. Les deux moteurs tournent donc ensemble au moins le temps que le nouveau réponde
-     200 ; le draining à 30 laisse à l'ancien ses 15 s d'arrêt propre.
+3. **Une seule réplique**, et un seul moteur au travail par base. Settings → Deploy → Replicas : 1
+   (le défaut). Le moteur détient les nonces de deux clés, le seul worker des transactions, une
+   couverture par instrument et le chargeur des couvertures : deux moteurs au travail sur la même
+   base se disputeraient les nonces et couvriraient deux fois la même exposition. Le code
+   l'empêche par un **bail** (table `engine_lease`, une ligne, décidé sur l'horloge de la base, en
+   requêtes d'une seule instruction qui marchent derrière n'importe quel pooler ;
+   `apps/engine/README.md`, « One engine per database ») :
+   - un moteur démarre en **standby** : il a validé ses variables et joint la base, il n'a démarré
+     aucun service (ni expéditeur, ni worker, ni couverture, ni règlement, ni lecteur), et il
+     demande le bail tout de suite puis chaque seconde. Dès qu'il l'a, il démarre le moteur comme
+     avant et le renouvelle toutes les 3 s (`ENGINE_LEASE_RENEW_MS`) pour 15 s
+     (`ENGINE_LEASE_TTL_MS`) ;
+   - s'il ne peut plus le renouveler (base injoignable), il arrête ses services de lui-même après
+     10 s sans renouvellement (15 s moins 5 s de marge pour l'arrêt) et redevient standby ; si son
+     arrêt n'a pas fini 1 s avant que le bail puisse expirer, le processus s'arrête (code 1) et
+     Railway le relance en standby ; si le bail est au nom d'un autre, il s'arrête tout de suite ;
+   - au SIGTERM, il arrête ses services, puis libère le bail : le standby prend la main à son
+     interrogation suivante, sans attendre l'expiration.
+
+   **La table du bail fait partie des migrations de l'étape 1 : les appliquer avant de déployer
+   le moteur, et avant chaque push qui en ajoute une.** Un push sur la branche suivie redéploie le
+   moteur tout seul, alors que les migrations s'appliquent à la main (`supabase db push
+   --remote`). Un moteur déployé sans la table reste un standby dont chaque demande de bail échoue
+   (`relation "engine_lease" does not exist`) : son `/healthz` répond 503 (`"role":"standby"`, et
+   la ligne `health check failed` du log dit `standby: its latest ask for the engine lease was not
+   answered`), et Railway marque le déploiement en échec en gardant l'ancien. Vérifier avant de
+   pousser : `select 1 from engine_lease` dans le SQL Editor répond sans erreur.
+
+   Un **redéploiement** se passe ainsi : Railway démarre le nouveau conteneur, qui est un standby
+   en bonne santé (`/healthz` répond 200 avec `"role":"standby"`) ; Railway arrête l'ancien
+   (SIGTERM), qui s'arrête et libère le bail ; le nouveau travaille dans la seconde (mesuré en
+   local : 0,2 s entre l'arrêt des services de l'ancien et le démarrage de ceux du nouveau). À
+   aucun moment deux moteurs n'ont leurs services en marche (les tests de `apps/engine/src/leader`
+   le vérifient, avec deux moteurs réels et deux processus réels). Deux réglages de l'étape 1
+   comptent ici : `RAILWAY_DEPLOYMENT_OVERLAP_SECONDS` à 0 (le défaut) raccourcit l'attente, et
+   **`RAILWAY_DEPLOYMENT_DRAINING_SECONDS=30` est à poser à la main** (le défaut est 0) : il
+   laisse à l'ancien ses 15 s d'arrêt propre avant le SIGKILL. Un SIGKILL ne libère pas le bail :
+   le nouveau attend alors son expiration, 15 s au plus.
+
+   Deux répliques ne casseraient plus rien : la seconde attendrait en standby sans rien faire. Elle
+   ne ferait que coûter un conteneur, sans haute disponibilité de plus que le redémarrage
+   « On Failure » : garder 1. Ce que le bail ne couvre pas : un processus gelé plus longtemps que
+   le bail (machine suspendue) ne peut pas s'arrêter de lui-même ; à son réveil il s'arrête au
+   premier tour de minuterie, mais ce qu'il faisait au moment du gel se termine. Les nonces (index
+   unique `(signer_address, chain_id, nonce)`, passage à `sent` sous `where status = 'queued'`),
+   les jobs (`for update skip locked`, verrou consultatif par sujet, clés d'idempotence) et les
+   charges de couverture (clés de lot, refus `HedgeAlreadyCharged` de l'escrow) restent protégés ;
+   les ordres de couverture ne le sont pas (deux couvertures peuvent acheter pour la même
+   exposition).
 4. Contrôle de santé : `/healthz`, délai 120 s. Railway injecte `PORT` et interroge ce port-là,
    depuis l'hôte `healthcheck.railway.app`, seulement au déploiement (pas de surveillance
-   ensuite). Le moteur n'écoute un port que si `PORT` est défini ; en local, rien n'écoute.
+   ensuite). Le moteur n'écoute un port que si `PORT` est défini ; en local, rien n'écoute. Un
+   standby en bonne santé répond 200 lui aussi (c'est ce qui permet la relève).
 5. **Preuve.** Deployments → le déploiement → Deploy Logs. Un bon démarrage ressemble à ceci
    (lignes réelles d'un démarrage local, adresses remplacées) :
 
    ```text
+   {"level":"info","module":"leader","holder":"eng-…","ttlMs":15000,"renewMs":3000,"standbyPollMs":1000,"fenceAfterMs":10000,"msg":"standby: no service runs until this engine holds the lease"}
+   {"level":"info","module":"health","port":8080,"path":"/healthz","msg":"health listener started"}
+   {"level":"info","module":"leader","holder":"eng-…","msg":"lease acquired: starting the engine"}
    {"level":"info","module":"tx-sender","chainId":5042002,"relayer":"0x…","oracle":"0x…","escrow":"0x…","msg":"transaction sender started"}
    {"level":"info","module":"chain-ingest","escrow":"0x…","fromBlock":"72727350","cursor":"escrow-logs:0x…","msg":"chain ingest started"}
    {"level":"info","module":"hedging","venue":"paper","label":"PAPER · live Gemini book","msg":"hedging started"}
    {"level":"info","module":"settlement","escrow":"0x…","intervalMs":15000,"msg":"settlement watcher started"}
    {"level":"info","module":"jobs","workerId":"engine-…","concurrency":4,"msg":"job worker started"}
    {"level":"info","module":"engine","chainId":5042002,"venue":"paper","msg":"engine running"}
-   {"level":"info","module":"health","port":8080,"path":"/healthz","msg":"health listener started"}
+   {"level":"info","module":"leader","holder":"eng-…","msg":"engine running under the lease"}
    ```
+
+   Pendant un redéploiement, le nouveau conteneur écrit d'abord `standby: the lease is held by
+   another engine` (avec l'identifiant de l'ancien), puis, une fois l'ancien arrêté, `lease
+   acquired: starting the engine`. L'ancien finit par `engine services stopped`, `lease released`,
+   `health listener stopped`.
 
    Puis, pour un appel depuis l'extérieur, Settings → Networking → Generate Domain (la réponse de
    `/healthz` ne contient ni secret, ni adresse de clé, ni e-mail) :
@@ -268,8 +311,13 @@ Le moteur n'a pas d'étape de build : il exécute ses sources TypeScript avec ts
    curl -s https://<moteur>.up.railway.app/healthz
    ```
 
-   Attendu : HTTP 200 et `{"status":"ok", …, "chain":{"id":5042002,"head":…,"cursor":…},
-   "db":"ok","sender":"running","jobs":"running"}`. `cursor` rattrape `head` au premier
+   Attendu : HTTP 200 et `{"status":"ok","role":"leader", …, "chain":{"id":5042002,"head":…,
+   "cursor":…},"db":"ok","sender":"running","jobs":"running","lease":{"holder":"eng-…",
+   "heldForS":…,"renewedAgoMs":…}}`. `"role":"standby"` (200 aussi, `sender` et `jobs` à
+   `"stopped"`) veut dire que ce conteneur attend le bail : `lease.holder` dit quel moteur le
+   détient. Un standby qui ne peut pas lire le bail (migration absente, droits manquants) répond
+   503 : il ne prendrait jamais la main. Les lectures de la base et du nœud servent toutes les
+   requêtes pendant 2 s ; le rôle et l'état des services sont relus à chaque requête. `cursor` rattrape `head` au premier
    démarrage (par plages de 2 000 blocs). 503 dit ce qui manque : `db: "down"` (mauvais `DB_URL`
    ou base injoignable), `head: null` (nœud injoignable), `sender: "stopped"` (arrêt en cours).
    Ce même appel prouve la moitié « depuis Railway » de S-05 : `book-feed` ne doit pas journaliser
@@ -417,7 +465,19 @@ téléphone :
 
 ## Ce qu'il ne faut jamais faire
 
-- Deux répliques du moteur, ou un second moteur (local, autre service) sur la même base.
+- Brancher un moteur local (ou un autre service) sur la base de production : il attendrait en
+  standby, puis prendrait le bail dès qu'il est libre (pendant un redéploiement, par exemple) et
+  deviendrait le moteur de production, depuis un poste. Une seconde réplique, elle, ne casse plus
+  rien (elle attend sans rien faire) mais ne sert à rien : garder `numReplicas: 1`.
+- Écrire ou effacer à la main la ligne `engine_lease` pendant qu'un moteur tourne : un bail réécrit
+  au nom d'un autre, effacé ou expiré arrête le moteur à son renouvellement suivant (3 s au plus),
+  et un bail effacé ou expiré peut être pris par un standby dans cet intervalle, qui démarre alors
+  à côté du moteur en place.
+- Lancer la répétition (`tsx e2e/rehearsal/run.ts` depuis `apps/web`) avec `--db-url` ou `DB_URL`
+  pointant sur une base où travaille un moteur déployé : elle démarre son propre moteur sans
+  demander le bail, à côté de celui de Railway (deux expéditeurs sur les mêmes clés, deux
+  couvertures). La répétition a sa propre base.
+- Pousser le moteur avec le bail avant d'avoir appliqué sa migration (voir l'étape 3).
 - Une clé Stripe live (`sk_live_`, `pk_live_`) : les deux services la refusent, ne pas essayer.
 - Une clé privée, la graine démo ou la clé `service_role` dans une variable `NEXT_PUBLIC_*`, ou
   sur Vercel tout court. `pnpm env:check web` le refuse quand le NOM de la variable le trahit (une
