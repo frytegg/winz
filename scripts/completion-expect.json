@@ -65,5 +65,12 @@
     "docs/rehearsals/20261118T090535Z-5042002-yes.md",
     "docs/rehearsals/20261118T090714Z-5042002-no.md",
     "docs/rehearsals/20261118T090924Z-5042002-yes.md"
+  ],
+  "A-08": [
+    "apps/web/app/api/campaigns/[id]/top-up",
+    "apps/web/lib/server/budget-top-up.ts",
+    "apps/engine/src/jobs/handlers/top-up-budget.ts",
+    "supabase/migrations/20261118000000_budget_top_ups.sql",
+    "apps/web/e2e/top-up.test.ts"
   ]
 }
