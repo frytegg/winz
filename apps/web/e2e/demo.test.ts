@@ -9,6 +9,7 @@ import {
   signUpMerchant,
   waitSaleState,
   waitTicketed,
+  waitTicketPhase,
   type LiveCampaign,
 } from "./support/flows";
 import { expectGuaranteesCapped, waitOpen } from "./support/steps";
@@ -150,7 +151,7 @@ describe("demo mode", () => {
       expectGuaranteesCapped(demo, tickets);
       const spent = charges[0]?.amount ?? 0n;
       expect(await tokenBalance(w, joe.wallet)).toBe(40_000_000n + demo.terms.budget - spent);
-      expect((await api.ticket(demoToken)).phase).toBe("refunded");
+      await waitTicketPhase(w, demoToken, "refunded");
       const detail = await api.campaign(joe.headers, demo.id);
       expect(detail.outcome).toBe("yes");
       expect(detail.report?.refundsPaid).toBe("40000000");
