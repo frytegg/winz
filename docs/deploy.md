@@ -22,11 +22,13 @@ Exécuté, en local, sans aucun compte ni service hébergé :
 - `pnpm env:check` sur des fichiers complets, incomplets et faux.
 
 Pas exécuté (il faut les comptes) : tout ce qui touche Supabase, Railway, Vercel, Stripe, Privy et
-QuickNode hébergés, donc chaque commande de preuve ci-dessous lancée contre eux. Les pages de
-documentation de Railway, Vercel et Supabase n'ont pas pu être relues depuis l'environnement où
-cette page a été écrite (pas d'accès réseau à ces domaines) : les réglages ci-dessous viennent de
-leur documentation telle qu'elle était connue, et les endroits où un nom de réglage peut avoir
-changé le disent.
+QuickNode hébergés, donc chaque commande de preuve ci-dessous lancée contre eux. Les réglages de
+Railway, Vercel et Supabase ont été relus le 18 novembre 2026 sur leur documentation actuelle
+(pages lues en entier, liste en fin de page) ; rien n'a été essayé sur un compte. Trois choses
+y ont changé depuis la première version de cette page : Railway ne lit plus `railway.json` pour un
+service créé maintenant (étape 2), `supabase db push` vise la base locale sans `--remote`
+(étape 1), et Supabase met en garde contre Postgres.js sur le transaction pooler : les deux
+services passent donc par le session pooler (étape 1, point 4).
 
 ## 0. Avant de commencer
 
@@ -50,12 +52,19 @@ que `pnpm env:check` relit avant chaque collage dans Railway ou Vercel.
 
    ```bash
    supabase login
-   supabase link --project-ref <ref-du-projet>
-   pnpm db:migrate
+   supabase link <ref-du-projet>
+   supabase db push --remote
    ```
 
-   `pnpm db:migrate` lance `supabase db push`. Le seed (un commerçant de démo, un match et ses
-   quatre instruments, aucune campagne) est facultatif : `supabase db push --include-seed`.
+   **`--remote` est indispensable** : la référence actuelle de la CLI dit que `supabase db push`
+   pousse vers la base **locale** par défaut, et vers le projet lié avec `--remote` ; la commande
+   affiche sur stderr une ligne `Target:` qui nomme la base visée, la lire avant de confirmer (elle
+   demande une confirmation, « No » par défaut). `pnpm db:migrate` lance `supabase db push` sans
+   ce drapeau : `pnpm db:migrate --remote` le lui passe. Avec une CLI plus ancienne qui ne
+   connaîtrait pas `--remote`, `--linked` (déprécié en v3, retiré en v4) fait la même chose.
+   `supabase link --project-ref <ref>` marche encore. Le seed (un commerçant de démo, un match et
+   ses quatre instruments, aucune campagne) est facultatif : `supabase db push --remote
+   --include-seed`.
 
 3. **Preuve.** `pnpm db:test` ne vise jamais le projet hébergé : il démarre son propre Postgres
    jetable (et il passe en CI). Sur le projet hébergé, seulement des lectures, dans le SQL Editor
@@ -74,32 +83,57 @@ que `pnpm env:check` relit avant chaque collage dans Railway ou Vercel.
 
    Si la dernière requête ne répond rien, la publication n'existait pas quand la migration a
    tourné : `alter publication supabase_realtime add table public.live_instruments,
-   public.live_campaigns, public.live_hedge_desk;` (Database → Publications dans le tableau de
-   bord montre la même chose).
+   public.live_campaigns, public.live_hedge_desk;` (Database → Publications, ligne
+   `supabase_realtime`, montre et bascule la même chose table par table).
 
-4. **`DB_URL`**, dans Connect (en haut du tableau de bord) : prendre la chaîne du **transaction
-   pooler** (Supavisor, port **6543**, hôte `aws-0-<région>.pooler.supabase.com`, utilisateur
-   `postgres.<ref>`), pour le moteur **et** pour le web. Pourquoi :
-   - la connexion directe (`db.<ref>.supabase.co:5432`) n'a qu'une adresse IPv6, que les fonctions
-     Vercel ne joignent pas (et Railway seulement s'il sort en IPv6) ;
-   - le session pooler (port 5432 de l'hôte pooler) réserve une connexion serveur par client, et le
-     moteur en ouvre jusqu'à `DB_POOL_MAX` (20 par défaut), plus 5 par instance web : la petite
-     instance d'un projet gratuit n'en a pas autant ;
-   - le transaction pooler convient aux deux, vérifié dans le code : les deux clients ont
-     `prepare: false` (`apps/engine/src/db.ts`, `apps/web/lib/server/db.ts`), tous les verrous
-     consultatifs sont de transaction (`pg_advisory_xact_lock`, `pg_try_advisory_xact_lock`),
-     `statement_timeout` et `lock_timeout` sont posés avec `set_config(…, true)` (locaux à la
-     transaction), et rien n'utilise `LISTEN`, `NOTIFY`, `SET` de session ni un verrou de session.
-     Un verrou de session ajouté un jour (par exemple pour interdire deux moteurs) demanderait la
-     connexion directe ou le session pooler pour le moteur.
+4. **`DB_URL`**, dans **Connect** (en haut du tableau de bord), méthode choisie dans la boîte de
+   dialogue. Recopier l'hôte, le port et l'utilisateur de la chaîne affichée : l'hôte des poolers
+   partagés est `aws-<index>-<région>.pooler.supabase.com`, où `<index>` est un numéro de grappe
+   qui ne se déduit pas de la région. Ce que dit la documentation actuelle :
 
-   Remplacer `[YOUR-PASSWORD]` par le mot de passe de l'étape 1.
+   | Méthode | Hôte:port | IP (gratuit) | Requêtes préparées, état de session |
+   | --- | --- | --- | --- |
+   | Connexion directe | `db.<ref>.supabase.co:5432` | IPv6 seulement | oui |
+   | Session pooler | `aws-<index>-<région>.pooler.supabase.com:5432` | IPv4 | oui |
+   | Transaction pooler | `aws-<index>-<région>.pooler.supabase.com:6543` | IPv4 | non (ni `SET`, ni verrou de session, ni `LISTEN`/`NOTIFY`, ni pipelining) |
 
-5. **`NEXT_PUBLIC_SUPABASE_URL`** et la clé publique, dans Project Settings → API (ou « API
-   Keys ») : l'URL `https://<ref>.supabase.co` et la clé anonyme (`anon`, ou la clé « publishable »
-   `sb_publishable_…` des projets récents ; l'ancienne clé `anon` reste sous « Legacy API keys »)
-   dans `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Jamais la clé `service_role` ni la clé « secret » : elles
-   ignorent la RLS. Aujourd'hui aucun code ne lit encore ces deux variables (le temps réel côté
+   L'utilisateur est `postgres` en direct, `postgres.<ref>` par les poolers. Le module IPv4 (offres
+   payantes) remplace l'IPv6 de la connexion directe par une IPv4, il n'ajoute pas l'une à l'autre.
+   Instance gratuite (Nano) : 60 connexions Postgres, 200 clients de pooler, 15 connexions par
+   pool par défaut (Database settings).
+
+   - **Moteur (Railway) et web (Vercel) : tous les deux le session pooler** (port 5432 de l'hôte
+     des poolers), jamais le transaction pooler.
+     - Pourquoi pas le transaction pooler, que Supabase recommande d'ordinaire pour des fonctions
+       serverless : leur page sur Postgres.js, le client du moteur comme du web, écrit qu'il
+       « pipeline les requêtes par défaut » et que, sur le transaction pooler, cela « peut bloquer
+       des requêtes ou renvoyer des lignes mélangées », sans option qui le désactive
+       (`max_pipeline: 0` casse `sql.begin()`). Des lignes mélangées dans une application de
+       paiement, c'est la réponse d'une requête servie à une autre : on ne prend pas ce risque.
+       En mode session, chaque connexion du client garde sa propre connexion Postgres et les
+       réponses ne peuvent pas se croiser.
+     - Le prix : les connexions sont comptées. Chaque connexion d'un client de session occupe
+       une connexion du pool (15 par défaut sur l'instance gratuite). Régler **`DB_POOL_MAX=8`
+       sur le moteur** (Railway) ; le web en prend **3 par instance** par défaut (`DB_POOL_MAX`
+       sur Vercel pour changer) et rend celles qu'il n'utilise plus après 20 s. 8 + deux
+       instances web à 3 = 14, sous les 15.
+     - Si les logs de Vercel montrent des refus de connexion (« max clients », `53300`) sous
+       charge, c'est ce plafond : augmenter la taille du pool dans **Database → Settings →
+       Connection pooling** (l'instance gratuite a 60 connexions Postgres en tout), pas le mode.
+     - La connexion directe irait aussi pour le moteur, mais elle est en IPv6 seulement sur
+       l'offre gratuite, et les pages de Railway lues ici ne disent pas qu'un service sort en IPv6.
+
+   Remplacer `[YOUR-PASSWORD]` (ou `[YOUR-DATABASE-PASSWORD]`) par le mot de passe de l'étape 1,
+   en encodant les caractères réservés (`&`, `#`, `?`, espace).
+
+5. **`NEXT_PUBLIC_SUPABASE_URL`** et la clé publique : la boîte **Connect** affiche l'URL
+   `https://<ref>.supabase.co` et la clé publiable ; toutes les clés sont sous **Settings → API
+   Keys** (il n'y a plus de page « Settings → API » à part). Mettre dans
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY` la clé **publishable** (`sb_publishable_…`) ou, à défaut,
+   l'ancienne clé `anon` (un JWT `eyJ…`) ; Supabase retire `anon` et `service_role` d'ici fin 2026.
+   Jamais une clé **secret** (`sb_secret_…`) ni `service_role` : elles passent outre la RLS.
+   `pnpm env:check web` refuse une valeur `NEXT_PUBLIC_*` qui a la forme d'un secret (voir la
+   fin de la page). Aujourd'hui aucun code ne lit encore ces deux variables (le temps réel côté
    front n'est pas branché) : `pnpm env:check web` les signale comme « front-end ».
 
 ## 2. Le moteur sur Railway (A)
@@ -107,12 +141,31 @@ que `pnpm env:check` relit avant chaque collage dans Railway ou Vercel.
 Ce qui est dans le dépôt : `apps/engine/Dockerfile` (Node 22, pnpm 10.28.0 par corepack,
 installation `--frozen-lockfile` filtrée sur le moteur, utilisateur non root, `node --import tsx
 src/index.ts` sans shell, donc SIGTERM arrive au moteur), `.dockerignore`, et `railway.json` à la
-racine (Dockerfile, contrôle de santé `/healthz`, redémarrage `ON_FAILURE`, **une** réplique).
+racine (Dockerfile, contrôle de santé `/healthz`, redémarrage `ON_FAILURE`, chevauchement et
+draining), que Railway ne lit plus pour un nouveau service : voir l'étape 1.
 Le moteur n'a pas d'étape de build : il exécute ses sources TypeScript avec tsx.
 
-1. New Project → Deploy from GitHub repo → ce dépôt. Railway lit `railway.json` à la racine du
-   dépôt (Settings → Config-as-code : chemin `/railway.json`). Ne pas définir de Root Directory :
-   le Dockerfile se construit depuis la racine.
+1. New Project → Deploy from GitHub repo → ce dépôt. Ne pas définir de Root Directory : le
+   Dockerfile se construit depuis la racine. **Railway ne lira pas `railway.json`** : sa
+   documentation dit que Config as Code est déprécié, qu'un nouveau service ne peut plus s'y
+   inscrire et que les fichiers existants cessent d'être lus le 1er décembre 2026 ; son remplaçant
+   (`.railway/railway.ts`, appliqué par la CLI) demande le paquet npm `railway`, absent du dépôt.
+   Le fichier reste comme trace des réglages ; les poser à la main, dans les Settings du service ou
+   en variables de service (documentées comme équivalentes) :
+
+   | Réglage | Où | Valeur |
+   | --- | --- | --- |
+   | Dockerfile | variable `RAILWAY_DOCKERFILE_PATH` | `apps/engine/Dockerfile` |
+   | Healthcheck Path | Settings → Deploy | `/healthz` |
+   | Healthcheck Timeout | Settings, ou variable `RAILWAY_HEALTHCHECK_TIMEOUT_SEC` | `120` (défaut 300) |
+   | Restart Policy | Settings → Deploy | On Failure, 10 essais (le défaut ; 10 est le plafond des offres Free et Trial) |
+   | Overlap | variable `RAILWAY_DEPLOYMENT_OVERLAP_SECONDS` | `0` (le défaut) |
+   | Draining | variable `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` | `30` (défaut **0** : SIGKILL aussitôt après SIGTERM) |
+   | Replicas | Settings → Deploy | 1 (le défaut) |
+
+   Watch paths (Settings → Build) : facultatif, les motifs de `railway.json` (`apps/engine/**`,
+   `packages/shared/**`, `packages/pricing/**`, les fichiers de la racine) évitent de redéployer
+   le moteur pour un commit du web seul.
 2. Variables (Variables → Raw Editor), à partir de `engine.env`, vérifié d'abord :
 
    ```bash
@@ -137,7 +190,7 @@ Le moteur n'a pas d'étape de build : il exécute ses sources TypeScript avec ts
    | `APP_EXECUTION_VENUE` | non | `paper` |
    | `APP_ADMIN_DEMO_KEY` | oui |  |
    | `DB_URL` | oui |  |
-   | `DB_POOL_MAX` | non | `20` |
+   | `DB_POOL_MAX` | non | `20` (mettre `8` derrière le session pooler, étape 1.4) |
    | `ARC_CHAIN_ID` | non | `5042002` |
    | `ARC_RPC_URL` | oui |  |
    | `ARC_RPC_FALLBACK_URL` | non | `https://rpc.testnet.arc.io` |
@@ -168,7 +221,8 @@ Le moteur n'a pas d'étape de build : il exécute ses sources TypeScript avec ts
    rejouées par le mode démo, et Privy ou la graine démo est exigé (le schéma refuse l'un sans
    l'autre). Pour la porte G1, `STRIPE_SECRET_KEY` (la même clé `sk_test_` que Vercel) est requise.
 
-3. **Une seule réplique.** Settings → Deploy → Replicas : 1 (`railway.json` dit `numReplicas: 1`).
+3. **Une seule réplique.** Settings → Deploy → Replicas : 1 (le défaut ; `numReplicas` n'est plus
+   une clé de `railway.json` dans la référence actuelle, seulement sous `multiRegionConfig`).
    Le moteur détient les nonces de deux clés et le seul worker des transactions : deux moteurs sur
    la même base se disputeraient les mêmes nonces. Ce que le code garantit et ne garantit pas :
    - l'index unique `(signer_address, chain_id, nonce)` de `chain_txs` et le `where status =
@@ -179,13 +233,15 @@ Le moteur n'a pas d'étape de build : il exécute ses sources TypeScript avec ts
      consultatif de transaction : deux workers ne prennent jamais le même job ;
    - mais **rien n'empêche deux moteurs de tourner** : pas de verrou de singleton. Deux couvertures
      tourneraient par instrument, et les files des deux expéditeurs se bloqueraient l'une l'autre.
-   - Un déploiement Railway démarre le nouveau conteneur avant d'arrêter l'ancien : les deux
-     tournent ensemble jusqu'à ce que le nouveau réponde 200 sur `/healthz` (quelques secondes).
-     `overlapSeconds: 0` limite ce chevauchement à ce délai, sans l'annuler ; `drainingSeconds: 30`
-     laisse à l'ancien ses 15 s d'arrêt propre avant le SIGKILL. Si ces deux clés sont refusées par
-     Railway (leur nom a pu changer), les retirer de `railway.json` : rien d'autre n'en dépend.
-4. Contrôle de santé : `/healthz` (dans `railway.json`, délai 120 s). Le moteur n'écoute un port
-   que si `PORT` est défini (Railway le définit) ; en local, rien n'écoute.
+   - Un déploiement Railway démarre le nouveau conteneur avant d'arrêter l'ancien : avec un
+     contrôle de santé, le nouveau devient actif quand `/healthz` répond 2xx ; sans, dès que son
+     conteneur a démarré. Ensuite l'ancien reste actif `RAILWAY_DEPLOYMENT_OVERLAP_SECONDS`
+     (0 par défaut), puis reçoit SIGTERM et a `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` avant le
+     SIGKILL. Les deux moteurs tournent donc ensemble au moins le temps que le nouveau réponde
+     200 ; le draining à 30 laisse à l'ancien ses 15 s d'arrêt propre.
+4. Contrôle de santé : `/healthz`, délai 120 s. Railway injecte `PORT` et interroge ce port-là,
+   depuis l'hôte `healthcheck.railway.app`, seulement au déploiement (pas de surveillance
+   ensuite). Le moteur n'écoute un port que si `PORT` est défini ; en local, rien n'écoute.
 5. **Preuve.** Deployments → le déploiement → Deploy Logs. Un bon démarrage ressemble à ceci
    (lignes réelles d'un démarrage local, adresses remplacées) :
 
@@ -226,22 +282,44 @@ Pas de `vercel.json` : avec un monorepo pnpm, le projet Vercel pointe sur `apps/
 bord.
 
 1. Add New → Project → importer ce dépôt. Réglages (Settings → Build and Deployment) :
-   - **Root Directory** : `apps/web`, avec « Include files outside the root directory » activé
-     (les paquets `@winz/shared` et `@winz/pricing` sont lus en source) ;
+   - **Root Directory** : `apps/web` (bouton Edit à l'import, ou Settings → Build and
+     Deployment → Root Directory). « Include files outside the root directory in the Build Step »
+     doit rester **activé**, ce qui est le défaut : les paquets `@winz/shared` et `@winz/pricing`
+     sont lus en source hors de `apps/web` ;
    - **Framework Preset** : Next.js ; Install Command et Build Command : laisser les valeurs par
-     défaut (Vercel trouve `pnpm-lock.yaml` à la racine et lance `pnpm install` à la racine, puis
+     défaut (Vercel trouve `pnpm-lock.yaml` et le workspace pnpm, lance `pnpm install`, puis
      `next build` dans `apps/web`) ;
-   - **Node.js Version** : 22.x ;
-   - variable `ENABLE_EXPERIMENTAL_COREPACK=1` pour que Vercel prenne la version de pnpm de
-     `packageManager` (10.28.0) plutôt que celle qu'il déduit du lockfile ;
-   - Settings → Functions → **Region** : la région de Supabase (étape 1) ;
-   - **Fluid compute : activé, obligatoire** (Settings → Functions ; c'est le défaut des nouveaux
-     projets, avec une durée par défaut de 300 s). Plusieurs routes attendent : le webhook Stripe,
-     le paiement et sa confirmation lisent Stripe (délai 15 s, 2 nouvelles tentatives : jusqu'à
-     45 s), la création de campagne et la recharge créent un paiement Stripe (jusqu'à 20 s), la
-     vente démo attend jusqu'à 8 s le ticket. Sans Fluid, le défaut de 10 s sur Hobby les
-     couperait, et aucune route ne fixe encore `maxDuration` (un test du dépôt n'autorise que
-     `dynamic` et les méthodes dans un fichier de route).
+   - **Node.js Version** : 22.x. Le défaut d'un nouveau projet est la dernière LTS (26.x
+     aujourd'hui) ; un champ `engines.node` dans le `package.json` du Root Directory passerait
+     avant ce réglage (`apps/web/package.json` n'en a pas) ;
+   - variable `ENABLE_EXPERIMENTAL_COREPACK=1` : c'est toujours la façon documentée de faire
+     prendre à Vercel la version de `packageManager` du `package.json` racine (`pnpm@10.28.0`).
+     Sans elle, un lockfile `lockfileVersion: '9.0'` donne pnpm 9 ou 10 selon l'âge du projet (le
+     journal de build dit lequel) ;
+   - Settings → Functions → **Function Regions** : la région de Supabase (étape 1) ; le défaut
+     des nouveaux projets est `iad1` (Washington) ;
+   - **Fluid compute : laisser activé** (Settings → Functions ; le défaut des projets créés depuis
+     le 23 avril 2025). Les routes qui attendent fixent leur `maxDuration`, tiré du pire cas lu
+     dans le code (le commentaire de chaque fichier le détaille) :
+
+     | Route | `maxDuration` | Ce qui l'occupe au pire |
+     | --- | --- | --- |
+     | `POST /api/webhooks/stripe` | 120 s | relire, annuler, relire une recharge échouée (≈ 114 s) |
+     | `POST /api/checkout` | 60 s | créer le PaymentIntent (15 s × 3 essais ≈ 47 s) |
+     | `POST /api/checkout/:pi/confirm` | 60 s | relire le PaymentIntent (≈ 47 s) |
+     | `POST /api/campaigns` (et son `GET`) | 30 s | créer le paiement du budget (10 s × 2 ≈ 21 s) |
+     | `POST /api/campaigns/:id/top-up` | 300 s | ≈ 356 s si Stripe expirait à chaque appel ; 68 s d'ordinaire |
+     | `POST /api/admin/demo/sale` | 15 s | attendre le ticket (8 s) |
+     | `POST /api/webhooks/quicknode` | 30 s | aucun appel extérieur ; QuickNode attend 30 s par défaut |
+
+     Avec Fluid, la documentation donne : Hobby 300 s par défaut et au plus ; Pro et Enterprise
+     300 s par défaut, 800 s au plus. Toutes ces valeurs tiennent donc dans **Hobby avec Fluid**.
+     Sans Fluid, la documentation actuelle ne publie plus de chiffres ; le dernier connu pour Hobby
+     est 60 s au plus (annonce de Vercel « Hobby can now run up to 60 seconds ») : le webhook Stripe
+     et la recharge le dépassent, d'où Fluid toujours requis sur Hobby. La recharge plafonnée à
+     300 s : une coupure au-delà peut laisser un paiement créé et non enregistré, dont le client
+     n'a pas reçu le secret ; payé malgré tout, il serait enregistré `refunding` et remboursé
+     (`budget-top-up.ts`).
 2. Variables (Settings → Environment Variables, environnement Production), à partir de `web.env` :
 
    ```bash
@@ -249,8 +327,9 @@ bord.
    ```
 
    Doit finir par `result: complete for the web`. Elle échoue aussi si une clé du moteur
-   (`ARC_*_PRIVATE_KEY`, `APP_DEMO_WALLET_SEED`) est dans le fichier, ou un secret sous
-   `NEXT_PUBLIC_`. Variables du serveur web (`pnpm env:check web --list`) :
+   (`ARC_*_PRIVATE_KEY`, `APP_DEMO_WALLET_SEED`) est dans le fichier, si le nom d'une variable
+   `NEXT_PUBLIC_` est celui d'un secret, ou si la valeur d'une `NEXT_PUBLIC_` a la forme d'un
+   secret (voir la fin de la page). Variables du serveur web (`pnpm env:check web --list`) :
 
    | Variable | Requise | Défaut |
    | --- | --- | --- |
@@ -265,7 +344,8 @@ bord.
    | `STRIPE_WEBHOOK_SECRET` | oui |  |
    | `PRIVY_APP_SECRET` | oui |  |
    | `NEXT_PUBLIC_PRIVY_APP_ID` | oui |  |
-   | `QUICKNODE_STREAMS_TOKEN` | oui |  |
+   | `QUICKNODE_STREAMS_TOKEN` | non |  |
+   | `QUICKNODE_STREAMS_NETWORK` | non | `arc-testnet` |
    | `ARC_ESCROW_ADDRESS` | non |  |
 
    Plus, pour le front : `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (`pk_test_…`),
@@ -277,9 +357,9 @@ bord.
    construction passe avec un environnement vide) : elles ne servent qu'à l'exécution, lues à la
    première requête. Les `NEXT_PUBLIC_*` sont, elles, recopiées dans le JavaScript au moment de la
    construction : les définir avant le premier déploiement, et redéployer après tout changement.
-   `QUICKNODE_STREAMS_TOKEN` est exigé par le schéma alors que `POST /api/webhooks/quicknode`
-   n'est pas encore implémenté (il répond 501) : y mettre une valeur aléatoire
-   (`openssl rand -hex 32`) en attendant.
+   `QUICKNODE_STREAMS_TOKEN` (le jeton de sécurité du Stream) et `ARC_ESCROW_ADDRESS` : tant que
+   l'un manque, `POST /api/webhooks/quicknode` répond 503 et le moteur lit les événements par ses
+   deux autres sources ; les poser en créant le Stream (`docs/quicknode.md`).
 3. Domaine : Settings → Domains → le domaine stable (F-03), puis `APP_BASE_URL` à jour et
    Redeploy.
 4. **Preuve** :
@@ -305,9 +385,9 @@ bord.
    réponse 200 (l'événement ne correspond à aucun paiement, il est accepté et ignoré). Une réponse
    400 veut dire que le secret ne correspond pas.
 
-QuickNode Streams (`/api/webhooks/quicknode`, jeton dans `QUICKNODE_STREAMS_TOKEN`) : ne pas
-créer le flux tant que la route répond 501. Le moteur lit déjà les événements de l'escrow par
-`eth_getLogs` : le flux ne ferait qu'accélérer.
+QuickNode Streams (`/api/webhooks/quicknode`, jeton dans `QUICKNODE_STREAMS_TOKEN`) : la route
+est en place, la création du Stream est dans `docs/quicknode.md`. Le moteur lit déjà les
+événements de l'escrow par `eth_getLogs` : le flux ne fait qu'accélérer.
 
 ## 5. Premier essai depuis un téléphone (porte G1)
 
@@ -332,10 +412,46 @@ téléphone :
 - Une clé Stripe live (`sk_live_`, `pk_live_`) : les deux services la refusent, ne pas essayer.
 - Une clé privée, la graine démo ou la clé `service_role` dans une variable `NEXT_PUBLIC_*`, ou
   sur Vercel tout court. `pnpm env:check web` le refuse quand le NOM de la variable le trahit (une
-  variable du moteur posée sur le web, un nom en `NEXT_PUBLIC_` qui contient `SECRET`, `KEY` privé,
-  `SEED`, `TOKEN`...) ; il ne lit pas les valeurs, donc une clé secrète collée sous un nom public
-  ordinaire (la clé secrète Stripe à la place de la clé publiable, par exemple) lui échappe :
-  relire chaque valeur `NEXT_PUBLIC_*` avant d'enregistrer.
+  variable du moteur posée sur le web, un nom en `NEXT_PUBLIC_` qui contient `SECRET`,
+  `PRIVATE_KEY`, `SEED`, `TOKEN`...) et quand la VALEUR d'une `NEXT_PUBLIC_*` a la forme d'un
+  secret : `sk_`, `rk_`, `whsec_` (Stripe), `sb_secret_` (Supabase), 64 chiffres hexadécimaux avec
+  ou sans `0x` (clé privée, graine), un JWT dont le `role` est `service_role`. Il nomme la variable
+  sans jamais afficher la valeur. Un secret d'une autre forme lui échappe encore : relire chaque
+  valeur `NEXT_PUBLIC_*` avant d'enregistrer.
 - `APP_API_MOCK=true` en production.
 - Coller `engine.env`, une clé privée, la graine démo (`APP_DEMO_WALLET_SEED`) ou le mot de passe
   de la base dans une discussion, une issue ou un commit.
+
+## Sources
+
+Pages lues en entier le 18 novembre 2026 (pas des extraits de moteur de recherche) :
+
+- Railway : [Config as Code, référence](https://docs.railway.com/reference/config-as-code) ·
+  [Using Config as Code](https://docs.railway.com/config-as-code) ·
+  [Infrastructure as Code](https://docs.railway.com/infrastructure-as-code) ·
+  [Healthchecks](https://docs.railway.com/deployments/healthchecks) ·
+  [Deployment teardown](https://docs.railway.com/deployments/deployment-teardown) ·
+  [Deployments, référence](https://docs.railway.com/deployments/reference) ·
+  [Restart policy](https://docs.railway.com/deployments/restart-policy) ·
+  [Scaling](https://docs.railway.com/deployments/scaling) ·
+  [Dockerfiles](https://docs.railway.com/builds/dockerfiles) ·
+  [Monorepo](https://docs.railway.com/deployments/monorepo) ·
+  [Build configuration](https://docs.railway.com/builds/build-configuration) ·
+  [Variables, référence](https://docs.railway.com/variables/reference).
+- Vercel : [Configuring maximum duration](https://vercel.com/docs/functions/configuring-functions/duration) ·
+  [Functions limitations](https://vercel.com/docs/functions/limitations) ·
+  [Fluid compute](https://vercel.com/docs/fluid-compute) ·
+  [Hobby can now run up to 60 seconds](https://vercel.com/changelog/vercel-functions-for-hobby-can-now-run-up-to-60-seconds) ·
+  [Configure a build (Corepack, Root Directory)](https://vercel.com/docs/builds/configure-a-build) ·
+  [Package managers](https://vercel.com/docs/package-managers) ·
+  [Node.js versions](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions) ·
+  [Function region](https://vercel.com/docs/functions/configuring-functions/region) ·
+  [Monorepos](https://vercel.com/docs/monorepos).
+- Supabase : [Connect to your database](https://supabase.com/docs/guides/database/connecting-to-postgres) ·
+  [Pooling and limits](https://supabase.com/docs/guides/database/connecting-to-postgres/pooling-and-limits) ·
+  [Postgres.js](https://supabase.com/docs/guides/database/postgres-js) ·
+  [Compute and disk](https://supabase.com/docs/guides/platform/compute-and-disk) ·
+  [API keys](https://supabase.com/docs/guides/api/api-keys) ·
+  [Postgres Changes (publication)](https://supabase.com/docs/guides/realtime/postgres-changes) ·
+  [CLI : supabase link](https://supabase.com/docs/reference/cli/supabase-link) ·
+  [CLI : supabase db push](https://supabase.com/docs/reference/cli/supabase-db-push).

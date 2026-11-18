@@ -12,8 +12,10 @@ import {
 } from "../auth";
 import type { Db } from "../db";
 import type { ServerConfig, ServerDeps } from "../deps";
+import { DEFAULT_QUICKNODE_STREAMS_NETWORK } from "../env";
 import type { PaymentGateway } from "../payments-gateway";
 import { FakePaymentGateway } from "./fake-payments";
+import { TEST_STREAMS_TOKEN } from "./quicknode-deliveries";
 
 /**
  * Test-only helpers: a fake identity provider and row builders for the real test database. The SQL
@@ -26,6 +28,8 @@ export const TEST_CONFIG: ServerConfig = {
   baseUrl: "https://winz.test",
   escrowAddress: "0x2222222222222222222222222222222222222222",
   executionVenue: "paper",
+  streamsToken: TEST_STREAMS_TOKEN,
+  streamsNetwork: DEFAULT_QUICKNODE_STREAMS_NETWORK,
 };
 
 /** The words no customer-facing answer may contain (SPEC section 5). */

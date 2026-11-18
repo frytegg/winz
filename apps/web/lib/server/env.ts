@@ -4,6 +4,13 @@ import { z } from "zod";
 const booleanString = z.enum(["true", "false"]).transform((value) => value === "true");
 
 /**
+ * QuickNode's name of Arc testnet in a delivery's metadata, the default of
+ * `QUICKNODE_STREAMS_NETWORK`. QuickNode's documentation names networks `<chain>-<network>`
+ * (`ethereum-mainnet`) but lists Arc's without its identifier: the first real delivery confirms it.
+ */
+export const DEFAULT_QUICKNODE_STREAMS_NETWORK = "arc-testnet";
+
+/**
  * Server-side environment of the web app. Read lazily (first call), never at import time,
  * so `next build` does not need production secrets.
  */
@@ -19,6 +26,12 @@ export const webEnvSchema = z.object({
    */
   APP_EXECUTION_VENUE: z.enum(EXECUTION_VENUES).default("paper"),
   DB_URL: z.string().url(),
+  /**
+   * Connections one server instance keeps to the database (default 3). Small on purpose: through
+   * Supabase's session pooler every client connection holds a Postgres connection, and every
+   * instance of the web app has its own pool (docs/deploy.md, step 1.4).
+   */
+  DB_POOL_MAX: z.coerce.number().int().min(1).max(20).default(3),
   STRIPE_SECRET_KEY: z.string().startsWith("sk_test_", "only Stripe test keys are allowed"),
   STRIPE_WEBHOOK_SECRET: z.string().min(1),
   PRIVY_APP_SECRET: z.string().min(1),
@@ -29,7 +42,7 @@ export const webEnvSchema = z.object({
    */
   QUICKNODE_STREAMS_TOKEN: z.string().min(1).optional(),
   /** QuickNode's name of the stream's network, checked on every delivery. Default `arc-testnet`. */
-  QUICKNODE_STREAMS_NETWORK: z.string().min(1).default("arc-testnet"),
+  QUICKNODE_STREAMS_NETWORK: z.string().min(1).default(DEFAULT_QUICKNODE_STREAMS_NETWORK),
   /**
    * Address of the deployed WinzEscrow on Arc testnet, shown in the collapsed "technical details"
    * of a campaign. Optional: until the contract is deployed, `onchain` is null in the answers.

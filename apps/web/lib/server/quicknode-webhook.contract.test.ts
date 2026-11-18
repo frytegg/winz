@@ -14,10 +14,11 @@ import type { ReceiptLog } from "../../../engine/src/chain/types";
 import { createTestDatabase, type TestDatabase } from "../../../engine/src/testing/postgres";
 import type { Db } from "./db";
 import {
+  DEFAULT_STREAMS_NETWORK,
   decodeEscrowLogs,
   handleQuicknodeWebhook,
   insertStreamsEvents,
-  streamsSettings,
+  streamsSettingsOf,
   type StreamsLog,
 } from "./quicknode-webhook";
 import {
@@ -167,7 +168,11 @@ describe("the webhook's rows and the engine's rows", () => {
     await handleQuicknodeWebhook({
       db,
       request: signedRequest(deliveryOf([all]), { at: NOW }),
-      settings: streamsSettings({ QUICKNODE_STREAMS_TOKEN: TEST_STREAMS_TOKEN }, ESCROW),
+      settings: streamsSettingsOf({
+        streamsToken: TEST_STREAMS_TOKEN,
+        streamsNetwork: DEFAULT_STREAMS_NETWORK,
+        escrowAddress: ESCROW,
+      }),
       now: NOW,
     });
     const fromWebhook = await storedRows();

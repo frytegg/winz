@@ -183,6 +183,64 @@ describe("checkEnv", () => {
     assert.equal(report.exposed, 1);
   });
 
+  // Every value below is a dummy of the right shape, never a key of anything.
+  const JWT_HEADER = Buffer.from('{"alg":"HS256","typ":"JWT"}').toString("base64url");
+  const jwt = (payload) =>
+    `${JWT_HEADER}.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.c2lnbmF0dXJl`;
+  const PUBLIC_SECRETS = [
+    ["NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", "sk_test_dummyvalue", "Stripe secret key"],
+    ["NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", "rk_test_dummyvalue", "Stripe restricted key"],
+    ["NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", "whsec_dummyvalue", "webhook signing secret"],
+    ["NEXT_PUBLIC_SUPABASE_ANON_KEY", "sb_secret_dummyvalue", "Supabase secret key"],
+    [
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      jwt({ iss: "supabase", role: "service_role" }),
+      "service_role",
+    ],
+    ["NEXT_PUBLIC_PRIVY_APP_ID", KEY_A, "32-byte private key"],
+    ["NEXT_PUBLIC_SUPABASE_URL", "22".repeat(32), "32-byte private key"],
+  ];
+
+  for (const [name, value, label] of PUBLIC_SECRETS) {
+    test(`a NEXT_PUBLIC_ value shaped like ${label} fails, named and never printed`, () => {
+      for (const target of ["web", "engine"]) {
+        const base = target === "web" ? WEB : ENGINE;
+        const report = check(target, { ...base, [name]: value });
+        assert.equal(report.ok, false, `${target}: ${name}`);
+        assert.equal(report.exposed, 1);
+        assert.deepEqual(
+          report.publicSecrets.map((s) => s.name),
+          [name],
+        );
+        assert.ok(report.publicSecrets[0]?.message.includes(label));
+        const text = formatReport(report, "test");
+        assert.match(text, new RegExp(`REMOVE\\s+${name}\\s+its value has the shape of`));
+        assert.ok(!text.includes(value), "value printed");
+      }
+    });
+  }
+
+  test("public values of the expected shapes pass: publishable keys, the anon JWT, a URL", () => {
+    const report = check("web", {
+      ...WEB,
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_dummyvalue",
+      NEXT_PUBLIC_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: jwt({ iss: "supabase", role: "anon" }),
+    });
+    assert.equal(report.ok, true);
+    assert.deepEqual(report.publicSecrets, []);
+    const publishable = check("web", {
+      ...WEB,
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_dummyvalue",
+    });
+    assert.equal(publishable.ok, true);
+  });
+
+  test("a secret's shape outside NEXT_PUBLIC_ is not this check's business", () => {
+    const report = check("web", { ...WEB, STRIPE_SECRET_KEY: "sk_test_dummyvalue" });
+    assert.deepEqual(report.publicSecrets, []);
+  });
+
   test("platform variables are ignored, and unrelated process variables too", () => {
     const report = check(
       "web",

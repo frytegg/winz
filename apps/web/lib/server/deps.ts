@@ -3,7 +3,7 @@ import type { ExecutionVenueName } from "@winz/shared";
 import type { AuthVerifier, IdentityDirectory } from "./auth";
 import { getDb, type Db } from "./db";
 import type { DemoSaleWait } from "./demo";
-import { webEnv } from "./env";
+import { DEFAULT_QUICKNODE_STREAMS_NETWORK, webEnv, type WebEnv } from "./env";
 import { StripePaymentGateway, type PaymentGateway } from "./payments-gateway";
 import { PrivyIdentity } from "./privy";
 
@@ -17,6 +17,13 @@ export interface ServerConfig {
   escrowAddress: string | null;
   /** `APP_EXECUTION_VENUE`, shown on the Hedge desk. */
   executionVenue: ExecutionVenueName;
+  /**
+   * `QUICKNODE_STREAMS_TOKEN`, the QuickNode Stream's security token, trimmed; null while not set
+   * (`POST /api/webhooks/quicknode` then answers 503).
+   */
+  streamsToken: string | null;
+  /** `QUICKNODE_STREAMS_NETWORK`: the network every Streams delivery must name. */
+  streamsNetwork: string;
 }
 
 /** Everything a route implementation talks to. Tests build their own. */
@@ -39,14 +46,25 @@ export interface ServerDeps {
 let defaults: ServerDeps | undefined;
 let override: ServerDeps | undefined;
 
-function configFromEnv(): ServerConfig {
-  const env = webEnv();
+/**
+ * The server's configuration from its validated environment: the one reader of these variables
+ * for every route (the schema's defaults apply, an empty or blank token counts as unset).
+ */
+export function serverConfigOf(env: WebEnv): ServerConfig {
+  const streamsToken = env.QUICKNODE_STREAMS_TOKEN?.trim() ?? "";
+  const streamsNetwork = env.QUICKNODE_STREAMS_NETWORK.trim();
   return {
     adminKey: env.APP_ADMIN_DEMO_KEY,
     baseUrl: env.APP_BASE_URL.replace(/\/+$/, ""),
     escrowAddress: env.ARC_ESCROW_ADDRESS ?? null,
     executionVenue: env.APP_EXECUTION_VENUE,
+    streamsToken: streamsToken === "" ? null : streamsToken,
+    streamsNetwork: streamsNetwork === "" ? DEFAULT_QUICKNODE_STREAMS_NETWORK : streamsNetwork,
   };
+}
+
+function configFromEnv(): ServerConfig {
+  return serverConfigOf(webEnv());
 }
 
 /**
