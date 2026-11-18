@@ -1,0 +1,1393 @@
+{
+  "version": 2,
+  "runId": "bdc19cc3f706",
+  "status": "passed",
+  "failure": null,
+  "startedAt": "2026-11-18T17:26:56.073Z",
+  "finishedAt": "2026-11-18T17:29:39.829Z",
+  "chain": {
+    "chainId": 5042002,
+    "name": "Arc testnet",
+    "local": false,
+    "rpcHost": "rpc.testnet.arc.io",
+    "explorer": "https://explorer.testnet.arc.io",
+    "moneyMode": "native-usdc",
+    "token": "0x3600000000000000000000000000000000000000"
+  },
+  "escrow": {
+    "address": "0x81d2d4050E617184b2B832c30BE68f8811b37D2c",
+    "deployBlock": "72727350",
+    "runStartBlock": "72884680",
+    "engineStartBlock": "72884630"
+  },
+  "roles": {
+    "relayer": "0x39bbD1b075B43194588d65209A25292C76C88D31",
+    "oracle": "0x8EECc9D6C14E99eeebC9ec078111B4c7c356c602",
+    "treasury": "0x39bbD1b075B43194588d65209A25292C76C88D31",
+    "merchant": "0x62e7b938e85c0FED82aeaEAb8512D96C0bdab1EA",
+    "buyers": [
+      {
+        "number": 1,
+        "address": "0xA1fCB31Fd2C56bDC453e0Cd6D217B29F769C13AD"
+      },
+      {
+        "number": 2,
+        "address": "0x495a5E98315f4983d2beb831431839eE4C53bD84"
+      },
+      {
+        "number": 3,
+        "address": "0x27D5F8d6e53fDaef7cf8f393a9a2d8E9c6130d69"
+      },
+      {
+        "number": 4,
+        "address": "0xbF85cfe027Ad36A61a0C71e494DA24E20948F25C"
+      },
+      {
+        "number": 5,
+        "address": "0x7eCe432e35C035C30a142461Df366fb70b920ada"
+      },
+      {
+        "number": 6,
+        "address": "0x0C586cF9dF0a5455eaE73a2150e7aDFB73B8BAEb"
+      }
+    ]
+  },
+  "gemini": "live",
+  "engine": {
+    "started": true,
+    "stopped": true
+  },
+  "game": {
+    "ticker": "NCAAM-2611182330-CHAT-WIN-M",
+    "title": "Chattanooga vs Winthrop",
+    "startsAt": "2026-11-18T23:30:00.000Z"
+  },
+  "instrument": {
+    "symbol": "GEMI-NCAAM-2611182330-CHAT-WIN-M-WIN",
+    "conditionLabel": "Winthrop wins",
+    "pauseThresholdBps": 1800
+  },
+  "campaign": {
+    "id": "19eb8397-f4f3-4b73-a397-74ab7dfb35fe",
+    "onchainId": "12",
+    "slug": "rehearsal-merchant-winthrop-wins"
+  },
+  "scenario": {
+    "purchases": 12,
+    "unitsPerPurchase": 1,
+    "unitPrice": "500000",
+    "refundBps": 10000,
+    "usualMarginBps": 6500,
+    "minMarginBps": 4500,
+    "budget": "1200000",
+    "outcome": "yes",
+    "buyers": 6,
+    "parallel": 3
+  },
+  "driven": {
+    "bidBps": 1000,
+    "askBps": 1200,
+    "depth": "100000000"
+  },
+  "pauseProbe": {
+    "bidBps": 1900,
+    "askBps": 2100,
+    "saleState": "paused_price",
+    "saleRefusal": "409 sales_paused",
+    "skipped": null
+  },
+  "estimate": {
+    "feePerGasWei": "27164999999",
+    "treasuryLocks": "13200000",
+    "relayerGas": "7410000",
+    "oracleGas": "1660000",
+    "sweepGas": "147000",
+    "relayerGasWei": "201292649992590000",
+    "oracleGasWei": "45093899998340000",
+    "sweepGasWei": "3993254999853000",
+    "treasuryNeedsWithMargin": "16081551179991108000",
+    "relayerGasNeedsWithMarginWei": "241551179991108000",
+    "oracleNeedsWithMarginWei": "54112679998008000"
+  },
+  "steps": [
+    {
+      "step": "start-engine",
+      "startedAt": "2026-11-18T17:26:57.302Z",
+      "durationMs": 3375,
+      "status": "done"
+    },
+    {
+      "step": "choose-game",
+      "startedAt": "2026-11-18T17:27:00.677Z",
+      "durationMs": 20086,
+      "status": "done"
+    },
+    {
+      "step": "launch-campaign",
+      "startedAt": "2026-11-18T17:27:20.763Z",
+      "durationMs": 1546,
+      "status": "done"
+    },
+    {
+      "step": "odds-live",
+      "startedAt": "2026-11-18T17:27:22.309Z",
+      "durationMs": 60007,
+      "status": "done"
+    },
+    {
+      "step": "drive-book",
+      "startedAt": "2026-11-18T17:28:22.316Z",
+      "durationMs": 10565,
+      "status": "done"
+    },
+    {
+      "step": "pause-probe",
+      "startedAt": "2026-11-18T17:28:32.882Z",
+      "durationMs": 12078,
+      "status": "done"
+    },
+    {
+      "step": "purchases",
+      "startedAt": "2026-11-18T17:28:44.961Z",
+      "durationMs": 9991,
+      "status": "done"
+    },
+    {
+      "step": "hedging",
+      "startedAt": "2026-11-18T17:28:54.952Z",
+      "durationMs": 5923,
+      "status": "done"
+    },
+    {
+      "step": "odds-driven",
+      "startedAt": "2026-11-18T17:29:00.876Z",
+      "durationMs": 11984,
+      "status": "done"
+    },
+    {
+      "step": "close-sales",
+      "startedAt": "2026-11-18T17:29:12.860Z",
+      "durationMs": 1648,
+      "status": "done"
+    },
+    {
+      "step": "settle",
+      "startedAt": "2026-11-18T17:29:14.508Z",
+      "durationMs": 7998,
+      "status": "done"
+    },
+    {
+      "step": "reset",
+      "startedAt": "2026-11-18T17:29:22.506Z",
+      "durationMs": 2,
+      "status": "done"
+    },
+    {
+      "step": "stop-engine",
+      "startedAt": "2026-11-18T17:29:22.508Z",
+      "durationMs": 2653,
+      "status": "done"
+    },
+    {
+      "step": "sweep",
+      "startedAt": "2026-11-18T17:29:26.665Z",
+      "durationMs": 7686,
+      "status": "done"
+    }
+  ],
+  "transactions": [
+    {
+      "kind": "createCampaignFor",
+      "signer": "relayer",
+      "hash": "0xc5da9ea0715a0f44c9d194cf72a718f7d64f2413d785c235001ad9dde68e5904",
+      "status": "mined",
+      "block": "72884729",
+      "gasUsed": "161513",
+      "feeWei": "4037825000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xc5da9ea0715a0f44c9d194cf72a718f7d64f2413d785c235001ad9dde68e5904"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x826d83c1e4cebeb3662ff64e7c8528b2ca5e6f6f5540b4012dc78c8b88467f7e",
+      "status": "mined",
+      "block": "72884896",
+      "gasUsed": "208850",
+      "feeWei": "4385850000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x826d83c1e4cebeb3662ff64e7c8528b2ca5e6f6f5540b4012dc78c8b88467f7e"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xa8f83581c05cc985c7724193f6be6e17d3b47d0fc4f04ec478dedc2085057b5a",
+      "status": "mined",
+      "block": "72884897",
+      "gasUsed": "191750",
+      "feeWei": "4026750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xa8f83581c05cc985c7724193f6be6e17d3b47d0fc4f04ec478dedc2085057b5a"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xe29a9261223056d5f0531c68eaa68e4054397e13af367649e516f0430974fb72",
+      "status": "mined",
+      "block": "72884898",
+      "gasUsed": "191762",
+      "feeWei": "4027002000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xe29a9261223056d5f0531c68eaa68e4054397e13af367649e516f0430974fb72"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x9dafa7b0f5369fd2227e12994f36a2fd5d25915ea3c1a916324277fca4b2c051",
+      "status": "mined",
+      "block": "72884901",
+      "gasUsed": "191762",
+      "feeWei": "4027002000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x9dafa7b0f5369fd2227e12994f36a2fd5d25915ea3c1a916324277fca4b2c051"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x844c53a3a68442f51c2b4acd43a4042e10a57858ad856a4c45f511fad751d7f3",
+      "status": "mined",
+      "block": "72884902",
+      "gasUsed": "191750",
+      "feeWei": "4026750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x844c53a3a68442f51c2b4acd43a4042e10a57858ad856a4c45f511fad751d7f3"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x606192120bbd8cf65bc70b9c1013a97bfb2a06c025f4e14ac09b07bde1a70d1b",
+      "status": "mined",
+      "block": "72884903",
+      "gasUsed": "191762",
+      "feeWei": "4027002000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x606192120bbd8cf65bc70b9c1013a97bfb2a06c025f4e14ac09b07bde1a70d1b"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xeebe3f4502ad3313271066968028866d7986fdb00333b886f0427b7b5d15396d",
+      "status": "mined",
+      "block": "72884906",
+      "gasUsed": "191762",
+      "feeWei": "4027002000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xeebe3f4502ad3313271066968028866d7986fdb00333b886f0427b7b5d15396d"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x6d3858a6ef2d2e84393e04174b30ee121c5150ff7b59a0540ea07ad52c1c6ea1",
+      "status": "mined",
+      "block": "72884907",
+      "gasUsed": "191750",
+      "feeWei": "4026750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x6d3858a6ef2d2e84393e04174b30ee121c5150ff7b59a0540ea07ad52c1c6ea1"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0xb2b9039c21bb477f38e460ab258447f2c602962f349c2d95ef1cbee8f34f3bf2",
+      "status": "mined",
+      "block": "72884907",
+      "gasUsed": "191762",
+      "feeWei": "4027002000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xb2b9039c21bb477f38e460ab258447f2c602962f349c2d95ef1cbee8f34f3bf2"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x8f84c82187d1d7ebbf70451450f0ba0ea5f59df9b7e996aa5a0b479ca7c8bf2f",
+      "status": "mined",
+      "block": "72884910",
+      "gasUsed": "191762",
+      "feeWei": "4027002000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x8f84c82187d1d7ebbf70451450f0ba0ea5f59df9b7e996aa5a0b479ca7c8bf2f"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x3c8fd4889f115bf64bdc419148c62ab25b7a38d0bd572f7de46ac3484bd4fbd7",
+      "status": "mined",
+      "block": "72884911",
+      "gasUsed": "191762",
+      "feeWei": "4027002000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x3c8fd4889f115bf64bdc419148c62ab25b7a38d0bd572f7de46ac3484bd4fbd7"
+    },
+    {
+      "kind": "buyFor",
+      "signer": "relayer",
+      "hash": "0x44dbf7cb59bd78fff099731ee815484caae42071a766478be60b6aa2bbb6c873",
+      "status": "mined",
+      "block": "72884912",
+      "gasUsed": "191750",
+      "feeWei": "4026750000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x44dbf7cb59bd78fff099731ee815484caae42071a766478be60b6aa2bbb6c873"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xb2296d91a9d8bc4d7d0416119cd66aef4608357ed8d5657cb5944f671460a1b1",
+      "status": "mined",
+      "block": "72884917",
+      "gasUsed": "97018",
+      "feeWei": "2037378000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xb2296d91a9d8bc4d7d0416119cd66aef4608357ed8d5657cb5944f671460a1b1"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x7c410f53d66a32cc5442f7aca9353e90eecc2223efde45188a23ad3b4685760f",
+      "status": "mined",
+      "block": "72884917",
+      "gasUsed": "85043",
+      "feeWei": "1785903000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x7c410f53d66a32cc5442f7aca9353e90eecc2223efde45188a23ad3b4685760f"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0xba9d09e1ce5b52f769a1249cf687af1ff5dde9b88f0dafb9bee46f3864457784",
+      "status": "mined",
+      "block": "72884918",
+      "gasUsed": "97018",
+      "feeWei": "2037378000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xba9d09e1ce5b52f769a1249cf687af1ff5dde9b88f0dafb9bee46f3864457784"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x53e4a924a2d0dd86145713eb82f58afe1befd0461e82d347767035cbeb1dc165",
+      "status": "mined",
+      "block": "72884919",
+      "gasUsed": "85043",
+      "feeWei": "1785903000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x53e4a924a2d0dd86145713eb82f58afe1befd0461e82d347767035cbeb1dc165"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x4ac8a387d89f5ffff3a9537c4cffd74f7458b5a20654970db4a65b43eef0f9b3",
+      "status": "mined",
+      "block": "72884919",
+      "gasUsed": "85043",
+      "feeWei": "1785903000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x4ac8a387d89f5ffff3a9537c4cffd74f7458b5a20654970db4a65b43eef0f9b3"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x91d191a6d9fb02535972c5ab9f67c1e78d2b93b02286ae0459adea7ef3d14ee6",
+      "status": "mined",
+      "block": "72884920",
+      "gasUsed": "97018",
+      "feeWei": "2037378000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x91d191a6d9fb02535972c5ab9f67c1e78d2b93b02286ae0459adea7ef3d14ee6"
+    },
+    {
+      "kind": "chargeHedge",
+      "signer": "oracle",
+      "hash": "0x9660aab30e38028a90212f88a479d986893c82d4d6a111d306d6b0574ab3d0e1",
+      "status": "mined",
+      "block": "72884920",
+      "gasUsed": "108993",
+      "feeWei": "2288853000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x9660aab30e38028a90212f88a479d986893c82d4d6a111d306d6b0574ab3d0e1"
+    },
+    {
+      "kind": "closeSales",
+      "signer": "relayer",
+      "hash": "0xed39b4a5e5d6a788b756c328e3679cb49ebaacb63d7bb66474e50795c3940b4d",
+      "status": "mined",
+      "block": "72884951",
+      "gasUsed": "32662",
+      "feeWei": "685902000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xed39b4a5e5d6a788b756c328e3679cb49ebaacb63d7bb66474e50795c3940b4d"
+    },
+    {
+      "kind": "settle",
+      "signer": "oracle",
+      "hash": "0x15e264ca11f582e057b4984351eb7879c55f35356fd8ea692a65405992899c73",
+      "status": "mined",
+      "block": "72884957",
+      "gasUsed": "57439",
+      "feeWei": "1206219000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x15e264ca11f582e057b4984351eb7879c55f35356fd8ea692a65405992899c73"
+    },
+    {
+      "kind": "refundBatch",
+      "signer": "relayer",
+      "hash": "0x9863d3037345fc4ae9c5a269dadf5970ba51981233003a609fc277fc4b8360fb",
+      "status": "mined",
+      "block": "72884959",
+      "gasUsed": "527822",
+      "feeWei": "11084262000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x9863d3037345fc4ae9c5a269dadf5970ba51981233003a609fc277fc4b8360fb"
+    },
+    {
+      "kind": "payMerchant",
+      "signer": "relayer",
+      "hash": "0x70fa2278b39549378bb1464d6db9a31d3d977304083f3fbb6205ea55eaf1bf12",
+      "status": "mined",
+      "block": "72884963",
+      "gasUsed": "98984",
+      "feeWei": "2078664000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x70fa2278b39549378bb1464d6db9a31d3d977304083f3fbb6205ea55eaf1bf12"
+    },
+    {
+      "kind": "release",
+      "signer": "relayer",
+      "hash": "0x6874a7da6d5a102d79e8cf9d8772363d7ea9bcfa39a36eaaf44cb98d084f73c4",
+      "status": "mined",
+      "block": "72884965",
+      "gasUsed": "70083",
+      "feeWei": "1471743000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x6874a7da6d5a102d79e8cf9d8772363d7ea9bcfa39a36eaaf44cb98d084f73c4"
+    },
+    {
+      "kind": "sweep",
+      "signer": "merchant",
+      "hash": "0xaa803ae052fc086b11c25a004f67ea4ef84d153debcfbba1e1daa25ba8bea89a",
+      "status": "swept",
+      "block": "72884978",
+      "gasUsed": "21000",
+      "feeWei": "504000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xaa803ae052fc086b11c25a004f67ea4ef84d153debcfbba1e1daa25ba8bea89a"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 1",
+      "hash": "0xb5d262b7b9a4a7e6d13ba2719ed5377b4c0e78069954625dbf103858e6b4ee28",
+      "status": "swept",
+      "block": "72884980",
+      "gasUsed": "21000",
+      "feeWei": "504000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xb5d262b7b9a4a7e6d13ba2719ed5377b4c0e78069954625dbf103858e6b4ee28"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 2",
+      "hash": "0xb1c362a330ca49447db210437d727165744e569640375105046af9ba6bdec3be",
+      "status": "swept",
+      "block": "72884983",
+      "gasUsed": "21000",
+      "feeWei": "504000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xb1c362a330ca49447db210437d727165744e569640375105046af9ba6bdec3be"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 3",
+      "hash": "0xf86f2372fca11d47caa5fef5e4bd93db971a1917bc16588c1d1288a7a0b9359e",
+      "status": "swept",
+      "block": "72884985",
+      "gasUsed": "21000",
+      "feeWei": "504000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xf86f2372fca11d47caa5fef5e4bd93db971a1917bc16588c1d1288a7a0b9359e"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 4",
+      "hash": "0x138d0ed0cef484232ba43ce97888341e73a16cac17472db45cb31118c6d4ad5e",
+      "status": "swept",
+      "block": "72884987",
+      "gasUsed": "21000",
+      "feeWei": "508200000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0x138d0ed0cef484232ba43ce97888341e73a16cac17472db45cb31118c6d4ad5e"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 5",
+      "hash": "0xb951798594dc750e5ab4fd3a447ac9aff4d9cd38d40a865675579de5b7ab1fb4",
+      "status": "swept",
+      "block": "72884989",
+      "gasUsed": "21000",
+      "feeWei": "541800000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xb951798594dc750e5ab4fd3a447ac9aff4d9cd38d40a865675579de5b7ab1fb4"
+    },
+    {
+      "kind": "sweep",
+      "signer": "buyer 6",
+      "hash": "0xdaf693a0a2d8f617b353f39001215b8f86a865bf0bab5f1d2d50b17fc9cb47e2",
+      "status": "swept",
+      "block": "72884991",
+      "gasUsed": "21000",
+      "feeWei": "546000000000000",
+      "ownCampaign": true,
+      "explorerUrl": "https://explorer.testnet.arc.io/tx/0xdaf693a0a2d8f617b353f39001215b8f86a865bf0bab5f1d2d50b17fc9cb47e2"
+    }
+  ],
+  "purchases": [
+    {
+      "index": 1,
+      "buyer": 1,
+      "qty": 1,
+      "callToTicketMs": 2027,
+      "callToDashboardMs": 1883
+    },
+    {
+      "index": 2,
+      "buyer": 2,
+      "qty": 1,
+      "callToTicketMs": 2275,
+      "callToDashboardMs": 2197
+    },
+    {
+      "index": 3,
+      "buyer": 3,
+      "qty": 1,
+      "callToTicketMs": 2780,
+      "callToDashboardMs": 2725
+    },
+    {
+      "index": 4,
+      "buyer": 4,
+      "qty": 1,
+      "callToTicketMs": 2766,
+      "callToDashboardMs": 2802
+    },
+    {
+      "index": 5,
+      "buyer": 5,
+      "qty": 1,
+      "callToTicketMs": 2518,
+      "callToDashboardMs": 2342
+    },
+    {
+      "index": 6,
+      "buyer": 6,
+      "qty": 1,
+      "callToTicketMs": 2517,
+      "callToDashboardMs": 2576
+    },
+    {
+      "index": 7,
+      "buyer": 1,
+      "qty": 1,
+      "callToTicketMs": 2015,
+      "callToDashboardMs": 2033
+    },
+    {
+      "index": 8,
+      "buyer": 2,
+      "qty": 1,
+      "callToTicketMs": 2518,
+      "callToDashboardMs": 2457
+    },
+    {
+      "index": 9,
+      "buyer": 3,
+      "qty": 1,
+      "callToTicketMs": 2015,
+      "callToDashboardMs": 2059
+    },
+    {
+      "index": 10,
+      "buyer": 4,
+      "qty": 1,
+      "callToTicketMs": 2516,
+      "callToDashboardMs": 2446
+    },
+    {
+      "index": 11,
+      "buyer": 5,
+      "qty": 1,
+      "callToTicketMs": 2268,
+      "callToDashboardMs": 2257
+    },
+    {
+      "index": 12,
+      "buyer": 6,
+      "qty": 1,
+      "callToTicketMs": 2518,
+      "callToDashboardMs": 2569
+    }
+  ],
+  "timings": {
+    "callToTicket": {
+      "count": 12,
+      "minMs": 2015,
+      "medianMs": 2517,
+      "maxMs": 2780
+    },
+    "callToDashboard": {
+      "count": 12,
+      "minMs": 1883,
+      "medianMs": 2394,
+      "maxMs": 2802
+    },
+    "refunds": {
+      "settleBlock": "72884957",
+      "lastRefundBlock": "72884959",
+      "blocks": "2",
+      "chainSeconds": "1",
+      "wallMs": 666,
+      "batches": [
+        {
+          "hash": "0x9863d3037345fc4ae9c5a269dadf5970ba51981233003a609fc277fc4b8360fb",
+          "tickets": 12,
+          "gasUsed": "527822",
+          "sentAt": "2026-11-18T17:29:17.733Z",
+          "blockTime": "2026-11-18T17:29:17.000Z"
+        }
+      ]
+    }
+  },
+  "odds": {
+    "writeThrottleMs": 500,
+    "demoRefreshMs": 1000,
+    "pollMs": 50,
+    "sampleTimeoutMs": 10000,
+    "rowAccess": "read as the anonymous role (set local role anon, in a transaction): the grant and the row level security policy the browser's Realtime subscription goes through",
+    "judgedFrom": "The driven path is judged from the moment the runner's call that set the book returned: the book exists at its source only once the admin route has committed it, and a user watching a market sees it move from then; the lag from the moment the call was sent, which adds the route's own time, is reported beside it.",
+    "observedAt": "observed_at is the engine's reception time of the Gemini message (the WebSocket frame, or the REST answer), not Gemini's own timestamp: the live lag excludes the network from Gemini and Gemini's own delay.",
+    "measurementError": "Each lag is the moment a read showed the new value: it overstates the true lag by at most one polling period (50 ms) plus one read (longest read 17 ms), and never understates it.",
+    "excludes": "Not included: the push from Supabase Realtime to the phone and the page's own render, which only a deployed project can measure; the route is called in process (no HTTP, no CDN).",
+    "driven": {
+      "measured": true,
+      "note": null,
+      "instrument": "GEMI-NCAAM-2611182330-CHAT-WIN-M-WIN",
+      "readers": [
+        {
+          "source": "live_instruments read as anon",
+          "lag": {
+            "count": 10,
+            "minMs": 151,
+            "medianMs": 652,
+            "p95Ms": 952,
+            "maxMs": 952
+          },
+          "lagFromSent": {
+            "count": 10,
+            "minMs": 156,
+            "medianMs": 656,
+            "p95Ms": 956,
+            "maxMs": 956
+          },
+          "failed": 0,
+          "readErrors": 0,
+          "lastError": null,
+          "longestReadMs": 11
+        },
+        {
+          "source": "GET /api/t/:token",
+          "lag": {
+            "count": 10,
+            "minMs": 152,
+            "medianMs": 652,
+            "p95Ms": 953,
+            "maxMs": 953
+          },
+          "lagFromSent": {
+            "count": 10,
+            "minMs": 157,
+            "medianMs": 656,
+            "p95Ms": 957,
+            "maxMs": 957
+          },
+          "failed": 0,
+          "readErrors": 0,
+          "lastError": null,
+          "longestReadMs": 10
+        }
+      ],
+      "samples": [
+        {
+          "bidBps": 100,
+          "askBps": 300,
+          "midBps": 200,
+          "callMs": 4,
+          "lagsMs": [
+            951,
+            952
+          ]
+        },
+        {
+          "bidBps": 1500,
+          "askBps": 1700,
+          "midBps": 1600,
+          "callMs": 3,
+          "lagsMs": [
+            203,
+            202
+          ]
+        },
+        {
+          "bidBps": 200,
+          "askBps": 400,
+          "midBps": 300,
+          "callMs": 5,
+          "lagsMs": [
+            151,
+            152
+          ]
+        },
+        {
+          "bidBps": 1400,
+          "askBps": 1600,
+          "midBps": 1500,
+          "callMs": 3,
+          "lagsMs": [
+            702,
+            702
+          ]
+        },
+        {
+          "bidBps": 400,
+          "askBps": 600,
+          "midBps": 500,
+          "callMs": 5,
+          "lagsMs": [
+            602,
+            602
+          ]
+        },
+        {
+          "bidBps": 1200,
+          "askBps": 1400,
+          "midBps": 1300,
+          "callMs": 3,
+          "lagsMs": [
+            952,
+            952
+          ]
+        },
+        {
+          "bidBps": 500,
+          "askBps": 700,
+          "midBps": 600,
+          "callMs": 3,
+          "lagsMs": [
+            602,
+            602
+          ]
+        },
+        {
+          "bidBps": 1100,
+          "askBps": 1300,
+          "midBps": 1200,
+          "callMs": 4,
+          "lagsMs": [
+            750,
+            752
+          ]
+        },
+        {
+          "bidBps": 700,
+          "askBps": 900,
+          "midBps": 800,
+          "callMs": 4,
+          "lagsMs": [
+            952,
+            953
+          ]
+        },
+        {
+          "bidBps": 800,
+          "askBps": 1000,
+          "midBps": 900,
+          "callMs": 3,
+          "lagsMs": [
+            352,
+            352
+          ]
+        }
+      ]
+    },
+    "live": {
+      "measured": true,
+      "note": null,
+      "instrument": "GEMI-NCAAM-2611182330-CHAT-WIN-M-WIN",
+      "windowMs": 60000,
+      "readers": [
+        {
+          "source": "live_instruments read as anon",
+          "lag": {
+            "count": 117,
+            "minMs": 40,
+            "medianMs": 42,
+            "p95Ms": 93,
+            "maxMs": 95
+          },
+          "lagFromSent": null,
+          "failed": 0,
+          "readErrors": 0,
+          "lastError": null,
+          "longestReadMs": 17
+        }
+      ],
+      "lagsMs": [
+        42,
+        42,
+        42,
+        42,
+        42,
+        41,
+        41,
+        43,
+        43,
+        42,
+        41,
+        43,
+        42,
+        42,
+        42,
+        42,
+        42,
+        42,
+        43,
+        43,
+        43,
+        43,
+        42,
+        42,
+        42,
+        41,
+        42,
+        43,
+        41,
+        42,
+        42,
+        42,
+        41,
+        42,
+        42,
+        42,
+        43,
+        44,
+        41,
+        42,
+        42,
+        41,
+        41,
+        42,
+        41,
+        42,
+        42,
+        41,
+        43,
+        44,
+        43,
+        42,
+        42,
+        42,
+        41,
+        41,
+        41,
+        42,
+        42,
+        41,
+        41,
+        42,
+        41,
+        41,
+        43,
+        41,
+        40,
+        41,
+        40,
+        41,
+        42,
+        42,
+        41,
+        42,
+        43,
+        43,
+        42,
+        43,
+        41,
+        41,
+        41,
+        41,
+        41,
+        44,
+        43,
+        41,
+        41,
+        41,
+        49,
+        47,
+        41,
+        42,
+        43,
+        42,
+        42,
+        41,
+        42,
+        44,
+        43,
+        42,
+        93,
+        93,
+        91,
+        95,
+        92,
+        92,
+        93,
+        91,
+        93,
+        90,
+        93,
+        92,
+        92,
+        91,
+        92,
+        92,
+        92
+      ]
+    }
+  },
+  "hedging": {
+    "orders": 7,
+    "makerOrders": 7,
+    "takerOrders": 0,
+    "fills": 7,
+    "makersFilledByTheRehearsal": 1,
+    "charges": 12,
+    "hedgeSpent": "660000",
+    "makerSavings": "41400",
+    "guaranteeLossesDelta": "0",
+    "heldAtClose": "6000000",
+    "exposureAtClose": "6000000"
+  },
+  "invariants": [
+    {
+      "name": "every sale ticketed on-chain",
+      "passed": true,
+      "details": "12 tickets for 12 units on-chain; 12 sales of 1 unit(s) replayed"
+    },
+    {
+      "name": "no sale above the pause threshold",
+      "passed": true,
+      "details": "highest ask driven while sales were open: 1700 bps; pause threshold 1800 bps; book driven to bid 1900 / ask 2100 bps: page answered paused_price, demo sale refused (409 sales_paused)"
+    },
+    {
+      "name": "no sale beyond the budget",
+      "passed": true,
+      "details": "guarantees reserved 824400, hedge spent 660000, budget 1200000 (micro-USDC)"
+    },
+    {
+      "name": "no hedge charge above its quote's guarantee",
+      "passed": true,
+      "details": "12 charges, 660000 charged for 824400 guaranteed (micro-USDC)"
+    },
+    {
+      "name": "no guarantee above the margins' cap",
+      "passed": true,
+      "details": "highest guarantee 1374 bps of the price paid; cap 2000 bps (usual margin − minimum margin); 0 above"
+    },
+    {
+      "name": "unhedged notional under its limit (at most 5 s above)",
+      "passed": true,
+      "details": "123 samples of the Hedge desk; highest 720000 micro-USDC; limit 300000000; longest above 0 ms"
+    },
+    {
+      "name": "the escrow holds nothing for the campaign",
+      "passed": true,
+      "details": "released true, locked refunds 0, merchant due 0, hedge reserved 0; escrow balance change 0 (18 decimals)"
+    },
+    {
+      "name": "every refund equals the ticket's refundable amount",
+      "passed": true,
+      "details": "12 refunds, 6000000 micro-USDC, outcome yes"
+    },
+    {
+      "name": "the money adds up to the micro-unit, gas apart",
+      "passed": true,
+      "details": "10 accounts; every change equals the campaign's events; total 0"
+    },
+    {
+      "name": "every answer about the campaign said demo",
+      "passed": true,
+      "details": "333 answers carrying demo after the first demo action; 0 false"
+    },
+    {
+      "name": "no demo payment reached the simulated Stripe",
+      "passed": true,
+      "details": "2 calls to the simulated Stripe, all for the budget payment: true; intents other than the budget: 0; demo payment ids seen: 0"
+    },
+    {
+      "name": "the ticket's odds follow the book within 2 s",
+      "passed": true,
+      "measured": true,
+      "details": "driven book: live_instruments read as anon: 10/10 samples appeared (0 failed), median 652 ms, p95 952 ms, max 952 ms; GET /api/t/:token: 10/10 samples appeared (0 failed), median 652 ms, p95 953 ms, max 953 ms. live feed: live_instruments read as anon: 117/117 samples appeared (0 failed), median 42 ms, p95 93 ms, max 95 ms. limit: p95 under 2000 ms and no failed sample on each path measured"
+    }
+  ],
+  "balances": {
+    "before": [
+      {
+        "role": "treasury, relayer",
+        "address": "0x39bbD1b075B43194588d65209A25292C76C88D31",
+        "moneyWei": "490454660602058639286",
+        "nativeWei": "490454660602058639286"
+      },
+      {
+        "role": "oracle",
+        "address": "0x8EECc9D6C14E99eeebC9ec078111B4c7c356c602",
+        "moneyWei": "4884017820000000000",
+        "nativeWei": "4884017820000000000"
+      },
+      {
+        "role": "escrow",
+        "address": "0x81d2d4050E617184b2B832c30BE68f8811b37D2c",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "merchant",
+        "address": "0x62e7b938e85c0FED82aeaEAb8512D96C0bdab1EA",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 1",
+        "address": "0xA1fCB31Fd2C56bDC453e0Cd6D217B29F769C13AD",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 2",
+        "address": "0x495a5E98315f4983d2beb831431839eE4C53bD84",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 3",
+        "address": "0x27D5F8d6e53fDaef7cf8f393a9a2d8E9c6130d69",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 4",
+        "address": "0xbF85cfe027Ad36A61a0C71e494DA24E20948F25C",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 5",
+        "address": "0x7eCe432e35C035C30a142461Df366fb70b920ada",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 6",
+        "address": "0x0C586cF9dF0a5455eaE73a2150e7aDFB73B8BAEb",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      }
+    ],
+    "afterSettlement": [
+      {
+        "role": "treasury, relayer",
+        "address": "0x39bbD1b075B43194588d65209A25292C76C88D31",
+        "moneyWei": "477846620342058639286",
+        "nativeWei": "477846620342058639286"
+      },
+      {
+        "role": "oracle",
+        "address": "0x8EECc9D6C14E99eeebC9ec078111B4c7c356c602",
+        "moneyWei": "4869052905000000000",
+        "nativeWei": "4869052905000000000"
+      },
+      {
+        "role": "escrow",
+        "address": "0x81d2d4050E617184b2B832c30BE68f8811b37D2c",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "merchant",
+        "address": "0x62e7b938e85c0FED82aeaEAb8512D96C0bdab1EA",
+        "moneyWei": "6540000000000000000",
+        "nativeWei": "6540000000000000000"
+      },
+      {
+        "role": "buyer 1",
+        "address": "0xA1fCB31Fd2C56bDC453e0Cd6D217B29F769C13AD",
+        "moneyWei": "1000000000000000000",
+        "nativeWei": "1000000000000000000"
+      },
+      {
+        "role": "buyer 2",
+        "address": "0x495a5E98315f4983d2beb831431839eE4C53bD84",
+        "moneyWei": "1000000000000000000",
+        "nativeWei": "1000000000000000000"
+      },
+      {
+        "role": "buyer 3",
+        "address": "0x27D5F8d6e53fDaef7cf8f393a9a2d8E9c6130d69",
+        "moneyWei": "1000000000000000000",
+        "nativeWei": "1000000000000000000"
+      },
+      {
+        "role": "buyer 4",
+        "address": "0xbF85cfe027Ad36A61a0C71e494DA24E20948F25C",
+        "moneyWei": "1000000000000000000",
+        "nativeWei": "1000000000000000000"
+      },
+      {
+        "role": "buyer 5",
+        "address": "0x7eCe432e35C035C30a142461Df366fb70b920ada",
+        "moneyWei": "1000000000000000000",
+        "nativeWei": "1000000000000000000"
+      },
+      {
+        "role": "buyer 6",
+        "address": "0x0C586cF9dF0a5455eaE73a2150e7aDFB73B8BAEb",
+        "moneyWei": "1000000000000000000",
+        "nativeWei": "1000000000000000000"
+      }
+    ],
+    "afterSweep": [
+      {
+        "role": "treasury, relayer",
+        "address": "0x39bbD1b075B43194588d65209A25292C76C88D31",
+        "moneyWei": "490383008342058639286",
+        "nativeWei": "490383008342058639286"
+      },
+      {
+        "role": "oracle",
+        "address": "0x8EECc9D6C14E99eeebC9ec078111B4c7c356c602",
+        "moneyWei": "4869052905000000000",
+        "nativeWei": "4869052905000000000"
+      },
+      {
+        "role": "escrow",
+        "address": "0x81d2d4050E617184b2B832c30BE68f8811b37D2c",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "merchant",
+        "address": "0x62e7b938e85c0FED82aeaEAb8512D96C0bdab1EA",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 1",
+        "address": "0xA1fCB31Fd2C56bDC453e0Cd6D217B29F769C13AD",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 2",
+        "address": "0x495a5E98315f4983d2beb831431839eE4C53bD84",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 3",
+        "address": "0x27D5F8d6e53fDaef7cf8f393a9a2d8E9c6130d69",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 4",
+        "address": "0xbF85cfe027Ad36A61a0C71e494DA24E20948F25C",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 5",
+        "address": "0x7eCe432e35C035C30a142461Df366fb70b920ada",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      },
+      {
+        "role": "buyer 6",
+        "address": "0x0C586cF9dF0a5455eaE73a2150e7aDFB73B8BAEb",
+        "moneyWei": "0",
+        "nativeWei": "0"
+      }
+    ]
+  },
+  "netCostWei": "86617175000000000",
+  "gasWei": "86617175000000000",
+  "sweep": [
+    {
+      "wallet": "merchant",
+      "address": "0x62e7b938e85c0FED82aeaEAb8512D96C0bdab1EA",
+      "status": "swept",
+      "sentWei": "6539496000000000000",
+      "gasWei": "504000000000000",
+      "txHash": "0xaa803ae052fc086b11c25a004f67ea4ef84d153debcfbba1e1daa25ba8bea89a"
+    },
+    {
+      "wallet": "buyer 1",
+      "address": "0xA1fCB31Fd2C56bDC453e0Cd6D217B29F769C13AD",
+      "status": "swept",
+      "sentWei": "999496000000000000",
+      "gasWei": "504000000000000",
+      "txHash": "0xb5d262b7b9a4a7e6d13ba2719ed5377b4c0e78069954625dbf103858e6b4ee28"
+    },
+    {
+      "wallet": "buyer 2",
+      "address": "0x495a5E98315f4983d2beb831431839eE4C53bD84",
+      "status": "swept",
+      "sentWei": "999496000000000000",
+      "gasWei": "504000000000000",
+      "txHash": "0xb1c362a330ca49447db210437d727165744e569640375105046af9ba6bdec3be"
+    },
+    {
+      "wallet": "buyer 3",
+      "address": "0x27D5F8d6e53fDaef7cf8f393a9a2d8E9c6130d69",
+      "status": "swept",
+      "sentWei": "999496000000000000",
+      "gasWei": "504000000000000",
+      "txHash": "0xf86f2372fca11d47caa5fef5e4bd93db971a1917bc16588c1d1288a7a0b9359e"
+    },
+    {
+      "wallet": "buyer 4",
+      "address": "0xbF85cfe027Ad36A61a0C71e494DA24E20948F25C",
+      "status": "swept",
+      "sentWei": "999491800000000000",
+      "gasWei": "508200000000000",
+      "txHash": "0x138d0ed0cef484232ba43ce97888341e73a16cac17472db45cb31118c6d4ad5e"
+    },
+    {
+      "wallet": "buyer 5",
+      "address": "0x7eCe432e35C035C30a142461Df366fb70b920ada",
+      "status": "swept",
+      "sentWei": "999458200000000000",
+      "gasWei": "541800000000000",
+      "txHash": "0xb951798594dc750e5ab4fd3a447ac9aff4d9cd38d40a865675579de5b7ab1fb4"
+    },
+    {
+      "wallet": "buyer 6",
+      "address": "0x0C586cF9dF0a5455eaE73a2150e7aDFB73B8BAEb",
+      "status": "swept",
+      "sentWei": "999454000000000000",
+      "gasWei": "546000000000000",
+      "txHash": "0xdaf693a0a2d8f617b353f39001215b8f86a865bf0bab5f1d2d50b17fc9cb47e2"
+    }
+  ],
+  "leftBehind": [],
+  "unread": [],
+  "rpc": {
+    "requests": 190,
+    "refused": 0,
+    "rateLimited": 0,
+    "retried": 0,
+    "perStep": [
+      {
+        "step": "start-engine",
+        "requests": 21,
+        "durationMs": 3375
+      },
+      {
+        "step": "choose-game",
+        "requests": 0,
+        "durationMs": 20086
+      },
+      {
+        "step": "launch-campaign",
+        "requests": 0,
+        "durationMs": 1546
+      },
+      {
+        "step": "odds-live",
+        "requests": 0,
+        "durationMs": 60007
+      },
+      {
+        "step": "drive-book",
+        "requests": 0,
+        "durationMs": 10565
+      },
+      {
+        "step": "pause-probe",
+        "requests": 0,
+        "durationMs": 12078
+      },
+      {
+        "step": "purchases",
+        "requests": 0,
+        "durationMs": 9991
+      },
+      {
+        "step": "hedging",
+        "requests": 6,
+        "durationMs": 5923
+      },
+      {
+        "step": "odds-driven",
+        "requests": 0,
+        "durationMs": 11984
+      },
+      {
+        "step": "close-sales",
+        "requests": 3,
+        "durationMs": 1648
+      },
+      {
+        "step": "settle",
+        "requests": 21,
+        "durationMs": 7998
+      },
+      {
+        "step": "reset",
+        "requests": 0,
+        "durationMs": 2
+      },
+      {
+        "step": "stop-engine",
+        "requests": 0,
+        "durationMs": 2653
+      },
+      {
+        "step": "sweep",
+        "requests": 51,
+        "durationMs": 7686
+      },
+      {
+        "step": "preflight",
+        "requests": 11,
+        "durationMs": 0
+      },
+      {
+        "step": "outside a step",
+        "requests": 77,
+        "durationMs": 0
+      }
+    ],
+    "limiter": {
+      "started": 450,
+      "rateLimited": 0,
+      "coolDowns": 0
+    }
+  },
+  "recovery": null,
+  "stranded": false
+}
