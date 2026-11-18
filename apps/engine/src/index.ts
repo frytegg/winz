@@ -1,9 +1,16 @@
 import type { Hex } from "viem";
 
 import { startEngine, type Engine } from "./app";
-import { createArcClients } from "./chain";
+import { createArcClients, defaultCursorName } from "./chain";
 import { EnvValidationError, loadEngineEnv, type EngineEnv } from "./config/env";
 import { createDb } from "./db";
+import {
+  HealthConfigError,
+  healthPortFromEnv,
+  startHealthServer,
+  type HealthServer,
+  type ServiceState,
+} from "./health/server";
 import { DemoIdentityDirectory, PrivyIdentityDirectory, type IdentityDirectory } from "./identity";
 import { createLogger, moduleLogger } from "./logger";
 import { GeminiRestClient, PgCatalogStore, createBookFeed, startCatalogSync } from "./market-data";
@@ -28,6 +35,19 @@ function loadEnvOrExit(): EngineEnv {
   } catch (error: unknown) {
     if (error instanceof EnvValidationError) {
       // The logger depends on the env, so a configuration failure is reported on stderr directly.
+      process.stderr.write(`${error.message}\n`);
+      process.exit(1);
+    }
+    throw error;
+  }
+}
+
+/** `PORT` of the health listener, or undefined (no listener). Exits like `loadEnvOrExit`. */
+function healthPortOrExit(): number | undefined {
+  try {
+    return healthPortFromEnv();
+  } catch (error: unknown) {
+    if (error instanceof HealthConfigError) {
       process.stderr.write(`${error.message}\n`);
       process.exit(1);
     }
@@ -60,7 +80,9 @@ function identityDirectory(env: EngineEnv): { directory: IdentityDirectory; demo
  * through one abort signal.
  */
 async function main(): Promise<void> {
+  const startedAt = new Date();
   const env = loadEnvOrExit();
+  const healthPort = healthPortOrExit();
   const root = createLogger({ level: env.APP_LOG_LEVEL, pretty: env.APP_ENV === "development" });
   const log = moduleLogger(root, "engine");
 
@@ -141,10 +163,15 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // What the health listener reports: the sender and the job worker run from here until a stop.
+  let serviceState: ServiceState = "running";
+  let health: HealthServer | null = null;
+
   let stopping = false;
   const shutdown = (signal: string, exitCode: number): void => {
     if (stopping) return;
     stopping = true;
+    serviceState = "stopped";
     log.info({ signal }, "shutdown requested");
     stop.abort();
     const forced = setTimeout(() => {
@@ -157,8 +184,10 @@ async function main(): Promise<void> {
       .then(() => {
         // Nothing uses the node any more: a request still waiting for its turn is released.
         arc.limiter?.close();
-        return db.end({ timeout: 5 });
+        // The probe stays up while the engine stops (it answers 503), and closes before the pool.
+        return health?.close();
       })
+      .then(() => db.end({ timeout: 5 }))
       .catch((error: unknown) => log.error({ err: error }, "error while stopping"))
       .finally(() => process.exit(exitCode));
   };
@@ -169,6 +198,27 @@ async function main(): Promise<void> {
     log.error({ err: reason }, "unhandled rejection");
     shutdown("unhandledRejection", 1);
   });
+
+  // PORT set (Railway sets it): GET /healthz for the platform's health check. Unset: no listener.
+  if (healthPort !== undefined) {
+    try {
+      health = await startHealthServer({
+        port: healthPort,
+        logger: moduleLogger(root, "health"),
+        db,
+        chain: arc.publicClient,
+        chainId: env.ARC_CHAIN_ID,
+        cursorName: defaultCursorName(env.ARC_ESCROW_ADDRESS as Hex),
+        startedAt,
+        services: () => ({ sender: serviceState, jobs: serviceState }),
+      });
+      // A stop that began while it was binding has already passed the point where it closes it.
+      if (stopping) await health.close();
+    } catch (error: unknown) {
+      log.fatal({ err: error, port: healthPort }, "health listener could not start");
+      shutdown("health-listener", 1);
+    }
+  }
 }
 
 void main();

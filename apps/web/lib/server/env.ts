@@ -7,7 +7,7 @@ const booleanString = z.enum(["true", "false"]).transform((value) => value === "
  * Server-side environment of the web app. Read lazily (first call), never at import time,
  * so `next build` does not need production secrets.
  */
-const webEnvSchema = z.object({
+export const webEnvSchema = z.object({
   APP_ENV: z.enum(["development", "test", "production"]).default("development"),
   APP_LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   APP_BASE_URL: z.string().url(),

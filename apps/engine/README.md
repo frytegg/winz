@@ -51,6 +51,7 @@ start, naming each problem, when one is missing or malformed.
 | `ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND`               | no        | Of those, requests of the heavy methods. Default 4.                                   |
 | `ARC_RPC_HEAVY_METHODS`                               | no        | Comma-separated JSON-RPC methods counted as heavy. Default `eth_getLogs`.             |
 | `ARC_TX_MAX_IN_FLIGHT`                                | no        | Transactions of one key broadcast and not mined yet at once. 1 to 64, default 8.      |
+| `PORT`                                                | no        | Port of the health listener (`GET /healthz`). Unset: no listener. Railway sets it.    |
 
 Every request the engine makes to its node goes through one limiter shared by all its services:
 the limits above, kept under what Arc's public RPC accepts (it refuses the 13th `eth_getLogs`
@@ -60,6 +61,38 @@ again. On a first start far behind the head, the event reader catches up in rang
 blocks, four a second: 60 000 blocks take about 30 requests and 8 s. On shutdown, requests
 still waiting for their turn after 9 s are released unsent, so the engine stops within its
 15 s grace period.
+
+## Deploy
+
+The engine runs as one container on Railway: `apps/engine/Dockerfile`, built from the repository
+root, and `railway.json` at the root. The step-by-step page, with the command that proves each
+step, is [`docs/deploy.md`](../../docs/deploy.md) (in French).
+
+- **No build step.** The image runs the TypeScript sources: `node --import tsx src/index.ts`, in
+  exec form, so node is PID 1 and receives SIGTERM itself (no shell, no package manager in
+  between; the tsx CLI would fork a child). The stop below runs and the process exits 0.
+- **Install.** `pnpm install --frozen-lockfile --filter "@winz/engine..." --filter "winz"`: the
+  engine, `@winz/shared`, `@winz/pricing`, and the root package, because `tsx` is declared there.
+  That brings the root's dev tools along (TypeScript, Turbo, Vitest, ESLint): `node_modules` is
+  about 360 MB, the image about 800 MB unpacked, 170 MB compressed. Declaring `tsx` in this
+  package's own dependencies would allow `--prod` and drop most of it.
+- **User.** The image's `node` user (uid 1000), never root.
+- **Health.** With `PORT` set, `src/health/server.ts` answers `GET /healthz` (node:http, no
+  dependency): `{ status, startedAt, uptimeS, chain: { id, head, cursor }, db, sender, jobs }`.
+  200 when the database (the event reader's `chain_cursor` row, read within 2 s) and the node
+  (`eth_blockNumber`, within 2 s) both answer and the sender and the job worker run; 503 otherwise,
+  including while the engine stops. It never answers a secret, a key's address or an e-mail. It
+  opens once the engine runs and closes after every service has stopped, before the database
+  pool. Without `PORT`, nothing listens (local runs and tests are unchanged).
+- **One replica.** Never two engines on one database: see [`docs/deploy.md`](../../docs/deploy.md),
+  section 2, for what the code guards (the nonce index, `skip locked`) and what it does not (there
+  is no singleton lock).
+
+```bash
+docker build -f apps/engine/Dockerfile -t winz-engine .
+docker run --rm --env-file engine.env -e PORT=8080 -p 8080:8080 winz-engine
+curl -s localhost:8080/healthz
+```
 
 ## Transaction sender
 
