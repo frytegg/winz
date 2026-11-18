@@ -1,16 +1,318 @@
 @import "tailwindcss";
 
-/* Winz identity (SPEC section 2). Dark by default; no light theme in the MVP. */
+/*
+ * Winz design tokens (design-system/winz/MASTER.md). Dark only: there is no light theme in the MVP.
+ * Never use a raw hex in a component: add a token here instead.
+ */
 @theme {
-  --color-lime: #d8ff34;
-  --color-ink: #0b0b0c;
+  /* Colors (MASTER section 2) */
+  --color-lime: #d8fe35;
+  --color-lime-press: #c6ec22;
+  --color-lime-dim: #788a1e;
+  --color-lime-line: rgba(216, 254, 53, 0.15);
+  --color-ink: #131314;
+  --color-ink-deep: #0b0b0c;
   --color-card: #1c1c1f;
+  --color-card-raised: #2a2a2d;
+  --color-stroke: rgba(255, 255, 255, 0.34);
   --color-text: #ffffff;
   --color-muted: #a1a1aa;
+  /* Only for text of 18px or more (contrast). */
+  --color-subtle: #6b6b70;
+  --color-white-pill: #ffffff;
+  --color-danger: #ff5a5f;
+  --color-team-a: #f5a524;
+  --color-team-b: #1a7f66;
+
+  /* Font: the variable is set by next/font in layout.tsx. Change the family there only. */
+  --font-sans: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
+
+  /* Type scale (MASTER section 3) */
+  --text-hero: 2rem;
+  --text-hero--line-height: 2.25rem;
+  --text-hero--font-weight: 600;
+  --text-step: 1.75rem;
+  --text-step--line-height: 2rem;
+  --text-step--font-weight: 400;
+  --text-promise: 1.5rem;
+  --text-promise--line-height: 1.875rem;
+  --text-promise--font-weight: 400;
+  --text-promise-lg: 2rem;
+  --text-promise-lg--line-height: 2.375rem;
+  --text-promise-lg--font-weight: 500;
+  --text-figure: 2.5rem;
+  --text-figure--line-height: 2.75rem;
+  --text-figure--font-weight: 600;
+  --text-figure-sm: 2.25rem;
+  --text-figure-sm--line-height: 2.5rem;
+  --text-figure-sm--font-weight: 600;
+  --text-countdown: 2rem;
+  --text-countdown--line-height: 2.25rem;
+  --text-countdown--font-weight: 300;
+  --text-countdown-lg: 2.75rem;
+  --text-countdown-lg--line-height: 3rem;
+  --text-countdown-lg--font-weight: 300;
+  --text-lead: 1.0625rem;
+  --text-lead--line-height: 1.375rem;
+  --text-title: 1.375rem;
+  --text-title--line-height: 1.75rem;
+  --text-title--font-weight: 600;
+  --text-clock: 1.75rem;
+  --text-clock--line-height: 2rem;
+  --text-clock--font-weight: 600;
+  --text-chance: 2.75rem;
+  --text-chance--line-height: 1;
+  --text-chance--font-weight: 600;
+  --text-countdown-sm: 1.375rem;
+  --text-countdown-sm--line-height: 1.5rem;
+  --text-countdown-sm--font-weight: 300;
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 0.875rem;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.375rem;
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1rem;
+  --text-label--letter-spacing: 0.02em;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+
+  /* Radii (MASTER section 4) */
+  --radius-screen: 1.75rem;
+  --radius-card: 1.5rem;
+  --radius-card-sm: 1.25rem;
+
+  /* Easing (design:emil-design-eng: built-in curves are too weak) */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* Motion keyframes used by the kit */
+  --animate-pulse-dot: pulse-dot 2s var(--ease-in-out) infinite;
+  --animate-shake: shake 200ms var(--ease-out);
+  --animate-screen-in: screen-in 240ms var(--ease-out);
+  --animate-skeleton: skeleton 1.4s var(--ease-in-out) infinite;
+
+  @keyframes pulse-dot {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.45;
+      transform: scale(0.8);
+    }
+  }
+  @keyframes shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    25% {
+      transform: translateX(-6px);
+    }
+    75% {
+      transform: translateX(6px);
+    }
+  }
+  @keyframes screen-in {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes skeleton {
+    0%,
+    100% {
+      opacity: 0.55;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
 }
 
-html,
+:root {
+  color-scheme: dark;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  /* Height of the floating bottom navigation, so screens can leave room for it. */
+  --nav-space: calc(6.5rem + var(--safe-bottom));
+}
+
+/* Platform layer (design:mobile-native): the tells that make a web page feel like a website. */
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+  background: var(--color-ink-deep);
+}
+
 body {
-  background: var(--color-ink);
+  min-height: 100dvh;
+  background: var(--color-ink-deep);
   color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* iOS zooms into any field under 16px and never zooms back out. */
+input,
+textarea,
+select {
+  font-size: 16px;
+}
+
+button,
+a,
+[role="button"],
+[role="tab"],
+[role="radio"] {
+  touch-action: manipulation;
+}
+
+/* Controls are not content: no text selection or callout on a long press. */
+button,
+[role="button"],
+[role="tab"],
+[role="radio"] {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/*
+ * The default focus indicator. In the base layer on purpose: an unlayered rule would beat every
+ * Tailwind utility, so a component could never tune its own (a field draws it inside its border).
+ */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-lime);
+    outline-offset: 2px;
+  }
+}
+
+::selection {
+  background: var(--color-lime);
+  color: var(--color-ink);
+}
+
+/* The app is a centered column of 430px at most (the hedge desk and the admin go full width). */
+.app-column {
+  position: relative;
+  margin-inline: auto;
+  width: 100%;
+  max-width: 430px;
+  min-height: 100dvh;
+  background: var(--color-ink);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+@media (min-width: 480px) {
+  .app-column {
+    border-inline: 1px solid rgba(255, 255, 255, 0.06);
+  }
+}
+
+/* Room at the bottom of a screen that has the floating navigation. */
+.pb-nav {
+  padding-bottom: var(--nav-space);
+}
+
+/* Tabular figures wherever a number moves (odds, countdowns, amounts). */
+.figures {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hide the scrollbar of horizontal chip rows and carousels. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Bottom sheet: a native <dialog>, so focus trap and Escape come for free. */
+.sheet {
+  margin: auto auto 0;
+  width: 100%;
+  max-width: 430px;
+  max-height: calc(100dvh - var(--safe-top) - 1rem);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-screen) var(--radius-screen) 0 0;
+  background: var(--color-card);
+  color: var(--color-text);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  transform: translateY(0);
+  transition:
+    transform 280ms var(--ease-drawer),
+    overlay 280ms allow-discrete,
+    display 280ms allow-discrete;
+}
+.sheet:not([open]) {
+  transform: translateY(100%);
+}
+@starting-style {
+  .sheet[open] {
+    transform: translateY(100%);
+  }
+}
+.sheet::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+  opacity: 1;
+  transition:
+    opacity 280ms var(--ease-out),
+    overlay 280ms allow-discrete,
+    display 280ms allow-discrete;
+}
+.sheet:not([open])::backdrop {
+  opacity: 0;
+}
+@starting-style {
+  .sheet[open]::backdrop {
+    opacity: 0;
+  }
+}
+
+/* A modal sheet locks the page behind it (iOS would otherwise scroll it). */
+body:has(dialog[open]) {
+  overflow: hidden;
+}
+
+/* Toasts enter from below and leave the same way. */
+.toast {
+  transition:
+    transform 240ms var(--ease-out),
+    opacity 240ms var(--ease-out);
+}
+@starting-style {
+  .toast {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* Reduced motion: everything becomes a short fade (MASTER section 7). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 150ms !important;
+    scroll-behavior: auto !important;
+  }
 }
