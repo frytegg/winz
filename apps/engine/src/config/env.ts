@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+import {
+  DEFAULT_LEASE_RENEW_MS,
+  DEFAULT_LEASE_STANDBY_POLL_MS,
+  DEFAULT_LEASE_TTL_MS,
+  FENCE_MARGIN_MS,
+  LEASE_BOUNDS,
+  leaseSettingsProblems,
+} from "../leader/settings";
+
 const hexAddress = z.string().regex(/^0x[0-9a-fA-F]{40}$/, "must be a 20-byte hex address");
 const privateKey = z.string().regex(/^0x[0-9a-fA-F]{64}$/, "must be a 32-byte hex private key");
 const booleanString = z.enum(["true", "false"]).transform((value) => value === "true");
@@ -51,6 +60,29 @@ export const engineEnvSchema = z
     // only the kinds of chain/tx-kinds.ts travel together). Unset: 8. 1 sends one at a time.
     ARC_TX_MAX_IN_FLIGHT: z.coerce.number().int().min(1).max(64).optional(),
 
+    // The engine's lease (src/leader): only the process holding it runs the engine's services; a
+    // second engine on the same database waits as a standby. How long a renewal holds it, how
+    // often the leader renews it, how often a standby asks for it. The leader stops its services
+    // by itself after `ENGINE_LEASE_TTL_MS - 5 000` ms without a successful renewal.
+    ENGINE_LEASE_TTL_MS: z.coerce
+      .number()
+      .int()
+      .min(LEASE_BOUNDS.ttlMs.min)
+      .max(LEASE_BOUNDS.ttlMs.max)
+      .default(DEFAULT_LEASE_TTL_MS),
+    ENGINE_LEASE_RENEW_MS: z.coerce
+      .number()
+      .int()
+      .min(LEASE_BOUNDS.renewMs.min)
+      .max(LEASE_BOUNDS.renewMs.max)
+      .default(DEFAULT_LEASE_RENEW_MS),
+    ENGINE_LEASE_STANDBY_POLL_MS: z.coerce
+      .number()
+      .int()
+      .min(LEASE_BOUNDS.standbyPollMs.min)
+      .max(LEASE_BOUNDS.standbyPollMs.max)
+      .default(DEFAULT_LEASE_STANDBY_POLL_MS),
+
     GEMINI_API_URL: z.string().url().default("https://api.gemini.com"),
     GEMINI_WS_URL: z.string().url().default("wss://ws.gemini.com"),
     GEMINI_SANDBOX_API_URL: z.string().url().default("https://api.sandbox.gemini.com"),
@@ -78,6 +110,20 @@ export const engineEnvSchema = z
     APP_API_MOCK: booleanString.default(false),
   })
   .superRefine((env, context) => {
+    for (const problem of leaseSettingsProblems({
+      ttlMs: env.ENGINE_LEASE_TTL_MS,
+      renewMs: env.ENGINE_LEASE_RENEW_MS,
+      standbyPollMs: env.ENGINE_LEASE_STANDBY_POLL_MS,
+      fenceMarginMs: FENCE_MARGIN_MS,
+    })) {
+      context.addIssue({
+        code: "custom",
+        path: [
+          problem.includes("standby") ? "ENGINE_LEASE_STANDBY_POLL_MS" : "ENGINE_LEASE_RENEW_MS",
+        ],
+        message: problem,
+      });
+    }
     const privyId = env.NEXT_PUBLIC_PRIVY_APP_ID !== undefined;
     const privySecret = env.PRIVY_APP_SECRET !== undefined;
     if (privyId !== privySecret) {

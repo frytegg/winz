@@ -135,6 +135,10 @@ values (
   'pi_top_up_1', 250000000, 'credited', '0x' || repeat('cd', 32)
 );
 
+-- The engine lease, held by one engine process (apps/engine/src/leader).
+insert into public.engine_lease (name, holder, acquired_at, renewed_at, expires_at)
+values ('engine', 'eng-0123456789ab', now(), now(), now() + interval '15 seconds');
+
 -- The seed and the fixtures together put at least one row in every table.
 select test.count_is(
   format('select count(*) from (select 1 from public.%I limit 1) t', t.name),
