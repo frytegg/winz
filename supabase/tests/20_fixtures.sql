@@ -128,6 +128,13 @@ values (
 insert into public.tracked_instruments (symbol, expires_at)
 values ('GEMI-NCAAF-2611212030-ARK-TEX-M-TEX', now() + interval '10 minutes');
 
+-- A top-up of the campaign's budget, credited on-chain (CA-6).
+insert into public.budget_top_ups (request_id, campaign_id, stripe_pi, amount, status, tx_hash)
+values (
+  '40000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001',
+  'pi_top_up_1', 250000000, 'credited', '0x' || repeat('cd', 32)
+);
+
 -- The seed and the fixtures together put at least one row in every table.
 select test.count_is(
   format('select count(*) from (select 1 from public.%I limit 1) t', t.name),

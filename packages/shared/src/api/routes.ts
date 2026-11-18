@@ -219,6 +219,17 @@ export const API_ROUTES = {
     response: schemas.webhookAckSchema,
     examples: { default: { received: true } },
   },
+  topUpCampaign: {
+    method: "POST",
+    path: "/api/campaigns/:id/top-up",
+    auth: "merchant",
+    request: schemas.topUpCampaignRequestSchema,
+    response: schemas.topUpCampaignResponseSchema,
+    examples: {
+      default: examples.topUpCampaignExamples.created,
+      ...examples.topUpCampaignExamples,
+    },
+  },
 } as const satisfies Record<string, RouteSpec>;
 
 export type ApiRouteName = keyof typeof API_ROUTES;

@@ -13,6 +13,9 @@ import {
   type PaymentIntentView,
   type PaymentWebhookEvent,
   type PurchaseAuthorizationInput,
+  type BudgetTopUpPaymentInput,
+  type TopUpPaymentGateway,
+  type UnpaidCancellation,
 } from "@/lib/server/payments-gateway";
 import {
   TEST_WEBHOOK_SECRET,
@@ -112,6 +115,67 @@ export class SimulatedStripe {
       },
       parseWebhook: (rawBody: string, signature: string | null): PaymentWebhookEvent =>
         verifyStripeWebhook(rawBody, signature, TEST_WEBHOOK_SECRET),
+      // The calls of a budget top-up (SPEC CA-6). `web` is typed with the calls every web gateway
+      // has; the top-up route finds these at run time (`topUpGatewayOf`). A top-up is captured
+      // automatically like the first budget, keyed on its request; its cancel releases an intent
+      // nobody paid, and is refused (nothing changes) once the intent is paid or being paid.
+      ...({
+        createBudgetTopUpPayment: (
+          input: BudgetTopUpPaymentInput,
+        ): Promise<CreatedPaymentIntent> => {
+          try {
+            stripeAmount(input.amount);
+          } catch (error: unknown) {
+            return Promise.reject(
+              new WebPaymentGatewayError("simulated Stripe refused the amount", { cause: error }),
+            );
+          }
+          const idempotencyKey = `${STRIPE_PAYMENT_KINDS.campaignBudgetTopUp}:${input.requestId}`;
+          const replay = [...this.intents.values()].find(
+            (intent) => intent.idempotencyKey === idempotencyKey,
+          );
+          if (replay !== undefined) {
+            return Promise.resolve({ id: replay.id, clientSecret: replay.clientSecret });
+          }
+          const id = `pi_sim_${randomBytes(10).toString("hex")}`;
+          const clientSecret = `${id}_secret_${randomBytes(8).toString("hex")}`;
+          this.intents.set(id, {
+            id,
+            status: "requires_payment_method",
+            amount: input.amount,
+            currency: "usd",
+            metadata: {
+              kind: STRIPE_PAYMENT_KINDS.campaignBudgetTopUp,
+              campaignId: input.campaignId,
+              requestId: input.requestId,
+            },
+            payerEmail: null,
+            clientSecret,
+            captureMethod: "automatic",
+            idempotencyKey,
+            captures: 0,
+            cancels: 0,
+            refunds: 0,
+            capturedAmount: 0n,
+          });
+          return Promise.resolve({ id, clientSecret });
+        },
+        retrieveClientSecret: (id: string): Promise<string | null> =>
+          Promise.resolve(this.intents.get(id)?.clientSecret ?? null),
+        cancelUnpaidPaymentIntent: (id: string): Promise<UnpaidCancellation> => {
+          const intent = this.intents.get(id);
+          if (intent === undefined) {
+            return Promise.reject(new WebPaymentGatewayError(`No such payment_intent: ${id}`));
+          }
+          if (intent.status === "canceled") return Promise.resolve("canceled");
+          if (intent.status === "succeeded" || intent.status === "processing") {
+            return Promise.resolve("not_cancelable");
+          }
+          intent.status = "canceled";
+          intent.cancels += 1;
+          return Promise.resolve("canceled");
+        },
+      } satisfies TopUpPaymentGateway),
     };
     this.engine = {
       retrievePaymentIntent: async (id) => {

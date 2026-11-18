@@ -1,6 +1,7 @@
 /**
- * The wiring: `startJobs` runs a real `JobWorker` with the four handlers, which takes the jobs
- * the web app enqueues (same kinds, payloads and idempotency keys) and ends them `done`.
+ * The wiring: `startJobs` runs a real `JobWorker` with a handler for each of the five kinds, which
+ * takes the jobs the web app enqueues (same kinds, payloads and idempotency keys) and ends them
+ * `done`.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -99,7 +100,7 @@ async function paymentStatus(pi: string): Promise<string | undefined> {
 }
 
 describe("startJobs", () => {
-  it("registers the four kinds with their schemas", () => {
+  it("registers the five kinds with their schemas", () => {
     const kinds: string[] = [];
     registerJobHandlers({ register: (kind: string) => void kinds.push(kind) }, harness.deps());
     expect(kinds.sort()).toEqual(Object.values(JOB_KINDS).sort());

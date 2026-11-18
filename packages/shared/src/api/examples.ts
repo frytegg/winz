@@ -15,6 +15,7 @@ import type {
   PublicCampaign,
   Ticket,
   TicketsResponse,
+  TopUpCampaignResponse,
 } from "./schemas";
 
 /**
@@ -543,3 +544,26 @@ export const demoExamples = {
     paymentIntentId: "pi_demo_example_joes_texas",
   },
 } satisfies Record<string, DemoResponse>;
+
+/**
+ * POST /api/campaigns/:id/top-up: Joe adds $500 to the hedge budget of his running promo.
+ * `repeated` is the answer to the same `requestId` sent again: the same payment, nothing new;
+ * `credited` the answer to it once the top-up is in the budget (nothing more to pay).
+ */
+const topUpCreated: TopUpCampaignResponse = {
+  campaignId: "cmp_joes_texas",
+  requestId: "6f1c2a9e-3b4d-4e5f-8a7b-9c0d1e2f3a4b",
+  amount: "500000000",
+  budgetPayment: {
+    paymentIntentId: "pi_top_up_example",
+    clientSecret: "pi_top_up_example_secret_example",
+    amount: "500000000",
+  },
+  status: "requires_payment",
+};
+
+export const topUpCampaignExamples = {
+  created: topUpCreated,
+  repeated: topUpCreated,
+  credited: { ...topUpCreated, status: "credited" },
+} satisfies Record<string, TopUpCampaignResponse>;

@@ -1,5 +1,6 @@
 import { JOB_KINDS, STRIPE_PAYMENT_KINDS, jobIdempotencyKey } from "@winz/shared";
 
+import { handleTopUpFailed, handleTopUpPaid } from "./budget-top-up";
 import { CUSTOMER_MESSAGES, markPurchaseFailed, processAuthorizedPurchase } from "./checkout";
 import type { Db } from "./db";
 import { enqueueJob } from "./jobs";
@@ -126,6 +127,9 @@ async function purchaseFailed(
  * Verifies and handles one Stripe webhook:
  *
  * - `payment_intent.succeeded` of a `campaign_budget` → the creation job (see `budgetPaid`);
+ * - `payment_intent.succeeded` of a `campaign_budget_top_up` → the top-up job, and
+ *   `payment_intent.canceled` or `payment_intent.payment_failed` of one → the top-up ends, so
+ *   another can be made (see `handleTopUpPaid`, `handleTopUpFailed`);
  * - `payment_intent.amount_capturable_updated` of a `purchase` → `processAuthorizedPurchase`, the
  *   same path as the client confirmation;
  * - `payment_intent.canceled` and `payment_intent.payment_failed` of a `purchase` → the payment
@@ -175,6 +179,9 @@ export async function handleStripeWebhook(
   switch (event.type) {
     case "payment_intent.succeeded":
       if (kind === STRIPE_PAYMENT_KINDS.campaignBudget) await budgetPaid(db, event, intent);
+      if (kind === STRIPE_PAYMENT_KINDS.campaignBudgetTopUp) {
+        await handleTopUpPaid(db, payments, event, intent);
+      }
       break;
     case "payment_intent.amount_capturable_updated":
       if (kind === STRIPE_PAYMENT_KINDS.purchase) {
@@ -188,6 +195,9 @@ export async function handleStripeWebhook(
     case "payment_intent.canceled":
     case "payment_intent.payment_failed":
       if (kind === STRIPE_PAYMENT_KINDS.purchase) await purchaseFailed(db, payments, event, intent);
+      if (kind === STRIPE_PAYMENT_KINDS.campaignBudgetTopUp) {
+        await handleTopUpFailed(db, payments, event, intent);
+      }
       break;
     default:
       log.debug({ eventId: event.id, type: event.type }, "webhook event ignored");
