@@ -229,6 +229,7 @@ Lots parallèles : (H-03 → H-04 → H-05, H-06), (R-01 → R-02), (A-05, A-06,
   Fini quand : les identifiants des ordres du sandbox sont affichés sur le Hedge desk. Glisse seulement si S-06 a échoué.
 - [ ] **H-09** ◇ · Qui : Agent `coder-high` · Dép. : H-05 · HE-7 (Should)
   Croisement interne des expositions complémentaires.
+  État au 18 nov. : conçu et jugé (trois conceptions, trois juges, une synthèse), **non construit**. La version retenue est réduite : seulement les deux contrats YES d'un match à deux issues, avant le coup d'envoi, plafonnée par événement, derrière un réglage coupé par défaut. Elle demande 10 à 12 h d'agent, touche la décision d'achat de la politique de couverture (le cœur de la boucle prouvée), et ne se déclenche que si les deux côtés ont de l'exposition pas encore achetée. À décider après G3.
 
 ### Règlement
 - [x] **R-01** · Qui : Agent `coder-high`, relu par A · Dép. : M-01, H-08, X-01 · MD-3, ST-1
@@ -248,8 +249,9 @@ Lots parallèles : (H-03 → H-04 → H-05, H-06), (R-01 → R-02), (A-05, A-06,
   Mode démo derrière la clé admin : carnet piloté pour un instrument, résultat forcé, vente rejouée ; le drapeau « démo » remonte dans toutes les réponses concernées.
   Fini quand : les trois actions marchent sur le testnet et font apparaître le bandeau.
   Fait le 18 nov. sur Arc testnet (reçus `docs/rehearsals/20261118T090535Z-5042002-yes.md` et `…090714Z-5042002-no.md`) : carnet piloté, vente rejouée, résultat forcé OUI puis NON ; chaque réponse sur la campagne porte `demo: true` (218 et 287 réponses, aucune fausse). Le bandeau lui-même est U-07.
-- [ ] **A-08** ◇ · Qui : Agent `coder` · Dép. : A-02 · CA-6 (Should)
+- [x] **A-08** ◇ · Qui : Agent `coder` · Dép. : A-02 · CA-6 (Should)
   Recharge du budget (`topUpBudgetFor`).
+  Fait le 18 nov. : `POST /api/campaigns/:id/top-up` (paiement par carte comme le premier budget, table `budget_top_ups`), job `campaign.top_up`, `topUpBudgetFor` envoyé seul par le relayer ; l'argent finit crédité sur la campagne ou remboursé sur la carte, jamais les deux ni aucun. Prouvé sur chaîne locale avec le vrai contrat (`apps/web/e2e/top-up.test.ts` : budget épuisé, rechargé, la vente reprend). Pas encore rejoué sur Arc testnet ; l'écran de recharge est côté front.
 
 ### Écrans
 - [ ] **U-05** · Qui : T · Dép. : A-05 · MDB-1, MDB-2, 5.2
