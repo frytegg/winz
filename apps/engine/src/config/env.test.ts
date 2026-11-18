@@ -11,9 +11,21 @@ const valid = {
   ARC_RELAYER_PRIVATE_KEY: `0x${"11".repeat(32)}`,
   ARC_ORACLE_PRIVATE_KEY: `0x${"22".repeat(32)}`,
   STRIPE_SECRET_KEY: "sk_test_123",
-  PRIVY_APP_ID: "app",
+  NEXT_PUBLIC_PRIVY_APP_ID: "app",
   PRIVY_APP_SECRET: "secret",
 };
+const DEMO_SEED = `0x${"33".repeat(32)}`;
+
+/** The message of every issue of the configuration error `load` throws. */
+function issuesOf(load: () => unknown): string {
+  try {
+    load();
+  } catch (error: unknown) {
+    if (error instanceof EnvValidationError) return error.issues.join("\n");
+    throw error;
+  }
+  throw new Error("expected the environment to be refused");
+}
 
 describe("loadEngineEnv", () => {
   it("applies defaults for Arc testnet and Gemini", () => {
@@ -48,5 +60,39 @@ describe("loadEngineEnv", () => {
     expect(() => loadEngineEnv({ ...valid, STRIPE_SECRET_KEY: "sk_live_123" })).toThrow(
       EnvValidationError,
     );
+  });
+
+  it("starts without Stripe: only demo payments can then be sold", () => {
+    const { STRIPE_SECRET_KEY: _stripe, ...withoutStripe } = valid;
+    expect(loadEngineEnv(withoutStripe).STRIPE_SECRET_KEY).toBeUndefined();
+  });
+
+  it("starts without Privy only when the demo wallet seed is set", () => {
+    const { NEXT_PUBLIC_PRIVY_APP_ID: _id, PRIVY_APP_SECRET: _secret, ...withoutPrivy } = valid;
+    expect(issuesOf(() => loadEngineEnv(withoutPrivy))).toContain("APP_DEMO_WALLET_SEED");
+    const env = loadEngineEnv({ ...withoutPrivy, APP_DEMO_WALLET_SEED: DEMO_SEED });
+    expect(env.NEXT_PUBLIC_PRIVY_APP_ID).toBeUndefined();
+    expect(env.APP_DEMO_WALLET_SEED).toBe(DEMO_SEED);
+  });
+
+  it("refuses half of the Privy credentials, naming the missing one", () => {
+    const { PRIVY_APP_SECRET: _secret, ...idOnly } = valid;
+    expect(issuesOf(() => loadEngineEnv(idOnly))).toContain("PRIVY_APP_SECRET");
+    const { NEXT_PUBLIC_PRIVY_APP_ID: _id, ...secretOnly } = valid;
+    expect(
+      issuesOf(() => loadEngineEnv({ ...secretOnly, APP_DEMO_WALLET_SEED: DEMO_SEED })),
+    ).toContain("NEXT_PUBLIC_PRIVY_APP_ID");
+  });
+
+  it("refuses a demo wallet seed that is not 32 bytes", () => {
+    expect(issuesOf(() => loadEngineEnv({ ...valid, APP_DEMO_WALLET_SEED: "0x1234" }))).toContain(
+      "APP_DEMO_WALLET_SEED",
+    );
+  });
+
+  it("sizes the database pool, within bounds", () => {
+    expect(loadEngineEnv(valid).DB_POOL_MAX).toBe(20);
+    expect(loadEngineEnv({ ...valid, DB_POOL_MAX: "12" }).DB_POOL_MAX).toBe(12);
+    expect(issuesOf(() => loadEngineEnv({ ...valid, DB_POOL_MAX: "2" }))).toContain("DB_POOL_MAX");
   });
 });
