@@ -11,14 +11,16 @@ import { POST } from "@/app/api/webhooks/quicknode/route";
 
 import { createTestDatabase, type TestDatabase } from "../../../engine/src/testing/postgres";
 import type { Db } from "./db";
-import { setServerDepsForTesting } from "./deps";
+import { setServerDepsForTesting, type ServerConfig } from "./deps";
 import {
+  MAX_BLOCK_NUMBER,
+  MAX_BLOCK_TIMESTAMP,
   MAX_DELIVERY_BYTES,
-  SIGNATURE_TOLERANCE_MS,
+  MAX_LOG_INDEX,
   handleQuicknodeWebhook,
   resetStreamsWarningsForTesting,
   signStreamsPayload,
-  streamsSettings,
+  streamsSettingsOf,
   type StreamsSettings,
 } from "./quicknode-webhook";
 import { FakeIdentity, TEST_CONFIG, serverDepsFor } from "./testing/fixtures";
@@ -58,15 +60,21 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   await db`delete from chain_events`;
-  process.env.QUICKNODE_STREAMS_TOKEN = TEST_STREAMS_TOKEN;
-  delete process.env.QUICKNODE_STREAMS_NETWORK;
   delete process.env.APP_API_MOCK;
   resetStreamsWarningsForTesting();
-  setServerDepsForTesting(serverDepsFor(db, new FakeIdentity(), now));
+  configure({});
 });
 afterEach(() => {
-  delete process.env.QUICKNODE_STREAMS_TOKEN;
+  delete process.env.APP_API_MOCK;
 });
+
+/** The route's dependencies, with this configuration over `TEST_CONFIG` (token, network, escrow). */
+function configure(overrides: Partial<ServerConfig>): void {
+  setServerDepsForTesting({
+    ...serverDepsFor(db, new FakeIdentity(), now),
+    config: () => ({ ...TEST_CONFIG, ...overrides }),
+  });
+}
 
 function purchase(
   txHash: Hex,
@@ -152,7 +160,7 @@ function capturingLogger(): { logger: Logger; lines: () => string[] } {
 }
 
 function settings(overrides: Partial<StreamsSettings> = {}): StreamsSettings {
-  return { ...streamsSettings(process.env, ESCROW), ...overrides };
+  return { ...streamsSettingsOf(TEST_CONFIG), ...overrides };
 }
 
 /** Calls the handler with a captured logger; the status of the refusal, or 200. */
@@ -262,8 +270,15 @@ describe("an accepted delivery", () => {
     expect(await rows()).toHaveLength(1);
   });
 
-  it("accepts the timestamp in milliseconds as well as in seconds", async () => {
+  it("reads the timestamp in Unix seconds, as documented, and logs the delivery's age", async () => {
+    const { logger, lines } = capturingLogger();
     const { delivery } = oneBlock();
+    const signedAt = new Date(now.getTime() - 42_000);
+    expect(await handle(signedRequest(delivery, { at: signedAt }), logger)).toBe(200);
+    const stored = lines().find((line) => line.includes("quicknode delivery stored")) ?? "";
+    expect(JSON.parse(stored)).toMatchObject({ signedAgeMs: 42_000 });
+    // A value only milliseconds can be is read as such rather than refused: it gates nothing.
+    await db`delete from chain_events`;
     expect((await post(signedRequest(delivery, { at: now, timestampUnit: "ms" }))).status).toBe(
       200,
     );
@@ -277,6 +292,24 @@ describe("an accepted delivery", () => {
       const delivery = deliveryOf([[purchase(txHash, 0, 100n)]], { metadataIn });
       expect((await post(signedRequest(delivery, { at: now }))).status).toBe(200);
       expect((await rows()).map((row) => row.tx_hash)).toEqual([txHash]);
+    }
+  });
+
+  it("reads the logs dataset nested three deep, as QuickNode's sample shows it", async () => {
+    const txHash = randomHash();
+    const delivery = deliveryOf([[[transfer(txHash, 0, 100n), purchase(txHash, 1, 100n)]], [[]]]);
+    expect((await post(signedRequest(delivery, { at: now }))).status).toBe(200);
+    expect((await rows()).map((row) => [row.tx_hash, row.log_index])).toEqual([[txHash, 1]]);
+  });
+
+  it("reads the answer of docs/quicknode.md's filter, bare or wrapped once more in an array", async () => {
+    for (const wrapped of [false, true]) {
+      await db`delete from chain_events`;
+      const txHash = randomHash();
+      const kept = [purchase(txHash, 0, 100n), purchase(txHash, 1, 100n)];
+      const delivery = deliveryOf(wrapped ? [kept] : kept);
+      expect((await post(signedRequest(delivery, { at: now }))).status).toBe(200);
+      expect((await rows()).map((row) => row.log_index)).toEqual([0, 1]);
     }
   });
 
@@ -382,28 +415,28 @@ describe("a refused delivery stores nothing", () => {
     expect(await rows()).toEqual([]);
   });
 
-  it("answers 401 for a timestamp further than the tolerance, past or future", async () => {
+  it("answers 401 for a timestamp that is not a number, and stores a signed one however old", async () => {
     const { delivery } = oneBlock();
-    const tolerance = SIGNATURE_TOLERANCE_MS;
-    await expectRefused(
-      signedRequest(delivery, { at: new Date(now.getTime() - tolerance - 1000) }),
-      401,
-      "unauthenticated",
-    );
-    await expectRefused(
-      signedRequest(delivery, { at: new Date(now.getTime() + tolerance + 1000) }),
-      401,
-      "unauthenticated",
-    );
     await expectRefused(
       signedRequest(delivery, { at: now, headers: { "x-qn-timestamp": "yesterday" } }),
       401,
       "unauthenticated",
     );
+    await expectRefused(
+      signedRequest(delivery, { at: now, headers: { "x-qn-timestamp": "-1735613672" } }),
+      401,
+      "unauthenticated",
+    );
     expect(await rows()).toEqual([]);
-    // Positive control: just inside the tolerance, accepted.
-    const inside = signedRequest(delivery, { at: new Date(now.getTime() - tolerance + 1000) });
-    expect((await post(inside)).status).toBe(200);
+    // No freshness window: a retry, or a stream resumed a day after its pause, is stored, and the
+    // same delivery replayed changes nothing.
+    const dayOld = signedRequest(delivery, { at: new Date(now.getTime() - 86_400_000) });
+    expect((await post(dayOld)).status).toBe(200);
+    const stored = await rows();
+    expect(stored).toHaveLength(1);
+    const replay = signedRequest(delivery, { at: new Date(now.getTime() - 86_400_000) });
+    expect((await post(replay)).status).toBe(200);
+    expect(await rows()).toEqual(stored);
   });
 
   it("answers 503 while the token or the escrow address is not configured, and says it once", async () => {
@@ -414,9 +447,8 @@ describe("a refused delivery stores nothing", () => {
     expect(await handle(request(), logger, { escrowAddress: null })).toBe(503);
     expect(lines().filter((line) => line.includes("not configured"))).toHaveLength(1);
 
-    delete process.env.QUICKNODE_STREAMS_TOKEN;
-    await expectRefused(request(), 503, "internal");
-    process.env.QUICKNODE_STREAMS_TOKEN = "";
+    // Through the route: the server's configuration without a token.
+    configure({ streamsToken: null });
     await expectRefused(request(), 503, "internal");
     expect(await rows()).toEqual([]);
   });
@@ -487,8 +519,60 @@ describe("a refused delivery stores nothing", () => {
     expect(await rows()).toEqual([]);
 
     // Positive control: the configured network is accepted, here a custom one.
-    process.env.QUICKNODE_STREAMS_NETWORK = "ethereum-mainnet";
+    configure({ streamsNetwork: "ethereum-mainnet" });
     expect((await post(signedRequest(other, { at: now }))).status).toBe(200);
+  });
+
+  it("answers 400, logged, for a quantity out of what the table stores: never a 500 retried", async () => {
+    const { logger, lines } = capturingLogger();
+    const txHash = randomHash();
+    const valid = purchase(txHash, 0, 100n);
+    const hex = (value: bigint): string => `0x${value.toString(16)}`;
+    const cases: { log: unknown; issue: string }[] = [
+      { log: { ...valid, blockNumber: hex(MAX_BLOCK_NUMBER + 1n) }, issue: "block number" },
+      { log: { ...valid, blockNumber: hex(2n ** 255n) }, issue: "block number" },
+      { log: { ...valid, logIndex: hex(MAX_LOG_INDEX + 1n) }, issue: "log index" },
+      {
+        log: { ...valid, blockTimestamp: hex(MAX_BLOCK_TIMESTAMP + 1n) },
+        issue: "block timestamp",
+      },
+      { log: { ...valid, blockNumber: 2 ** 64 }, issue: "block number" },
+    ];
+    for (const { log, issue } of cases) {
+      const delivery = deliveryOf([[log]]);
+      expect(await handle(signedRequest(delivery, { at: now }), logger)).toBe(400);
+      await expectRefused(signedRequest(delivery, { at: now }), 400, "invalid_request");
+      const refusal = lines().filter((line) => line.includes("not a documented shape"));
+      expect(refusal.at(-1)).toContain(`${issue} out of range`);
+    }
+    // The block of block_with_receipts is bounded too.
+    const withBlock = deliveryOf(
+      [
+        {
+          block: { number: "0x64", timestamp: hex(MAX_BLOCK_TIMESTAMP + 1n) },
+          receipts: [{ logs: [valid] }],
+        },
+      ],
+      { dataset: "block_with_receipts" },
+    );
+    await expectRefused(signedRequest(withBlock, { at: now }), 400, "invalid_request");
+    expect(await rows()).toEqual([]);
+
+    // Positive control: the largest values the table holds are stored.
+    const largest = {
+      ...valid,
+      blockNumber: hex(MAX_BLOCK_NUMBER),
+      logIndex: hex(MAX_LOG_INDEX),
+      blockTimestamp: hex(MAX_BLOCK_TIMESTAMP),
+    };
+    expect((await post(signedRequest(deliveryOf([[largest]]), { at: now }))).status).toBe(200);
+    expect(await rows()).toMatchObject([
+      {
+        block_number: MAX_BLOCK_NUMBER,
+        log_index: Number(MAX_LOG_INDEX),
+        block_time: new Date(Number(MAX_BLOCK_TIMESTAMP) * 1000),
+      },
+    ]);
   });
 
   it("answers 500 when the database fails, with nothing half-written, and stores on the retry", async () => {
@@ -542,7 +626,7 @@ describe("a refused delivery stores nothing", () => {
 describe("mock mode", () => {
   it("still answers the example under APP_API_MOCK=true, with no signature and no token", async () => {
     process.env.APP_API_MOCK = "true";
-    delete process.env.QUICKNODE_STREAMS_TOKEN;
+    configure({ streamsToken: null });
     const answer = await post(
       new Request("http://localhost/api/webhooks/quicknode", { method: "POST", body: "{}" }),
     );

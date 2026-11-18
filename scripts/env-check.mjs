@@ -10,7 +10,9 @@
 //
 // Run through tsx (the schemas are TypeScript), which the root package.json script does.
 // Exit codes: 0 = complete, 1 = something required is missing or malformed, or a secret sits where
-// it must not (an engine key on the web app, a secret under NEXT_PUBLIC_), 2 = usage error.
+// it must not (an engine key on the web app, a secret's name under NEXT_PUBLIC_, or a NEXT_PUBLIC_
+// value shaped like a secret: sk_, rk_, whsec_, sb_secret_, 32-byte hex, a service_role JWT),
+// 2 = usage error.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -29,6 +31,46 @@ const SECRET_NAME = /(PRIVATE_KEY|SECRET|SEED|TOKEN|SERVICE_ROLE|PASSWORD)/;
 const PUBLIC_PREFIX = /^NEXT_PUBLIC_/;
 /** zod's message for a field that is absent: shown as "required" instead. */
 const ABSENT = /received undefined$/;
+
+/**
+ * The shape of a secret pasted under a public name, by the prefix or form of its VALUE. Each one
+ * is a secret wherever it sits: Stripe's secret and restricted keys and webhook signing secrets
+ * (`sk_`, `rk_`, `whsec_`), Supabase's secret keys (`sb_secret_`), and a 32-byte hex string, the
+ * form of the engine's private keys and of the demo seed (with or without `0x`). A JWT is judged
+ * by its payload: Supabase's legacy `service_role` key is one whose `role` is `service_role`.
+ */
+const SECRET_VALUE_SHAPES = [
+  { pattern: /^sk_/, label: "a Stripe secret key (sk_…)" },
+  { pattern: /^rk_/, label: "a Stripe restricted key (rk_…)" },
+  { pattern: /^whsec_/, label: "a Stripe webhook signing secret (whsec_…)" },
+  { pattern: /^sb_secret_/, label: "a Supabase secret key (sb_secret_…)" },
+  { pattern: /^(0x)?[0-9a-fA-F]{64}$/, label: "a 32-byte private key or seed (0x + 64 hex)" },
+];
+
+/** The role claimed by a JWT's payload, or null when `value` is not a readable JWT. */
+function jwtRole(value) {
+  const parts = value.split(".");
+  if (parts.length !== 3 || !/^[A-Za-z0-9_-]+$/.test(parts[1] ?? "")) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+    return typeof payload === "object" && payload !== null && typeof payload.role === "string"
+      ? payload.role
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What secret `value` looks like, or null when it looks like none. Pure; the value is never part
+ * of the answer.
+ */
+export function secretShapeOf(value) {
+  const trimmed = value.trim();
+  for (const shape of SECRET_VALUE_SHAPES) if (shape.pattern.test(trimmed)) return shape.label;
+  if (jwtRole(trimmed) === "service_role") return "a Supabase service_role key (JWT)";
+  return null;
+}
 
 export class EnvCheckUsageError extends Error {
   constructor(message) {
@@ -192,13 +234,30 @@ export function checkEnv({ target, source, schemas, otherSchemas, example, fromF
     }
   }
 
+  // The NAME of a public variable says nothing of what was pasted into it: every NEXT_PUBLIC_
+  // value, read by a schema or not, is checked for the shape of a secret.
+  // A name already refused for what it says is not reported twice.
+  const publicSecrets = [];
+  const refusedByName = new Set(extras.filter((e) => e.kind === "exposed").map((e) => e.name));
+  for (const name of Object.keys(cleaned).sort()) {
+    if (!PUBLIC_PREFIX.test(name) || refusedByName.has(name)) continue;
+    const shape = secretShapeOf(cleaned[name]);
+    if (shape === null) continue;
+    publicSecrets.push({
+      name,
+      kind: "exposed",
+      message: `its value has the shape of ${shape}: Next.js ships every NEXT_PUBLIC_ value to every browser, replace it`,
+    });
+  }
+
   const missing = rows.filter((r) => r.status === "missing").length;
   const invalid = rows.filter((r) => r.status === "invalid").length;
-  const exposed = extras.filter((e) => e.kind === "exposed").length;
+  const exposed = extras.filter((e) => e.kind === "exposed").length + publicSecrets.length;
   return {
     target,
     rows,
     extras,
+    publicSecrets,
     missing,
     invalid,
     exposed,
@@ -214,6 +273,7 @@ export function formatReport(report, origin) {
     28,
     ...report.rows.map((r) => r.name.length + 2),
     ...report.extras.map((e) => e.name.length + 2),
+    ...report.publicSecrets.map((e) => e.name.length + 2),
   );
   const label = {
     set: "ok",
@@ -246,6 +306,12 @@ export function formatReport(report, origin) {
       const status =
         extra.kind === "unknown" ? "UNKNOWN" : extra.kind === "exposed" ? "REMOVE" : "note";
       lines.push(`    ${pad(status, 9)}${pad(extra.name, width)}${extra.message}`);
+    }
+  }
+  if (report.publicSecrets.length > 0) {
+    lines.push("  a secret's value under a public name");
+    for (const secret of report.publicSecrets) {
+      lines.push(`    ${pad("REMOVE", 9)}${pad(secret.name, width)}${secret.message}`);
     }
   }
   lines.push(

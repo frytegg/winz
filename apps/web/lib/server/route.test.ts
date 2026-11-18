@@ -267,10 +267,42 @@ describe("route files", () => {
       >;
       expect(module.dynamic).toBe("force-dynamic");
       expect(typeof module[route.method]).toBe("function");
-      const exported = Object.keys(module).filter((key) => key !== "dynamic");
+      // `maxDuration` (seconds), when present, is a whole number within the 300 s every plan
+      // allows with Fluid compute (vercel.com/docs/functions/limitations#max-duration).
+      if ("maxDuration" in module) {
+        const seconds = module.maxDuration;
+        expect(typeof seconds).toBe("number");
+        expect(Number.isInteger(seconds) && (seconds as number) > 0).toBe(true);
+        expect(seconds as number).toBeLessThanOrEqual(300);
+      }
+      const exported = Object.keys(module).filter(
+        (key) => key !== "dynamic" && key !== "maxDuration",
+      );
       expect(exported.sort()).toEqual([...(methodsByPath.get(route.path) ?? [])].sort());
     });
   }
+
+  it("sets maxDuration on exactly the routes that wait on Stripe, the engine or a large body", async () => {
+    const waiting = [
+      "/api/webhooks/stripe",
+      "/api/webhooks/quicknode",
+      "/api/checkout",
+      "/api/checkout/:pi/confirm",
+      "/api/campaigns",
+      "/api/campaigns/:id/top-up",
+      "/api/admin/demo/sale",
+    ];
+    const withDuration: string[] = [];
+    for (const path of methodsByPath.keys()) {
+      const file = join(appDir, path.replace(/:([A-Za-z]+)/g, "[$1]"), "route.ts");
+      const module = (await import(/* @vite-ignore */ pathToFileURL(file).href)) as Record<
+        string,
+        unknown
+      >;
+      if ("maxDuration" in module) withDuration.push(path);
+    }
+    expect(withDuration.sort()).toEqual([...waiting].sort());
+  });
 
   it("binds every exported method to its own entry of the route table", async () => {
     vi.stubEnv("APP_API_MOCK", "true");

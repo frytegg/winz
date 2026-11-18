@@ -8,6 +8,8 @@ import { z } from "zod";
 import { winzEscrowAbi } from "@winz/shared";
 
 import type { Db } from "./db";
+import type { ServerConfig } from "./deps";
+import { DEFAULT_QUICKNODE_STREAMS_NETWORK } from "./env";
 import { serverLogger } from "./logger";
 import { ApiRouteError, type RouteResponse } from "./route";
 
@@ -21,7 +23,14 @@ import { ApiRouteError, type RouteResponse } from "./route";
  * QuickNode's documented scheme (docs/quicknode.md cites the pages): three headers, `x-qn-nonce`,
  * `x-qn-timestamp` and `x-qn-signature`; the signature is the hex HMAC-SHA256, keyed with the
  * stream's security token, of nonce + timestamp + the uncompressed JSON body, concatenated with
- * no separator. A gzip-compressed delivery says so with `Content-Encoding: gzip`.
+ * no separator. A gzip-compressed delivery says so with `Content-Encoding: gzip`. The timestamp
+ * is a Unix time in seconds (the guide's sample delivery shows `1735613672`).
+ *
+ * No freshness window on that timestamp: QuickNode does not document whether a retry is signed
+ * again, nor how a stream resumed after a pause re-sends the batch it paused on, and a window
+ * that refused those would pause the stream for good after its retries (3 by default). A replayed
+ * delivery is harmless here: it can only carry logs the signature covers, and storing them again
+ * changes nothing (`on conflict do nothing` on `(tx_hash, log_index)`).
  */
 
 /** `webhookAckSchema`. */
@@ -39,26 +48,24 @@ export const STREAMS_SOURCE = "streams";
  */
 export const MAX_DELIVERY_BYTES = 4 * 1024 * 1024;
 
-/** A delivery whose `x-qn-timestamp` is further than this from now is refused: 5 minutes. */
-export const SIGNATURE_TOLERANCE_MS = 5 * 60_000;
-
 /**
  * QuickNode's name of Arc testnet in a delivery's metadata, unless `QUICKNODE_STREAMS_NETWORK`
- * says otherwise. Read from QuickNode's naming of its networks (`<chain>-<network>`), never seen in
- * a real delivery yet: the first recorded delivery (apps/engine/fixtures/quicknode) confirms it.
+ * says otherwise: env.ts's default, the one value. QuickNode's documentation names networks
+ * `<chain>-<network>` (`ethereum-mainnet`) without listing Arc's: the first recorded delivery
+ * (apps/engine/fixtures/quicknode) confirms it.
  */
-export const DEFAULT_STREAMS_NETWORK = "arc-testnet";
+export const DEFAULT_STREAMS_NETWORK = DEFAULT_QUICKNODE_STREAMS_NETWORK;
 
 /** Header names, lowercase as `Headers` returns them. */
 export const QUICKNODE_HEADERS = {
   nonce: "x-qn-nonce",
   timestamp: "x-qn-timestamp",
   signature: "x-qn-signature",
-  /** The network of the stream, when the stream sends its metadata as headers. */
+  /** The stream's network: QuickNode sends every metadata field as a header too. */
   network: "stream-network",
 } as const;
 
-/** What the route needs from the environment and the server's configuration. */
+/** What the route needs from the server's configuration. */
 export interface StreamsSettings {
   /** `QUICKNODE_STREAMS_TOKEN`, the stream's security token; null while not configured. */
   token: string | null;
@@ -68,29 +75,17 @@ export interface StreamsSettings {
   network: string;
 }
 
-const settingsSchema = z.object({
-  QUICKNODE_STREAMS_TOKEN: z.string().optional(),
-  QUICKNODE_STREAMS_NETWORK: z.string().optional(),
-});
-
 /**
- * The settings of the route, read at each call (never at import time). An empty variable counts
- * as missing, as in `webEnv`.
+ * The route's settings, from the server's configuration (deps.ts `serverConfigOf`, the one reader
+ * of the environment), read at each call, never at import time.
  */
-export function streamsSettings(
-  source: Record<string, string | undefined>,
-  escrowAddress: string | null,
+export function streamsSettingsOf(
+  config: Pick<ServerConfig, "streamsToken" | "streamsNetwork" | "escrowAddress">,
 ): StreamsSettings {
-  const parsed = settingsSchema.parse({
-    QUICKNODE_STREAMS_TOKEN: source.QUICKNODE_STREAMS_TOKEN,
-    QUICKNODE_STREAMS_NETWORK: source.QUICKNODE_STREAMS_NETWORK,
-  });
-  const token = parsed.QUICKNODE_STREAMS_TOKEN?.trim() ?? "";
-  const network = parsed.QUICKNODE_STREAMS_NETWORK?.trim() ?? "";
   return {
-    token: token === "" ? null : token,
-    escrowAddress,
-    network: network === "" ? DEFAULT_STREAMS_NETWORK : network,
+    token: config.streamsToken,
+    escrowAddress: config.escrowAddress,
+    network: config.streamsNetwork,
   };
 }
 
@@ -129,13 +124,15 @@ export function streamsSignatureMatches(
 }
 
 /**
- * `x-qn-timestamp` in milliseconds. QuickNode documents a Unix timestamp without its unit: a
- * value below 10^11 is read as seconds (10^11 s is the year 5138), anything larger as ms.
+ * `x-qn-timestamp` in milliseconds; null when the header is not a decimal number. QuickNode
+ * documents a Unix time in seconds (its sample shows `1735613672`). A value of 13 digits or more
+ * can only be milliseconds (10^12 s is the year 33658): it is read so rather than refused, since
+ * the value gates nothing. Only logged, as the delivery's age when received: no window applies.
  */
 export function streamsTimestampMs(header: string): number | null {
   if (!/^[0-9]{1,16}$/.test(header)) return null;
   const value = Number(header);
-  return value < 1e11 ? value * 1000 : value;
+  return value < 1e12 ? value * 1000 : value;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -308,47 +305,63 @@ export async function insertStreamsEvents(
 const hexData = z.string().regex(/^0x([0-9a-fA-F]{2})*$/, "hex bytes");
 const hash32 = z.string().regex(/^0x[0-9a-fA-F]{64}$/, "a 32-byte hash");
 const addressString = z.string().regex(/^0x[0-9a-fA-F]{40}$/, "an address");
-/** A JSON-RPC quantity (`0x`-prefixed hex), or a plain non-negative integer. */
-const quantity = z.union([
-  z.string().regex(/^0x[0-9a-fA-F]{1,64}$/, "a hex quantity"),
-  z.number().int().nonnegative(),
-]);
+
+/** Largest block number stored: `chain_events.block_number` is a Postgres `bigint`. */
+export const MAX_BLOCK_NUMBER = 2n ** 63n - 1n;
+/** Largest log index stored: `chain_events.log_index` is a Postgres `integer`. */
+export const MAX_LOG_INDEX = 2n ** 31n - 1n;
+/**
+ * Largest block time accepted, in Unix seconds: 9999-12-31T23:59:59Z, the last second whose ISO
+ * form (four-digit year, how the client sends a `Date`) both JavaScript and Postgres's
+ * `timestamptz` read. Arc's blocks are dated 2026.
+ */
+export const MAX_BLOCK_TIMESTAMP = 253_402_300_799n;
+
+/**
+ * A JSON-RPC quantity (`0x`-prefixed hex), or a plain non-negative integer, as a bigint no larger
+ * than `max`: a value out of range is a malformed delivery (400), never a database failure (500)
+ * that QuickNode would retry until the stream pauses.
+ */
+function quantity(max: bigint, what: string): z.ZodType<bigint, string | number> {
+  const outOfRange = `${what} out of range (at most ${max.toString()})`;
+  return z
+    .union([
+      z.string().regex(/^0x[0-9a-fA-F]{1,64}$/, "a hex quantity"),
+      // A JSON number past 2^53 has lost its digits already: out of range too.
+      z
+        .number()
+        .nonnegative()
+        .refine((value) => Number.isInteger(value), "an integer")
+        .refine((value) => Number.isSafeInteger(value), outOfRange),
+    ])
+    .transform((value) => BigInt(value))
+    .refine((value) => value <= max, outOfRange);
+}
 
 /** A log as `eth_getLogs` returns it (QuickNode's `logs` dataset, and every receipt's `logs`). */
 const logSchema = z.object({
   address: addressString,
   topics: z.array(hash32).max(4),
   data: hexData,
-  blockNumber: quantity,
+  blockNumber: quantity(MAX_BLOCK_NUMBER, "block number"),
   transactionHash: hash32,
-  logIndex: quantity,
+  logIndex: quantity(MAX_LOG_INDEX, "log index"),
   removed: z.boolean().optional(),
   /** Sent by recent nodes; the block's Unix time. */
-  blockTimestamp: quantity.nullish(),
+  blockTimestamp: quantity(MAX_BLOCK_TIMESTAMP, "block timestamp").nullish(),
 });
 
-/** A receipt as `eth_getTransactionReceipt` returns it (`receipts` dataset); only its logs count. */
+/** A receipt as `eth_getBlockReceipts` returns it (`receipts` dataset); only its logs count. */
 const receiptSchema = z.object({ logs: z.array(logSchema) });
 
-/** One block of the `block_with_receipts` dataset. */
+/** One block of the `block_with_receipts` dataset: `{ block, receipts }`. */
 const blockWithReceiptsSchema = z.object({
-  block: z.object({ number: quantity, timestamp: quantity }),
+  block: z.object({
+    number: quantity(MAX_BLOCK_NUMBER, "block number"),
+    timestamp: quantity(MAX_BLOCK_TIMESTAMP, "block timestamp"),
+  }),
   receipts: z.array(receiptSchema),
 });
-
-/**
- * `data` of a delivery: one item per block of the batch. A block is the array of its logs
- * (`logs`), the array of its receipts (`receipts`), or `{ block, receipts }`
- * (`block_with_receipts`); a filter may also return single logs, or null for a block it drops.
- */
-const deliveryDataSchema = z.array(
-  z.union([
-    z.null(),
-    logSchema,
-    blockWithReceiptsSchema,
-    z.array(z.union([logSchema, receiptSchema, z.null()])),
-  ]),
-);
 
 const metadataSchema = z
   .object({
@@ -363,78 +376,114 @@ const metadataSchema = z
 type Metadata = z.output<typeof metadataSchema>;
 type LogJson = z.output<typeof logSchema>;
 
-function toBigInt(value: string | number): bigint {
-  return BigInt(value);
-}
-
-function toStreamsLog(log: LogJson, blockTimestamp: string | number | null): StreamsLog {
+function toStreamsLog(log: LogJson, blockTimestamp: bigint | null): StreamsLog {
   const timestamp = log.blockTimestamp ?? blockTimestamp;
-  const logIndex = toBigInt(log.logIndex);
-  if (logIndex > 2_147_483_647n) {
-    throw new ApiRouteError(400, "invalid_request", "Invalid body: log index out of range");
-  }
   return {
     address: log.address as Address,
     topics: log.topics as Hex[],
     data: log.data as Hex,
-    logIndex: Number(logIndex),
+    logIndex: Number(log.logIndex),
     transactionHash: log.transactionHash as Hex,
-    blockNumber: toBigInt(log.blockNumber),
+    blockNumber: log.blockNumber,
     // As the engine stores a block's time: its Unix seconds times 1000.
-    blockTime: timestamp === null ? null : new Date(Number(toBigInt(timestamp)) * 1000),
+    blockTime: timestamp === null ? null : new Date(Number(timestamp) * 1000),
     removed: log.removed === true,
   };
 }
 
-interface Envelope {
-  data: unknown;
+/** A delivery's data is not of a documented shape: where, and why. */
+export class DeliveryShapeError extends Error {
+  constructor(
+    public readonly path: string,
+    public readonly issue: string,
+  ) {
+    super(`${path}: ${issue}`);
+    this.name = "DeliveryShapeError";
+  }
+}
+
+/** How deep arrays and filter answers may nest in a delivery's data. */
+const MAX_NESTING = 6;
+
+interface Walked {
+  logs: StreamsLog[];
   /** Every metadata object found, outermost first. */
   metadata: NonNullable<Metadata>[];
 }
 
-/**
- * The delivery's data and metadata. QuickNode sends `{ data, metadata }` when the stream puts its
- * metadata in the body, the bare data when it puts it in headers, and whatever the filter
- * returns when the stream has one; the filter of docs/quicknode.md returns `{ metadata, data }`,
- * which a stream with metadata in the body may wrap once more.
- */
-function unwrap(body: unknown): Envelope {
-  const metadata: NonNullable<Metadata>[] = [];
-  let current: unknown = body;
-  for (let depth = 0; depth < 3; depth += 1) {
-    if (Array.isArray(current)) return { data: current, metadata };
-    if (typeof current !== "object" || current === null || !("data" in current)) break;
-    const record = current as { data: unknown; metadata?: unknown };
-    const parsed = metadataSchema.safeParse(record.metadata);
-    if (!parsed.success) {
-      throw new ApiRouteError(400, "invalid_request", "Invalid body: malformed metadata");
-    }
-    if (parsed.data) metadata.push(parsed.data);
-    current = record.data;
-  }
-  throw new ApiRouteError(400, "invalid_request", "Invalid body: not a Streams delivery");
+function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown, path: string): T {
+  const parsed = schema.safeParse(value);
+  if (parsed.success) return parsed.data;
+  const issue = parsed.error.issues[0];
+  const where = [path, ...(issue?.path ?? []).map(String)].join(".");
+  throw new DeliveryShapeError(where, issue?.message ?? "invalid");
 }
 
-/** Every log of the delivery, in delivery order. */
-function logsOf(data: z.output<typeof deliveryDataSchema>): StreamsLog[] {
-  const logs: StreamsLog[] = [];
-  for (const item of data) {
-    if (item === null) continue;
-    if (Array.isArray(item)) {
-      for (const entry of item) {
-        if (entry === null) continue;
-        if ("logs" in entry) for (const log of entry.logs) logs.push(toStreamsLog(log, null));
-        else logs.push(toStreamsLog(entry, null));
-      }
-    } else if ("receipts" in item) {
-      for (const receipt of item.receipts) {
-        for (const log of receipt.logs) logs.push(toStreamsLog(log, item.block.timestamp));
-      }
-    } else {
-      logs.push(toStreamsLog(item, null));
-    }
+function metadataOf(value: unknown, path: string, out: Walked): void {
+  const metadata = metadataSchema.safeParse(value);
+  if (!metadata.success) throw new DeliveryShapeError(`${path}.metadata`, "malformed metadata");
+  if (metadata.data) out.metadata.push(metadata.data);
+}
+
+/**
+ * Collects the logs of one node of a delivery's `data`. QuickNode documents the datasets as
+ * arrays nested per block (`logs`: an array of arrays of log objects, its sample nests three deep;
+ * `receipts`: an array per block of receipts; `block_with_receipts`: one `{ block, receipts }`
+ * per block), and a stream's filter returns any JSON, delivered under `data`: so any nesting of
+ * arrays, logs, receipts, blocks with receipts, nulls (nothing for that block) and filter answers
+ * `{ data, metadata? }` is read, at most `MAX_NESTING` deep. Anything else is not a delivery.
+ */
+function walk(node: unknown, path: string, depth: number, out: Walked): void {
+  if (node === null) return;
+  if (depth > MAX_NESTING) throw new DeliveryShapeError(path, "nested too deep");
+  if (Array.isArray(node)) {
+    node.forEach((item, index) => walk(item, `${path}.${index.toString()}`, depth + 1, out));
+    return;
   }
-  return logs;
+  if (typeof node !== "object") {
+    throw new DeliveryShapeError(path, "expected a log, a receipt, a block or an array");
+  }
+  if ("block" in node && "receipts" in node) {
+    const block = parseOrThrow(blockWithReceiptsSchema, node, path);
+    for (const receipt of block.receipts) {
+      for (const log of receipt.logs) out.logs.push(toStreamsLog(log, block.block.timestamp));
+    }
+  } else if ("logs" in node) {
+    const receipt = parseOrThrow(receiptSchema, node, path);
+    for (const log of receipt.logs) out.logs.push(toStreamsLog(log, null));
+  } else if ("address" in node) {
+    out.logs.push(toStreamsLog(parseOrThrow(logSchema, node, path), null));
+  } else if ("data" in node) {
+    // A filter's answer: `{ data, metadata }`, as the filter of docs/quicknode.md once returned.
+    const record = node as { data: unknown; metadata?: unknown };
+    metadataOf(record.metadata, path, out);
+    walk(record.data, `${path}.data`, depth + 1, out);
+  } else {
+    throw new DeliveryShapeError(path, "expected a log, a receipt, a block or an array");
+  }
+}
+
+/**
+ * The delivery's logs and every metadata object it carries. The body is `{ data, metadata }`
+ * (QuickNode puts the metadata in the body and in headers on every delivery), or, from an older
+ * stream or a filter, the bare data, or a filter's `{ data, metadata }` once more inside `data`.
+ */
+function readDelivery(body: unknown): Walked {
+  const out: Walked = { logs: [], metadata: [] };
+  if (Array.isArray(body)) {
+    walk(body, "data", 1, out);
+    return out;
+  }
+  if (typeof body !== "object" || body === null || !("data" in body)) {
+    throw new DeliveryShapeError("$", "not a Streams delivery: no data");
+  }
+  const record = body as { data: unknown; metadata?: unknown };
+  metadataOf(record.metadata, "$", out);
+  if (!Array.isArray(record.data) && !(typeof record.data === "object" && record.data !== null)) {
+    throw new DeliveryShapeError("data", "expected an array of blocks");
+  }
+  walk(record.data, "data", 1, out);
+  return out;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -537,10 +586,12 @@ function errorSummary(error: unknown): { type: string; message: string } {
  * Verifies and stores one Streams delivery. Answers, by throwing an `ApiRouteError`:
  * 503 while the token or the escrow address is not configured (logged once per process);
  * 413 above `MAX_DELIVERY_BYTES`, compressed or inflated; 401 when a header is missing, the
- * timestamp is further than `SIGNATURE_TOLERANCE_MS` from now, or the signature is not the
- * token's over the uncompressed body (stores nothing); 400 for a body that is not JSON of a
- * documented shape, or a delivery that names no network or another one than configured; 500
- * when the database fails, so that QuickNode retries. Otherwise `{ received: true }`.
+ * timestamp is not a decimal number of seconds, or the signature is not the token's over the
+ * uncompressed body (stores nothing); 400 for a body that is not JSON of a documented shape, a
+ * quantity out of what the table stores (block number, log index, block time), or a delivery that
+ * names no network or another one than configured; 500 when the database fails, so that
+ * QuickNode retries. Otherwise `{ received: true }`. A signed delivery is accepted however old
+ * its timestamp (see the top of this file).
  *
  * Only the escrow's logs are kept; those the ABI cannot decode are skipped with a warning, as the
  * engine does. A log flagged `removed` is never stored, and logged as an error: Arc has
@@ -566,7 +617,7 @@ export async function handleQuicknodeWebhook(
     throw new ApiRouteError(503, "internal", "QuickNode Streams is not configured");
   }
 
-  // The headers first: an unsigned or stale request is refused before its body is read.
+  // The headers first: an unsigned request is refused before its body is read.
   const nonce = request.headers.get(QUICKNODE_HEADERS.nonce);
   const timestamp = request.headers.get(QUICKNODE_HEADERS.timestamp);
   const signature = request.headers.get(QUICKNODE_HEADERS.signature);
@@ -575,9 +626,6 @@ export async function handleQuicknodeWebhook(
   }
   const sentAtMs = streamsTimestampMs(timestamp);
   if (sentAtMs === null) throw unauthenticated(log, "malformed timestamp");
-  if (Math.abs(now.getTime() - sentAtMs) > SIGNATURE_TOLERANCE_MS) {
-    throw unauthenticated(log, "timestamp outside the tolerance");
-  }
 
   let raw: Buffer;
   let payload: Buffer;
@@ -605,12 +653,14 @@ export async function handleQuicknodeWebhook(
   } catch {
     throw new ApiRouteError(400, "invalid_request", "Invalid body: expected a JSON document");
   }
-  const envelope = unwrap(body);
-  const parsed = deliveryDataSchema.safeParse(envelope.data);
-  if (!parsed.success) {
-    const issue = parsed.error.issues[0];
+  let delivery: Walked;
+  try {
+    delivery = readDelivery(body);
+  } catch (error: unknown) {
+    if (!(error instanceof DeliveryShapeError)) throw error;
+    // Signed by QuickNode yet unreadable: a retry cannot fix it, and it is said once, here.
     log.warn(
-      { path: issue?.path.join("."), issue: issue?.message },
+      { path: error.path, issue: error.issue, bytes: payload.length },
       "quicknode delivery refused: not a documented shape",
     );
     throw new ApiRouteError(400, "invalid_request", "Invalid body: not a Streams delivery");
@@ -618,10 +668,10 @@ export async function handleQuicknodeWebhook(
 
   const headerNetwork = request.headers.get(QUICKNODE_HEADERS.network);
   const networks = [
-    ...envelope.metadata.map((meta) => meta.network).filter((name) => typeof name === "string"),
+    ...delivery.metadata.map((meta) => meta.network).filter((name) => typeof name === "string"),
     ...(headerNetwork === null || headerNetwork.trim() === "" ? [] : [headerNetwork.trim()]),
   ];
-  const meta = envelope.metadata[envelope.metadata.length - 1];
+  const meta = delivery.metadata[delivery.metadata.length - 1];
   const context = {
     network: networks[0] ?? null,
     dataset: meta?.dataset ?? null,
@@ -642,7 +692,7 @@ export async function handleQuicknodeWebhook(
     throw new ApiRouteError(400, "invalid_request", "Delivery from another network");
   }
 
-  const logs = logsOf(parsed.data);
+  const logs = delivery.logs;
   const escrow = escrowAddress.toLowerCase();
   const removed = logs.filter((entry) => entry.removed);
   for (const entry of removed.filter((item) => item.address.toLowerCase() === escrow)) {
@@ -695,6 +745,8 @@ export async function handleQuicknodeWebhook(
       undecodable: undecodable.length,
       removed: removed.length,
       delayMs: newest === null ? null : now.getTime() - newest,
+      // From QuickNode's signature to the reception: a retry or a resumed stream shows here.
+      signedAgeMs: now.getTime() - sentAtMs,
     },
     "quicknode delivery stored",
   );
