@@ -10,6 +10,12 @@ import { enqueueJob } from "../enqueue";
 import { RetryLaterError } from "../errors";
 import { createCloseSalesHandler, createSetPausedHandler } from "./campaign-actions";
 import {
+  SELLING_ASKS,
+  SELLING_BIDS,
+  finishPauseJobs,
+  saleStateRunner,
+} from "./campaign-actions.test-support";
+import {
   createJobsHarness,
   createLiveCampaign,
   getCampaign,
@@ -69,6 +75,19 @@ async function requestPause(campaignId: string, paused: boolean): Promise<string
     idempotencyKey: jobIdempotencyKey.setPaused(requestId),
   });
   return requestId;
+}
+
+/**
+ * The worker ends the campaign's pause jobs, then one sale state pass reopens the sale: stored
+ * and public `open`, on a book that sells.
+ */
+async function reopenedBySaleStates(campaignId: string, symbol: string): Promise<void> {
+  harness.books.set(symbol, { asks: SELLING_ASKS, bids: SELLING_BIDS });
+  await finishPauseJobs(harness, campaignId);
+  await harness.clock.sync(harness.escrow);
+  await saleStateRunner(harness).runPass([symbol]);
+  expect(await campaignRow(campaignId)).toMatchObject({ status: "live", sale_state: "open" });
+  expect(await liveRow(campaignId)).toBe("open");
 }
 
 function closeSales(): ReturnType<typeof createCloseSalesHandler> {
@@ -132,12 +151,15 @@ describe("manual pause and resume: the merchant's last request wins", () => {
     });
 
     expect((await getCampaign(harness, live.onchainId)).status).toBe(0); // Live
-    expect(await campaignRow(live.campaignId)).toMatchObject({
-      status: "live",
-      sale_state: "open",
-    });
     expect(await txRows(harness, `setPaused:${pause}`)).toHaveLength(0);
     expect(await txRows(harness, `setPaused:${resume}`)).toHaveLength(0);
+    // Neither handler reopens the sale while its job is unfinished (the rule counts it in flight):
+    // the sale state service does, once the worker has ended both jobs.
+    expect(await campaignRow(live.campaignId)).toMatchObject({
+      status: "live",
+      sale_state: "paused_manual",
+    });
+    await reopenedBySaleStates(live.campaignId, live.symbol);
   });
 
   it("waits for a pause in flight before resuming, and the late pause does not undo the resume", async () => {
@@ -167,15 +189,18 @@ describe("manual pause and resume: the merchant's last request wins", () => {
     expect((await txRows(harness, `setPaused:${resume}`)).map((tx) => tx.status)).toEqual([
       "mined",
     ]);
+    // The resume did not reopen the sale: the pause's event was not projected yet when it was
+    // mined (the pause's own job projects it), so the rule still said paused.
+    expect(await campaignRow(live.campaignId)).toMatchObject({ sale_state: "paused_manual" });
     // The pause job's retry projects its receipt and must not put the manual pause back.
     await runHandler(harness, setPaused(), pauseJob);
 
     expect((await getCampaign(harness, live.onchainId)).status).toBe(0); // Live
     expect(await campaignRow(live.campaignId)).toMatchObject({
       status: "live",
-      sale_state: "open",
+      sale_state: "paused_manual",
     });
-    expect(await liveRow(live.campaignId)).toBe("open");
+    await reopenedBySaleStates(live.campaignId, live.symbol);
   });
 });
 

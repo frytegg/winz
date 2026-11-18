@@ -5,6 +5,7 @@ import { encodeFunctionData } from "viem";
 import { JOB_KINDS, winzEscrowAbi, type CloseSalesJob, type SetPausedJob } from "@winz/shared";
 
 import type { Db } from "../../db";
+import { isManuallyPaused, loadManualPauseInput } from "../../sales";
 import { PermanentJobError, RetryLaterError } from "../errors";
 import type { JobContext, JobHandler } from "../worker";
 import {
@@ -48,7 +49,10 @@ interface CampaignAction {
   noLongerPossible: ReadonlySet<string>;
   /** Reverts that no later attempt can change: the job ends `dead`, logged at error. */
   permanent: ReadonlySet<string>;
-  /** Off-chain writes made with the projection of the mined receipt, in the same transaction. */
+  /**
+   * Off-chain writes made with the projection of the mined receipt, in the same transaction,
+   * after it (the campaign row locked, its events projected). The public row is synced after.
+   */
   onMined: (sql: TransactionSql, campaignId: string) => Promise<void>;
   /** Off-chain writes when `prepare` decided there was nothing to send. */
   onNothingSent: (campaignId: string) => Promise<void>;
@@ -85,6 +89,15 @@ async function waitForOtherActions(
     if (row.idempotency_key === base || row.idempotency_key.startsWith(`${base}:`)) continue;
     await awaitOutcome(deps, options, ctx, row.id);
   }
+}
+
+/** Copies the campaign's sale state into its public row (`live_campaigns`), if it has one. */
+async function syncLiveSaleState(sql: TransactionSql, campaignId: string): Promise<void> {
+  await sql`
+    update live_campaigns lc set sale_state = c.sale_state
+    from campaigns c
+    where c.id = ${campaignId} and lc.slug = c.slug and lc.sale_state is distinct from c.sale_state
+  `;
 }
 
 /** Sends (or resumes) the action's transaction, then projects its receipt or reads its revert. */
@@ -134,8 +147,11 @@ async function runCampaignAction(
     await deps.db.begin(async (sql) => {
       await sql`select id from campaigns where id = ${campaignId} for update`;
       const events = await lockTransactionEvents(sql, txHash);
-      await action.onMined(sql, campaignId);
+      // Projected first, so that `onMined` decides on the campaign as the chain now has it (its
+      // status, the event processed); the public row then takes the sale state it wrote.
       await projectEvents(sql, events);
+      await action.onMined(sql, campaignId);
+      await syncLiveSaleState(sql, campaignId);
     });
     log.info({ ...fields, txHash }, `${action.name} written on-chain`);
     return;
@@ -215,11 +231,24 @@ async function isLatestRequest(
 
 /**
  * The sale state of the merchant's request, once the chain matches it, unless a later request
- * exists (that request's job writes its own). The merchant's pause is the sale state until a
- * resume; a resume reopens the sale and leaves the automatic pauses to the pricing that runs at
- * every sale.
+ * exists (that request's job writes its own). Called with the campaign row locked, in the
+ * transaction that projected the request's receipt (or that found nothing to send).
+ *
+ * A pause writes `paused_manual`: the merchant's pause is the sale state until a resume.
+ *
+ * A resume writes `open` only when the manual pause rule (`isManuallyPaused`), read in this same
+ * transaction, says the pause is over: the resume is mined and projected, no other pause or
+ * resume of the campaign is in flight, no pause event waits for its projection. Otherwise it
+ * writes nothing, and the sale state service reopens the sale once the rule allows it. A handler
+ * writing `open` while the rule still says paused made the public page flap: a resume that finds
+ * the chain already live sends nothing and ends while its job is still `running`, which the rule
+ * counts as in flight, so `open`, then `paused_manual` at the next pass, then `open` again once
+ * the worker marked the job done; the same with a mined resume while an earlier, superseded
+ * request was still waiting for the lock. Gated by the rule, the sale state only ever moves from
+ * `paused_manual` to `open` once, never back without a new request. A reopened sale leaves the
+ * automatic pauses to the pricing that runs at every sale state pass and at every sale.
  */
-async function applyRequestedSaleState(
+export async function applyRequestedSaleState(
   sql: Db | TransactionSql,
   campaignId: string,
   requestId: string,
@@ -231,12 +260,14 @@ async function applyRequestedSaleState(
       update campaigns set sale_state = 'paused_manual'
       where id = ${campaignId} and sale_state <> 'closed' and status in ('live', 'paused')
     `;
-  } else {
-    await sql`
-      update campaigns set sale_state = 'open'
-      where id = ${campaignId} and sale_state = 'paused_manual' and status in ('live', 'paused')
-    `;
+    return;
   }
+  const rule = await loadManualPauseInput(sql, campaignId);
+  if (rule === null || isManuallyPaused(rule)) return;
+  await sql`
+    update campaigns set sale_state = 'open'
+    where id = ${campaignId} and sale_state = 'paused_manual' and status in ('live', 'paused')
+  `;
 }
 
 /** The escrow's `Status` of the campaign, read from the chain. */
@@ -321,6 +352,7 @@ export function createSetPausedHandler(deps: JobHandlerDeps): JobHandler<SetPaus
         deps.db.begin(async (sql) => {
           await sql`select id from campaigns where id = ${campaignId} for update`;
           await applyRequestedSaleState(sql, campaignId, payload.requestId, payload.paused);
+          await syncLiveSaleState(sql, campaignId);
         }),
     };
   });
