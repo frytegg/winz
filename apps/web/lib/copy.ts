@@ -108,6 +108,10 @@ export const copy = {
     invalidEmail: "Enter a valid email address.",
     sending: "Sending the code…",
     passkeyFailed: "Face ID didn't work. Use your email instead.",
+    sendFailed: "We couldn't send the code. Check your connection and try again.",
+    tooManyTries: "Too many tries. Wait a minute, then try again.",
+    signInFailed: "We couldn't sign you in. Try again in a moment.",
+    unavailable: "Signing in isn't available right now. Please try again later.",
     codeDigit: (index: number): string => `Digit ${index.toString()} of 6`,
   },
 

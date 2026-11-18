@@ -15,7 +15,14 @@ export type MerchantProfile = NonNullable<Me["merchant"]>;
 /** `loading` until the stored session (if any) has been checked. */
 export type AuthStatus = "loading" | "anonymous" | "authenticated";
 
-export type AuthErrorCode = "invalid_email" | "invalid_code" | "passkey_failed";
+export type AuthErrorCode =
+  | "invalid_email"
+  | "invalid_code"
+  | "passkey_failed"
+  /** The code could not be sent (rate limit, no network). */
+  | "send_failed"
+  /** The code was fine, but the sign-in did not go through (the API refused the user). */
+  | "sign_in_failed";
 
 export class AuthError extends Error {
   readonly code: AuthErrorCode;
