@@ -63,7 +63,17 @@ export const copy = {
 
   /** M0 */
   start: {
-    roleMenu: { venues: "For venues", tickets: "My tickets" },
+    roleMenu: {
+      label: "Switch between venues and fans",
+      venues: "For venues",
+      tickets: "My tickets",
+      ticketsTag: "/TICKETS",
+    },
+    carouselLabel: "What Winz does",
+    slideLabel: (index: number, total: number): string =>
+      `Slide ${index.toString()} of ${total.toString()}`,
+    goToSlide: (index: number): string => `Go to slide ${index.toString()}`,
+    heroAlt: "A football player running with the ball under the stadium lights",
     title: ["All the hype.", "None of the risk."],
     subtitle:
       "Run game-day promos that refund your customers if your team wins. We cover the risk.",
@@ -96,6 +106,9 @@ export const copy = {
     resendIn: (seconds: number): string => `Resend code in ${seconds.toString()}s`,
     wrongCode: "That code didn't work. Try again.",
     invalidEmail: "Enter a valid email address.",
+    sending: "Sending the code…",
+    passkeyFailed: "Face ID didn't work. Use your email instead.",
+    codeDigit: (index: number): string => `Digit ${index.toString()} of 6`,
   },
 
   /** M2 */
@@ -106,6 +119,10 @@ export const copy = {
     categoryLabel: "Your category",
     logoLabel: "Add your logo",
     logoUrlPlaceholder: "https://",
+    logoAdd: "Add a logo link",
+    logoLinkLabel: "Logo link",
+    logoInvalid: "Enter a full link, starting with https://",
+    logoRemove: "Remove the logo link",
     categories: {
       bar: "Bar",
       pizza: "Pizza",
@@ -125,12 +142,15 @@ export const copy = {
       review: "Review",
     },
     stepNumber: { game: 1, promo: 2, offer: 3, margin: 4, review: 5 },
+    progress: "Your progress",
   },
 
   /** M3 */
   pickGame: {
     body: "Pick the game your promo rides on. Fans get their money back if it goes your way.",
     searchPlaceholder: "Search teams, leagues or games",
+    sportsLabel: "Sport",
+    noMatch: "No game matches your search.",
     allSports: "All",
     groups: { tonight: "Tonight", weekend: "This weekend", later: "Later" },
     empty: "No games with open markets right now. Check back closer to game time.",
@@ -148,6 +168,8 @@ export const copy = {
 
   /** M4 */
   pickPromo: {
+    body: "Pick the rule your customers play for. We cover the risk.",
+    empty: "No promos for this game yet. Pick another game.",
     recommended: "Recommended",
     back: (percent: number): string => `${percent.toString()}% back`,
     cost: (percent: number): string => `Costs you ~${percent.toString()}% of the price`,
@@ -170,14 +192,20 @@ export const copy = {
       other: { name: "Game day special", priceCents: 1500 },
     } satisfies Record<MerchantCategory, { name: string; priceCents: number }>,
     priceRange: "Between $0.50 and $999,999.99.",
+    promise: (percent: number, condition: string): string =>
+      `${percent.toString()}% back if ${condition}`,
   },
 
   /** M6 */
   margin: {
+    body: "Set what you can spend covering this promo, and the margin you won't go below.",
     usualMargin: "Your usual margin",
     minMargin: "Minimum margin to keep",
     budget: "Coverage budget",
     budgetHint: "The most we can spend covering this promo.",
+    costLabel: "Each sale costs you",
+    keepLabel: "You keep per sale",
+    salesLabel: "Capacity",
     perSale: (amount: string): string => `Each sale costs you ${amount}`,
     keep: (amount: string, percent: number): string =>
       `You keep ${amount} per sale (${percent.toString()}%)`,
@@ -192,6 +220,8 @@ export const copy = {
     pausedPrice:
       "At today's odds this promo would be paused. Lower your minimum margin or pick another promo.",
     pausedMarket: "The market for this game isn't ready yet.",
+    budgetChipsLabel: "Quick budgets",
+    pausesAt: (percent: number): string => `Pauses at ${percent.toString()}%`,
     reviewCta: "Review the promo",
     pickAnother: "Pick another promo",
   },
@@ -210,7 +240,9 @@ export const copy = {
     fund: (amount: string): string => `Fund ${amount} with Apple Pay`,
     payWithCard: "Pay with card",
     simulatePayment: "Simulate payment",
+    simulatePaymentOf: (amount: string): string => `Simulate payment · ${amount}`,
     paying: "Paying…",
+    cardSoon: "Card payment arrives with the live version.",
   },
 
   /** M8 */
@@ -227,6 +259,16 @@ export const copy = {
     dashboard: "Go to my dashboard",
     qrAlt: "QR code of your promo page",
     closeQr: "Close",
+    copyLink: "Copy the link",
+    enlargeQr: "Enlarge the QR code",
+    shareTitle: (merchant: string): string => `${merchant} on Winz`,
+    shareText: (promise: string, merchant: string): string =>
+      `${promise}. Get yours at ${merchant}.`,
+    failedTitle: "We couldn't put your promo live",
+    failedBody: "Nothing was charged. Go back and try again.",
+    qrDownloaded: "QR code saved",
+    qrFailed: "Couldn't save the QR code. Try again.",
+    shareFailed: "Couldn't share. The link was copied instead.",
   },
 
   /** Merchant space (U-05) */
