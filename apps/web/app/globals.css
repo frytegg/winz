@@ -378,3 +378,8 @@ body:has(dialog[open]) {
     scroll-behavior: auto !important;
   }
 }
+
+/* Where the floating navigation is on screen, a toast rises above it instead of covering the tabs. */
+body:has([data-bottom-nav]) .toast-region {
+  bottom: calc(var(--nav-space) + 0.25rem);
+}
