@@ -22,12 +22,36 @@ export interface HedgeInstrumentRow {
   eventStartsAt: Date;
   /** `positions.exposure`: written by the chain projection only. */
   exposure: MicroContracts;
+  /** `positions.held` as stored (the sink moves it with each fill; see `derivedHeld`). */
   held: MicroContracts;
+  /**
+   * Quantity allocated (`lot_fills`) to the lots of the instrument's settled campaigns: contracts
+   * the venue has paid out, which are no longer held. Read in the same statement as `exposure`,
+   * so the two always describe the same settlements.
+   */
+  settledAllocated: MicroContracts;
+  /** H as the recorded fills give it (`derivedHeldOf`), in the same statement. */
+  derivedHeld: MicroContracts;
   openOrders: number;
   /** Campaigns on-chain and not settled. */
   unsettledCampaigns: number;
   /** Latest `sales_close` of those campaigns; null when there is none. */
   lastSalesClose: Date | null;
+}
+
+/**
+ * H of an instrument from what the database records: bought minus sold minus what was allocated
+ * to the lots of settled campaigns (the venue paid those contracts out), never below zero. It is
+ * the quantity allocated to the lots of unsettled campaigns plus the inventory held ahead of
+ * exposure, less the quantity of an over-sale not replaced yet (`InventoryState.shortQty`).
+ */
+export function derivedHeldOf(
+  bought: MicroContracts,
+  sold: MicroContracts,
+  settledAllocated: MicroContracts,
+): MicroContracts {
+  const held = bought - sold - settledAllocated;
+  return held > 0n ? held : 0n;
 }
 
 /**
@@ -44,6 +68,9 @@ export async function listHedgeInstruments(sql: AllocationSql): Promise<HedgeIns
       starts_at: Date;
       exposure: bigint;
       held: bigint;
+      bought: bigint;
+      sold: bigint;
+      settled_allocated: bigint;
       open_orders: bigint;
       unsettled_campaigns: bigint;
       last_sales_close: Date | null;
@@ -57,6 +84,16 @@ export async function listHedgeInstruments(sql: AllocationSql): Promise<HedgeIns
     select i.symbol, i.event_ticker, i.label, e.title, e.starts_at,
            coalesce(p.exposure, 0)::bigint as exposure,
            coalesce(p.held, 0)::bigint as held,
+           (select coalesce(sum(f.qty), 0) from fills f join orders o on o.id = f.order_id
+             where o.instrument = i.symbol and o.side = 'buy')::bigint as bought,
+           (select coalesce(sum(f.qty), 0) from fills f join orders o on o.id = f.order_id
+             where o.instrument = i.symbol and o.side = 'sell')::bigint as sold,
+           (select coalesce(sum(lf.qty), 0) from lot_fills lf
+             join lots l on l.id = lf.lot_id
+             join campaigns c on c.id = l.campaign_id
+             where l.instrument = i.symbol
+               and c.status = any(${[...SETTLED_CAMPAIGN_STATUSES]}::text[]))::bigint
+             as settled_allocated,
            (select count(*) from orders o
              where o.instrument = i.symbol
                and o.status = any(${[...OPEN_ORDER_STATUSES]}::text[]))::bigint as open_orders,
@@ -81,6 +118,8 @@ export async function listHedgeInstruments(sql: AllocationSql): Promise<HedgeIns
     eventStartsAt: row.starts_at,
     exposure: row.exposure,
     held: row.held,
+    settledAllocated: row.settled_allocated,
+    derivedHeld: derivedHeldOf(row.bought, row.sold, row.settled_allocated),
     openOrders: Number(row.open_orders),
     unsettledCampaigns: Number(row.unsettled_campaigns),
     lastSalesClose: row.last_sales_close,
@@ -89,8 +128,9 @@ export async function listHedgeInstruments(sql: AllocationSql): Promise<HedgeIns
 
 /**
  * Whether an instrument needs a runner: an order is open, or a campaign on it is not settled and
- * something is owed or held. Once every campaign is settled, what is held stays held (the venue
- * pays it out) and nothing more is traded.
+ * something is owed or held. Once every campaign is settled nothing more is traded: the contracts
+ * that hedged them are paid out by the venue and leave H (`derivedHeldOf`), and only an inventory
+ * held ahead of exposure, if any, stays held for the next campaign.
  */
 export function needsRunner(row: HedgeInstrumentRow): boolean {
   if (row.openOrders > 0) return true;
@@ -118,8 +158,13 @@ export async function getHedgeInstrument(
 /** What a runner is rebuilt from (the fields of `PolicyRestore`). */
 export interface RestoreState {
   exposure: MicroContracts;
-  /** Bought minus sold, from the recorded fills of the instrument (never below zero). */
+  /**
+   * From the recorded fills of the instrument: bought minus sold minus what was allocated to the
+   * lots of settled campaigns, never below zero (`derivedHeldOf`).
+   */
   held: MicroContracts;
+  /** The settled allocation `held` already leaves out, read in the same statement as `exposure`. */
+  settledAllocated: MicroContracts;
   nextOrderSeq: number;
   /** Open orders of this venue and prefix, with the quantity their recorded fills add up to. */
   openOrders: { clientOrderId: string; recordedFilledQty: MicroContracts }[];
@@ -131,14 +176,24 @@ export async function loadRestoreState(
   venue: string,
   prefix: string,
 ): Promise<RestoreState> {
-  const [position] = await sql<{ exposure: bigint }[]>`
-    select exposure from positions where instrument = ${instrument}
-  `;
-  const [held] = await sql<{ bought: bigint; sold: bigint }[]>`
-    select coalesce(sum(f.qty) filter (where o.side = 'buy'), 0)::bigint as bought,
-           coalesce(sum(f.qty) filter (where o.side = 'sell'), 0)::bigint as sold
-    from fills f join orders o on o.id = f.order_id
-    where o.instrument = ${instrument}
+  // One statement: the exposure and the settled allocation describe the same settlements (the
+  // projection changes a campaign's status and the exposure in one transaction).
+  const [position] = await sql<
+    { exposure: bigint; bought: bigint; sold: bigint; settled_allocated: bigint }[]
+  >`
+    select
+      coalesce((select p.exposure from positions p where p.instrument = ${instrument}), 0)::bigint
+        as exposure,
+      (select coalesce(sum(f.qty), 0) from fills f join orders o on o.id = f.order_id
+        where o.instrument = ${instrument} and o.side = 'buy')::bigint as bought,
+      (select coalesce(sum(f.qty), 0) from fills f join orders o on o.id = f.order_id
+        where o.instrument = ${instrument} and o.side = 'sell')::bigint as sold,
+      (select coalesce(sum(lf.qty), 0) from lot_fills lf
+        join lots l on l.id = lf.lot_id
+        join campaigns c on c.id = l.campaign_id
+        where l.instrument = ${instrument}
+          and c.status = any(${[...SETTLED_CAMPAIGN_STATUSES]}::text[]))::bigint
+        as settled_allocated
   `;
   const ids = await sql<{ venue_order_id: string }[]>`
     select venue_order_id from orders
@@ -158,11 +213,11 @@ export async function loadRestoreState(
     group by o.id
     order by o.created_at
   `;
-  const bought = held?.bought ?? 0n;
-  const sold = held?.sold ?? 0n;
+  const settledAllocated = position?.settled_allocated ?? 0n;
   return {
     exposure: position?.exposure ?? 0n,
-    held: bought > sold ? bought - sold : 0n,
+    held: derivedHeldOf(position?.bought ?? 0n, position?.sold ?? 0n, settledAllocated),
+    settledAllocated,
     nextOrderSeq: maxSeq + 1,
     openOrders: open.map((row) => ({
       clientOrderId: row.venue_order_id,
@@ -188,8 +243,8 @@ export async function cancelVanishedOrders(
 }
 
 /**
- * At a restore: H as the recorded fills have it, W zero (the runner has placed nothing yet).
- * Creates the position when the instrument has none.
+ * At a restore: H as the recorded fills have it (settled allocations left out), W zero (the runner
+ * has placed nothing yet). Creates the position when the instrument has none.
  */
 export async function resetPosition(
   sql: AllocationSql,
@@ -203,6 +258,50 @@ export async function resetPosition(
     on conflict (instrument) do update
       set held = excluded.held, working = 0, venue = excluded.venue
   `;
+}
+
+/**
+ * A runner is alive and campaigns of its instrument settled: their `qty` allocated contracts leave
+ * `positions.held` (never below zero). Relative, like the sink's moves: a fill recorded meanwhile
+ * keeps its own move.
+ */
+export async function releaseSettledHeld(
+  sql: AllocationSql,
+  instrument: string,
+  qty: MicroContracts,
+): Promise<void> {
+  if (qty <= 0n) return;
+  await sql`
+    update positions set held = greatest(0, held - ${qty.toString()}::bigint)
+    where instrument = ${instrument}
+  `;
+}
+
+/**
+ * An instrument without a runner: `positions.held` set to H as the recorded fills give it
+ * (`derivedHeldOf`), computed in the statement itself. Returns whether it changed.
+ */
+export async function writeDerivedHeld(sql: AllocationSql, instrument: string): Promise<boolean> {
+  const rows = await sql<{ instrument: string }[]>`
+    with derived as (
+      select greatest(0,
+        (select coalesce(sum(f.qty), 0) from fills f join orders o on o.id = f.order_id
+          where o.instrument = ${instrument} and o.side = 'buy')
+        - (select coalesce(sum(f.qty), 0) from fills f join orders o on o.id = f.order_id
+          where o.instrument = ${instrument} and o.side = 'sell')
+        - (select coalesce(sum(lf.qty), 0) from lot_fills lf
+            join lots l on l.id = lf.lot_id
+            join campaigns c on c.id = l.campaign_id
+            where l.instrument = ${instrument}
+              and c.status = any(${[...SETTLED_CAMPAIGN_STATUSES]}::text[]))
+      )::bigint as held
+    )
+    update positions p set held = d.held
+    from derived d
+    where p.instrument = ${instrument} and p.held <> d.held
+    returning p.instrument
+  `;
+  return rows.length > 0;
 }
 
 /** W as the runner reports it. Writes nothing when it is unchanged. */

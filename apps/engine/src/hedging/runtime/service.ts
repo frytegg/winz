@@ -39,9 +39,11 @@ import {
   listHedgeInstruments,
   loadRestoreState,
   needsRunner,
+  releaseSettledHeld,
   remainingLots,
   resetPosition,
   salesOver,
+  writeDerivedHeld,
   writeWorking,
   type HedgeInstrumentRow,
 } from "./store";
@@ -109,6 +111,13 @@ interface Entry {
   info: DeskInstrumentInfo;
   runner: PolicyRunner;
   lastExposure: bigint;
+  /**
+   * Quantity allocated to the lots of settled campaigns that the runner's H already leaves out:
+   * the restore's at creation, then every settlement handed to the runner (`applySettlements`).
+   */
+  settledReleased: bigint;
+  /** Part of `settledReleased` not yet taken out of `positions.held` (a write that failed). */
+  heldToRelease: bigint;
   /** Exposure at which the sales-close reconciliation last completed; null before. */
   reconciledAtExposure: bigint | null;
   /**
@@ -432,10 +441,15 @@ export class HedgingService implements HedgeFinalizer {
   // Instruments and runners
   // -------------------------------------------------------------------------------------------
 
-  /** Reads the instruments and the exposure; starts, feeds and retires runners. */
+  /**
+   * Reads the instruments and the exposure; starts, feeds and retires runners. Settled campaigns'
+   * contracts leave H within this pass: through the live runner (`applySettlements`), or, for an
+   * instrument left without a runner, straight in `positions.held` (`writeDerivedHeld`).
+   */
   async syncInstruments(): Promise<void> {
     if (!this.ready || this.stopped) return;
     const rows = await listHedgeInstruments(this.db);
+    const bySymbol = new Map(rows.map((row) => [row.symbol, row]));
     const needed = new Set<string>();
     for (const row of rows) {
       if (!needsRunner(row)) continue;
@@ -451,9 +465,14 @@ export class HedgingService implements HedgeFinalizer {
       }
     }
     for (const [symbol, entry] of this.entries) {
-      if (needed.has(symbol) || entry.reconciling !== null) continue;
-      if (entry.runner.snapshot().openOrders.length > 0) continue;
+      if (needed.has(symbol)) continue;
       try {
+        if (entry.reconciling !== null || entry.runner.snapshot().openOrders.length > 0) {
+          // Kept for its orders: it still stops counting what settled.
+          const row = bySymbol.get(symbol);
+          if (row !== undefined) await this.followSettlements(entry, row);
+          continue;
+        }
         await this.retire(symbol, entry);
       } catch (error: unknown) {
         this.safeLog(
@@ -463,18 +482,51 @@ export class HedgingService implements HedgeFinalizer {
         );
       }
     }
+    for (const row of rows) {
+      // Every campaign settled and no runner: nothing is traded, and `positions.held` (the desk's
+      // totals, the next start) follows the recorded fills, settled allocations left out.
+      if (needsRunner(row) || row.unsettledCampaigns > 0) continue;
+      if (this.entries.has(row.symbol) || this.creating.has(row.symbol)) continue;
+      if (row.held === row.derivedHeld || this.sink.pendingCount(row.symbol) > 0) continue;
+      try {
+        if (await writeDerivedHeld(this.db, row.symbol)) {
+          this.logger.info(
+            {
+              instrument: row.symbol,
+              heldBefore: row.held.toString(),
+              held: row.derivedHeld.toString(),
+              settledAllocated: row.settledAllocated.toString(),
+            },
+            "every campaign of the instrument settled: their contracts are no longer held",
+          );
+        }
+      } catch (error: unknown) {
+        this.safeLog(
+          "error",
+          { instrument: row.symbol, err: describeError(error) },
+          "held position of a settled instrument not written: retried at the next pass",
+        );
+      }
+    }
   }
 
   private async syncInstrument(row: HedgeInstrumentRow): Promise<void> {
     const entry = await this.ensureEntry(row);
+    if (row.settledAllocated < entry.settledReleased) {
+      // Read before a settlement the runner already applied (a finalize, or a runner created
+      // after this read): its exposure would undo that settlement's. The next pass reads anew.
+      return;
+    }
     entry.info = infoOf(row);
-    if (row.exposure !== entry.lastExposure) {
-      const grew = row.exposure > entry.lastExposure;
+    const previousExposure = entry.lastExposure;
+    const settled = this.applySettlements(entry, row);
+    if (!settled && row.exposure !== entry.lastExposure) {
       entry.lastExposure = row.exposure;
       this.track(entry.runner.onExposure(row.exposure), "runner exposure", row.symbol);
-      // A new lot: contracts already held ahead of exposure cover it without a new order.
-      if (grew) await this.allocateInventory(row.symbol);
     }
+    // A new lot: contracts already held ahead of exposure cover it without a new order.
+    if (row.exposure > previousExposure || settled) await this.allocateInventory(row.symbol);
+    await this.flushHeldRelease(entry);
     if (salesOver(row, this.clock.now()) && entry.reconciledAtExposure !== row.exposure) {
       if (entry.reconciling === null) {
         const run = this.claimReconcile(entry, () =>
@@ -483,6 +535,57 @@ export class HedgingService implements HedgeFinalizer {
         this.track(run, "sales-close reconciliation", row.symbol);
       }
     }
+  }
+
+  /**
+   * Hands the runner the campaigns of its instrument that settled since it last heard (the
+   * allocated quantity `row` has beyond `entry.settledReleased`), with the exposure of the same
+   * read, in one step (`PolicyRunner.onSettled`). Synchronous up to the runner's own update, so
+   * two callers never release the same quantity twice. The runner is told rather than rebuilt:
+   * a rebuild stops it, and a fill of an order resting at the venue between that stop and the new
+   * runner's start would reach no listener, coming back only as a recovered position, never
+   * recorded nor allocated to a lot. Returns whether anything settled.
+   */
+  private applySettlements(entry: Entry, row: HedgeInstrumentRow): boolean {
+    if (row.settledAllocated <= entry.settledReleased) return false;
+    const released = row.settledAllocated - entry.settledReleased;
+    entry.settledReleased = row.settledAllocated;
+    entry.heldToRelease += released;
+    entry.lastExposure = row.exposure;
+    this.track(entry.runner.onSettled(released, row.exposure), "runner settlement", row.symbol);
+    this.logger.info(
+      {
+        instrument: row.symbol,
+        released: released.toString(),
+        settledAllocated: row.settledAllocated.toString(),
+        exposure: row.exposure.toString(),
+      },
+      "campaigns settled: the contracts allocated to their lots are no longer held",
+    );
+    return true;
+  }
+
+  /** Takes what `applySettlements` released out of `positions.held`; kept for a retry on failure. */
+  private async flushHeldRelease(entry: Entry): Promise<void> {
+    const qty = entry.heldToRelease;
+    if (qty <= 0n) return;
+    entry.heldToRelease = 0n;
+    // A retired runner owns `positions.held` no more: the derived write, or the next runner's
+    // restore, sets it from the recorded fills.
+    if (this.entries.get(entry.info.symbol) !== entry) return;
+    try {
+      await releaseSettledHeld(this.db, entry.info.symbol, qty);
+    } catch (error: unknown) {
+      entry.heldToRelease += qty;
+      throw error;
+    }
+  }
+
+  /** `applySettlements` for a row that may be older than what the runner knows, then the write. */
+  private async followSettlements(entry: Entry, row: HedgeInstrumentRow): Promise<void> {
+    if (row.settledAllocated < entry.settledReleased) return;
+    this.applySettlements(entry, row);
+    await this.flushHeldRelease(entry);
   }
 
   /**
@@ -518,8 +621,9 @@ export class HedgingService implements HedgeFinalizer {
   }
 
   /**
-   * Rebuilds a runner from the database (exposure, held from the recorded fills, next order
-   * sequence, orders still open), hands it the latest book, and starts it.
+   * Rebuilds a runner from the database (exposure, held from the recorded fills less what settled
+   * campaigns were allocated, next order sequence, orders still open), hands it the latest book,
+   * and starts it.
    */
   private async createEntry(row: HedgeInstrumentRow): Promise<Entry> {
     if (this.stopped) throw new HedgingStoppedError(`starting the runner of ${row.symbol}`);
@@ -550,6 +654,8 @@ export class HedgingService implements HedgeFinalizer {
       info: infoOf(row),
       runner,
       lastExposure: state.exposure,
+      settledReleased: state.settledAllocated,
+      heldToRelease: 0n,
       reconciledAtExposure: null,
       reconciling: null,
     };
@@ -566,6 +672,7 @@ export class HedgingService implements HedgeFinalizer {
         idPrefix: prefix,
         exposure: state.exposure.toString(),
         held: state.held.toString(),
+        settledAllocated: state.settledAllocated.toString(),
         nextOrderSeq: state.nextOrderSeq,
         openOrders: state.openOrders.length,
         params: { ...risk, uMaxMicroUsdc: risk.uMaxMicroUsdc.toString() },
@@ -619,7 +726,13 @@ export class HedgingService implements HedgeFinalizer {
         await writeWorking(this.db, symbol, snapshot.working);
         const nowMs = Date.now();
         if (nowMs - (this.lastDeskWriteMs.get(symbol) ?? 0) < this.deskMinIntervalMs) continue;
-        if (await this.desk.write(entry.info, snapshot)) this.lastDeskWriteMs.set(symbol, nowMs);
+        // The runner may have been retired while this tick awaited (the exposure loop runs
+        // beside it): a row written for it now would outlive its removal.
+        if (this.entries.get(symbol) !== entry) continue;
+        if (await this.desk.write(entry.info, snapshot)) {
+          this.lastDeskWriteMs.set(symbol, nowMs);
+          if (!this.entries.has(symbol)) await this.desk.remove(symbol);
+        }
       } catch (error: unknown) {
         this.safeLog(
           "error",
@@ -715,11 +828,19 @@ export class HedgingService implements HedgeFinalizer {
     const row = await getHedgeInstrument(this.db, campaign.instrument);
     if (row !== null && needsRunner(row)) {
       const entry = await this.ensureEntry(row);
+      // A runner created by this call knows settlements that `row`, read before it, may not.
+      let current = row;
+      if (current.settledAllocated < entry.settledReleased) {
+        current = (await getHedgeInstrument(this.db, campaign.instrument)) ?? current;
+      }
+      // Campaigns settled since the last pass leave H with their lots' exposure, before the
+      // reconciliation compares the two: never a sale of contracts the venue paid out.
+      await this.followSettlements(entry, current);
       // One reconciliation at a time per runner: wait for the one running (sales close or
       // another finalize), then start ours in the same slot if the exposure still needs it.
       while (entry.reconciling !== null) await entry.reconciling;
-      if (entry.reconciledAtExposure !== row.exposure) {
-        const exposure = row.exposure;
+      if (entry.reconciledAtExposure !== current.exposure) {
+        const exposure = current.exposure;
         const reconciled = await this.claimReconcile(entry, async () => {
           const outcome = await this.reconcile(entry, exposure);
           if (outcome.ok) entry.reconciledAtExposure = exposure;
