@@ -1,7 +1,7 @@
 import { createHook } from "node:async_hooks";
 import { randomBytes, randomUUID } from "node:crypto";
 
-import pino from "pino";
+import pino, { type Logger } from "pino";
 import type { TransactionSql } from "postgres";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -52,6 +52,11 @@ class HandBookSource implements SaleBookSource {
     this.books.set(book.instrumentSymbol, book);
     const event: BookFeedEvent = { kind: "book", book, source: "ws" };
     for (const listener of this.listeners) listener(event);
+  }
+
+  /** The feed stops holding a book for `symbol` (untracked, demo released with nothing behind). */
+  dropBook(symbol: string): void {
+    this.books.delete(symbol);
   }
 
   flagStale(symbol: string, stale: boolean): void {
@@ -219,7 +224,7 @@ function runnerFor(
   books: SaleBookSource,
   clock: ManualClock,
   breakerStatus?: BreakerStatus,
-  options: { statementTimeoutMs?: number } = {},
+  options: { statementTimeoutMs?: number; startupGraceMs?: number; logger?: Logger } = {},
 ): SaleStateRunner {
   return new SaleStateRunner({
     db,
@@ -403,7 +408,9 @@ describe("SaleStateRunner against Postgres", () => {
     const clock = new ManualClock(T0);
     const books = new HandBookSource();
     const campaign = await seedCampaign();
-    const runner = runnerFor(books, clock);
+    // Without the start-up grace: the missing book pauses on the first pass (the grace has its
+    // own tests below).
+    const runner = runnerFor(books, clock, undefined, { startupGraceMs: 0 });
     await runner.runPass();
     expect((await storedState(campaign.id)).sale).toBe("paused_depth");
     books.setBook(emptyBook(T0, SYMBOL));
@@ -910,6 +917,424 @@ describe("SaleStateRunner against Postgres", () => {
   });
 });
 
+describe("SaleStateRunner: start-up grace", () => {
+  const GRACE_MS = 10_000;
+
+  /** A logger whose lines are kept, to count the end-of-grace log. */
+  function recordingLogger(): { logger: Logger; graceEnds: () => { instrument?: string }[] } {
+    const lines: string[] = [];
+    const logger = pino({ level: "info" }, { write: (line: string) => lines.push(line) });
+    const graceEnds = (): { instrument?: string }[] =>
+      lines
+        .filter((line) => line.includes("start-up grace over without a book"))
+        .map((line) => JSON.parse(line) as { instrument?: string; level?: number });
+    return { logger, graceEnds };
+  }
+
+  function graceRunner(
+    books: SaleBookSource,
+    clock: ManualClock,
+    breakerStatus?: BreakerStatus,
+    logger?: Logger,
+  ): SaleStateRunner {
+    return runnerFor(books, clock, breakerStatus, {
+      startupGraceMs: GRACE_MS,
+      ...(logger === undefined ? {} : { logger }),
+    });
+  }
+
+  it("defaults to 10 s and refuses a negative or non-finite grace", () => {
+    const clock = new ManualClock(T0);
+    const books = new HandBookSource();
+    const runner = runnerFor(books, clock);
+    expect(runner.inStartupGrace(SYMBOL, T0 + GRACE_MS - 1)).toBe(true);
+    expect(runner.inStartupGrace(SYMBOL, T0 + GRACE_MS)).toBe(false);
+    for (const startupGraceMs of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => runnerFor(books, clock, undefined, { startupGraceMs })).toThrow(
+        /startupGraceMs/,
+      );
+    }
+  });
+
+  it("keeps a stored open campaign open with no write until its first book, then evaluates it as usual for good", async () => {
+    const clock = new ManualClock(T0);
+    const books = new HandBookSource();
+    const campaign = await seedCampaign();
+    const runner = graceRunner(books, clock);
+    const mark = await writeMark();
+
+    for (let second = 0; second < 2; second += 1) {
+      const result = await runner.runPass();
+      expect(result).toMatchObject({ transitions: 0, rowsWritten: 0, failures: 0 });
+      expect(await storedState(campaign.id)).toMatchObject({ sale: "open", live: "open" });
+      clock.advance(1_000);
+    }
+    // A good book after 2 s: still open, still no write, and no delay to wait.
+    books.setBook(bookAt(1_200n, clock.nowMs, 1_000_000_000n, SYMBOL));
+    await runner.runPass();
+    expect(await storedState(campaign.id)).toMatchObject({ sale: "open", live: "open" });
+    expect(await writesSince(mark)).toEqual({ campaigns: 0, live: 0 });
+    expect(runner.inStartupGrace(SYMBOL, clock.nowMs)).toBe(false);
+
+    // Then the book turns stale while the grace time is still running: paused at once.
+    clock.advance(1_000);
+    books.flagStale(SYMBOL, true);
+    await runner.runPass();
+    expect((await storedState(campaign.id)).sale).toBe("paused_stale");
+
+    // And the ten-second return applies.
+    clock.advance(1_000);
+    books.flagStale(SYMBOL, false);
+    const back = clock.nowMs;
+    for (const offset of [0, 5_000, RESUME_DELAY_MS - 1]) {
+      clock.nowMs = back + offset;
+      books.setBook(bookAt(1_200n, clock.nowMs, 1_000_000_000n, SYMBOL));
+      await runner.runPass();
+      expect((await storedState(campaign.id)).sale, `+${String(offset)} ms`).toBe("paused_stale");
+    }
+    clock.nowMs = back + RESUME_DELAY_MS;
+    books.setBook(bookAt(1_200n, clock.nowMs, 1_000_000_000n, SYMBOL));
+    await runner.runPass();
+    expect(await storedState(campaign.id)).toMatchObject({ sale: "open", live: "open" });
+  });
+
+  it("never comes back for an instrument once it had a book, even if the feed drops it", async () => {
+    const clock = new ManualClock(T0);
+    const books = new HandBookSource();
+    const campaign = await seedCampaign();
+    const runner = graceRunner(books, clock);
+    clock.advance(1_000);
+    books.setBook(bookAt(1_200n, clock.nowMs, 1_000_000_000n, SYMBOL));
+    await runner.runPass();
+    expect((await storedState(campaign.id)).sale).toBe("open");
+    clock.advance(1_000);
+    books.dropBook(SYMBOL);
+    await runner.runPass();
+    expect((await storedState(campaign.id)).sale).toBe("paused_depth");
+  });
+
+  it("ends without a book when its time runs out: the campaign pauses as before, logged once", async () => {
+    const clock = new ManualClock(T0);
+    const books = new HandBookSource();
+    const campaign = await seedCampaign();
+    const { logger, graceEnds } = recordingLogger();
+    const runner = graceRunner(books, clock, undefined, logger);
+    const mark = await writeMark();
+
+    for (const at of [0, 1_000, 5_000, GRACE_MS - 1]) {
+      clock.nowMs = T0 + at;
+      await runner.runPass();
+      expect((await storedState(campaign.id)).sale, `+${String(at)} ms`).toBe("open");
+    }
+    expect(await writesSince(mark)).toEqual({ campaigns: 0, live: 0 });
+    expect(graceEnds()).toEqual([]);
+
+    clock.nowMs = T0 + GRACE_MS;
+    await runner.runPass();
+    expect(await storedState(campaign.id)).toMatchObject({
+      sale: "paused_depth",
+      live: "paused_depth",
+    });
+    for (let i = 1; i <= 3; i += 1) {
+      clock.advance(1_000);
+      await runner.runPass();
+    }
+    expect(graceEnds()).toEqual([
+      expect.objectContaining({ instrument: SYMBOL, level: 30, startupGraceMs: GRACE_MS }),
+    ]);
+  });
+
+  it.each<{ name: string; book: (nowMs: number) => Book; budget?: bigint; expected: SaleState }>([
+    {
+      name: "above the pause threshold",
+      book: (nowMs) => bookAt(1_900n, nowMs, 1_000_000_000n, SYMBOL),
+      expected: "paused_price",
+    },
+    { name: "empty", book: (nowMs) => emptyBook(nowMs, SYMBOL), expected: "paused_depth" },
+    {
+      name: "over budget",
+      book: (nowMs) => bookAt(1_200n, nowMs, 1_000_000_000n, SYMBOL),
+      budget: 1_000_000n,
+      expected: "paused_budget",
+    },
+    {
+      name: "already stale",
+      book: (nowMs) => bookAt(1_200n, nowMs - 10_001, 1_000_000_000n, SYMBOL),
+      expected: "paused_stale",
+    },
+  ])("pauses at once, during the grace, on a first book that is $name", async (scenario) => {
+    const clock = new ManualClock(T0);
+    const books = new HandBookSource();
+    const campaign = await seedCampaign(
+      scenario.budget === undefined ? {} : { budget: scenario.budget },
+    );
+    const runner = graceRunner(books, clock);
+    await runner.runPass();
+    expect((await storedState(campaign.id)).sale).toBe("open");
+    clock.advance(1_000);
+    books.setBook(scenario.book(clock.nowMs));
+    await runner.runPass();
+    expect(await storedState(campaign.id)).toMatchObject({
+      sale: scenario.expected,
+      live: scenario.expected,
+    });
+  });
+
+  it.each<SaleState>(["paused_stale", "paused_depth", "paused_budget", "paused_breaker"])(
+    "does not reopen a stored %s: a good book must hold for the full 10 s",
+    async (stored) => {
+      const clock = new ManualClock(T0);
+      const books = new HandBookSource();
+      const campaign = await seedCampaign({ saleState: stored });
+      const runner = graceRunner(books, clock);
+      const mark = await writeMark();
+      for (let second = 0; second < 3; second += 1) {
+        await runner.runPass();
+        expect((await storedState(campaign.id)).sale).toBe(stored);
+        clock.advance(1_000);
+      }
+      expect(await writesSince(mark)).toEqual({ campaigns: 0, live: 0 });
+      expect(runner.memoryOf(campaign.id)).toEqual({
+        state: stored,
+        acceptedSinceMs: null,
+        clearSinceMs: null,
+        priceRefused: false,
+      });
+      const goodFrom = clock.nowMs;
+      for (const offset of [0, 5_000, RESUME_DELAY_MS - 1]) {
+        clock.nowMs = goodFrom + offset;
+        books.setBook(bookAt(1_200n, clock.nowMs, 1_000_000_000n, SYMBOL));
+        await runner.runPass();
+        expect((await storedState(campaign.id)).sale, `+${String(offset)} ms`).toBe(stored);
+      }
+      clock.nowMs = goodFrom + RESUME_DELAY_MS;
+      books.setBook(bookAt(1_200n, clock.nowMs, 1_000_000_000n, SYMBOL));
+      await runner.runPass();
+      expect((await storedState(campaign.id)).sale).toBe("open");
+    },
+  );
+
+  it("does not reopen a stored paused_price: it needs 10 s one tick below p_max", async () => {
+    const clock = new ManualClock(T0);
+    const books = new HandBookSource();
+    const campaign = await seedCampaign({ saleState: "paused_price" });
+    const runner = graceRunner(books, clock);
+    await runner.runPass();
+    clock.advance(2_000);
+    await runner.runPass();
+    expect(runner.memoryOf(campaign.id)).toMatchObject({
+      state: "paused_price",
+      priceRefused: true,
+    });
+    // Exactly p_max for 12 s: it sells, but never reopens without the margin.
+    for (let second = 0; second <= 12; second += 1) {
+      books.setBook(bookAt(1_800n, clock.nowMs, 1_000_000_000n, SYMBOL));
+      await runner.runPass();
+      expect((await storedState(campaign.id)).sale, `second ${String(second)}`).toBe(
+        "paused_price",
+      );
+      clock.advance(1_000);
+    }
+    const below = clock.nowMs;
+    for (const offset of [0, RESUME_DELAY_MS - 1]) {
+      clock.nowMs = below + offset;
+      books.setBook(bookAt(1_700n, clock.nowMs, 1_000_000_000n, SYMBOL));
+      await runner.runPass();
+      expect((await storedState(campaign.id)).sale).toBe("paused_price");
+    }
+    clock.nowMs = below + RESUME_DELAY_MS;
+    books.setBook(bookAt(1_700n, clock.nowMs, 1_000_000_000n, SYMBOL));
+    await runner.runPass();
+    expect((await storedState(campaign.id)).sale).toBe("open");
+  });
+
+  it("closes at once when sales close during the grace, with status sales_closed", async () => {
+    const clock = new ManualClock(T0);
+    const books = new HandBookSource();
+    const closeAt = T0 + 2_000;
+    const campaign = await seedCampaign({ salesCloseMs: closeAt });
+    const runner = graceRunner(books, clock);
+    await runner.runPass();
+    expect(await storedState(campaign.id)).toMatchObject({ sale: "open", status: "live" });
+    clock.nowMs = closeAt;
+    await runner.runPass();
+    expect(await storedState(campaign.id)).toEqual({
+      sale: "closed",
+      status: "sales_closed",
+      live: "closed",
+    });
+  });
+
+  it("closes at once a campaign without an on-chain id or with an early close requested", async () => {
+    const clock = new ManualClock(T0);
+    const books = new HandBookSource();
+    const unborn = await seedCampaign({ onchain: false });
+    const closing = await seedCampaign();
+    await db`
+      insert into jobs (kind, payload, idempotency_key)
+      values (${JOB_KINDS.closeSales}, ${db.json({ campaignId: closing.id })},
+              ${`${JOB_KINDS.closeSales}:${closing.id}`})
+    `;
+    await graceRunner(books, clock).runPass();
+    expect((await storedState(unborn.id)).sale).toBe("closed");
+    expect((await storedState(closing.id)).sale).toBe("closed");
+  });
+
+  it("holds a manual pause at once during the grace, requested or mined", async () => {
+    const clock = new ManualClock(T0);
+    const books = new HandBookSource();
+    const requested = await seedCampaign();
+    const mined = await seedCampaign();
+    const runner = graceRunner(books, clock);
+    await runner.runPass();
+    clock.advance(1_000);
+    await db`update campaigns set sale_state = 'paused_manual' where id = ${requested.id}`;
+    await enqueuePauseJob(requested.id, true, new Date(clock.nowMs));
+    // Paused on-chain while the sale state still says open: the runner writes the pause itself.
+    await minePause(mined.id, true, new Date(clock.nowMs));
+    await runner.runPass();
+    expect(await storedState(requested.id)).toMatchObject({
+      sale: "paused_manual",
+      live: "paused_manual",
+    });
+    expect(await storedState(mined.id)).toMatchObject({
+      sale: "paused_manual",
+      live: "paused_manual",
+      status: "paused",
+    });
+  });
+
+  it.each<{ reason: string | null; throws?: boolean }>([
+    { reason: "venue_down" },
+    { reason: "unhedged_limit" },
+    { reason: null },
+    { reason: null, throws: true },
+  ])(
+    "pauses at once during the grace on a breaker active for a reason other than the missing book ($reason, throws: $throws)",
+    async ({ reason, throws }) => {
+      const clock = new ManualClock(T0);
+      const books = new HandBookSource();
+      const campaign = await seedCampaign();
+      const runner = graceRunner(books, clock, () => {
+        if (throws === true) throw new Error("hedging lane down");
+        return { active: true, reason };
+      });
+      await runner.runPass();
+      expect(await storedState(campaign.id)).toMatchObject({
+        sale: "paused_breaker",
+        live: "paused_breaker",
+      });
+    },
+  );
+
+  it("does not pause on the breaker's stale_book before the first book, until the grace ends", async () => {
+    const clock = new ManualClock(T0);
+    const books = new HandBookSource();
+    const campaign = await seedCampaign();
+    // What the hedging breaker reports once an instrument has been followed for `staleAfterMs`
+    // without a book (it starts inactive: see the next test).
+    const runner = graceRunner(books, clock, () => ({ active: true, reason: "stale_book" }));
+    const mark = await writeMark();
+    for (const at of [0, 5_000, GRACE_MS - 1]) {
+      clock.nowMs = T0 + at;
+      await runner.runPass();
+      expect((await storedState(campaign.id)).sale).toBe("open");
+    }
+    expect(await writesSince(mark)).toEqual({ campaigns: 0, live: 0 });
+    clock.nowMs = T0 + GRACE_MS;
+    await runner.runPass();
+    expect((await storedState(campaign.id)).sale).toBe("paused_breaker");
+  });
+
+  it("pauses on the breaker's stale_book once the instrument has had a book", async () => {
+    const clock = new ManualClock(T0);
+    const books = new HandBookSource();
+    const campaign = await seedCampaign();
+    let active = false;
+    const runner = graceRunner(books, clock, () => ({
+      active,
+      reason: active ? "stale_book" : null,
+    }));
+    // The breaker's start-up state: inactive, no book yet.
+    await runner.runPass();
+    expect((await storedState(campaign.id)).sale).toBe("open");
+    clock.advance(1_000);
+    books.setBook(bookAt(1_200n, clock.nowMs, 1_000_000_000n, SYMBOL));
+    await runner.runPass();
+    expect((await storedState(campaign.id)).sale).toBe("open");
+    clock.advance(1_000);
+    active = true;
+    await runner.runPass();
+    expect((await storedState(campaign.id)).sale).toBe("paused_breaker");
+  });
+
+  it("ends per instrument", async () => {
+    const clock = new ManualClock(T0);
+    const books = new HandBookSource();
+    const here = await seedCampaign({ symbol: SYMBOL });
+    const there = await seedCampaign({ symbol: OTHER_SYMBOL });
+    const { logger, graceEnds } = recordingLogger();
+    const runner = graceRunner(books, clock, undefined, logger);
+    await runner.runPass();
+
+    // A book for the first instrument, then the feed drops it: only that one pauses.
+    clock.advance(1_000);
+    books.setBook(bookAt(1_200n, clock.nowMs, 1_000_000_000n, SYMBOL));
+    await runner.runPass();
+    clock.advance(1_000);
+    books.dropBook(SYMBOL);
+    await runner.runPass();
+    expect((await storedState(here.id)).sale).toBe("paused_depth");
+    expect((await storedState(there.id)).sale).toBe("open");
+
+    clock.nowMs = T0 + GRACE_MS - 1;
+    await runner.runPass();
+    expect((await storedState(there.id)).sale).toBe("open");
+    clock.nowMs = T0 + GRACE_MS;
+    await runner.runPass();
+    expect((await storedState(there.id)).sale).toBe("paused_depth");
+    // Only the instrument whose grace ran out without a book is logged.
+    expect(graceEnds()).toEqual([expect.objectContaining({ instrument: OTHER_SYMBOL })]);
+  });
+
+  it("with startupGraceMs = 0, pauses for the missing book on the first pass, as before", async () => {
+    const clock = new ManualClock(T0);
+    const books = new HandBookSource();
+    const noBook = await seedCampaign({ symbol: SYMBOL });
+    const breakerStale = await seedCampaign({ symbol: OTHER_SYMBOL });
+    const { logger, graceEnds } = recordingLogger();
+    const runner = runnerFor(
+      books,
+      clock,
+      (symbol) => ({
+        active: symbol === OTHER_SYMBOL,
+        reason: symbol === OTHER_SYMBOL ? "stale_book" : null,
+      }),
+      { startupGraceMs: 0, logger },
+    );
+    expect(runner.inStartupGrace(SYMBOL, T0)).toBe(false);
+    await runner.runPass();
+    expect((await storedState(noBook.id)).sale).toBe("paused_depth");
+    expect((await storedState(breakerStale.id)).sale).toBe("paused_breaker");
+    expect(graceEnds()).toEqual([]);
+  });
+
+  it("does not apply when the book source throws: the campaign fails closed as before", async () => {
+    const clock = new ManualClock(T0);
+    const campaign = await seedCampaign();
+    const throwing: SaleBookSource = {
+      getBook: (): Book | null => {
+        throw new Error("feed exploded");
+      },
+      isStale: (): boolean => false,
+      subscribe: () => () => undefined,
+    };
+    const result = await graceRunner(throwing, clock).runPass();
+    expect(result.failures).toBe(1);
+    expect((await storedState(campaign.id)).sale).toBe("paused_depth");
+  });
+});
+
 describe("startSaleStates", () => {
   /**
    * Timers created by the service (its own code or the sleep it uses) that are still pending.
@@ -944,13 +1369,16 @@ describe("startSaleStates", () => {
     const campaign = await seedCampaign({ saleState: "closed" });
     const timers = trackServiceTimers();
     const stop = new AbortController();
-    // A long interval: after the first pass, only book updates can trigger an evaluation.
+    // A long interval: after the first pass, only book updates can trigger an evaluation. Without
+    // the start-up grace, so that the first pass pauses for the missing book (the grace has its
+    // own tests below).
     const service = startSaleStates({
       db,
       bookFeed: books,
       logger: silent,
       signal: stop.signal,
       intervalMs: 60_000,
+      startupGraceMs: 0,
       clock: () => T0,
     });
     expect(books.listeners.size).toBe(1);
@@ -975,6 +1403,51 @@ describe("startSaleStates", () => {
     books.setBook(bookAt(1_200n, T0, 1_000_000_000n, SYMBOL));
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect((await storedState(campaign.id)).sale).toBe("paused_price");
+  });
+
+  it("keeps a stored open campaign open after a start with no book, and a first book ends the grace at once", async () => {
+    const books = new HandBookSource();
+    const campaign = await seedCampaign();
+    const mark = await writeMark();
+    let clockReads = 0;
+    const stop = new AbortController();
+    // The default grace (10 s) on a clock that does not move.
+    const service = startSaleStates({
+      db,
+      bookFeed: books,
+      logger: silent,
+      signal: stop.signal,
+      intervalMs: 20,
+      clock: () => {
+        clockReads += 1;
+        return T0;
+      },
+    });
+    try {
+      // One read when the runner is created, one per evaluation: wait for three passes, so the
+      // first one's writes, if any, are done (passes never overlap).
+      await waitFor(() => Promise.resolve(clockReads >= 4));
+      expect(await storedState(campaign.id)).toMatchObject({ sale: "open", live: "open" });
+      expect(await writesSince(mark)).toEqual({ campaigns: 0, live: 0 });
+
+      books.setBook(bookAt(1_900n, T0, 1_000_000_000n, SYMBOL));
+      await waitFor(async () => (await storedState(campaign.id)).sale === "paused_price");
+    } finally {
+      stop.abort();
+      await service.stopped;
+    }
+  });
+
+  it("refuses a negative start-up grace", () => {
+    expect(() =>
+      startSaleStates({
+        db,
+        bookFeed: new HandBookSource(),
+        logger: silent,
+        signal: new AbortController().signal,
+        startupGraceMs: -1,
+      }),
+    ).toThrow(/startupGraceMs/);
   });
 
   it("never throws out of its loop when the database fails, and still stops", async () => {

@@ -7,7 +7,9 @@ import {
   customerEmail,
   launchCampaign,
   signUpMerchant,
+  waitSaleState,
   waitTicketed,
+  waitTicketPhase,
   type Purchase,
 } from "./support/flows";
 import { countFor, expectEachCapturedOnce, hedgeCharges, soldTickets } from "./support/ledger";
@@ -17,7 +19,6 @@ import {
   expectReport,
   expectYesLedger,
   fillRestingMaker,
-  waitOpen,
   waitSettled,
 } from "./support/steps";
 import { transientStripeError } from "./support/stripe";
@@ -41,6 +42,10 @@ import {
  * call while the engine is told to stop (the request never landed, as when a process dies during
  * it), the second time by the settlement's step hook, the engine's own way to stop at a precise
  * point.
+ *
+ * A restart must not pause the promo either: the engine's sale states keep a campaign's stored
+ * state until its instrument's first book (their start-up grace), so from each restart on the
+ * campaign page answers open without a break and a checkout made at once is ticketed.
  */
 
 process.env.APP_LOG_LEVEL ??= "warn";
@@ -58,6 +63,90 @@ afterEach(async () => {
   await world?.close();
   world = undefined;
 });
+
+/** How long, from a restart on, the campaign page is polled and must answer open every time. */
+const OPEN_WATCH_MS = 6_000;
+
+/**
+ * How long the instrument's book is held back at each restart. The feed of a fresh engine has no
+ * book until the socket delivers one; holding it makes sure the sale states' first passes run
+ * without a book, which is the case the start-up grace is for (left to the race, the book often
+ * lands first and nothing would be tested). Well below the 10 s after which the book that the
+ * previous engine left in book_cache is stale, so a purchase can still be priced meanwhile.
+ */
+const BOOK_HELD_MS = 1_500;
+
+/**
+ * Starts the engine (`start`) with the instrument's book held back from the new feed for
+ * `BOOK_HELD_MS`, then lets it through.
+ */
+async function startWithoutBook(
+  w: World,
+  symbol: string,
+  start: () => Promise<void>,
+): Promise<void> {
+  w.gemini.silence(symbol);
+  try {
+    await start();
+  } finally {
+    setTimeout(() => {
+      w.gemini.resume(symbol);
+    }, BOOK_HELD_MS);
+  }
+}
+
+/**
+ * Polls the public campaign page from now for `forMs` and fails on the first answer that is not
+ * open. Returns the number of answers read.
+ */
+async function expectOpenThroughout(slug: string, forMs: number): Promise<number> {
+  const startedAt = Date.now();
+  let answers = 0;
+  while (Date.now() - startedAt < forMs) {
+    const page = await api.publicCampaign(slug);
+    answers += 1;
+    expect(
+      page.saleState,
+      `the campaign page ${String(Date.now() - startedAt)} ms after the restart`,
+    ).toBe("open");
+    await new Promise<void>((resolve) => setTimeout(resolve, 100));
+  }
+  return answers;
+}
+
+/** Waits until a checkout is ticketed, and fails at once if the promo cancelled it as paused. */
+async function expectTicketedWithoutPause(w: World, pi: string): Promise<void> {
+  await w.waitFor(`the checkout ${pi} to be ticketed`, async () => {
+    const status = await api.checkoutStatus(pi);
+    if (status.status === "cancelled_paused" || status.status === "failed") {
+      throw new Error(`checkout ${pi} answered ${status.status} after the restart`);
+    }
+    return { ok: status.status === "ticketed", seen: status };
+  });
+}
+
+/**
+ * Right after a restart: watches the campaign page for `OPEN_WATCH_MS` while a customer buys at
+ * once, and checks that the purchase is ticketed with no pause in between.
+ */
+async function buyRightAfterRestart(
+  w: World,
+  slug: string,
+  qty: number,
+  email: string,
+): Promise<Purchase> {
+  const [answers, purchase] = await Promise.all([
+    expectOpenThroughout(slug, OPEN_WATCH_MS),
+    (async (): Promise<Purchase> => {
+      const bought = await buy(w, slug, qty, email);
+      await expectTicketedWithoutPause(w, bought.pi);
+      return bought;
+    })(),
+  ]);
+  // The page was actually read throughout the window, not once.
+  expect(answers).toBeGreaterThan(10);
+  return purchase;
+}
 
 function signal(): { promise: Promise<void>; fire: () => void } {
   let fire: () => void = () => undefined;
@@ -101,33 +190,35 @@ describe("restarts in the middle of the loop", () => {
       expect(w.stripe.intent(first.pi)).toMatchObject({ status: "requires_capture", captures: 0 });
       expect((await api.checkoutStatus(first.pi)).status).toBe("processing");
 
-      await w.startEngine();
+      await startWithoutBook(w, symbol, () => w.startEngine());
+      // From the restart on, the promo keeps selling: no wait for a reopening.
+      const second = await buyRightAfterRestart(w, campaign.slug, 2, customerEmail("bob"));
       await waitTicketed(w, first.pi);
-      expect(await ticketCount(w)).toBe(1n);
-      // A restarted engine has no book in memory yet: the promo may sit in an automatic pause for
-      // its ten seconds before it sells again.
-      await waitOpen(w, campaign.slug);
-
-      const second = await buy(w, campaign.slug, 2, customerEmail("bob"));
-      await waitTicketed(w, second.pi);
-      const purchases: Purchase[] = [first, second];
+      expect(await ticketCount(w)).toBe(2n);
       await fillRestingMaker(w, campaign, 2);
+      // Hedging moved the book; it is back to quiet and the promo sells before the next restart.
+      await waitSaleState(w, campaign.slug, "open", 5_000);
 
       // Restart 2: the engine stops right after `settle` is mined, before refunds and payouts.
       const settled = signal();
       let stopped = false;
-      await w.restartEngine({
-        tuning: {
-          settlement: {
-            onStep: (event) => {
-              if (stopped || event.step !== "settle" || event.phase !== "done") return;
-              stopped = true;
-              settled.fire();
-              w.abortEngine();
+      await startWithoutBook(w, symbol, () =>
+        w.restartEngine({
+          tuning: {
+            settlement: {
+              onStep: (event) => {
+                if (stopped || event.step !== "settle" || event.phase !== "done") return;
+                stopped = true;
+                settled.fire();
+                w.abortEngine();
+              },
             },
           },
-        },
-      });
+        }),
+      );
+      const third = await buyRightAfterRestart(w, campaign.slug, 1, customerEmail("cat"));
+      const purchases: Purchase[] = [first, second, third];
+      await fillRestingMaker(w, campaign, purchases.length);
       await closeSales(w, campaign);
       await w.waitFor("the hedge reservation back to zero", async () => {
         const onchain = await onchainCampaign(w, campaign.onchainId);
@@ -159,7 +250,7 @@ describe("restarts in the middle of the loop", () => {
       expectEachCapturedOnce(w, purchases);
       await expectYesLedger(w, campaign, tickets, charges, treasury, treasuryBefore);
       for (const purchase of purchases) {
-        expect((await api.ticket(await waitTicketed(w, purchase.pi))).phase).toBe("refunded");
+        await waitTicketPhase(w, await waitTicketed(w, purchase.pi), "refunded");
       }
       expectReport(await api.campaign(merchant.headers, campaign.id), tickets, charges, "yes");
     },
