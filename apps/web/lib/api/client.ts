@@ -63,6 +63,11 @@ export type ApiFetchOptions<K extends ApiRouteName> = ParamsOption<K> &
     baseUrl?: string;
     /** `x-admin-key`, for the demo routes. */
     adminKey?: string;
+    /**
+     * The mock scenario to ask for, when the request is made on the server (a Server Component has
+     * no `sessionStorage`). Only honored in mock mode; the browser reads its own.
+     */
+    scenario?: string | null;
   };
 
 type OptionsArgument<K extends ApiRouteName> =
@@ -160,6 +165,7 @@ export async function apiFetch<K extends ApiRouteName>(
     signal?: AbortSignal;
     baseUrl?: string;
     adminKey?: string;
+    scenario?: string | null;
   };
 
   let body: string | undefined;
@@ -182,7 +188,7 @@ export async function apiFetch<K extends ApiRouteName>(
   if (spec.auth === "admin" && options.adminKey !== undefined) {
     headers[ADMIN_KEY_HEADER] = options.adminKey;
   }
-  const scenario = scenarioFor(route, getMockScenario());
+  const scenario = scenarioFor(route, options.scenario ?? getMockScenario());
   if (scenario !== null) headers[MOCK_SCENARIO_HEADER] = scenario;
 
   let response: Response;
