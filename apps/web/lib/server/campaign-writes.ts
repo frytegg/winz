@@ -236,8 +236,19 @@ function answer(row: ActionRow, saleState: SaleState, now: Date): CampaignAction
   return { status: row.status, saleState: effectiveSaleState(saleState, row.sales_close, now) };
 }
 
+/**
+ * The pause and resume jobs of a campaign form one sequence: each is stamped strictly after the
+ * campaign's latest one, with the wall clock read once the campaign's row lock is held
+ * (`enqueueJob`). Both routes enqueue under that lock, so the newest stamp is the request that
+ * took the lock last, which is the merchant's last word, whatever the order in which the two
+ * transactions began. The web route, the engine's handler (`isLatestRequest`) and the pause rule
+ * (`pauseJoins`) all take the latest by `created_at desc, id desc`; the id never decides between
+ * two of these jobs, whose stamps are never equal.
+ */
+const PAUSE_SEQUENCE = { sequenceBy: "campaignId" } as const;
+
 /** The merchant's latest pause or resume request of a campaign (its `campaign.set_paused` job). */
-interface LatestPauseRequest {
+export interface LatestPauseRequest {
   requestId: string | null;
   /** True for a pause, false for a resume. */
   paused: boolean;
@@ -245,7 +256,8 @@ interface LatestPauseRequest {
   status: string;
 }
 
-async function latestPauseRequest(
+/** Read under the campaign's lock by the routes; exported for the tests of the order. */
+export async function latestPauseRequest(
   tx: JobSql,
   campaignId: string,
 ): Promise<LatestPauseRequest | null> {
@@ -334,6 +346,7 @@ export async function pauseCampaign(
       JOB_KINDS.setPaused,
       { campaignId: row.id, paused: true, requestId },
       jobIdempotencyKey.setPaused(requestId),
+      PAUSE_SEQUENCE,
     );
     return answer(row, "paused_manual", now);
   });
@@ -348,6 +361,14 @@ export async function pauseCampaign(
  * waiting in the queue is not enqueued twice, nor is the same `requestId`. `sale_state` is left
  * as it is and recomputed by the engine once the resume is on-chain (it may then be any
  * automatic pause). Answers the stored state.
+ *
+ * A second resume with ANOTHER `requestId` while the first waits in the queue answers 200 and
+ * records nothing (its id is in no row). Sent again once the first resume has landed (the chain
+ * live, the latest request a resume carried out), it is answered 409 "This promo is not paused",
+ * like any new click on a live promo: nothing tells it from one without a row recording its id,
+ * which needs either a second job (enqueued at most once is the rule) or a column or table the
+ * schema does not have. Its effect is achieved either way and nothing is enqueued twice; a client
+ * that retries keeps its first `requestId`, whose repeats always answer the stored state.
  */
 export async function resumeCampaign(
   db: Db,
@@ -378,6 +399,7 @@ export async function resumeCampaign(
       JOB_KINDS.setPaused,
       { campaignId: row.id, paused: false, requestId },
       jobIdempotencyKey.setPaused(requestId),
+      PAUSE_SEQUENCE,
     );
     return answer(row, row.sale_state, now);
   });

@@ -54,6 +54,7 @@ export type ModelJobStatus = "queued" | "running" | "done" | "dead";
 
 interface ModelJob {
   paused: boolean;
+  /** When it was requested (`jobs.created_at`). The rule no longer reads it; tests may. */
   createdAtMs: number;
   status: ModelJobStatus;
   /** Its transaction is mined (`chain_txs.status = 'mined'`). */
@@ -66,14 +67,16 @@ interface ModelJob {
 export interface ModelJobView {
   job: string;
   paused: boolean;
+  createdAtMs: number;
   status: ModelJobStatus;
   txMined: boolean;
 }
 
 interface ModelEvent {
+  /** The job whose transaction emitted it: the event of THAT request. */
   job: string;
   paused: boolean;
-  /** Block time, whole seconds. */
+  /** Block time, whole seconds. The rule no longer reads it. */
   blockTimeMs: number;
   projected: boolean;
 }
@@ -144,6 +147,7 @@ export class PauseModel {
     return [...this.jobs.entries()].map(([job, state]) => ({
       job,
       paused: state.paused,
+      createdAtMs: state.createdAtMs,
       status: state.status,
       txMined: state.txMined,
     }));
@@ -166,9 +170,11 @@ export class PauseModel {
    *   store reads only mined transactions): superseded by a later request, or the chain already
    *   as asked, it sends nothing (`nothing-sent`); otherwise its transaction is mined (`mined`);
    * - a running job whose transaction is mined projects it and ends (`projected`);
-   * - a running job can fail transiently (`retry`) before or after its transaction is mined.
+   * - a running job can fail transiently (`retry`) before or after its transaction is mined;
+   * - with `deaths`, a running job whose transaction is not mined can die instead (`dead`: its
+   *   attempts used up, or a revert no attempt can change), with nothing of its own on-chain.
    */
-  nextSteps(maxRetries = 0): PauseStep[] {
+  nextSteps(maxRetries = 0, deaths = false): PauseStep[] {
     const steps: PauseStep[] = [];
     const names = [...this.jobs.keys()];
     const latest = names[names.length - 1];
@@ -183,6 +189,7 @@ export class PauseModel {
       }
       if (job.status !== "running") continue;
       if (job.retries < maxRetries) steps.push({ job: name, phase: "retry" });
+      if (deaths && !job.txMined) steps.push({ job: name, phase: "dead" });
       if (job.txMined) {
         steps.push({ job: name, phase: "projected" });
       } else if (lockHolder === undefined) {
@@ -200,15 +207,14 @@ export class PauseModel {
 
   input(): ManualPauseInput {
     let latest: PauseJobView | null = null;
-    // Jobs are requested in the order of the map, each later than the one before.
-    for (const job of this.jobs.values()) {
-      latest = { paused: job.paused, createdAtMs: job.createdAtMs };
-    }
-    let lastPause: number | null = null;
-    for (const event of this.events) {
-      if (event.projected && event.paused) {
-        lastPause = Math.max(lastPause ?? event.blockTimeMs, event.blockTimeMs);
-      }
+    // Jobs are requested in the order of the map: the last one took the campaign's lock last.
+    for (const [name, job] of this.jobs) {
+      latest = {
+        paused: job.paused,
+        pauseProjected:
+          job.paused &&
+          this.events.some((event) => event.job === name && event.paused && event.projected),
+      };
     }
     return {
       status: this.status,
@@ -217,7 +223,6 @@ export class PauseModel {
       ),
       pauseEventUnprojected: this.events.some((event) => !event.projected),
       latestPauseJob: latest,
-      lastOnChainPauseAtMs: lastPause,
     };
   }
 }
@@ -274,29 +279,41 @@ export interface RequestOrdersOptions {
   prefix?: readonly PauseStep[];
   /** Transient failures each job may take (`PauseModel.nextSteps`). Default 0. */
   maxRetries?: number;
+  /** Jobs may die before their transaction is mined (`PauseModel.nextSteps`). Default false. */
+  deaths?: boolean;
+  /**
+   * Time between two steps, ms. Default 1 000; under 1 000 several steps share a block second
+   * (with 50, twenty steps fit in one).
+   */
+  stepMs?: number;
   /** Stops after this many orders (a guard against a scenario too large). Default 200 000. */
   limit?: number;
 }
 
-/** The time of the `index`-th step of a scenario: one second apart. */
-export function stepTime(t0Ms: number, index: number): number {
-  return t0Ms + index * 1_000;
+/** The time of the `index`-th step of a scenario: `stepMs` apart (one second by default). */
+export function stepTime(t0Ms: number, index: number, stepMs = 1_000): number {
+  return t0Ms + index * stepMs;
 }
 
-/** A model with `steps` played one second apart from `t0Ms`. */
-export function replay(steps: readonly PauseStep[], t0Ms: number): PauseModel {
+/** A model with `steps` played `stepMs` apart (one second by default) from `t0Ms`. */
+export function replay(steps: readonly PauseStep[], t0Ms: number, stepMs = 1_000): PauseModel {
   const model = new PauseModel();
   steps.forEach((step, index) => {
-    model.apply(step, stepTime(t0Ms, index));
+    model.apply(step, stepTime(t0Ms, index, stepMs));
   });
   return model;
+}
+
+/** The jobs of `model` that have not ended (`done` or `dead`). */
+function unended(model: PauseModel): ModelJobView[] {
+  return model.jobsView().filter((job) => job.status !== "done" && job.status !== "dead");
 }
 
 /**
  * Every order in which the merchant's `requests` (job names, in the merchant's order, each made
  * at any point after the one before) and the system's steps (`PauseModel.nextSteps`, which decide
  * what each job does from the state it finds) can happen, after `prefix`. Each order ends when no
- * step is left; a job not ended then is stuck, and throws `PauseModelError`.
+ * step is left; a job not ended (`done` or `dead`) then is stuck, and throws `PauseModelError`.
  */
 export function requestOrders(
   requests: readonly string[],
@@ -304,16 +321,18 @@ export function requestOrders(
 ): PauseStep[][] {
   const prefix = options.prefix ?? [];
   const maxRetries = options.maxRetries ?? 0;
+  const deaths = options.deaths ?? false;
+  const stepMs = options.stepMs ?? 1_000;
   const limit = options.limit ?? 200_000;
   const t0 = 0;
   const orders: PauseStep[][] = [];
   const walk = (path: PauseStep[], requested: number): void => {
-    const model = replay([...prefix, ...path], t0);
-    const candidates = model.nextSteps(maxRetries);
+    const model = replay([...prefix, ...path], t0, stepMs);
+    const candidates = model.nextSteps(maxRetries, deaths);
     const next = requests[requested];
     if (next !== undefined) candidates.push({ job: next, phase: "requested" });
     if (candidates.length === 0) {
-      const stuck = model.jobsView().filter((job) => job.status !== "done");
+      const stuck = unended(model);
       if (stuck.length > 0) {
         throw new PauseModelError(
           `stuck after ${path.map(stepName).join(", ")}: ${stuck.map((job) => job.job).join(", ")}`,
@@ -345,16 +364,18 @@ export function randomRequestOrder(
 ): PauseStep[] {
   const prefix = options.prefix ?? [];
   const maxRetries = options.maxRetries ?? 0;
+  const deaths = options.deaths ?? false;
+  const stepMs = options.stepMs ?? 1_000;
   const path: PauseStep[] = [];
   let requested = 0;
   for (;;) {
-    const model = replay([...prefix, ...path], 0);
-    const candidates = model.nextSteps(maxRetries);
+    const model = replay([...prefix, ...path], 0, stepMs);
+    const candidates = model.nextSteps(maxRetries, deaths);
     const next = requests[requested];
     if (next !== undefined) candidates.push({ job: next, phase: "requested" });
     const step = candidates[Math.floor(random() * candidates.length)];
     if (step === undefined) {
-      const stuck = model.jobsView().filter((job) => job.status !== "done");
+      const stuck = unended(model);
       if (stuck.length > 0) {
         throw new PauseModelError(
           `stuck after ${path.map(stepName).join(", ")}: ${stuck.map((job) => job.job).join(", ")}`,

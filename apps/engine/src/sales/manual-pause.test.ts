@@ -7,6 +7,7 @@ import {
   minedJobSteps,
   pauseResumeOrders,
   randomRequestOrder,
+  replay,
   requestOrders,
   stepName,
   stepTime,
@@ -22,12 +23,17 @@ const SETTLED: ManualPauseInput = {
   pauseJobInFlight: false,
   pauseEventUnprojected: false,
   latestPauseJob: null,
-  lastOnChainPauseAtMs: null,
 };
 
 function settled(overrides: Partial<ManualPauseInput>): ManualPauseInput {
   return { ...SETTLED, ...overrides };
 }
+
+/** A pause request whose own pause was not seen on-chain (`pauseProjected` false). */
+const PAUSE_NOT_SEEN = { paused: true, pauseProjected: false };
+/** A pause request whose own `CampaignPaused(true)` was projected. */
+const PAUSE_SEEN = { paused: true, pauseProjected: true };
+const RESUME = { paused: false, pauseProjected: false };
 
 describe("isManuallyPaused: each condition", () => {
   it("is not paused without any pause job on a live campaign", () => {
@@ -35,70 +41,118 @@ describe("isManuallyPaused: each condition", () => {
   });
 
   it("a: the projected status is paused, even with no job (a pause made on-chain directly)", () => {
-    expect(isManuallyPaused(settled({ status: "paused", lastOnChainPauseAtMs: T0 }))).toBe(true);
+    expect(isManuallyPaused(settled({ status: "paused" }))).toBe(true);
   });
 
   it("b: a pause or resume job is not finished, whatever it asks", () => {
-    for (const paused of [true, false]) {
-      expect(
-        isManuallyPaused(
-          settled({ pauseJobInFlight: true, latestPauseJob: { paused, createdAtMs: T0 } }),
-        ),
-      ).toBe(true);
+    for (const job of [PAUSE_NOT_SEEN, PAUSE_SEEN, RESUME]) {
+      expect(isManuallyPaused(settled({ pauseJobInFlight: true, latestPauseJob: job }))).toBe(true);
     }
   });
 
   it("c: a pause or resume event is stored and not projected", () => {
     expect(isManuallyPaused(settled({ pauseEventUnprojected: true }))).toBe(true);
-    expect(
-      isManuallyPaused(
-        settled({
-          pauseEventUnprojected: true,
-          latestPauseJob: { paused: false, createdAtMs: T0 },
-          lastOnChainPauseAtMs: T0 - 60_000,
-        }),
-      ),
-    ).toBe(true);
-  });
-
-  it("d: the latest pause job asked for a pause the chain has not shown since (a dead pause)", () => {
-    const job = { paused: true, createdAtMs: T0 };
-    expect(isManuallyPaused(settled({ latestPauseJob: job }))).toBe(true);
-    // An older on-chain pause (an earlier pause, since resumed) does not count.
-    expect(
-      isManuallyPaused(settled({ latestPauseJob: job, lastOnChainPauseAtMs: T0 - 120_000 })),
-    ).toBe(true);
-  });
-
-  it("d is over when the pause was mined since the job and a resume reached the chain without a job", () => {
-    const job = { paused: true, createdAtMs: T0 };
-    expect(
-      isManuallyPaused(settled({ latestPauseJob: job, lastOnChainPauseAtMs: T0 + 4_000 })),
-    ).toBe(false);
-  });
-
-  it("d counts a pause mined in the second of its job, even a few hundred ms before it", () => {
-    // Block times are whole seconds: a block at T0 − 500 ms (the start of the job's second) may
-    // well hold the job's transaction. Mined, then resumed on-chain: the pause is over.
-    const job = { paused: true, createdAtMs: T0 };
-    expect(isManuallyPaused(settled({ latestPauseJob: job, lastOnChainPauseAtMs: T0 - 500 }))).toBe(
-      false,
-    );
-    // A pause from the second before the job's is an older one: the job did not reach the chain.
-    expect(isManuallyPaused(settled({ latestPauseJob: job, lastOnChainPauseAtMs: T0 - 501 }))).toBe(
+    expect(isManuallyPaused(settled({ pauseEventUnprojected: true, latestPauseJob: RESUME }))).toBe(
       true,
     );
   });
 
+  it("d: the latest pause job asked for a pause the chain has not shown for it (a dead pause)", () => {
+    expect(isManuallyPaused(settled({ latestPauseJob: PAUSE_NOT_SEEN }))).toBe(true);
+    // An older on-chain pause (an earlier request's, since resumed) does not count.
+    const model = replay(
+      [
+        ...minedJobSteps("pause"),
+        ...minedJobSteps("resume"),
+        { job: "pause2", phase: "requested" },
+        { job: "pause2", phase: "running" },
+        { job: "pause2", phase: "dead" },
+      ],
+      T0,
+    );
+    expect(model.input().latestPauseJob).toEqual(PAUSE_NOT_SEEN);
+    expect(isManuallyPaused(model.input())).toBe(true);
+  });
+
+  it("d is over when the request's own pause was projected and a resume reached the chain without a job", () => {
+    expect(isManuallyPaused(settled({ latestPauseJob: PAUSE_SEEN }))).toBe(false);
+  });
+
+  it("d counts the request's own pause mined in the second of its job, even in a block stamped before it", () => {
+    // Block times are whole seconds: a block stamped T0 − 500 ms (the start of the job's second)
+    // may well hold the job's transaction. It is the request's own pause, so it counts.
+    const model = new PauseModel();
+    model.apply({ job: "pause", phase: "requested" }, T0);
+    model.apply({ job: "pause", phase: "running" }, T0 + 100);
+    model.apply({ job: "pause", phase: "mined" }, T0 + 200);
+    model.apply({ job: "pause", phase: "projected" }, T0 + 300);
+    expect(model.input().latestPauseJob).toEqual(PAUSE_SEEN);
+    // The chain is paused (a); were it resumed without a job, the pause would be over.
+    expect(isManuallyPaused({ ...model.input(), status: "live" })).toBe(false);
+    // A pause from the second before the job's is an older one: another request's pause.
+    const older = replay(
+      [
+        ...minedJobSteps("pause"),
+        { job: "pause2", phase: "requested" },
+        { job: "pause2", phase: "running" },
+        { job: "pause2", phase: "nothing-sent" },
+      ],
+      T0,
+    );
+    expect(older.input().latestPauseJob).toEqual(PAUSE_NOT_SEEN);
+    expect(isManuallyPaused({ ...older.input(), status: "live" })).toBe(true);
+  });
+
+  it("d: a pause requested in the second an earlier pause was mined, whose job dies, keeps the pause", () => {
+    // An earlier pause is mined in second s and a resume lands; the merchant pauses again in the
+    // same second s and that job dies. The earlier pause is not this request's: the merchant's
+    // latest word is a pause the chain never showed, so the sale must not reopen.
+    const second = Math.floor(T0 / 1000) * 1000;
+    const steps: PauseStep[] = [
+      ...minedJobSteps("pause"),
+      ...minedJobSteps("resume"),
+      { job: "pause2", phase: "requested" },
+      { job: "pause2", phase: "running" },
+      { job: "pause2", phase: "dead" },
+    ];
+    const model = new PauseModel();
+    steps.forEach((s, index) => {
+      model.apply(s, second + index * 50);
+    });
+    expect(model.chainPaused()).toBe(false);
+    expect(model.latest()).toMatchObject({ job: "pause2", paused: true, status: "dead" });
+    expect(isManuallyPaused(model.input())).toBe(true);
+  });
+
+  it("a pause that found the chain already paused sent nothing: paused while the chain is, and after", () => {
+    // pause on-chain, resume requested, pause again before the resume runs: the resume is
+    // superseded, the new pause finds the chain paused and sends nothing.
+    const model = replay(
+      [
+        ...minedJobSteps("pause"),
+        { job: "resume", phase: "requested" },
+        { job: "pause2", phase: "requested" },
+        { job: "resume", phase: "running" },
+        { job: "resume", phase: "nothing-sent" },
+        { job: "pause2", phase: "running" },
+        { job: "pause2", phase: "nothing-sent" },
+      ],
+      T0,
+    );
+    expect(model.chainPaused()).toBe(true);
+    expect(model.input()).toMatchObject({ status: "paused", latestPauseJob: PAUSE_NOT_SEEN });
+    expect(isManuallyPaused(model.input())).toBe(true);
+    // Its pause is never "seen": the merchant's later resume ends it once it lands, and nothing
+    // else does (a resume that reached the chain without a request leaves the latest word, a
+    // pause, in force).
+    expect(isManuallyPaused({ ...model.input(), status: "live" })).toBe(true);
+    for (const s of minedJobSteps("resume2")) model.apply(s, T0 + 60_000);
+    expect(model.input()).toMatchObject({ status: "live", latestPauseJob: RESUME });
+    expect(isManuallyPaused(model.input())).toBe(false);
+  });
+
   it("a finished resume on a live campaign is not paused: the evaluator decides normally", () => {
-    expect(
-      isManuallyPaused(
-        settled({
-          latestPauseJob: { paused: false, createdAtMs: T0 },
-          lastOnChainPauseAtMs: T0 - 9,
-        }),
-      ),
-    ).toBe(false);
+    expect(isManuallyPaused(settled({ latestPauseJob: RESUME }))).toBe(false);
   });
 });
 
@@ -114,16 +168,28 @@ describe("isManuallyPaused: every combination of a, b, c, d", () => {
   }
 
   it.each(combinations)("a=$a b=$b c=$c d=$d", ({ a, b, c, d }) => {
-    // d holds with a pause job not shown on-chain since; it fails with a resume as the latest job.
+    // d holds with a pause job whose own pause was not seen; it fails with a resume as the latest.
     const input: ManualPauseInput = {
       status: a ? "paused" : "live",
       pauseJobInFlight: b,
       pauseEventUnprojected: c,
-      latestPauseJob: { paused: d, createdAtMs: T0 },
-      lastOnChainPauseAtMs: T0 - 60_000,
+      latestPauseJob: d ? PAUSE_NOT_SEEN : RESUME,
     };
     expect(isManuallyPaused(input)).toBe(a || b || c || d);
   });
+
+  it.each(combinations.filter((combination) => !combination.d))(
+    "a=$a b=$b c=$c, the latest pause seen on-chain: d fails",
+    ({ a, b, c }) => {
+      const input: ManualPauseInput = {
+        status: a ? "paused" : "live",
+        pauseJobInFlight: b,
+        pauseEventUnprojected: c,
+        latestPauseJob: PAUSE_SEEN,
+      };
+      expect(isManuallyPaused(input)).toBe(a || b || c);
+    },
+  );
 });
 
 /**
@@ -460,4 +526,114 @@ describe("isManuallyPaused: any number of requests, the handler deciding what ea
     }
     expectEveryOrderHolds([], orders);
   });
+});
+
+/**
+ * `brokenPromise` with jobs that may die, played `stepMs` apart from the start of a block second:
+ *
+ * - the rule says "not paused" only while the chain is live AND the merchant's latest request is
+ *   a resume whose job has ended (done, or dead with the chain live);
+ * - once it says "not paused", it keeps saying so until the merchant's next request (no flap);
+ * - at the end every job has ended; when the latest job is done, the chain and the rule are in
+ *   the state it asked; when it died, the rule says paused if it asked a pause or the chain is
+ *   paused, and not paused otherwise.
+ */
+function brokenPromiseWithDeaths(order: readonly PauseStep[], stepMs: number): string | null {
+  const model = new PauseModel();
+  const name = order.map(stepName).join(" → ");
+  let reopened = false;
+  for (const [index, step] of order.entries()) {
+    model.apply(step, stepTime(0, index, stepMs));
+    const manual = isManuallyPaused(model.input());
+    const latest = model.latest();
+    const where = `after ${stepName(step)} (step ${String(index + 1)}) in ${name}`;
+    if (!manual) {
+      if (model.chainPaused()) return `not paused while the chain is paused, ${where}`;
+      if (latest === null || latest.paused) {
+        return `not paused while the merchant's latest word is a pause, ${where}`;
+      }
+      if (latest.status !== "done" && latest.status !== "dead") {
+        return `not paused before the latest resume ended, ${where}`;
+      }
+    }
+    if (step.phase === "requested") reopened = false;
+    else if (reopened && manual) return `paused again without a new request, ${where}`;
+    if (!manual) reopened = true;
+  }
+  const latest = model.latest();
+  if (latest === null) return `no request in ${name}`;
+  const unfinished = model
+    .jobsView()
+    .filter((job) => job.status !== "done" && job.status !== "dead");
+  if (unfinished.length > 0) {
+    return `jobs not ended: ${unfinished.map((job) => job.job).join(", ")} in ${name}`;
+  }
+  const manual = isManuallyPaused(model.input());
+  if (latest.status === "done") {
+    if (model.chainPaused() !== latest.paused)
+      return `the chain ends against ${latest.job} in ${name}`;
+    if (manual !== latest.paused) return `the rule ends against ${latest.job} in ${name}`;
+  } else if (manual !== (latest.paused || model.chainPaused())) {
+    return `the rule ends ${String(manual)} after the dead ${latest.job} in ${name}`;
+  }
+  return null;
+}
+
+function expectEveryOrderHoldsWithDeaths(orders: readonly PauseStep[][], stepMs: number): void {
+  const broken = orders
+    .map((order) => brokenPromiseWithDeaths(order, stepMs))
+    .filter((b) => b !== null);
+  expect(broken.slice(0, 3)).toEqual([]);
+}
+
+describe("isManuallyPaused: jobs that die, many steps in one block second", () => {
+  // 50 ms apart from second 0: the first twenty steps share one block second.
+  const SAME_SECOND = 50;
+
+  it("generates deaths, among them a pause requested in the second of an earlier pause, then dead", () => {
+    const orders = requestOrders(["pause", "resume", "pause2"], {
+      deaths: true,
+      stepMs: SAME_SECOND,
+    });
+    const names = orders.map((order) => order.map(stepName).join(","));
+    expect(
+      names.some((n) =>
+        n.endsWith(
+          "pause:projected,resume:requested,resume:running,resume:mined,resume:projected,pause2:requested,pause2:running,pause2:dead",
+        ),
+      ),
+    ).toBe(true);
+    expect(orders.length).toBeGreaterThan(1_000);
+  });
+
+  for (const stepMs of [SAME_SECOND, 1_000]) {
+    it(`pause, resume, pause again, every order with deaths (${String(stepMs)} ms apart)`, () => {
+      const orders = requestOrders(["pause", "resume", "pause2"], { deaths: true, stepMs });
+      expectEveryOrderHoldsWithDeaths(orders, stepMs);
+    });
+
+    it(`after a pause on-chain: resume, pause, resume, every order with deaths (${String(stepMs)} ms apart)`, () => {
+      const prefix = minedJobSteps("pause");
+      const orders = requestOrders(["resume", "pause2", "resume2"], {
+        prefix,
+        deaths: true,
+        stepMs,
+      });
+      expectEveryOrderHoldsWithDeaths(
+        orders.map((order) => [...prefix, ...order]),
+        stepMs,
+      );
+    });
+
+    it(`six requests with deaths and transient failures, random orders (${String(stepMs)} ms apart, seeded)`, () => {
+      const requests = ["pause", "resume", "pause2", "resume2", "pause3", "resume3"];
+      const random = seededRandom(20261122 + stepMs);
+      const orders: PauseStep[][] = [];
+      for (let round = 0; round < 2_000; round += 1) {
+        orders.push(randomRequestOrder(requests, random, { maxRetries: 1, deaths: true, stepMs }));
+      }
+      expect(orders.some((order) => order.some((step) => step.phase === "dead"))).toBe(true);
+      expectEveryOrderHoldsWithDeaths(orders, stepMs);
+    });
+  }
 });

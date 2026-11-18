@@ -71,6 +71,22 @@ describe("enqueueJob", () => {
     expect(shape?.type).toBe("object");
   });
 
+  it("stamps the job with the clock read by the insert, not the start of the caller's transaction", async () => {
+    const { began, row } = await db.begin(async (tx) => {
+      const [start] = await tx<{ began: Date }[]>`select now() as began`;
+      await tx`select pg_sleep(0.05)`;
+      const { id } = await enqueueJob(tx, { kind: "purchase", payload: {} });
+      const [job] = await tx<{ created_at: Date; same: boolean }[]>`
+        select created_at, run_at = created_at as same from jobs where id = ${id}
+      `;
+      return { began: start?.began, row: job };
+    });
+    if (began === undefined || row === undefined) throw new Error("nothing read");
+    expect(row.created_at.getTime() - began.getTime()).toBeGreaterThanOrEqual(50);
+    // Without runAt, run_at is the same reading: never after created_at.
+    expect(row.same).toBe(true);
+  });
+
   it("stores runAt and maxAttempts when given", async () => {
     const runAt = new Date("2030-01-02T03:04:05.000Z");
     await enqueueJob(db, { kind: "settle", payload: [1, 2], runAt, maxAttempts: 9 });

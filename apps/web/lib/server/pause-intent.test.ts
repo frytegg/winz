@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
 
 import { JOB_KINDS, jobIdempotencyKey } from "@winz/shared";
+import type { TransactionSql } from "postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { isLatestRequest } from "../../../engine/src/jobs/handlers/campaign-actions";
+import { loadManualPauseInput } from "../../../engine/src/sales/store";
 import { createTestDatabase, type TestDatabase } from "../../../engine/src/testing/postgres";
-import { pauseCampaign, resumeCampaign } from "./campaign-writes";
+import { latestPauseRequest, pauseCampaign, resumeCampaign } from "./campaign-writes";
 import type { Db } from "./db";
 import { ApiRouteError } from "./route";
 import {
@@ -353,5 +356,210 @@ describe("the merchant can always pause again", () => {
     await expect(pauseCampaign(db, joe, closed, now)).rejects.toThrow(/already closed/);
     await expect(resumeCampaign(db, joe, closed, now)).rejects.toThrow(/already closed/);
     expect(await jobsOf(closed)).toEqual([]);
+  });
+});
+
+/** A live campaign of Joe's, sales open for hours. */
+async function liveCampaign(): Promise<string> {
+  return insertCampaign(db, {
+    merchantId: joe,
+    instrument: SYMBOL,
+    eventTicker: "EV",
+    salesClose: minutesFrom(now, 595),
+  });
+}
+
+/** The campaign's `campaign.set_paused` jobs with their stamp in microseconds, oldest first. */
+async function stampsOf(campaignId: string): Promise<{ requestId: string; micros: bigint }[]> {
+  const rows = await db<{ request_id: string; micros: bigint }[]>`
+    select payload ->> 'requestId' as request_id,
+           (extract(epoch from created_at) * 1000000)::bigint as micros
+    from jobs
+    where kind = ${JOB_KINDS.setPaused} and payload ->> 'campaignId' = ${campaignId}
+    order by created_at, id
+  `;
+  return rows.map((row) => ({ requestId: row.request_id, micros: row.micros }));
+}
+
+/**
+ * A client whose transactions begin and read `now()` at once (the moment Postgres fixes for the
+ * whole transaction), then wait for `release` before doing the route's work: the route's request
+ * begins before another one and takes the campaign's lock after it.
+ */
+function earlyTransactions(): { db: Db; began: Promise<Date>; release: () => void } {
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let markBegan: (at: Date) => void = () => undefined;
+  const began = new Promise<Date>((resolve) => {
+    markBegan = resolve;
+  });
+  const begin = <T>(work: (tx: TransactionSql) => Promise<T>): Promise<T> =>
+    db.begin(async (tx) => {
+      const [row] = await tx<{ began: Date }[]>`select now() as began`;
+      markBegan(row?.began ?? new Date(0));
+      await gate;
+      return work(tx);
+    }) as Promise<T>;
+  const early = new Proxy(db, {
+    get(target, property, receiver): unknown {
+      return property === "begin" ? begin : Reflect.get(target, property, receiver);
+    },
+  });
+  return { db: early, began, release };
+}
+
+describe("the merchant's latest request is the one that took the campaign's lock last", () => {
+  /**
+   * Request B begins first and reads now(); request A then runs to its commit; B goes on, takes
+   * the lock and enqueues. B is the merchant's last word: it must be the latest for the web
+   * route, for the engine's handler (`isLatestRequest`) and for the pause rule (`pj`).
+   */
+  async function interleave(
+    campaignId: string,
+    first: Action,
+    last: Action,
+  ): Promise<{ first: string; last: string }> {
+    const a = randomUUID();
+    const b = randomUUID();
+    const early = earlyTransactions();
+    const lastRun = last === "pause" ? pauseCampaign : resumeCampaign;
+    const firstRun = first === "pause" ? pauseCampaign : resumeCampaign;
+    const pending = lastRun(early.db, joe, campaignId, now, b);
+    const bBegan = await early.began;
+    try {
+      await firstRun(db, joe, campaignId, now, a);
+    } finally {
+      early.release();
+    }
+    await pending;
+    // The interleaving really happened: A's transaction began after B's.
+    const [aBegan] = await db<{ at: Date }[]>`
+      select created_at as at from jobs where idempotency_key = ${jobIdempotencyKey.setPaused(a)}
+    `;
+    expect(aBegan?.at.getTime()).toBeGreaterThanOrEqual(bBegan.getTime());
+    return { first: a, last: b };
+  }
+
+  async function expectLatest(
+    campaignId: string,
+    requestId: string,
+    paused: boolean,
+  ): Promise<void> {
+    expect(await latestPauseRequest(db, campaignId)).toEqual({
+      requestId,
+      paused,
+      status: "queued",
+    });
+    expect(await isLatestRequest(db, campaignId, requestId)).toBe(true);
+    expect((await loadManualPauseInput(db, campaignId))?.latestPauseJob?.paused).toBe(paused);
+  }
+
+  it("a resume that commits first, then a pause that began before it: the pause is the latest", async () => {
+    const id = await liveCampaign();
+    await pauseCampaign(db, joe, id, now);
+    await db`update jobs set status = 'done' where payload ->> 'campaignId' = ${id}`;
+    await db`update campaigns set status = 'paused' where id = ${id}`;
+
+    const { first, last } = await interleave(id, "resume", "pause");
+    await expectLatest(id, last, true);
+    expect(await isLatestRequest(db, id, first)).toBe(false);
+    // The merchant's latest word is a pause: another pause is refused, a resume accepted.
+    await expect(pauseCampaign(db, joe, id, now)).rejects.toThrow(/already paused/);
+    expect((await stampsOf(id)).map((job) => job.requestId).slice(1)).toEqual([first, last]);
+  });
+
+  it("a pause that commits first, then a resume that began before it: the resume is the latest", async () => {
+    const id = await liveCampaign();
+    const { first, last } = await interleave(id, "pause", "resume");
+    await expectLatest(id, last, false);
+    expect(await isLatestRequest(db, id, first)).toBe(false);
+    expect((await stampsOf(id)).map((job) => job.requestId)).toEqual([first, last]);
+  });
+
+  it("requests that commit one after the other get strictly increasing stamps, the last one latest", async () => {
+    const id = await liveCampaign();
+    const made: string[] = [];
+    for (let i = 0; i < 12; i += 1) {
+      const requestId = randomUUID();
+      const action: Action = i % 2 === 0 ? "pause" : "resume";
+      await call(action, id, requestId);
+      made.push(requestId);
+      expect((await latestPauseRequest(db, id))?.requestId).toBe(requestId);
+    }
+    const stamps = await stampsOf(id);
+    expect(stamps.map((job) => job.requestId)).toEqual(made);
+    for (let i = 1; i < stamps.length; i += 1) {
+      expect((stamps[i]?.micros ?? 0n) > (stamps[i - 1]?.micros ?? 0n)).toBe(true);
+    }
+  });
+
+  it("a stamp is strictly after the campaign's latest one, in the same millisecond or with the clock behind", async () => {
+    const id = await liveCampaign();
+    // A resume stamped an hour ahead on a whole millisecond (the clock then stepped back), done.
+    const earlier = randomUUID();
+    const [ahead] = await db<{ micros: bigint }[]>`
+      insert into jobs (kind, payload, status, idempotency_key, created_at, run_at)
+      values (${JOB_KINDS.setPaused},
+              ${db.json({ campaignId: id, paused: false, requestId: earlier })},
+              'done', ${jobIdempotencyKey.setPaused(earlier)},
+              date_trunc('milliseconds', now() + interval '1 hour'),
+              date_trunc('milliseconds', now() + interval '1 hour'))
+      returning (extract(epoch from created_at) * 1000000)::bigint as micros
+    `;
+    if (ahead === undefined) throw new Error("job not inserted");
+    const pause = randomUUID();
+    const resume = randomUUID();
+    await pauseCampaign(db, joe, id, now, pause);
+    await resumeCampaign(db, joe, id, now, resume);
+    // One microsecond apart, in the same millisecond: no tie for a random id to break.
+    expect(await stampsOf(id)).toEqual([
+      { requestId: earlier, micros: ahead.micros },
+      { requestId: pause, micros: ahead.micros + 1n },
+      { requestId: resume, micros: ahead.micros + 2n },
+    ]);
+    expect((await latestPauseRequest(db, id))?.requestId).toBe(resume);
+    expect(await isLatestRequest(db, id, resume)).toBe(true);
+    expect((await loadManualPauseInput(db, id))?.latestPauseJob?.paused).toBe(false);
+  });
+});
+
+describe("a resume retried with another request id", () => {
+  it("answers 200 while the first resume is queued, then 409 once it has landed: enqueued once", async () => {
+    const id = await liveCampaign();
+    await pauseCampaign(db, joe, id, now);
+    await db`update jobs set status = 'done' where payload ->> 'campaignId' = ${id}`;
+    await db`update campaigns set status = 'paused' where id = ${id}`;
+    const first = randomUUID();
+    const second = randomUUID();
+    await resumeCampaign(db, joe, id, now, first);
+    // A second resume while the first waits in the queue: answered, nothing recorded.
+    expect(await resumeCampaign(db, joe, id, now, second)).toEqual({
+      status: "paused",
+      saleState: "paused_manual",
+    });
+    // The first resume lands: the engine sends it and projects it, the sale reopens.
+    await db`update jobs set status = 'done' where payload ->> 'requestId' = ${first}`;
+    await db`update campaigns set status = 'live', sale_state = 'open' where id = ${id}`;
+    // The second request id again: nothing tells it from a new click on a live promo, so it is
+    // refused as such (decided, see `resumeCampaign`).
+    const again = await call("resume", id, second);
+    expect(again).toBeInstanceOf(ApiRouteError);
+    expect(again).toMatchObject({
+      status: 409,
+      code: "conflict",
+      message: "This promo is not paused",
+    });
+    const jobs = await jobsOf(id);
+    expect(jobs.map((job) => [job.paused, job.requestId === first])).toEqual([
+      [true, false],
+      [false, true],
+    ]);
+    const [recorded] = await db<{ n: bigint }[]>`
+      select count(*)::bigint as n from jobs
+      where idempotency_key = ${jobIdempotencyKey.setPaused(second)}
+    `;
+    expect(recorded?.n).toBe(0n);
   });
 });

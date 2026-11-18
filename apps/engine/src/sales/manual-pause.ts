@@ -4,8 +4,14 @@ import type { CampaignStatus } from "@winz/shared";
 export interface PauseJobView {
   /** What the merchant asked for: true to pause, false to resume. */
   paused: boolean;
-  /** When the job was enqueued (`jobs.created_at`), epoch milliseconds. */
-  createdAtMs: number;
+  /**
+   * For a pause: the pause of THIS request is on-chain as far as the projection knows, i.e. the
+   * `CampaignPaused(paused = true)` event of the request's own `setPaused` transaction (the
+   * `chain_txs` row whose payload carries its `requestId`, mined, and the events of its hash) is
+   * projected. A pause that sent no transaction (it found the chain already paused) or none that
+   * was mined (its job died) has none. Always false for a resume.
+   */
+  pauseProjected: boolean;
 }
 
 export interface ManualPauseInput {
@@ -25,21 +31,11 @@ export interface ManualPauseInput {
    * but not projected yet (`processed_at` is null): the chain moved and `status` does not show it.
    */
   pauseEventUnprojected: boolean;
-  /** The most recent `campaign.set_paused` job naming the campaign, or null when there is none. */
-  latestPauseJob: PauseJobView | null;
   /**
-   * When the campaign was last paused on-chain, as far as the projection has applied it: the time
-   * of its latest PROJECTED `CampaignPaused` event with `paused = true` (block time, or the time it
-   * was stored when the block time is unknown), epoch milliseconds. Null when none. An event that
-   * is stored but not projected yet must not count: `status` still says `live` for it, and the two
-   * together would read as "paused, then resumed on-chain" and reopen a campaign that is paused.
+   * The merchant's latest `campaign.set_paused` job naming the campaign (the newest stamp: the
+   * request that took the campaign's lock last), or null when there is none.
    */
-  lastOnChainPauseAtMs: number | null;
-}
-
-/** Block times have a one-second granularity: a pause mined in the second of the job counts. */
-function floorToSecond(ms: number): number {
-  return Math.floor(ms / 1000) * 1000;
+  latestPauseJob: PauseJobView | null;
 }
 
 /**
@@ -57,12 +53,24 @@ function floorToSecond(ms: number): number {
  *    order of mining, never show the campaign selling while it may be paused on-chain;
  * c. a pause or resume event of the campaign is stored but not projected yet
  *    (`pauseEventUnprojected`): the chain moved and the status lags it, in either direction;
- * d. its latest pause job asked for a pause and the campaign has not been paused on-chain (as
- *    projected) since that job was enqueued. With (b) out of the way this is the case of a pause
- *    job that finished without its pause reaching the chain: it died (attempts used up, or a
- *    revert no attempt can change), and the merchant, who asked for a pause and still sees one,
- *    resumes by hand. If the campaign was paused on-chain since the job and is no longer paused,
- *    a resume reached the chain without a job and the pause is over.
+ * d. its latest pause job asked for a pause, and THAT request's own pause has not been seen
+ *    on-chain (`pauseProjected`: the event of its own transaction, projected). With (b) out of
+ *    the way this is the case of a pause job that finished without its pause reaching the
+ *    chain: it died (attempts used up, or a revert no attempt can change), and the merchant, who
+ *    asked for a pause and still sees one, resumes by hand. No other pause counts for it, however
+ *    close in time: an earlier pause mined in the very second the request was made, since
+ *    resumed, says nothing about this request. If its own pause was projected and the campaign is
+ *    live again, a resume reached the chain without a job and the pause is over.
+ *
+ *    A pause job that found the chain already paused sends no transaction, so its pause is never
+ *    "seen" and (d) holds for as long as it is the latest request. That is what the merchant
+ *    asked: while the chain is paused (a) holds anyway, so nothing changes there; the sale never
+ *    reopens while the chain is paused ((a), (c)); and it does not stay `paused_manual` after the
+ *    merchant's later resume lands, because that resume is then the latest request and (d) no
+ *    longer applies. Only a resume that reached the chain without any request (outside the
+ *    engine) leaves it paused, until the merchant resumes: their latest word is still a pause.
+ *    No time is compared any more: a block time has a one-second granularity, and the order of
+ *    two pauses in one second cannot be read from it.
  *
  * So after a resume is requested, the pause ends only when the resume is mined AND projected (its
  * job finished or its transaction mined, its event projected, the status `live`); and once every
@@ -76,8 +84,5 @@ export function isManuallyPaused(input: ManualPauseInput): boolean {
   if (input.pauseEventUnprojected) return true;
   const job = input.latestPauseJob;
   if (job === null || !job.paused) return false;
-  const pausedOnChainSinceJob =
-    input.lastOnChainPauseAtMs !== null &&
-    input.lastOnChainPauseAtMs >= floorToSecond(job.createdAtMs);
-  return !pausedOnChainSinceJob;
+  return !job.pauseProjected;
 }

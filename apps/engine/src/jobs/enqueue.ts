@@ -15,7 +15,7 @@ export interface EnqueueJobInput {
   payload: unknown;
   /** Two enqueues with the same key give one job. The key is global, not per kind. */
   idempotencyKey?: string;
-  /** Earliest time a worker may pick the job up. Default: now (database clock). */
+  /** Earliest time a worker may pick the job up. Default: `created_at` (database clock). */
   runAt?: Date;
   /** Runs allowed before the job is set aside as `dead`. Default: the column default (5). */
   maxAttempts?: number;
@@ -52,6 +52,13 @@ function serialisePayload(kind: string, payload: unknown): string {
  * holds the key (`created: false`) and never inserts a duplicate, including when two calls race:
  * the unique constraint decides, and `on conflict do nothing` waits for a concurrent insert of the
  * same key to commit or roll back before answering.
+ *
+ * `created_at` is the wall clock read by the insert (`clock_timestamp()`), as on the web's side
+ * (`apps/web/lib/server/jobs.ts`), not the time the caller's transaction began (`now()`, the
+ * column default): the jobs of one table carry one meaning of the stamp, the moment the row was
+ * written, so a job inserted after waiting for a lock is stamped after the one that held it.
+ * Without `runAt`, `run_at` is that same reading: the job may run at once, and `run_at` is never
+ * after `created_at`.
  */
 export async function enqueueJob(db: JobSql, input: EnqueueJobInput): Promise<EnqueueJobResult> {
   const { kind, idempotencyKey, runAt, maxAttempts } = input;
@@ -74,12 +81,14 @@ export async function enqueueJob(db: JobSql, input: EnqueueJobInput): Promise<En
 
   for (let round = 0; round < MAX_ENQUEUE_ROUNDS; round += 1) {
     const inserted = await db<{ id: string }[]>`
-      insert into jobs (kind, payload, idempotency_key, run_at, max_attempts)
+      with stamp as (select clock_timestamp() as at)
+      insert into jobs (kind, payload, idempotency_key, created_at, run_at, max_attempts)
       values (
         ${kind},
         ${payload}::text::jsonb,
         ${key},
-        ${runAt === undefined ? db`default` : db`${runAt}`},
+        (select at from stamp),
+        ${runAt === undefined ? db`(select at from stamp)` : db`${runAt}`},
         ${maxAttempts === undefined ? db`default` : db`${maxAttempts}`}
       )
       on conflict (idempotency_key) do nothing

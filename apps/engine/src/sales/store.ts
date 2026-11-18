@@ -65,8 +65,8 @@ export interface CampaignSaleRow {
   pauseJobInFlight: boolean;
   /** See `ManualPauseInput.pauseEventUnprojected`. */
   pauseEventUnprojected: boolean;
+  /** See `ManualPauseInput.latestPauseJob`. */
   latestPauseJob: PauseJobView | null;
-  lastOnChainPauseAtMs: number | null;
   /** A `campaign.close_sales` job exists: the merchant closed sales early. */
   closeRequested: boolean;
 }
@@ -101,8 +101,7 @@ const rowSchema = z.object({
   reserved: bigintSchema,
   pending: bigintSchema,
   job_paused: z.boolean().nullable(),
-  job_created_at: dateSchema.nullable(),
-  last_pause_at: dateSchema.nullable(),
+  job_pause_projected: z.boolean().nullable(),
   pause_job_in_flight: z.boolean(),
   pause_event_unprojected: z.boolean(),
   close_requested: z.boolean(),
@@ -114,6 +113,11 @@ function toMs(value: Date | string): number {
 
 function bps(value: number): Bps {
   return BigInt(value);
+}
+
+/** The latest pause job from its columns; null when the campaign has none. */
+function pauseJobView(paused: boolean | null, pauseProjected: boolean | null): PauseJobView | null {
+  return paused === null ? null : { paused, pauseProjected: pauseProjected === true };
 }
 
 /** Parses one row of `loadCampaignSaleRows`. Throws `SaleStateRowError` on an unexpected shape. */
@@ -134,10 +138,7 @@ export function parseCampaignSaleRow(row: unknown): CampaignSaleRow {
   const r = parsed.data;
   const closeMs = toMs(r.sales_close);
   const startCloseMs = toMs(r.starts_at) - SALES_CLOSE_BEFORE_START_MS;
-  const latestPauseJob: PauseJobView | null =
-    r.job_paused === null || r.job_created_at === null
-      ? null
-      : { paused: r.job_paused, createdAtMs: toMs(r.job_created_at) };
+  const latestPauseJob = pauseJobView(r.job_paused, r.job_pause_projected);
   const pending = r.pending > 0n ? r.pending : 0n;
   return {
     id: r.id,
@@ -163,7 +164,6 @@ export function parseCampaignSaleRow(row: unknown): CampaignSaleRow {
     pauseJobInFlight: r.pause_job_in_flight,
     pauseEventUnprojected: r.pause_event_unprojected,
     latestPauseJob,
-    lastOnChainPauseAtMs: r.last_pause_at === null ? null : toMs(r.last_pause_at),
     closeRequested: r.close_requested,
   };
 }
@@ -180,14 +180,17 @@ type Queryable = Db | TransactionSql;
  *   transaction tells that the job's work reached the chain: a mined transaction of another
  *   campaign, or of an earlier request of this one, says nothing about this job;
  * - `pause_event_unprojected`: a `CampaignPaused` of the campaign is stored and not projected;
- * - `job_paused`, `job_created_at`: the latest `campaign.set_paused` job of the campaign;
- * - `last_pause_at`: the time of its latest projected on-chain pause.
+ * - `job_paused`: what the latest `campaign.set_paused` job of the campaign asks (the newest
+ *   `created_at`, which the web routes stamp in the order the requests took the campaign's lock);
+ * - `job_pause_projected`: that job asks for a pause, and the `CampaignPaused(paused = true)` of
+ *   ITS OWN `setPaused` transaction (the `chain_txs` row carrying its `requestId`, mined, and the
+ *   events of that hash) is projected. Never another request's pause: an earlier pause mined in
+ *   the same second as the request says nothing about it.
  */
 function pauseColumns(sql: Queryable): PendingQuery<Row[]> {
   return sql`
       pj.paused as job_paused,
-      pj.created_at as job_created_at,
-      ev.paused_at as last_pause_at,
+      pj.pause_projected as job_pause_projected,
       exists (
         select 1 from jobs fj
         where fj.kind = ${JOB_KINDS.setPaused} and fj.payload ->> 'campaignId' = c.id::text
@@ -207,33 +210,39 @@ function pauseColumns(sql: Queryable): PendingQuery<Row[]> {
   `;
 }
 
-/** The lateral joins `pauseColumns` reads (`pj`, `ev`), for the campaign aliased `c`. */
+/** The lateral join `pauseColumns` reads (`pj`), for the campaign aliased `c`. */
 function pauseJoins(sql: Queryable): PendingQuery<Row[]> {
   return sql`
     left join lateral (
-      select (j.payload ->> 'paused')::boolean as paused, j.created_at
+      select
+        (j.payload ->> 'paused')::boolean as paused,
+        (
+          coalesce((j.payload ->> 'paused')::boolean, false)
+          and c.onchain_id is not null
+          and exists (
+            select 1
+            from chain_txs pt
+            join chain_events pe on pe.tx_hash = pt.tx_hash
+            where pt.kind = 'setPaused' and pt.status = 'mined'
+              and pt.payload ->> 'requestId' = j.payload ->> 'requestId'
+              and pe.name = 'CampaignPaused'
+              and pe.args ->> 'id' = c.onchain_id::text
+              and (pe.args ->> 'paused')::boolean
+              and pe.processed_at is not null
+          )
+        ) as pause_projected
       from jobs j
       where j.kind = ${JOB_KINDS.setPaused} and j.payload ->> 'campaignId' = c.id::text
       order by j.created_at desc, j.id desc
       limit 1
     ) pj on true
-    left join lateral (
-      select max(coalesce(ce.block_time, ce.created_at)) as paused_at
-      from chain_events ce
-      where c.onchain_id is not null
-        and ce.name = 'CampaignPaused'
-        and ce.args ->> 'id' = c.onchain_id::text
-        and (ce.args ->> 'paused')::boolean
-        and ce.processed_at is not null
-    ) ev on true
   `;
 }
 
 const pauseRowSchema = z.object({
   status: z.enum(CAMPAIGN_STATUSES),
   job_paused: z.boolean().nullable(),
-  job_created_at: dateSchema.nullable(),
-  last_pause_at: dateSchema.nullable(),
+  job_pause_projected: z.boolean().nullable(),
   pause_job_in_flight: z.boolean(),
   pause_event_unprojected: z.boolean(),
 });
@@ -269,11 +278,7 @@ export async function loadManualPauseInput(
     status: r.status,
     pauseJobInFlight: r.pause_job_in_flight,
     pauseEventUnprojected: r.pause_event_unprojected,
-    latestPauseJob:
-      r.job_paused === null || r.job_created_at === null
-        ? null
-        : { paused: r.job_paused, createdAtMs: toMs(r.job_created_at) },
-    lastOnChainPauseAtMs: r.last_pause_at === null ? null : toMs(r.last_pause_at),
+    latestPauseJob: pauseJobView(r.job_paused, r.job_pause_projected),
   };
 }
 
@@ -314,7 +319,7 @@ async function limitStatementTime(
  * The manual pause reads, besides the status: whether a pause or resume job of the campaign is
  * unfinished (`queued` or `running`, the worker's states before `done` or `dead`, unless the
  * transaction it sent is already mined), whether a `CampaignPaused` of the campaign is stored and
- * not projected, the latest pause job, and the latest projected on-chain pause (see
+ * not projected, and the latest pause job with whether its own pause was projected on-chain (see
  * `isManuallyPaused`).
  *
  * Rows that do not parse are returned as errors, so one bad row never hides the others.
