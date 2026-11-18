@@ -35,6 +35,7 @@ export function SignInFlow(): React.JSX.Element {
   const [sending, setSending] = useState(false);
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState(false);
+  const [codeMessage, setCodeMessage] = useState<string>(copy.signIn.wrongCode);
   const [shakeKey, setShakeKey] = useState(0);
   const [verifying, setVerifying] = useState(false);
   const [resendAt, setResendAt] = useState(0);
@@ -81,8 +82,10 @@ export function SignInFlow(): React.JSX.Element {
     try {
       await verifyCode(value);
       // Stay in the loading state: the route guard is about to leave this screen.
-    } catch {
+    } catch (error: unknown) {
       setCode("");
+      // A wrong code says so; a refused sign-in or a lost connection says that instead.
+      setCodeMessage(error instanceof AuthError ? error.message : copy.signIn.wrongCode);
       setCodeError(true);
       setShakeKey((key) => key + 1);
       setVerifying(false);
@@ -157,7 +160,7 @@ export function SignInFlow(): React.JSX.Element {
           />
           {codeError ? (
             <p role="alert" className="px-1 text-caption text-danger">
-              {copy.signIn.wrongCode}
+              {codeMessage}
             </p>
           ) : null}
         </div>

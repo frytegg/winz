@@ -21,9 +21,11 @@ import {
   type Me,
   type MerchantProfile,
 } from "./auth-context";
+import { withMerchant } from "./me";
 
 /**
- * The simulated sign-in, used while `NEXT_PUBLIC_PRIVY_APP_ID` is empty. It pretends to send and to
+ * The simulated sign-in, used while the mock API is on (`NEXT_PUBLIC_APP_API_MOCK=true`, see
+ * `provider-choice.ts`). It pretends to send and to
  * check a 6-digit code: any code works, except `000000`, which is refused so the error state can
  * be seen. The session lives in `localStorage`.
  *
@@ -78,15 +80,6 @@ function storedMerchant(): MerchantProfile | null {
   } catch {
     return null;
   }
-}
-
-function withMerchant(me: Me, merchant: MerchantProfile): Me {
-  return {
-    ...me,
-    user: { ...me.user, roles: [...new Set([...me.user.roles, "merchant" as const])] },
-    merchant,
-    balance: me.balance ?? { available: "0", pending: "0" },
-  };
 }
 
 /** `GET /api/me`, with the merchant of this browser laid over it when the API does not know it. */
