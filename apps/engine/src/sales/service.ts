@@ -8,13 +8,14 @@ import type { Db } from "../db";
 import type { BookFeedListener } from "../market-data";
 import { SaleStateConfigError } from "./errors";
 import {
-  evaluateSaleState,
+  evaluateSaleStateWithGrace,
   failedEvaluation,
   freshMemory,
   type BreakerView,
   type SaleStateDecision,
   type SaleStateInput,
   type SaleStateMemory,
+  type StartupGrace,
 } from "./evaluate";
 import { isManuallyPaused } from "./manual-pause";
 import {
@@ -53,7 +54,18 @@ export interface SaleStateRunnerOptions {
    * cancels it (the pass then fails, is logged and retried). Default 5 000.
    */
   statementTimeoutMs?: number;
+  /**
+   * Start-up grace, ms after the runner is created (`startSaleStates` creates it when it starts):
+   * while it runs, a campaign whose instrument has not had a book from the feed yet keeps its
+   * stored sale state instead of pausing for the missing book (see `evaluateSaleStateWithGrace`).
+   * It ends for an instrument at its first book or when the time runs out, and never comes back
+   * for that instrument. Default 10 000, the age at which a book is stale anyway; 0 turns it off.
+   */
+  startupGraceMs?: number;
 }
+
+/** Default `startupGraceMs`: the age at which a book is stale anyway (SPEC MD-2). */
+export const DEFAULT_STARTUP_GRACE_MS = 10_000;
 
 export interface SaleStatePassResult {
   /** Campaigns evaluated. */
@@ -103,6 +115,12 @@ export class SaleStateRunner {
   /** Last error logged per campaign, so a campaign failing every second is logged once. */
   private readonly lastError = new Map<string, string>();
   private tracked = new Set<string>();
+  private readonly startupGraceMs: number;
+  private readonly startedAtMs: number;
+  /** Instruments whose grace is over for good: a book came, or the time ran out. */
+  private readonly graceOver = new Set<string>();
+  /** Instruments that had at least one evaluation under the grace (for the end-of-grace log). */
+  private readonly graced = new Set<string>();
 
   constructor(options: SaleStateRunnerOptions) {
     this.db = options.db;
@@ -116,6 +134,62 @@ export class SaleStateRunner {
       options.statementTimeoutMs === undefined
         ? {}
         : { statementTimeoutMs: options.statementTimeoutMs };
+    const graceMs = options.startupGraceMs ?? DEFAULT_STARTUP_GRACE_MS;
+    if (!Number.isFinite(graceMs) || graceMs < 0) {
+      throw new SaleStateConfigError("SaleStateRunner: startupGraceMs must be a number >= 0");
+    }
+    this.startupGraceMs = graceMs;
+    this.startedAtMs = this.clock();
+  }
+
+  /**
+   * The feed delivered a book for `symbol`: its start-up grace is over for good, even if the
+   * book is later dropped or turns stale. `startSaleStates` calls it on every book event.
+   */
+  noteBook(symbol: string): void {
+    this.graceOver.add(symbol);
+  }
+
+  /** Whether the start-up grace still holds for `symbol` at `nowMs` (for inspection). */
+  inStartupGrace(symbol: string, nowMs: number): boolean {
+    return (
+      this.startupGraceMs > 0 &&
+      !this.graceOver.has(symbol) &&
+      nowMs - this.startedAtMs < this.startupGraceMs
+    );
+  }
+
+  /**
+   * The grace of `row`'s instrument at this evaluation, or null when it does not apply. A book
+   * held by the feed ends it; so does the end of the grace time, logged once per instrument that
+   * was under the grace (its campaigns are then evaluated as usual, and pause for the missing
+   * book).
+   */
+  private startupGrace(
+    row: CampaignSaleRow,
+    book: Book | null,
+    nowMs: number,
+  ): StartupGrace | null {
+    const symbol = row.instrument;
+    if (this.startupGraceMs === 0 || this.graceOver.has(symbol)) return null;
+    if (book !== null) {
+      this.graceOver.add(symbol);
+      return null;
+    }
+    if (nowMs - this.startedAtMs >= this.startupGraceMs) {
+      this.graceOver.add(symbol);
+      if (this.graced.has(symbol)) {
+        safeLog(() =>
+          this.logger.info(
+            { instrument: symbol, startupGraceMs: this.startupGraceMs },
+            "start-up grace over without a book: the instrument's campaigns are evaluated as usual",
+          ),
+        );
+      }
+      return null;
+    }
+    this.graced.add(symbol);
+    return { storedState: row.storedState };
   }
 
   /** Instruments of the campaigns seen in the last full pass. */
@@ -206,6 +280,15 @@ export class SaleStateRunner {
     // pause then waits the full delay (with the one-tick margin for a price pause), a stored
     // open, closed or manual state opens at once.
     const previous = this.memory.get(row.id) ?? freshMemory(row.storedState);
+    const breaker = attempt(() => this.breakerStatus(row.instrument), {
+      active: true,
+      reason: "breaker status unavailable",
+    });
+    const sourceErrors = errors.length;
+    const book = attempt(() => this.bookFeed.getBook(row.instrument), null);
+    const bookFlaggedStale = attempt(() => this.bookFeed.isStale(row.instrument), true);
+    // A book source that throws is decided as today, without the grace: it fails closed.
+    const grace = errors.length === sourceErrors ? this.startupGrace(row, book, nowMs) : null;
     const input: SaleStateInput = {
       terms: row.terms,
       status: row.status,
@@ -219,12 +302,9 @@ export class SaleStateRunner {
         latestPauseJob: row.latestPauseJob,
         lastOnChainPauseAtMs: row.lastOnChainPauseAtMs,
       }),
-      breaker: attempt(() => this.breakerStatus(row.instrument), {
-        active: true,
-        reason: "breaker status unavailable",
-      }),
-      book: attempt(() => this.bookFeed.getBook(row.instrument), null),
-      bookFlaggedStale: attempt(() => this.bookFeed.isStale(row.instrument), true),
+      breaker,
+      book,
+      bookFlaggedStale,
       pending: row.pending,
       availableBudget: row.availableBudget,
       ...(this.toleranceTicks === undefined ? {} : { toleranceTicks: this.toleranceTicks }),
@@ -232,7 +312,7 @@ export class SaleStateRunner {
       previous,
     };
     try {
-      return { decision: evaluateSaleState(input), errors };
+      return { decision: evaluateSaleStateWithGrace(input, grace), errors };
     } catch (error: unknown) {
       errors.push(error);
       const summary = summarizeError(error);
@@ -359,6 +439,12 @@ function positive(value: number, name: string): number {
  * sales close passes it also moves its status to `sales_closed`. Passes never overlap: book
  * updates that arrive during a pass are merged into the next one.
  *
+ * For `startupGraceMs` after it starts, a campaign whose instrument has had no book yet keeps its
+ * stored sale state rather than pausing for the missing book, so that a restart does not pause
+ * every promo for the ten seconds of the resume delay. That is safe for money because the
+ * purchase job prices every sale again on the book of its instant and refuses it on a missing or
+ * stale book (`jobs/handlers/purchase.ts`).
+ *
  * Never throws out of its loop; stops on abort with no timer left.
  */
 export function startSaleStates(options: SaleStatesOptions): SaleStates {
@@ -425,6 +511,8 @@ export function startSaleStates(options: SaleStatesOptions): SaleStates {
   const unsubscribe = options.bookFeed.subscribe((event) => {
     if (signal.aborted || event.kind !== "book") return;
     const symbol = event.book.instrumentSymbol;
+    // Before the tracked check: a book that lands before the first pass still ends the grace.
+    runner.noteBook(symbol);
     if (!runner.isTracked(symbol)) return;
     // Errors are handled inside the pass; this promise never rejects.
     void request(symbol);
