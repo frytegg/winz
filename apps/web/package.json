@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@privy-io/node": "^0.40.0",
+    "@privy-io/react-auth": "^3.52.0",
     "@serwist/next": "^9.5.15",
     "@supabase/supabase-js": "^2.119.0",
     "@winz/pricing": "workspace:*",
