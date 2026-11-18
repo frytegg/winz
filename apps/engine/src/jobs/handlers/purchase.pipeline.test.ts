@@ -251,15 +251,20 @@ describe("a campaign paused during a burst of sales", () => {
  * What POST /api/campaigns/:id/pause and /resume write (`apps/web/lib/server/campaign-writes.ts`),
  * in one transaction: a pause sets the sale state to `paused_manual` at once, then the request's
  * `campaign.set_paused` job row. Returns the request id.
+ *
+ * `saleStateFirst: false` writes the job row alone, the sale state left as it was: the route
+ * writes both in one transaction, so this cannot happen through it; a test does it by hand to
+ * check the pause job's own write of the sale state.
  */
 async function merchantRequest(
   h: JobsHarness,
   campaignId: string,
   paused: boolean,
+  { saleStateFirst = true }: { saleStateFirst?: boolean } = {},
 ): Promise<string> {
   const requestId = randomUUID();
   await h.db.begin(async (tx) => {
-    if (paused)
+    if (paused && saleStateFirst)
       await tx`update campaigns set sale_state = 'paused_manual' where id = ${campaignId}`;
     await enqueueJob(tx, {
       kind: JOB_KINDS.setPaused,
@@ -424,6 +429,195 @@ describe("the merchant's pause job during a burst of sales, then a resume (defau
           .slice(inFlight.length, inFlight.length + racing.length)
           .join(", ")}; later sales refused by the sale state ${refusedBySaleState.toString()}, ` +
         `on-chain ${refusedOnChain.toString()}; ${allTickets.length.toString()} tickets in all\n`,
+    );
+  }, 240_000);
+});
+
+/** Polls `condition` every 5 ms until it holds, or fails after `timeoutMs`. */
+async function until(
+  condition: () => Promise<boolean>,
+  what: string,
+  timeoutMs = 20_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!(await condition())) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
+interface OutboxRow {
+  id: string;
+  key: string;
+  kind: string;
+  status: string;
+  nonce: bigint | null;
+  error: string | null;
+  createdAt: Date;
+}
+
+/** The `setPaused` of a merchant request and every `buyFor`, in the outbox's order. */
+async function outboxRows(h: JobsHarness, requestId: string): Promise<OutboxRow[]> {
+  const rows = await h.db<
+    {
+      id: string;
+      idempotency_key: string;
+      kind: string;
+      status: string;
+      nonce: bigint | null;
+      last_error: string | null;
+      created_at: Date;
+    }[]
+  >`
+    select id, idempotency_key, kind, status, nonce, last_error, created_at from chain_txs
+    where kind = 'buyFor' or (kind = 'setPaused' and payload ->> 'requestId' = ${requestId})
+    order by created_at, id
+  `;
+  return rows.map((row) => ({
+    id: row.id,
+    key: row.idempotency_key,
+    kind: row.kind,
+    status: row.status,
+    nonce: row.nonce,
+    error: row.last_error,
+    createdAt: row.created_at,
+  }));
+}
+
+/** The purchase handler's "sale refused" lines of a payment, with their reason. */
+function refusalReasons(h: JobsHarness, pi: string): unknown[] {
+  return h.logs
+    .filter(
+      (entry) =>
+        entry.paymentIntentId === pi &&
+        typeof entry.msg === "string" &&
+        entry.msg.startsWith("sale refused: authorization released"),
+    )
+    .map((entry) => entry.reason);
+}
+
+describe("sales whose buyFor is already queued behind the merchant's pause (sale state not written first)", () => {
+  it("the pause job writes paused_manual itself; each queued sale is refused with SalesArePaused, cancelled once, never captured, never ticketed", async () => {
+    const { h, campaign } = await setUp();
+    const { campaignId } = campaign;
+    const inFlight: string[] = [];
+    const queuedBehind: string[] = [];
+    for (let index = 0; index < 3; index += 1) inFlight.push(await pay(h, campaign, index));
+    for (let index = 3; index < 8; index += 1) queuedBehind.push(await pay(h, campaign, index));
+
+    // A burst of sales in flight: their buyFor are in the outbox.
+    const first = inFlight.map((pi) => sell(h, pi));
+    await until(
+      async () => (await buyRows(h)).length >= inFlight.length,
+      "the first sales' buyFor",
+    );
+
+    // Blocks stop for a moment (anvil's interval mining off): what is sent now stays pending, so
+    // the pause is not mined while the later sales queue their buyFor behind it.
+    await h.anvil.rpc("evm_setIntervalMining", [0]);
+    let pauseJob: Promise<void>;
+    let later: Promise<void>[];
+    let queuedOutbox: OutboxRow[];
+    const pauseRequest = await merchantRequest(h, campaignId, true, { saleStateFirst: false });
+    try {
+      // The merchant's pause job, with the sale state still `open` (the route's first write
+      // missing): its `setPaused` enters the outbox, a barrier.
+      pauseJob = runPauseJob(h, campaignId, true, pauseRequest);
+      await until(
+        async () => (await outboxRows(h, pauseRequest)).some((row) => row.kind === "setPaused"),
+        "the pause's setPaused in the outbox",
+      );
+      // Nothing has told the database yet: the purchase handler's own checks let the later sales
+      // through, and they quote and queue their buyFor behind the pause.
+      expect(await storedSaleState(h, campaignId)).toMatchObject({
+        status: "live",
+        stored: "open",
+      });
+      later = queuedBehind.map((pi) => sell(h, pi));
+      await until(async () => {
+        const rows = await buyRows(h);
+        return queuedBehind.every((pi) => rowsOfPayment(rows, pi).length === 1);
+      }, "the later sales' buyFor queued");
+      queuedOutbox = await outboxRows(h, pauseRequest);
+    } finally {
+      // Blocks again, whatever happened above.
+      await h.anvil.rpc("evm_setIntervalMining", [1]);
+    }
+    // Positive control: when blocks resumed, the pause was in the outbox before each later sale's
+    // buyFor, not mined, and each of those buyFor was waiting behind it, unsigned.
+    const pauseQueued = queuedOutbox.find((row) => row.kind === "setPaused");
+    expect(pauseQueued).toBeDefined();
+    expect(["queued", "sent"]).toContain(pauseQueued?.status);
+    for (const pi of queuedBehind) {
+      const [row] = queuedOutbox.filter((entry) => entry.key.startsWith(`buyFor:${pi}:`));
+      expect(row, pi).toMatchObject({ status: "queued", nonce: null });
+      expect(row?.createdAt.getTime(), pi).toBeGreaterThanOrEqual(
+        pauseQueued?.createdAt.getTime() as number,
+      );
+      expect(queuedOutbox.indexOf(row as OutboxRow), pi).toBeGreaterThan(
+        queuedOutbox.indexOf(pauseQueued as OutboxRow),
+      );
+    }
+
+    await Promise.all([...first, ...later, pauseJob]);
+
+    const pause = await pauseTx(h, pauseRequest);
+    expect(pause.status).toBe("mined");
+    expect((await getCampaign(h, campaign.onchainId)).status).toBe(1);
+    // The pause job's own write: the sale state was still `open` when it ran.
+    const paused = await storedSaleState(h, campaignId);
+    expect(paused).toMatchObject({ status: "paused", stored: "paused_manual" });
+    if (paused.live !== null) expect(paused.live).toBe("paused_manual");
+
+    // The sales in flight before the pause are ticketed; the ones queued behind it end cancelled
+    // with exactly one cancel and no capture (checked by `expectSettledPayments`).
+    const statuses = await expectSettledPayments(h, [...inFlight, ...queuedBehind]);
+    expect(statuses).toEqual([
+      ...Array<string>(inFlight.length).fill("ticketed"),
+      ...Array<string>(queuedBehind.length).fill("cancelled_paused"),
+    ]);
+
+    // Each queued sale's one buyFor was refused by the escrow on SalesArePaused: in simulation
+    // (`failed`, no nonce used) or on-chain (`reverted`). The handler read it as the sale closed,
+    // not as a failure to retry or a success.
+    const rows = await buyRows(h);
+    let refusedInSimulation = 0;
+    let revertedOnChain = 0;
+    for (const pi of queuedBehind) {
+      const own = rowsOfPayment(rows, pi);
+      expect(own, pi).toHaveLength(1);
+      const [row] = own;
+      expect(row?.error, pi).toBe("SalesArePaused");
+      if (row?.status === "failed") {
+        expect(row.nonce, pi).toBeNull();
+        refusedInSimulation += 1;
+      } else {
+        expect(row?.status, pi).toBe("reverted");
+        revertedOnChain += 1;
+      }
+      expect(refusalReasons(h, pi), pi).toEqual(["SalesArePaused"]);
+    }
+    expect(refusedInSimulation + revertedOnChain).toBe(queuedBehind.length);
+
+    // No ticket for them: only the sales in flight before the pause, all mined before it.
+    for (const pi of inFlight) {
+      const mined = rowsOfPayment(rows, pi).filter((row) => row.status === "mined");
+      expect(mined, pi).toHaveLength(1);
+      expect(mined[0]?.block as bigint, pi).toBeLessThan(pause.block);
+    }
+    const tickets = await ticketBlocks(h);
+    expect(tickets).toHaveLength(inFlight.length);
+    for (const block of tickets) expect(block).toBeLessThan(pause.block);
+    const [ticketRows] = await h.db<{ n: bigint }[]>`
+      select count(*)::bigint as n from tickets where campaign_id = ${campaignId}
+    `;
+    expect(ticketRows?.n).toBe(BigInt(inFlight.length));
+
+    process.stdout.write(
+      `[sales queued behind the pause] pause mined in block ${pause.block.toString()}; ` +
+        `${queuedBehind.length.toString()} sales queued behind it: refused in simulation ` +
+        `${refusedInSimulation.toString()}, reverted on-chain ${revertedOnChain.toString()}; ` +
+        `${tickets.length.toString()} tickets (the ${inFlight.length.toString()} sales in flight before it)\n`,
     );
   }, 240_000);
 });
