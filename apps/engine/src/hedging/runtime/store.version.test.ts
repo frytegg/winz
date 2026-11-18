@@ -77,8 +77,15 @@ describe("the version of an exposure read", () => {
     // that every version is checked against its own snapshot whatever else runs; and the sequence
     // is repeated until one run had nothing else move xmax between the two reads, where only the
     // term of the transactions in progress can tell them apart.
+    //
+    // Why 100 attempts are enough: an attempt is not decisive only when another session assigned a
+    // transaction id in the few milliseconds between its two reads. In two full runs of the engine
+    // suite, the author counted 0 and 7 attempts like that before a decisive one, so 100 is more
+    // than ten times the worst seen. Every attempt, decisive or not, asserts all of the above; the
+    // limit only bounds how long the test looks for the one run where nothing else moved xmax.
+    const maxAttempts = 100;
     let decisive = 0;
-    for (let attempt = 1; attempt <= 100 && decisive === 0; attempt += 1) {
+    for (let attempt = 1; attempt <= maxAttempts && decisive === 0; attempt += 1) {
       let release: () => void = () => undefined;
       const held = new Promise<void>((resolve) => {
         release = resolve;
@@ -130,7 +137,13 @@ describe("the version of an exposure read", () => {
         await writer.catch(() => undefined);
       }
     }
-    expect(decisive).toBe(1);
+    // None decisive is not a wrong version (each attempt checked it): the cluster was too busy.
+    expect(
+      decisive,
+      `no decisive attempt in ${maxAttempts.toString()}: in every one, another session assigned a ` +
+        "transaction id between the two reads (the cluster was too busy); the versions themselves " +
+        "were checked in each attempt and none was wrong",
+    ).toBe(1);
   });
 });
 
