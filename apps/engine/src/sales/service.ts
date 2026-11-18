@@ -302,7 +302,6 @@ export class SaleStateRunner {
         pauseJobInFlight: row.pauseJobInFlight,
         pauseEventUnprojected: row.pauseEventUnprojected,
         latestPauseJob: row.latestPauseJob,
-        lastOnChainPauseAtMs: row.lastOnChainPauseAtMs,
       }),
       breaker,
       book,
