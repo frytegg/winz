@@ -1,6 +1,9 @@
+import type { Logger } from "pino";
+
 import type { UserRole } from "@winz/shared";
 
 import type { Db } from "../db";
+import { createLogger, moduleLogger } from "../logger";
 import {
   IdentityConflictError,
   IdentityResponseError,
@@ -8,6 +11,7 @@ import {
   normalizeEmail,
   type IdentityDirectory,
 } from "./directory";
+import { retryTransaction } from "./transaction-retry";
 
 const WALLET_PATTERN = /^0x[0-9a-f]{40}$/;
 const UNIQUE_VIOLATION = "23505";
@@ -36,6 +40,25 @@ export interface ResolvedUser {
   fromDirectory: boolean;
 }
 
+export interface ResolveUserWalletOptions {
+  /**
+   * Receives a warning for each retry of the users write. Default: an `info` JSON logger of the
+   * `identity.users` module.
+   */
+  logger?: Logger;
+}
+
+let defaultLogger: Logger | undefined;
+
+function usersLogger(options: ResolveUserWalletOptions): Logger {
+  if (options.logger !== undefined) return options.logger;
+  defaultLogger ??= moduleLogger(createLogger({ level: "info", pretty: false }), "identity.users");
+  return defaultLogger;
+}
+
+/** Name of the users write in the retry's logs and error: never the e-mail. */
+const USERS_WRITE = "users write";
+
 interface UserRow {
   id: string;
   privy_id: string | null;
@@ -53,14 +76,56 @@ function isUniqueViolation(error: unknown): boolean {
 
 /**
  * Adds `role` to the roles of a users row that lacks it. Safe under concurrency: the condition
- * is evaluated again on the locked row, so two calls never append the role twice.
+ * is evaluated again on the locked row, so two calls never append the role twice, and safe to run
+ * again after a deadlock or a serialization failure.
  */
-async function addRole(db: Db, row: UserRow, role: UserRole): Promise<void> {
+async function addRole(db: Db, row: UserRow, role: UserRole, log: Logger): Promise<void> {
   if (row.roles.includes(role)) return;
-  await db`
-    update users set roles = array_append(roles, ${role}::text)
-    where id = ${row.id} and not (${role}::text = any(roles))
-  `;
+  await retryTransaction(
+    async () => {
+      await db`
+        update users set roles = array_append(roles, ${role}::text)
+        where id = ${row.id} and not (${role}::text = any(roles))
+      `;
+    },
+    { what: USERS_WRITE, logger: log },
+  );
+}
+
+/**
+ * One attempt of the users write of a new wallet: the e-mail's row inserted, or filled where it
+ * lacks the user or the wallet, in a transaction that holds the e-mail's advisory lock. Returns
+ * the row, or undefined when it already names another Privy user or wallet (left untouched).
+ */
+async function upsertUsersRow(
+  db: Db,
+  email: string,
+  privyUserId: string,
+  wallet: string,
+  role: UserRole,
+): Promise<UserRow | undefined> {
+  return db.begin(async (tx): Promise<UserRow | undefined> => {
+    // Calls for one e-mail write one after the other: two concurrent inserts of the same new
+    // row otherwise meet on the unique indexes in an order Postgres cannot settle, and one of
+    // them fails (a unique violation on `privy_id` or `wallet`, or a deadlock).
+    await tx`select pg_advisory_xact_lock(hashtextextended(${usersLockKey(email)}, 0))`;
+    const [written] = await tx<UserRow[]>`
+      insert into users (email, privy_id, wallet, roles)
+      values (${email}, ${privyUserId}, ${wallet}, array[${role}::text])
+      on conflict (email) do update
+        set privy_id = coalesce(users.privy_id, excluded.privy_id),
+            wallet = coalesce(users.wallet, excluded.wallet),
+            roles = case
+              when ${role}::text = any(users.roles) then users.roles
+              else array_append(users.roles, ${role}::text)
+            end
+        -- A row that already names another Privy user or wallet is left untouched.
+        where (users.privy_id is null or users.privy_id = excluded.privy_id)
+          and (users.wallet is null or users.wallet = excluded.wallet)
+      returning id, privy_id, wallet, roles
+    `;
+    return written;
+  });
 }
 
 /**
@@ -76,21 +141,29 @@ async function addRole(db: Db, row: UserRow, role: UserRole): Promise<void> {
  *
  * Safe under concurrent calls for one e-mail: when another call wrote the row first with the
  * directory's same user and wallet, every call resolves to that row.
+ *
+ * A write of the row that fails with a deadlock or a serialization failure (which a writer of the
+ * users table that does not take the e-mail's lock can still cause) runs again, its whole
+ * transaction, as the web sign-in's does (apps/web/lib/server/auth.ts, `writeUsersRow`): at most
+ * five attempts, 10 ms before the second and doubled for each later one, a warning per retry
+ * (without the e-mail). Throws `TransactionRetryExhaustedError` when every attempt failed so.
  */
 export async function resolveUserWallet(
   db: Db,
   directory: IdentityDirectory,
   rawEmail: string,
   role: UserRole,
+  options: ResolveUserWalletOptions = {},
 ): Promise<ResolvedUser> {
   const email = normalizeEmail(rawEmail);
   if (email === "") throw new InvalidEmailError();
+  const log = usersLogger(options);
 
   const [existing] = await db<UserRow[]>`
     select id, privy_id, wallet, roles from users where email = ${email}
   `;
   if (existing?.wallet) {
-    await addRole(db, existing, role);
+    await addRole(db, existing, role, log);
     return {
       userId: existing.id,
       email,
@@ -111,27 +184,9 @@ export async function resolveUserWallet(
 
   let row: UserRow | undefined;
   try {
-    row = await db.begin(async (tx): Promise<UserRow | undefined> => {
-      // Calls for one e-mail write one after the other: two concurrent inserts of the same new
-      // row otherwise meet on the unique indexes in an order Postgres cannot settle, and one of
-      // them fails (a unique violation on `privy_id` or `wallet`, or a deadlock).
-      await tx`select pg_advisory_xact_lock(hashtextextended(${usersLockKey(email)}, 0))`;
-      const [written] = await tx<UserRow[]>`
-        insert into users (email, privy_id, wallet, roles)
-        values (${email}, ${found.privyUserId}, ${wallet}, array[${role}::text])
-        on conflict (email) do update
-          set privy_id = coalesce(users.privy_id, excluded.privy_id),
-              wallet = coalesce(users.wallet, excluded.wallet),
-              roles = case
-                when ${role}::text = any(users.roles) then users.roles
-                else array_append(users.roles, ${role}::text)
-              end
-          -- A row that already names another Privy user or wallet is left untouched.
-          where (users.privy_id is null or users.privy_id = excluded.privy_id)
-            and (users.wallet is null or users.wallet = excluded.wallet)
-        returning id, privy_id, wallet, roles
-      `;
-      return written;
+    row = await retryTransaction(() => upsertUsersRow(db, email, found.privyUserId, wallet, role), {
+      what: USERS_WRITE,
+      logger: log,
     });
   } catch (error: unknown) {
     if (!isUniqueViolation(error)) throw error;
@@ -149,7 +204,7 @@ export async function resolveUserWallet(
         "the directory's user or wallet is already recorded for another e-mail",
       );
     }
-    await addRole(db, current, role);
+    await addRole(db, current, role, log);
     row = current;
   }
   if (row === undefined || row.privy_id !== found.privyUserId || row.wallet !== wallet) {
