@@ -5,7 +5,8 @@
  * known hash is "already known", a used nonce "nonce too low"), mines blocks on demand or on an
  * interval taking each sender's consecutive nonces, and records every request. It misbehaves on
  * request: refused broadcasts, forgotten transactions, a nonce taken by a foreign transaction, a
- * cap on pending transactions per account. Test code only.
+ * cap on pending transactions per account, a fee spike that mines nothing below a fee. Test code
+ * only.
  *
  * Call data drives execution: byte 0 is the outcome (`FAKE_OK`, `FAKE_SIMULATION_REVERT`,
  * `FAKE_CHAIN_REVERT`), byte 1 says whether the transaction is a barrier, bytes 2..5 are an id
@@ -131,6 +132,11 @@ export class FakeChain implements ChainClient {
   maxPendingPerAccount: number;
   maxPerBlock: number;
   /**
+   * A fee spike: a transaction whose `maxFeePerGas` is below this is not mined (the base fee is
+   * above what it offers), nor is anything after it from its sender. 0 (default): no spike.
+   */
+  minMaxFeePerGasToMine = 0n;
+  /**
    * Asked for every broadcast before the pool looks at it: an error refuses it. Gets the decoded
    * transaction (its sender and nonce).
    */
@@ -245,7 +251,7 @@ export class FakeChain implements ChainClient {
           continue;
         }
         const tx = byNonce.get(next);
-        if (!tx) break;
+        if (!tx || tx.maxFeePerGas < this.minMaxFeePerGasToMine) break;
         byNonce.delete(next);
         const reverted =
           tx.call?.outcome === FAKE_CHAIN_REVERT || tx.call?.outcome === FAKE_SIMULATION_REVERT;

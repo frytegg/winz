@@ -1,5 +1,5 @@
 import type { Logger } from "pino";
-import { encodeFunctionData, type Address } from "viem";
+import { decodeFunctionData, encodeFunctionData, type Address, type Hex } from "viem";
 
 import { REFUND_BATCH_SIZE, winzEscrowAbi } from "@winz/shared";
 
@@ -31,7 +31,7 @@ import {
   type StepRunner,
   type StepSpec,
 } from "./steps";
-import { knownTickets, markDemo, stepTxs, type KnownTicket } from "./store";
+import { knownTickets, markDemo, openChargeTxs, stepTxs, type KnownTicket } from "./store";
 import type {
   CampaignSettlementResult,
   CampaignSettlementStatus,
@@ -131,6 +131,21 @@ async function mapLimit<T, R>(
   };
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
   return results;
+}
+
+/**
+ * The tickets a `chargeHedge` call charges, decoded from its call data; null when the data is not
+ * a `chargeHedge` call of the escrow (it then cannot charge any ticket).
+ */
+function chargedTicketIds(data: string): bigint[] | null {
+  try {
+    const call = decodeFunctionData({ abi: winzEscrowAbi, data: data as Hex });
+    if (call.functionName !== "chargeHedge") return null;
+    const [ticketIds] = call.args;
+    return [...ticketIds];
+  } catch {
+    return null;
+  }
 }
 
 function eventTicketId(event: DecodedEvent): bigint | null {
@@ -373,7 +388,9 @@ export class CampaignSettler {
 
   /**
    * The safety net: every ticket still uncharged on-chain is charged its lot's cost capped at the
-   * guarantee, or zero when its hedge was never allocated, in batches of 50.
+   * guarantee, or zero when its hedge was never allocated, in batches of 50. Its own batches of a
+   * previous run are waited for first, then every other charge of the campaign's tickets still in
+   * the outbox (`waitForOtherCharges`); the tickets are read after both.
    */
   private async chargeUncharged(
     campaign: SettlementCampaign,
@@ -384,6 +401,7 @@ export class CampaignSettler {
     if ((await this.waitInFlight(`${prefix}:charge:`)).unfinished > 0) {
       throw new StopRun("in-progress", "hedge charges of a previous run are not final yet");
     }
+    await this.waitForOtherCharges(campaign, log);
     const tickets = await knownTickets(this.deps.db, campaign.onchainId);
     const suspects = tickets.filter((ticket) => !ticket.charged);
     if (suspects.length === 0) return;
@@ -459,6 +477,69 @@ export class CampaignSettler {
       throw new StopRun("in-progress", "hedge charges are not all final");
     }
     await this.emit(campaign, "charge", "done");
+  }
+
+  /**
+   * Waits for every `chargeHedge` still `queued` or `sent` in the outbox that holds a ticket of
+   * this campaign the chain events do not show charged, whoever enqueued it: once the hedge
+   * finalizer has failed, the hedging lane may still have one in flight. A charge simulated while
+   * another one holding the same ticket is in flight passes its simulation (the latest block does
+   * not hold the other one) and reverts on-chain with `HedgeAlreadyCharged`, gas paid; waited for,
+   * the tickets it charged are read back charged and left out of the batches.
+   *
+   * The hedging lane's rows name neither their campaign nor, in their key, their tickets: the
+   * tickets are decoded from the call data (`chargeHedge(ticketIds, amounts)`), the transaction
+   * itself, and matched against the campaign's tickets (ticket ids are the escrow's, unique across
+   * campaigns). Data that is not a `chargeHedge` call cannot charge any ticket and is left out.
+   *
+   * Each wait is the step's own (`txWaitTimeoutMs`), all at once. A charge still not final then
+   * is left as it is and the safety net goes on as without this wait: a ticket it holds may then
+   * be charged twice, the second charge reverting with `HedgeAlreadyCharged`.
+   */
+  private async waitForOtherCharges(campaign: SettlementCampaign, log: Logger): Promise<void> {
+    const tickets = await knownTickets(this.deps.db, campaign.onchainId);
+    const uncharged = new Set(
+      tickets.filter((ticket) => !ticket.charged).map((ticket) => ticket.ticketId),
+    );
+    if (uncharged.size === 0) return;
+    const holding: { id: string; key: string; tickets: bigint[] }[] = [];
+    for (const row of await openChargeTxs(this.deps.db)) {
+      const charged = chargedTicketIds(row.data);
+      if (charged === null) {
+        this.reportOnce(`undecodable-charge:${row.id}`, () =>
+          log.warn(
+            { step: "charge", txId: row.id, idempotencyKey: row.idempotencyKey },
+            "a chargeHedge of the outbox does not decode as a chargeHedge call; it cannot charge a ticket, not waited for",
+          ),
+        );
+        continue;
+      }
+      const ours = charged.filter((ticketId) => uncharged.has(ticketId));
+      if (ours.length > 0) holding.push({ id: row.id, key: row.idempotencyKey, tickets: ours });
+    }
+    if (holding.length === 0) return;
+    const fields = {
+      step: "charge",
+      txIds: holding.map((entry) => entry.id),
+      tickets: holding.flatMap((entry) => entry.tickets.map(String)),
+    };
+    log.info(
+      fields,
+      "charges of this campaign's tickets are still in the outbox: the safety net waits for them before cutting its batches",
+    );
+    const outcomes = await Promise.all(holding.map((entry) => this.deps.steps.waitForTx(entry.id)));
+    this.checkAbort();
+    const unfinished = holding.filter((_, index) => outcomes[index] === null);
+    if (unfinished.length > 0) {
+      log.warn(
+        {
+          ...fields,
+          unfinished: unfinished.map((entry) => entry.id),
+          waitMs: this.deps.settings.txWaitTimeoutMs,
+        },
+        "charges of this campaign's tickets are not final within the wait: the safety net charges without them, a ticket they hold may revert HedgeAlreadyCharged",
+      );
+    }
   }
 
   /**
