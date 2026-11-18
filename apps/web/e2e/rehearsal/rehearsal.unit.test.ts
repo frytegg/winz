@@ -547,7 +547,12 @@ describe("an RPC access token in an engine warning (viem quotes the URL in its e
           moneyMode: null,
           token: null,
         },
-        escrow: { address: KEY_A.slice(0, 42), deployBlock: 1n, runStartBlock: null },
+        escrow: {
+          address: KEY_A.slice(0, 42),
+          deployBlock: 1n,
+          runStartBlock: null,
+          engineStartBlock: null,
+        },
         roles: { relayer: "0x1", oracle: "0x2", treasury: null, merchant: null, buyers: [] },
         engine: { started: true, stopped: true },
         game: null,
@@ -568,6 +573,8 @@ describe("an RPC access token in an engine warning (viem quotes the URL in its e
         gasWei: 0n,
         sweep: [],
         leftBehind: [`engine said ${RPC_URL}`],
+        unread: [`the campaign on-chain: HTTP request failed. URL: ${RPC_URL}`],
+        rpc: null,
         recovery: null,
         stranded: false,
       } as unknown as RehearsalReceipt;

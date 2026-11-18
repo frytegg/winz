@@ -8,9 +8,13 @@
  * invariant passed (or after `--estimate`), 1 when the run failed or an invariant failed, 2 when
  * it refused to start. Ctrl-C stops the engine, sweeps the demo wallets and writes a FAILED
  * receipt before exiting.
+ *
+ * With `--recover <receipt.json> --db-url <kept database>` it finishes the campaign that run left
+ * behind instead: exit 0 when the campaign is released and nothing is left behind (or after
+ * `--estimate`), 1 otherwise (it can be run again), 2 when it refused to start.
  */
-import { CliError, USAGE, parseCli } from "./cli";
-import { runRehearsal } from "./runner";
+import { CliError, USAGE, parseCli, type CliResult } from "./cli";
+import { recoverRehearsal, runRehearsal } from "./runner";
 import {
   createThrowawayDatabase,
   keepsThrowawayDatabase,
@@ -52,6 +56,8 @@ async function main(): Promise<number> {
   process.on("SIGINT", interrupt);
   process.on("SIGTERM", interrupt);
 
+  if (parsed.recover !== null) return recover(parsed, parsed.recover, controller.signal);
+
   let database: ThrowawayDatabase | null = null;
   let keepDatabase = false;
   try {
@@ -75,6 +81,11 @@ async function main(): Promise<number> {
       );
       out(`  database: ${database.url}`);
       out(`  server data directory: ${await database.dataDirectory().catch(() => "unknown")}`);
+      if (receipt.files !== undefined) {
+        out(
+          `  recover it with: pnpm exec tsx e2e/rehearsal/run.ts --recover ${receipt.files.json} --db-url ${database.url}`,
+        );
+      }
     }
     return receipt.status === "failed" ? 1 : 0;
   } catch (error: unknown) {
@@ -88,6 +99,44 @@ async function main(): Promise<number> {
     return 1;
   } finally {
     if (!keepDatabase) await database?.drop().catch(() => undefined);
+  }
+}
+
+async function recover(
+  parsed: CliResult,
+  receiptPath: string,
+  signal: AbortSignal,
+): Promise<number> {
+  const { options } = parsed;
+  try {
+    out(`engine log: ${options.engineLogFile ?? "none"}`);
+    const receipt = await recoverRehearsal({
+      receiptPath,
+      databaseUrl: parsed.databaseUrl ?? "",
+      rpcUrl: options.rpcUrl,
+      ...(options.rpcFallbackUrl === undefined ? {} : { rpcFallbackUrl: options.rpcFallbackUrl }),
+      chainId: options.chainId,
+      local: options.local,
+      escrowAddress: options.escrowAddress,
+      escrowDeployBlock: options.escrowDeployBlock,
+      ...(options.rpcLimits === undefined ? {} : { rpcLimits: options.rpcLimits }),
+      secrets: options.secrets,
+      gemini: options.gemini,
+      estimateOnly: options.estimateOnly,
+      ...(options.engineLogFile === undefined ? {} : { engineLogFile: options.engineLogFile }),
+      out,
+      signal,
+    });
+    return receipt.status === "failed" ? 1 : 0;
+  } catch (error: unknown) {
+    if (error instanceof RehearsalRefusedError) {
+      process.stderr.write(`${error.message}\n`);
+      return 2;
+    }
+    process.stderr.write(
+      `recovery error: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+    return 1;
   }
 }
 

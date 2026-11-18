@@ -8,7 +8,7 @@ import { getAddress, isAddress, type Address, type Hex } from "viem";
 
 import { ARC_TESTNET_CHAIN_ID, parseUsd } from "@winz/shared";
 
-import type { GeminiMode, RehearsalOptions, ScenarioInput } from "./types";
+import type { GeminiMode, RehearsalOptions, RpcLimitsInput, ScenarioInput } from "./types";
 
 /**
  * The command line of the rehearsal: flags and environment into `RehearsalOptions`. Pure apart
@@ -19,14 +19,20 @@ import type { GeminiMode, RehearsalOptions, ScenarioInput } from "./types";
 const REPO_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "../../../..");
 
 export const USAGE = `usage: tsx e2e/rehearsal/run.ts [flags]   (from apps/web)
+       tsx e2e/rehearsal/run.ts --recover <receipt.json> --db-url <kept database> [--estimate]
 
 Environment (secrets only from here):
   ARC_RELAYER_PRIVATE_KEY, ARC_ORACLE_PRIVATE_KEY, APP_DEMO_WALLET_SEED   required
   DB_URL, ARC_RPC_URL, ARC_RPC_FALLBACK_URL, ARC_CHAIN_ID, ARC_ESCROW_ADDRESS,
   ARC_ESCROW_DEPLOY_BLOCK, GEMINI_API_URL, GEMINI_WS_URL, APP_HTTPS_PROXY_URL, APP_PROXY_CA_FILE
+  The request limiter shared by the engine and the runner (optional, as in the engine):
+  ARC_RPC_MAX_REQUESTS_PER_SECOND (default 10), ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND (4),
+  ARC_RPC_HEAVY_METHODS (comma-separated, default eth_getLogs)
 
 Flags (each overrides its variable):
   --db-url <url> | --throwaway-db      a database with every migration, or a throwaway one
+                                       (throwaway without --deploy-block: the engine reads the
+                                       chain from the head at the start, minus 50 blocks)
   --rpc-url <url> --rpc-fallback-url <url> --chain-id <id> [--local]
   --escrow <address> --deploy-block <n>  (default: packages/contracts/deployments/<chain id>.json)
   --purchases <n=12> --units <n=1> --unit-price <usdc=0.50> --refund-pct <pct=100>
@@ -35,6 +41,10 @@ Flags (each overrides its variable):
   --estimate            print the addresses, the balances and the worst case, send nothing
   --receipt-dir <dir>   default docs/rehearsals on Arc testnet, a temp directory elsewhere
   --engine-log <file>   the engine's JSON log (default: a temp file)
+  --recover <receipt.json>  finish the campaign a FAILED run left behind, from its receipt and
+                        the database it kept (--db-url or DB_URL; never --throwaway-db), then
+                        sweep its wallets; writes <receipt>-recovery.json and .md next to it.
+                        With --estimate: the checks and the campaign's state only, nothing sent
 `;
 
 export class CliError extends Error {
@@ -49,6 +59,8 @@ export interface CliResult {
   /** Null with `throwawayDb`. */
   databaseUrl: string | null;
   throwawayDb: boolean;
+  /** `--recover`: the receipt of the run whose campaign is to be finished (absolute path). */
+  recover: string | null;
 }
 
 type Env = Record<string, string | undefined>;
@@ -106,6 +118,59 @@ function deploymentOf(chainId: number): Deployment | null {
   return { escrow: parsed.escrow, deployedAtBlock: parsed.deployedAtBlock };
 }
 
+function positiveNumber(
+  problems: string[],
+  name: string,
+  value: string | undefined,
+): number | undefined {
+  if (value === undefined) return undefined;
+  const number = Number(value);
+  if (!/^\d+(\.\d+)?$/.test(value) || !Number.isFinite(number) || number <= 0) {
+    problems.push(`${name} must be a positive number`);
+    return undefined;
+  }
+  return number;
+}
+
+/** The limiter's variables, as the engine reads them (`ARC_RPC_MAX_*`, `ARC_RPC_HEAVY_METHODS`). */
+function rpcLimitsOf(problems: string[], env: Env): RpcLimitsInput | undefined {
+  const all = positiveNumber(
+    problems,
+    "ARC_RPC_MAX_REQUESTS_PER_SECOND",
+    nonEmpty(env.ARC_RPC_MAX_REQUESTS_PER_SECOND),
+  );
+  const heavy = positiveNumber(
+    problems,
+    "ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND",
+    nonEmpty(env.ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND),
+  );
+  const methodsText = nonEmpty(env.ARC_RPC_HEAVY_METHODS);
+  const methods = methodsText
+    ?.split(",")
+    .map((method) => method.trim())
+    .filter((method) => method !== "");
+  const limits: RpcLimitsInput = {
+    ...(all === undefined ? {} : { maxRequestsPerSecond: all }),
+    ...(heavy === undefined ? {} : { maxHeavyRequestsPerSecond: heavy }),
+    ...(methods === undefined ? {} : { heavyMethods: methods }),
+  };
+  return Object.keys(limits).length === 0 ? undefined : limits;
+}
+
+/** Flags of the scenario: they describe a new run, not the recovery of an old one. */
+const SCENARIO_FLAGS = [
+  "purchases",
+  "units",
+  "unit-price",
+  "refund-pct",
+  "usual-margin-pct",
+  "min-margin-pct",
+  "budget",
+  "outcome",
+  "buyers",
+  "parallel",
+] as const;
+
 function secret(problems: string[], env: Env, name: string): Hex {
   const value = nonEmpty(env[name]);
   if (value === undefined) {
@@ -142,10 +207,8 @@ export function parseCli(argv: readonly string[], env: Env): CliResult {
   } else {
     escrowAddress = getAddress(escrowText);
   }
-  const blockText =
-    values["deploy-block"] ??
-    nonEmpty(env.ARC_ESCROW_DEPLOY_BLOCK) ??
-    deployment?.deployedAtBlock.toString();
+  const blockGiven = values["deploy-block"] ?? nonEmpty(env.ARC_ESCROW_DEPLOY_BLOCK);
+  const blockText = blockGiven ?? deployment?.deployedAtBlock.toString();
   let escrowDeployBlock = 0n;
   if (blockText === undefined || !/^\d+$/.test(blockText)) {
     problems.push(
@@ -159,10 +222,26 @@ export function parseCli(argv: readonly string[], env: Env): CliResult {
   const databaseUrl = values["db-url"] ?? nonEmpty(env.DB_URL) ?? null;
   if (throwawayDb && values["db-url"] !== undefined)
     problems.push("--db-url and --throwaway-db exclude each other");
-  // An estimate reads the chain only.
-  if (!throwawayDb && databaseUrl === null && values.estimate !== true) {
+  const recover = values.recover === undefined ? null : resolve(values.recover);
+  if (recover !== null) {
+    if (throwawayDb) {
+      problems.push(
+        "--recover needs the database the run kept (--db-url or DB_URL), never --throwaway-db",
+      );
+    } else if (databaseUrl === null) {
+      problems.push("--recover needs the database the run kept: --db-url or DB_URL");
+    }
+    const scenarioFlags = SCENARIO_FLAGS.filter((flag) => values[flag] !== undefined);
+    if (scenarioFlags.length > 0) {
+      problems.push(
+        `${scenarioFlags.map((flag) => `--${flag}`).join(", ")}: the scenario is the receipt's, not the command's, with --recover`,
+      );
+    }
+  } else if (!throwawayDb && databaseUrl === null && values.estimate !== true) {
+    // An estimate reads the chain only.
     problems.push("no database: --db-url, DB_URL, or --throwaway-db");
   }
+  const rpcLimits = rpcLimitsOf(problems, env);
 
   const outcome = values.outcome;
   if (outcome !== undefined && outcome !== "yes" && outcome !== "no")
@@ -227,12 +306,16 @@ export function parseCli(argv: readonly string[], env: Env): CliResult {
       secrets,
       scenario,
       gemini,
+      // A fresh database needs nothing that happened before the run.
+      startNearHead: throwawayDb && blockGiven === undefined,
+      ...(rpcLimits === undefined ? {} : { rpcLimits }),
       estimateOnly: values.estimate === true,
       receiptDir: resolve(receiptDir),
       engineLogFile,
     },
     databaseUrl,
     throwawayDb,
+    recover,
   };
 }
 
@@ -260,6 +343,7 @@ function parse(argv: readonly string[]): {
     estimate?: boolean;
     "receipt-dir"?: string;
     "engine-log"?: string;
+    recover?: string;
   };
 } {
   return parseArgs({
@@ -289,6 +373,7 @@ function parse(argv: readonly string[]): {
       estimate: { type: "boolean" },
       "receipt-dir": { type: "string" },
       "engine-log": { type: "string" },
+      recover: { type: "string" },
     },
   });
 }

@@ -71,6 +71,8 @@ export interface RehearsalSecrets {
 
 /** Longest waits of each step, in milliseconds. */
 export interface RehearsalTimeouts {
+  /** The engine's event reader reaching the head of the chain after it starts. */
+  catchUpMs: number;
   catalogMs: number;
   liveMs: number;
   openMs: number;
@@ -96,6 +98,14 @@ export interface RehearsalOptions {
   local: boolean;
   escrowAddress: Address;
   escrowDeployBlock: bigint;
+  /**
+   * Start the engine's event reader near the head (the head at the start of the run minus
+   * `ENGINE_START_MARGIN_BLOCKS`) instead of at `escrowDeployBlock`: for a fresh database, which
+   * needs nothing that happened before the run (`--throwaway-db` without `--deploy-block`).
+   */
+  startNearHead?: boolean;
+  /** Limits of the request limiter shared by the engine and the runner (`ARC_RPC_MAX_*`). */
+  rpcLimits?: RpcLimitsInput;
   secrets: RehearsalSecrets;
   scenario: ScenarioInput;
   gemini: GeminiMode;
@@ -119,6 +129,71 @@ export interface RehearsalOptions {
   failAtStep?: RehearsalStep;
   /** Test only: makes the sale with this number (1-based) throw before it is posted. */
   failAtSale?: number;
+  /**
+   * Test only: the recovery after a failure and the sweep fail as they start, as they did on Arc
+   * when the node rate-limited them, so that the run leaves its campaign stranded.
+   */
+  strand?: boolean;
+  /**
+   * Test only: answers a request of the runner's own client with this error instead of sending
+   * it (the engine keeps its own client). Called for every request, with the step it belongs to.
+   */
+  nodeFaults?: NodeFault;
+  /** Retries of the reads made outside the waits (and of each wallet of the sweep). */
+  readRetry?: Partial<RetryPolicy>;
+}
+
+/** The variables `ARC_RPC_MAX_REQUESTS_PER_SECOND`, `…_HEAVY_REQUESTS_PER_SECOND`, `ARC_RPC_HEAVY_METHODS`. */
+export interface RpcLimitsInput {
+  maxRequestsPerSecond?: number;
+  maxHeavyRequestsPerSecond?: number;
+  heavyMethods?: string[];
+}
+
+/** One request of the runner's client, as a fault injector sees it. */
+export interface NodeRequestInfo {
+  method: string;
+  step: string | null;
+  atMs: number;
+}
+
+/** Returns the error the node answers instead, or null to send the request. */
+export type NodeFault = (request: NodeRequestInfo) => Error | null;
+
+/** How a read made outside a wait is tried again: `attempts` in all, delays doubling. */
+export interface RetryPolicy {
+  attempts: number;
+  baseDelayMs: number;
+  maxDelayMs: number;
+}
+
+/** What `--recover` is given: the command's chain, keys and database, and the receipt to finish. */
+export interface RecoveryOptions {
+  /** The FAILED receipt (JSON) of the run whose campaign is to be finished. */
+  receiptPath: string;
+  /** The database the run kept. */
+  databaseUrl: string;
+  rpcUrl: string;
+  rpcFallbackUrl?: string;
+  chainId: number;
+  local: boolean;
+  escrowAddress: Address;
+  escrowDeployBlock: bigint;
+  rpcLimits?: RpcLimitsInput;
+  secrets: RehearsalSecrets;
+  /** Used when the run read live Gemini (the recovery reads Gemini as the run did). */
+  gemini: GeminiMode;
+  /** Stop after the checks and the campaign's state: nothing is sent. */
+  estimateOnly: boolean;
+  engineLogFile?: string;
+  out: (line: string) => void;
+  /** Aborting it stops the recovery: engine stopped, sweep attempted, receipt written. */
+  signal?: AbortSignal;
+  timeouts?: Partial<RehearsalTimeouts>;
+  onStep?: (step: RehearsalStep) => void;
+  /** Test only, as in `RehearsalOptions`. */
+  nodeFaults?: NodeFault;
+  readRetry?: Partial<RetryPolicy>;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -275,10 +350,12 @@ export interface RefundTiming {
   settleBlock: bigint;
   lastRefundBlock: bigint;
   blocks: bigint;
-  chainSeconds: bigint;
+  /** Null when the two blocks' timestamps could not be read. */
+  chainSeconds: bigint | null;
   /**
-   * Wall clock from the moment the rehearsal saw settle on-chain to the moment it saw the last
-   * refund (it reads each new block every 100 ms).
+   * Wall clock from the moment the rehearsal first saw the head reach the block of settle to the
+   * moment it first saw it reach the block of the last refund (the head is read every 500 ms
+   * during settle: about one block of precision on Arc).
    */
   wallMs: number | null;
   /** `sentAt`: when the engine broadcast the batch; `blockTime`: its block's timestamp (seconds). */
@@ -314,6 +391,22 @@ export interface SweepRecordRow {
   txHash: Hex | null;
 }
 
+/** The runner's own requests to the node, and the shared limiter's counts. */
+export interface RpcRecord {
+  /** Requests the runner's client made (an answer refused counts as a request). */
+  requests: number;
+  /** Requests answered with an error. */
+  refused: number;
+  /** Of those, the answers that were a rate limit. */
+  rateLimited: number;
+  /** Reads sent again after a failure (outside the waits, which simply ask again). */
+  retried: number;
+  /** Requests of each step and its duration. */
+  perStep: { step: string; requests: number; durationMs: number }[];
+  /** The limiter shared by the engine and the runner: every request of the process. */
+  limiter: { started: number; rateLimited: number; coolDowns: number } | null;
+}
+
 export interface StepRecord {
   step: RehearsalStep;
   startedAt: string;
@@ -322,7 +415,8 @@ export interface StepRecord {
 }
 
 export interface RehearsalReceipt {
-  version: 1;
+  /** 2 since the runner counts its requests (`rpc`), its unread facts and its engine start block. */
+  version: 2;
   /** Names the run's demo wallets (their e-mails are derived from it); not a secret. */
   runId: string;
   status: "passed" | "failed" | "estimate";
@@ -339,7 +433,14 @@ export interface RehearsalReceipt {
     moneyMode: MoneyMode | null;
     token: Address | null;
   };
-  escrow: { address: Address; deployBlock: bigint; runStartBlock: bigint | null };
+  escrow: {
+    address: Address;
+    deployBlock: bigint;
+    /** The head when the engine started: where the run's own reads of the escrow's logs start. */
+    runStartBlock: bigint | null;
+    /** Where the engine's event reader started on an empty database. */
+    engineStartBlock: bigint | null;
+  };
   roles: {
     relayer: Address;
     oracle: Address;
@@ -379,10 +480,94 @@ export interface RehearsalReceipt {
   sweep: SweepRecordRow[];
   /** What the run could not bring back, one sentence each (empty when nothing). */
   leftBehind: string[];
+  /** What could not be read back from the node or the database after retries, one line each. */
+  unread: string[];
+  rpc: RpcRecord | null;
   /** Present when a failure left the campaign open or unsettled and its recovery was attempted. */
   recovery: RecoveryRecord | null;
   /** The campaign exists on-chain and was not released when the run ended: the escrow holds funds. */
   stranded: boolean;
   /** Where the receipt was written; not part of the written files. */
+  files?: { json: string; markdown: string };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Recovery of a stranded campaign (`--recover`)
+// ---------------------------------------------------------------------------------------------
+
+/** Where a campaign stands on-chain. */
+export type CampaignStage =
+  "selling" | "paused" | "sales closed" | "settled yes" | "settled no" | "void" | "released";
+
+/** The campaign as the escrow and its events say, at one moment. Money is micro-USDC. */
+export interface CampaignStateRecord {
+  stage: CampaignStage;
+  /** Block whose state this is, and its timestamp (seconds). */
+  block: bigint;
+  blockTimestamp: bigint;
+  salesClose: bigint;
+  released: boolean;
+  ticketsSold: number;
+  ticketsCharged: number;
+  /** HedgeCharged events: one per ticket charged when no ticket was charged twice. */
+  hedgeCharges: number;
+  ticketsRefunded: number;
+  hedgeBudget: bigint;
+  hedgeSpent: bigint;
+  hedgeReserved: bigint;
+  lockedRefunds: bigint;
+  merchantDue: bigint;
+  /** Unspent budget (until released), locked refunds and the merchant's due. */
+  escrowHolds: bigint;
+}
+
+/** What is left to send, at worst, before a recovery sends anything. */
+export interface RecoveryEstimate {
+  feePerGasWei: bigint;
+  /** What the treasury pays out at worst: the merchant's due on YES. Micro-USDC. */
+  treasuryPays: bigint;
+  relayerGas: bigint;
+  oracleGas: bigint;
+  treasuryNeedsWithMargin: bigint;
+  relayerGasNeedsWithMarginWei: bigint;
+  oracleNeedsWithMarginWei: bigint;
+}
+
+export interface RecoveryReceipt {
+  version: 2;
+  kind: "recovery";
+  /** The receipt this recovery finishes (never rewritten). */
+  recovers: {
+    file: string;
+    runId: string;
+    status: string;
+    failure: { step: string; reason: string } | null;
+    startedAt: string;
+  };
+  /** `recovered`: released and nothing left behind; `estimate`: nothing was sent. */
+  status: "recovered" | "failed" | "estimate";
+  failure: { step: RehearsalStep; reason: string } | null;
+  startedAt: string;
+  finishedAt: string;
+  chain: RehearsalReceipt["chain"];
+  escrow: RehearsalReceipt["escrow"];
+  roles: RehearsalReceipt["roles"];
+  campaign: { id: string; onchainId: bigint; slug: string; instrument: string };
+  gemini: "live" | "simulated";
+  engine: { started: boolean; stopped: boolean };
+  /** The result waited for: the one already forced or known, else NO, forced by the recovery. */
+  outcome: Outcome | null;
+  /** What the recovery did, in order, one sentence each. */
+  actions: string[];
+  stateBefore: CampaignStateRecord | null;
+  stateAfter: CampaignStateRecord | null;
+  estimate: RecoveryEstimate | null;
+  steps: StepRecord[];
+  transactions: TxRecord[];
+  balances: { before: BalanceRow[]; after: BalanceRow[] };
+  sweep: SweepRecordRow[];
+  leftBehind: string[];
+  unread: string[];
+  rpc: RpcRecord | null;
   files?: { json: string; markdown: string };
 }
