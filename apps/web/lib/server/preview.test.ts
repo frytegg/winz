@@ -172,17 +172,31 @@ describe("POST /api/campaigns/preview", () => {
     `;
     expect(first?.ttl).toBe(600);
 
-    // Pretend the request is old and about to expire.
+    // Pretend the request is old and about to expire. Both the stale row and the measurement are
+    // dated by the routes' clock (`now`), as the code under test is, so the test does not depend
+    // on where the wall clock stands relative to `now`.
     await database.db`
       update tracked_instruments
-      set requested_at = now() - interval '9 minutes', expires_at = now() + interval '1 minute'
+      set requested_at = ${minutesFrom(now, -9)}, expires_at = ${minutesFrom(now, 1)}
     `;
     await previewCampaign(database.db, joe, now);
     const rows = await database.db<{ remaining: number }[]>`
-      select extract(epoch from expires_at - now())::int as remaining from tracked_instruments
+      select extract(epoch from expires_at - ${now}::timestamptz)::int as remaining
+      from tracked_instruments
     `;
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.remaining).toBeGreaterThanOrEqual(590);
+    expect(rows[0]?.remaining).toBe(600);
+  });
+
+  it("tracks for ten minutes from the server's clock, not from Postgres'", async () => {
+    // The engine reads `expires_at` against its own clock: the request must be dated by the
+    // routes' clock, here two days ahead of the database's.
+    await previewCampaign(database.db, joe, now);
+    const [row] = await database.db<{ requested_at: Date; expires_at: Date }[]>`
+      select requested_at, expires_at from tracked_instruments where symbol = ${SYMBOL}
+    `;
+    expect(row?.requested_at.toISOString()).toBe(now.toISOString());
+    expect(row?.expires_at.toISOString()).toBe(minutesFrom(now, 10).toISOString());
   });
 
   it("answers closed with no capacity once the game's sales have closed, and tracks nothing", async () => {
