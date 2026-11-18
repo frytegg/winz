@@ -7,7 +7,7 @@ import { encodeFunctionData, getAddress, parseEventLogs, type Address, type Hex 
 
 import { winzEscrowAbi, type Outcome, type Quote } from "@winz/shared";
 
-import { startChainIngest, TxSender } from "../chain";
+import { startChainIngest, TxSender, type TxSenderConfig } from "../chain";
 import {
   capturingLogger,
   EscrowDriver,
@@ -117,9 +117,21 @@ export interface SettlementEnv {
   close: () => Promise<void>;
 }
 
+export interface SettlementEnvOptions {
+  /** Seconds between blocks (interval mining). Omitted: a block per transaction (automine). */
+  blockTime?: number;
+  /** Settings of the env's transaction senders over `TEST_SENDER_CONFIG`. */
+  sender?: Partial<TxSenderConfig>;
+}
+
 /** Creates a fresh chain, database, projection and merchant. The treasury has its own key. */
-export async function createSettlementEnv(): Promise<SettlementEnv> {
-  const anvil = await startAnvil({ accounts: 5 });
+export async function createSettlementEnv(
+  options: SettlementEnvOptions = {},
+): Promise<SettlementEnv> {
+  const anvil = await startAnvil({
+    accounts: 5,
+    ...(options.blockTime === undefined ? {} : { blockTime: options.blockTime }),
+  });
   const senders: TxSender[] = [];
   const controllers: AbortController[] = [];
   const stoppers: Promise<void>[] = [];
@@ -248,7 +260,12 @@ export async function createSettlementEnv(): Promise<SettlementEnv> {
         client: env.publicClient,
         accounts: { relayer: env.accounts.relayer, oracle: env.accounts.oracle },
         logger: logger.child({ module: "tx-sender" }),
-        config: { chainId: env.chainId, escrowAddress: env.escrow, ...TEST_SENDER_CONFIG },
+        config: {
+          chainId: env.chainId,
+          escrowAddress: env.escrow,
+          ...TEST_SENDER_CONFIG,
+          ...options.sender,
+        },
       });
       senders.push(sender);
       return sender;

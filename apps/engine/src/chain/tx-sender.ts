@@ -27,6 +27,7 @@ import { isRateLimitedError } from "./rpc-errors";
 import { isRpcLimiterClosedError } from "./rpc-limiter";
 import { resolveTxSenderSettings, type TxSenderSettings } from "./settings";
 import { ChainTxStore, readSenderState, type SigningKey } from "./store";
+import { isIndependentTxKind } from "./tx-kinds";
 import {
   SIGNER_NAMES,
   type CallRequest,
@@ -62,6 +63,42 @@ type LifecycleState = "idle" | "running" | "stopping" | "stopped";
 /** Consecutive refused broadcasts after which the row and the error log say so. */
 const BROADCAST_FAILURES_BEFORE_ALERT = 5;
 
+/** Block times kept in memory: several receipts of one burst share their block's. */
+const BLOCK_TIME_CACHE_SIZE = 64;
+
+/**
+ * A signed transaction of the signer that is not final yet (`sent`), and what the sender knows
+ * of it in this run. Kept in nonce order: index 0 is the earliest unmined one.
+ */
+interface InFlight {
+  tx: ChainTx;
+  nonce: bigint;
+  state: SenderState;
+  /** Its kind may travel with others (`isIndependentTxKind`); otherwise it is a barrier. */
+  independent: boolean;
+  /** Its stored bytes must (again) reach a node. */
+  needsBroadcast: boolean;
+  broadcastFailures: number;
+  rateLimitedBroadcasts: number;
+  nextBroadcastAt: number;
+  /**
+   * When the replacement timer (`replaceAfterMs`) started: the time a node took its latest
+   * attempt, as the one-at-a-time sender measured it. A re-broadcast of the same bytes after the
+   * pending-count check does not restart it, so a node whose count never shows the transaction
+   * cannot hold off the fee bump and the stuck alert for ever.
+   */
+  replaceTimerFrom: number;
+  /** The next broadcast a node takes restarts the replacement timer (a new attempt, a restart). */
+  restartsReplaceTimer: boolean;
+  /** Set when the pending-count check found it lost; cleared by the broadcast that follows. */
+  lostResend: boolean;
+  /** Last time the node's pending count was asked about it. */
+  lastLostCheckAt: number;
+  /** Set when its nonce is mined but none of its attempts has a receipt. */
+  consumedSince: number | null;
+  reportedStuck: boolean;
+}
+
 interface Worker {
   /** Next nonce to assign, or `null` when it must be derived again from the chain and the table. */
   nextNonce: bigint | null;
@@ -71,6 +108,21 @@ interface Worker {
   loop: Promise<void> | null;
   /** Rate-limit answers in a row while preparing: they set the pause, not the give-up count. */
   rateLimitedPrepares: number;
+  /** The signer's `sent` transactions, lowest nonce first. */
+  inFlight: InFlight[];
+  /** No queued row is prepared before this time (a preparation that failed while others fly). */
+  prepareNotBefore: number;
+  lastReceiptPollAt: number;
+  /** Node errors in a row while following the transactions in flight. */
+  rpcFailures: number;
+  /**
+   * Interval of the pending-count check: `resendCheckMs`, doubled up to `replaceAfterMs` while
+   * every transaction it sent again came back "already known" (the count, not the pool, was
+   * wrong), back to `resendCheckMs` once one was really lost or the count shows everything.
+   */
+  lostCheckMs: number;
+  /** Answers to the re-broadcasts of the last pending-count check. */
+  lostResends: { known: number; taken: number };
 }
 
 function isTerminal(tx: ChainTx): boolean {
@@ -83,10 +135,28 @@ function latestAttempt(tx: ChainTx, state: SenderState): SignedAttempt {
   return attempt;
 }
 
+/** What preparing the oldest queued row led to. */
+interface PrepareResult {
+  /** The next queued row may be prepared at once. */
+  next: boolean;
+  /** Something was broadcast. */
+  broadcast: boolean;
+}
+
 /**
  * The single on-chain transaction sender of the engine (SPEC section 7). Callers describe a
- * call; the sender owns nonces, fees, broadcast and receipts, with one strictly serial queue
- * per signer key, so two writers can never use the same nonce.
+ * call; the sender owns nonces, fees, broadcast and receipts, with one queue per signer key, so
+ * two writers can never use the same nonce.
+ *
+ * Per signer, up to `maxInFlight` transactions are broadcast and not mined at the same time,
+ * with consecutive nonces given in the outbox's order (oldest first), exactly the order a strictly
+ * serial sender would have used. Only the kinds declared in `tx-kinds.ts` travel together; any
+ * other kind is a barrier: it is prepared once nothing of its signer is in flight, and nothing
+ * queued after it is signed until it is mined. A transaction is given nonce n + 1 only once the
+ * transaction with nonce n was taken by a node, so a refused broadcast never leaves a gap that
+ * later nonces would hang behind. Receipts are recorded in nonce order, and only the earliest
+ * unmined transaction is looked up and watched (re-broadcast, fee bump, the stuck alert):
+ * transactions of one key are mined in nonce order.
  *
  * The table `chain_txs` is the outbox. A row goes `queued` → `sent` → `mined` | `reverted`,
  * or `queued` → `failed`. The signed transaction is stored in the row before it is broadcast:
@@ -117,6 +187,9 @@ export class TxSender {
   /** Each role's key, lowercase, on the configured chain. */
   private readonly keys: Record<SignerName, SigningKey>;
   private readonly waiters = new Map<string, Set<() => void>>();
+  /** The node's latest fee suggestion and when it was read: one read serves a burst. */
+  private feeCache: { suggestion: FeeSuggestion; at: number } | null = null;
+  private readonly blockTimes = new Map<bigint, Date>();
   private state: LifecycleState = "idle";
   private stopController = new AbortController();
   private stopPromise: Promise<void> | null = null;
@@ -142,10 +215,32 @@ export class TxSender {
       // the mempool. One key, one role.
       throw new TxSenderConfigError("The relayer and the oracle must be two different keys");
     }
-    this.workers = {
-      relayer: { nextNonce: null, dirty: false, wake: null, loop: null, rateLimitedPrepares: 0 },
-      oracle: { nextNonce: null, dirty: false, wake: null, loop: null, rateLimitedPrepares: 0 },
+    this.workers = { relayer: this.newWorker(), oracle: this.newWorker() };
+  }
+
+  private newWorker(): Worker {
+    return {
+      nextNonce: null,
+      dirty: false,
+      wake: null,
+      loop: null,
+      rateLimitedPrepares: 0,
+      inFlight: [],
+      prepareNotBefore: 0,
+      lastReceiptPollAt: 0,
+      rpcFailures: 0,
+      lostCheckMs: this.settings.resendCheckMs,
+      lostResends: { known: 0, taken: 0 },
     };
+  }
+
+  /**
+   * `maxInFlight = 1`: the one-at-a-time sender, request for request. Preparation reads the
+   * simulation, the gas estimate and a fresh fee suggestion one after the other, and there is no
+   * pending-count check (with nothing after the earliest, the fee bump re-broadcasts it).
+   */
+  private get serial(): boolean {
+    return this.settings.maxInFlight === 1;
   }
 
   // -------------------------------------------------------------------------------------------
@@ -209,8 +304,9 @@ export class TxSender {
 
   /**
    * Starts one worker per signer. Transactions left `sent` by a previous run are re-broadcast
-   * from their stored bytes first. Rejects if the node is unreachable or on another chain, and
-   * with `SignerHistoryMismatchError` while a role has a `sent` row of another key or chain.
+   * from their stored bytes first, in nonce order. Rejects if the node is unreachable or on
+   * another chain, and with `SignerHistoryMismatchError` while a role has a `sent` row of another
+   * key or chain.
    */
   async start(): Promise<void> {
     if (this.state === "running") return;
@@ -234,6 +330,13 @@ export class TxSender {
     for (const signer of SIGNER_NAMES) {
       const worker = this.workers[signer];
       worker.nextNonce = null;
+      worker.inFlight = [];
+      worker.prepareNotBefore = 0;
+      worker.lastReceiptPollAt = 0;
+      worker.rpcFailures = 0;
+      worker.rateLimitedPrepares = 0;
+      worker.lostCheckMs = this.settings.resendCheckMs;
+      worker.lostResends = { known: 0, taken: 0 };
       worker.loop = this.runWorker(signer);
     }
     this.log.info(
@@ -242,6 +345,7 @@ export class TxSender {
         relayer: this.accounts.relayer.address,
         oracle: this.accounts.oracle.address,
         escrow: this.settings.escrowAddress,
+        maxInFlight: this.settings.maxInFlight,
       },
       "transaction sender started",
     );
@@ -272,9 +376,9 @@ export class TxSender {
   }
 
   /**
-   * Stops the workers. A transaction being signed is stored and broadcast once before its
-   * worker returns; every row is left `queued`, `sent` or final, never in between. `sent` rows
-   * resume at the next `start()`.
+   * Stops the workers. Nothing new is signed once stopping; a transaction being signed is stored
+   * and broadcast once before its worker returns; every row is left `queued`, `sent` or final,
+   * never in between. `sent` rows resume at the next `start()`.
    */
   async stop(): Promise<void> {
     if (this.state === "idle" || this.state === "stopped") return;
@@ -319,22 +423,27 @@ export class TxSender {
     worker.wake?.();
   }
 
-  /** Waits for an `enqueue`, a stop, or the idle poll that catches rows written by someone else. */
-  private async idle(worker: Worker): Promise<void> {
+  /** Waits `ms`, or less for an `enqueue` or a stop. */
+  private async idle(worker: Worker, ms: number): Promise<void> {
     const controller = new AbortController();
     const abort = (): void => controller.abort();
     this.stopController.signal.addEventListener("abort", abort, { once: true });
     worker.wake = abort;
     try {
       if (worker.dirty || this.stopping) return;
-      await this.clock.sleep(this.settings.idlePollMs, controller.signal);
+      await this.clock.sleep(ms, controller.signal);
     } finally {
       worker.wake = null;
       this.stopController.signal.removeEventListener("abort", abort);
     }
   }
 
-  /** One signer, one transaction at a time: the unfinished one first, then the oldest queued. */
+  /**
+   * One loop per signer. Each pass: read the signer's `sent` rows, broadcast those a node must
+   * (again) take, sign and broadcast queued rows while the window allows, then look up the
+   * earliest unmined receipt. Between passes it sleeps `receiptPollMs` while something is in
+   * flight, `idlePollMs` otherwise, and wakes at once for a new row.
+   */
   private async runWorker(signer: SignerName): Promise<void> {
     const worker = this.workers[signer];
     const log = this.log.child({ signer });
@@ -342,18 +451,24 @@ export class TxSender {
     while (!this.stopping) {
       try {
         worker.dirty = false;
-        const sent = await this.store.oldestSent(this.keys[signer]);
-        if (sent) {
-          await this.driveSent(signer, sent, readSenderState(sent), log);
-        } else {
-          const queued = await this.store.oldestQueued(signer);
-          if (queued) await this.processQueued(signer, queued, log);
-          else await this.idle(worker);
+        await this.syncInFlight(signer);
+        let broadcast = await this.broadcastPending(signer, log);
+        let progress = false;
+        if (!this.stopping) {
+          const filled = await this.fill(signer, log);
+          broadcast = broadcast || filled.broadcast;
+          progress = filled.processed > 0;
         }
+        if (this.stopping) break;
+        progress = (await this.followEarliest(signer, log, broadcast)) > 0 || progress;
         failures = 0;
+        if (this.stopping) break;
+        // A pass that finished or prepared something is followed at once by the next one, which
+        // may have more to do; otherwise the worker sleeps.
+        if (!progress) await this.rest(worker);
       } catch (error: unknown) {
         // Database errors and rows that changed under us end here. Nothing is assumed about the
-        // row: the next pass reads it again, and the nonce is derived again.
+        // rows: the next pass reads them again, and the nonce is derived again.
         failures += 1;
         worker.nextNonce = null;
         if (isRpcLimiterClosedError(error)) {
@@ -379,6 +494,109 @@ export class TxSender {
     }
   }
 
+  /** Sleeps until the next pass. */
+  private async rest(worker: Worker): Promise<void> {
+    if (worker.inFlight.length > 0) {
+      await this.idle(worker, this.settings.receiptPollMs);
+      return;
+    }
+    const waitToPrepare = worker.prepareNotBefore - this.nowMs();
+    await this.idle(
+      worker,
+      waitToPrepare > 0
+        ? Math.min(waitToPrepare, this.settings.idlePollMs)
+        : this.settings.idlePollMs,
+    );
+  }
+
+  /** Builds the in-flight list from the signer's `sent` rows, keeping what this run knows. */
+  private async syncInFlight(signer: SignerName): Promise<void> {
+    const worker = this.workers[signer];
+    const rows = await this.store.sentRows(this.keys[signer]);
+    const known = new Map(worker.inFlight.map((entry) => [entry.tx.id, entry]));
+    const next: InFlight[] = [];
+    for (const row of rows) {
+      const existing = known.get(row.id);
+      if (existing && existing.tx.txHash === row.txHash) {
+        next.push(existing);
+        continue;
+      }
+      // A row this run did not sign (a restart) or that changed: its stored bytes go out again.
+      next.push(this.track(row, readSenderState(row)));
+    }
+    worker.inFlight = next;
+  }
+
+  private track(tx: ChainTx, state: SenderState): InFlight {
+    if (tx.nonce === null) throw new CorruptSenderStateError(tx.id, "sent without a nonce");
+    const now = this.nowMs();
+    return {
+      tx,
+      nonce: tx.nonce,
+      state,
+      independent: isIndependentTxKind(tx.kind),
+      needsBroadcast: true,
+      broadcastFailures: 0,
+      rateLimitedBroadcasts: 0,
+      nextBroadcastAt: 0,
+      replaceTimerFrom: now,
+      restartsReplaceTimer: true,
+      lostResend: false,
+      lastLostCheckAt: now,
+      consumedSince: null,
+      reportedStuck: false,
+    };
+  }
+
+  /**
+   * Broadcasts, in nonce order, the transactions a node must (again) take, stopping at the first
+   * one that is refused or not due yet: a later nonce never goes out ahead of an earlier one.
+   * True when a broadcast was tried.
+   */
+  private async broadcastPending(signer: SignerName, log: Logger): Promise<boolean> {
+    const worker = this.workers[signer];
+    let tried = false;
+    for (const entry of worker.inFlight) {
+      if (!entry.needsBroadcast) continue;
+      if (this.nowMs() < entry.nextBroadcastAt) break;
+      tried = true;
+      if (!(await this.broadcastTracked(worker, entry, log))) break;
+      if (this.stopping) break;
+    }
+    return tried;
+  }
+
+  /**
+   * Signs and broadcasts queued rows, oldest first, while the window allows: up to `maxInFlight`
+   * independent transactions, or one barrier alone. Stops at a row that cannot be prepared now,
+   * at a broadcast a node refused, or at a barrier. Says whether something was broadcast and how
+   * many rows were prepared (signed, failed or retried).
+   */
+  private async fill(
+    signer: SignerName,
+    log: Logger,
+  ): Promise<{ broadcast: boolean; processed: number }> {
+    const worker = this.workers[signer];
+    const done = { broadcast: false, processed: 0 };
+    for (;;) {
+      if (this.stopping) return done;
+      // n + 1 is signed only once n was taken by a node.
+      if (worker.inFlight.some((entry) => entry.needsBroadcast)) return done;
+      if (worker.inFlight.some((entry) => !entry.independent)) return done;
+      if (worker.inFlight.length >= this.settings.maxInFlight) return done;
+      if (this.nowMs() < worker.prepareNotBefore) return done;
+      const queued = await this.store.oldestQueued(signer);
+      if (!queued) return done;
+      // A barrier waits until nothing of its signer is in flight, and holds back what follows.
+      if (!isIndependentTxKind(queued.kind) && worker.inFlight.length > 0) return done;
+      const result = await this.processQueued(signer, queued, log);
+      done.broadcast = done.broadcast || result.broadcast;
+      // A preparation held back while others fly is no progress: the worker sleeps meanwhile.
+      if (this.nowMs() >= worker.prepareNotBefore) done.processed += 1;
+      if (!result.next) return done;
+    }
+  }
+
   /**
    * Next nonce = max(what the chain counts for the key, pending included; highest nonce stored
    * for that key on this chain + 1). Another key's nonces, whatever their role, play no part.
@@ -397,6 +615,20 @@ export class TxSender {
     const fromStore = stored === null ? 0n : stored + 1n;
     worker.nextNonce = fromChain > fromStore ? fromChain : fromStore;
     return worker.nextNonce;
+  }
+
+  /**
+   * The node's fee suggestion, read again only when the last one is `feeSuggestionMaxAgeMs` old;
+   * always read when transactions go one at a time, as they used to be.
+   */
+  private async feeSuggestion(): Promise<FeeSuggestion> {
+    const cached = this.feeCache;
+    if (cached && !this.serial && this.nowMs() - cached.at < this.settings.feeSuggestionMaxAgeMs) {
+      return cached.suggestion;
+    }
+    const suggestion = await this.client.estimateFeesPerGas();
+    this.feeCache = { suggestion, at: this.nowMs() };
+    return suggestion;
   }
 
   private async sign(
@@ -425,10 +657,57 @@ export class TxSender {
   }
 
   /**
+   * Waits `ms` before the next preparation: a plain pause when nothing is in flight (what a
+   * strictly serial sender does), otherwise a time before which no queued row is prepared, so
+   * that the transactions in flight are still followed meanwhile.
+   */
+  private async holdPreparation(worker: Worker, ms: number): Promise<void> {
+    if (worker.inFlight.length === 0) {
+      await this.pause(ms);
+      return;
+    }
+    worker.prepareNotBefore = this.nowMs() + ms;
+  }
+
+  /**
+   * The simulation, the gas estimate and the fee suggestion of a queued row: asked together, the
+   * simulation's error being the one read when several fail; one after the other, stopping at the
+   * first error, when transactions go one at a time.
+   */
+  private async prepareReads(
+    request: CallRequest,
+  ): Promise<{ ok: true; estimate: bigint; fee: FeeSuggestion } | { ok: false; error: unknown }> {
+    if (this.serial) {
+      try {
+        await this.client.call(request);
+        const estimate = await this.client.estimateGas(request);
+        const fee = await this.feeSuggestion();
+        return { ok: true, estimate, fee };
+      } catch (error: unknown) {
+        return { ok: false, error };
+      }
+    }
+    const [simulation, estimate, fee] = await Promise.allSettled([
+      this.client.call(request),
+      this.client.estimateGas(request),
+      this.feeSuggestion(),
+    ]);
+    if (simulation.status === "rejected") return { ok: false, error: simulation.reason };
+    if (estimate.status === "rejected") return { ok: false, error: estimate.reason };
+    if (fee.status === "rejected") return { ok: false, error: fee.reason };
+    return { ok: true, estimate: estimate.value, fee: fee.value };
+  }
+
+  /**
    * `queued` row: simulate, estimate, sign, store, then broadcast. A call that reverts is
    * `failed` here, before any nonce is assigned.
    */
-  private async processQueued(signer: SignerName, tx: ChainTx, log: Logger): Promise<void> {
+  private async processQueued(
+    signer: SignerName,
+    tx: ChainTx,
+    log: Logger,
+  ): Promise<PrepareResult> {
+    const worker = this.workers[signer];
     const account = this.accounts[signer];
     const request: CallRequest = {
       account: account.address,
@@ -437,84 +716,16 @@ export class TxSender {
       value: tx.value,
     };
 
-    let gas: bigint;
-    let suggestion: FeeSuggestion;
-    try {
-      await this.client.call(request);
-      gas = addGasMargin(await this.client.estimateGas(request), this.settings.gasMarginPercent);
-      suggestion = await this.client.estimateFeesPerGas();
-    } catch (error: unknown) {
-      const verdict = classifySimulationError(error);
-      if (verdict.kind === "revert") {
-        if (await this.store.markQueuedFailed(tx.id, verdict.reason)) {
-          log.warn(
-            { id: tx.id, kind: tx.kind, error: verdict.reason },
-            "transaction would revert, not sent",
-          );
-          this.notify(tx.id);
-        }
-        return;
-      }
-      const preparing = this.workers[signer];
-      if (isRpcLimiterClosedError(error)) {
-        // The engine is stopping and its RPC limiter released the request without sending it:
-        // nothing about this transaction or the node. The row is left exactly as it was (no
-        // attempt counted, no error recorded, never given up for it); the next start prepares it.
-        log.warn(
-          { id: tx.id, kind: tx.kind, error: verdict.reason },
-          "node request not sent, the RPC limiter is closed; the transaction is left as it was",
-        );
-        await this.pause(this.backoff(1));
-        return;
-      }
-      if (isRateLimitedError(error)) {
-        // The node refuses this client for now, not this transaction: the row is left exactly as
-        // it was (no attempt counted, no error recorded, never given up for it), and asked again
-        // after a pause that grows while the refusals last.
-        preparing.rateLimitedPrepares += 1;
-        log.warn(
-          {
-            id: tx.id,
-            kind: tx.kind,
-            inARow: preparing.rateLimitedPrepares,
-            error: verdict.reason,
-          },
-          "node rate limited the preparation of a transaction, retrying after a pause",
-        );
-        await this.pause(this.backoff(preparing.rateLimitedPrepares));
-        return;
-      }
-      preparing.rateLimitedPrepares = 0;
-      const failure = await this.store.recordPrepareFailure(tx.id, verdict.reason);
-      // The row changed under us (another sender?): the next pass reads it again.
-      if (!failure) return;
-      const { attempts, ageMs } = failure;
-      if (attempts >= this.settings.maxPrepareAttempts && ageMs >= this.settings.maxPrepareMs) {
-        const reason = `NodeUnavailable: ${verdict.reason}`;
-        if (await this.store.markQueuedFailed(tx.id, reason)) {
-          log.error(
-            { id: tx.id, kind: tx.kind, attempts, ageMs, error: verdict.reason },
-            "transaction could not be prepared, given up before any nonce was used",
-          );
-          this.notify(tx.id);
-        }
-        return;
-      }
-      log.warn(
-        { id: tx.id, kind: tx.kind, attempts, error: verdict.reason },
-        "node error while preparing a transaction, retrying",
-      );
-      await this.pause(this.backoff(attempts));
-      return;
-    }
+    const reads = await this.prepareReads(request);
+    if (!reads.ok) return this.prepareFailed(signer, tx, reads.error, log);
 
-    const worker = this.workers[signer];
     worker.rateLimitedPrepares = 0;
     // Stopping before anything is signed leaves the row exactly as it was.
-    if (this.stopping) return;
+    if (this.stopping) return { next: false, broadcast: false };
 
+    const gas = addGasMargin(reads.estimate, this.settings.gasMarginPercent);
     const nonce = await this.nextNonce(signer);
-    const fees = computeFees(suggestion, this.settings.feePolicy);
+    const fees = computeFees(reads.fee, this.settings.feePolicy);
     const attempt = await this.sign(account, tx, { nonce, gas, fees });
     const state: SenderState = { gas: gas.toString(), attempts: [attempt] };
 
@@ -531,21 +742,7 @@ export class TxSender {
     });
     if (!stored) throw new ConcurrentTxUpdateError(tx.id, "store signed transaction");
     worker.nextNonce = nonce + 1n;
-    log.info(
-      {
-        id: tx.id,
-        kind: tx.kind,
-        nonce: nonce.toString(),
-        txHash: attempt.hash,
-        gas: gas.toString(),
-        maxFeePerGas: attempt.maxFeePerGas,
-        maxPriorityFeePerGas: attempt.maxPriorityFeePerGas,
-      },
-      "transaction signed and stored",
-    );
-
-    await this.driveSent(
-      signer,
+    const entry = this.track(
       {
         ...tx,
         status: "sent",
@@ -555,33 +752,125 @@ export class TxSender {
         txHash: attempt.hash,
       },
       state,
-      log,
     );
+    worker.inFlight.push(entry);
+    log.info(
+      {
+        id: tx.id,
+        kind: tx.kind,
+        nonce: nonce.toString(),
+        txHash: attempt.hash,
+        gas: gas.toString(),
+        maxFeePerGas: attempt.maxFeePerGas,
+        maxPriorityFeePerGas: attempt.maxPriorityFeePerGas,
+        inFlight: worker.inFlight.length,
+      },
+      "transaction signed and stored",
+    );
+
+    // Broadcast once even if the sender is stopping: a stored transaction is never left untried.
+    const accepted = await this.broadcastTracked(worker, entry, log);
+    return { next: accepted && !this.stopping, broadcast: true };
+  }
+
+  /** What a failed preparation means for the row; the row is never signed here. */
+  private async prepareFailed(
+    signer: SignerName,
+    tx: ChainTx,
+    error: unknown,
+    log: Logger,
+  ): Promise<PrepareResult> {
+    const worker = this.workers[signer];
+    const verdict = classifySimulationError(error);
+    if (verdict.kind === "revert") {
+      if (await this.store.markQueuedFailed(tx.id, verdict.reason)) {
+        log.warn(
+          { id: tx.id, kind: tx.kind, error: verdict.reason },
+          "transaction would revert, not sent",
+        );
+        this.notify(tx.id);
+      }
+      // The next row takes the nonce this one did not use.
+      return { next: true, broadcast: false };
+    }
+    if (isRpcLimiterClosedError(error)) {
+      // The engine is stopping and its RPC limiter released the request without sending it:
+      // nothing about this transaction or the node. The row is left exactly as it was (no
+      // attempt counted, no error recorded, never given up for it); the next start prepares it.
+      log.warn(
+        { id: tx.id, kind: tx.kind, error: verdict.reason },
+        "node request not sent, the RPC limiter is closed; the transaction is left as it was",
+      );
+      await this.holdPreparation(worker, this.backoff(1));
+      return { next: false, broadcast: false };
+    }
+    if (isRateLimitedError(error)) {
+      // The node refuses this client for now, not this transaction: the row is left exactly as
+      // it was (no attempt counted, no error recorded, never given up for it), and asked again
+      // after a pause that grows while the refusals last.
+      worker.rateLimitedPrepares += 1;
+      log.warn(
+        {
+          id: tx.id,
+          kind: tx.kind,
+          inARow: worker.rateLimitedPrepares,
+          error: verdict.reason,
+        },
+        "node rate limited the preparation of a transaction, retrying after a pause",
+      );
+      await this.holdPreparation(worker, this.backoff(worker.rateLimitedPrepares));
+      return { next: false, broadcast: false };
+    }
+    worker.rateLimitedPrepares = 0;
+    const failure = await this.store.recordPrepareFailure(tx.id, verdict.reason);
+    // The row changed under us (another sender?): the next pass reads it again.
+    if (!failure) return { next: false, broadcast: false };
+    const { attempts, ageMs } = failure;
+    if (attempts >= this.settings.maxPrepareAttempts && ageMs >= this.settings.maxPrepareMs) {
+      const reason = `NodeUnavailable: ${verdict.reason}`;
+      if (await this.store.markQueuedFailed(tx.id, reason)) {
+        log.error(
+          { id: tx.id, kind: tx.kind, attempts, ageMs, error: verdict.reason },
+          "transaction could not be prepared, given up before any nonce was used",
+        );
+        this.notify(tx.id);
+      }
+      return { next: false, broadcast: false };
+    }
+    log.warn(
+      { id: tx.id, kind: tx.kind, attempts, error: verdict.reason },
+      "node error while preparing a transaction, retrying",
+    );
+    await this.holdPreparation(worker, this.backoff(attempts));
+    return { next: false, broadcast: false };
   }
 
   /**
-   * Sends the stored bytes. True when the node has the transaction, including when it says it
-   * already had it or that its nonce is already mined: both mean an earlier broadcast worked.
+   * Sends the stored bytes. Accepted when the node has the transaction, including when it says it
+   * already had it or that its nonce is already mined: both mean an earlier broadcast worked
+   * (`known`: the node had it, or something for its nonce, before this broadcast).
    */
   private async broadcast(
     tx: ChainTx,
     attempt: SignedAttempt,
     log: Logger,
-  ): Promise<{ accepted: true } | { accepted: false; error: string; rateLimited: boolean }> {
+  ): Promise<
+    { accepted: true; known: boolean } | { accepted: false; error: string; rateLimited: boolean }
+  > {
     try {
       await this.client.sendRawTransaction({ serializedTransaction: attempt.raw });
-      return { accepted: true };
+      return { accepted: true, known: false };
     } catch (error: unknown) {
       const verdict = classifyBroadcastError(error);
       if (verdict === "already-broadcast") {
         log.debug({ id: tx.id, txHash: attempt.hash }, "transaction was already broadcast");
-        return { accepted: true };
+        return { accepted: true, known: true };
       }
       if (verdict === "underpriced") {
         // The mempool holds another attempt for this nonce with a fee at least as good. This
         // one will not get in; the receipts of all attempts are still watched.
         log.warn({ id: tx.id, txHash: attempt.hash }, "replacement refused as underpriced");
-        return { accepted: true };
+        return { accepted: true, known: true };
       }
       const description = describeError(error);
       if (isRateLimitedError(error)) {
@@ -594,6 +883,65 @@ export class TxSender {
       log.warn({ id: tx.id, txHash: attempt.hash, err: description }, "broadcast failed, retrying");
       return { accepted: false, error: description, rateLimited: false };
     }
+  }
+
+  /** Broadcasts one transaction in flight and keeps its counters. True when a node took it. */
+  private async broadcastTracked(worker: Worker, entry: InFlight, log: Logger): Promise<boolean> {
+    const { tx, nonce } = entry;
+    const result = await this.broadcast(tx, latestAttempt(tx, entry.state), log);
+    if (result.accepted) {
+      const now = this.nowMs();
+      entry.needsBroadcast = false;
+      entry.broadcastFailures = 0;
+      entry.rateLimitedBroadcasts = 0;
+      // Asking the pending count right after a node took it would tell nothing. An "already
+      // known" answer is no such news: the check keeps its pace, so a stuck earliest re-sent
+      // every replaceAfterMs cannot hold it off for good.
+      if (!result.known) entry.lastLostCheckAt = now;
+      if (entry.restartsReplaceTimer) {
+        entry.restartsReplaceTimer = false;
+        entry.replaceTimerFrom = now;
+      }
+      if (entry.lostResend) {
+        entry.lostResend = false;
+        if (result.known) worker.lostResends.known += 1;
+        else worker.lostResends.taken += 1;
+      }
+      return true;
+    }
+    if (result.rateLimited) {
+      // The node refuses this client for now: not a refusal of the transaction, so it does not
+      // count towards the alert. The same stored bytes go out again after a pause.
+      entry.rateLimitedBroadcasts += 1;
+      entry.nextBroadcastAt = this.nowMs() + this.backoff(entry.rateLimitedBroadcasts);
+      if (entry.rateLimitedBroadcasts === BROADCAST_FAILURES_BEFORE_ALERT && !this.stopping) {
+        // Once per stretch of refusals, where an operator looks; the row is not touched (no
+        // `last_error`): the transaction itself is not refused.
+        log.error(
+          {
+            id: tx.id,
+            nonce: nonce.toString(),
+            rateLimited: entry.rateLimitedBroadcasts,
+            err: result.error,
+          },
+          "broadcast still rate limited by the node, the signer's queue waits behind it",
+        );
+      }
+      return false;
+    }
+    entry.broadcastFailures += 1;
+    entry.nextBroadcastAt = this.nowMs() + this.backoff(entry.broadcastFailures);
+    if (entry.broadcastFailures === BROADCAST_FAILURES_BEFORE_ALERT && !this.stopping) {
+      // The signed transaction holds a nonce that the later ones need first: nothing else of that
+      // signer is signed until a node takes it. Say so where an operator looks.
+      const reason = `broadcast refused ${entry.broadcastFailures.toString()} times: ${result.error}`;
+      log.error(
+        { id: tx.id, nonce: nonce.toString(), err: result.error },
+        "transaction cannot be broadcast, the signer's queue is blocked behind it",
+      );
+      await this.store.recordSentError(tx.id, reason);
+    }
+    return false;
   }
 
   /** Receipt of whichever attempt was mined, the latest first. */
@@ -613,134 +961,173 @@ export class TxSender {
   }
 
   /**
-   * `sent` row: broadcast (again), then watch for the receipt, replacing the transaction with a
-   * higher fee when it stays pending. Returns when the row is final or the sender stops.
+   * Looks up the receipt of the earliest unmined transaction, and of the next ones while they
+   * are found: transactions of one key are mined in nonce order, so the earliest without a
+   * receipt is the only one worth asking about, and receipts are recorded in nonce order. Then
+   * watches that earliest one. Runs every `receiptPollMs`, or at once after a broadcast.
    */
-  private async driveSent(
+  private async followEarliest(
     signer: SignerName,
-    tx: ChainTx,
-    initial: SenderState,
     log: Logger,
-  ): Promise<void> {
-    if (tx.nonce === null) throw new CorruptSenderStateError(tx.id, "sent without a nonce");
-    const nonce = tx.nonce;
-    const address = this.accounts[signer].address;
-    let state = initial;
-    let needsBroadcast = true;
-    let broadcastFailures = 0;
-    let rateLimitedBroadcasts = 0;
-    let nextBroadcastAt = 0;
-    let lastBroadcastAt = this.nowMs();
-    let rpcFailures = 0;
-    let consumedSince: number | null = null;
-    let reportedStuck = false;
-    let firstPass = true;
-
-    for (;;) {
-      // The first pass always runs: a transaction that was just stored is broadcast once even
-      // if the sender is stopping, and a stored one is never left without a try.
-      if (!firstPass && this.stopping) return;
-      firstPass = false;
-      try {
-        if (needsBroadcast && this.nowMs() >= nextBroadcastAt) {
-          const result = await this.broadcast(tx, latestAttempt(tx, state), log);
-          if (result.accepted) {
-            needsBroadcast = false;
-            broadcastFailures = 0;
-            rateLimitedBroadcasts = 0;
-            lastBroadcastAt = this.nowMs();
-          } else if (result.rateLimited) {
-            // The node refuses this client for now: not a refusal of the transaction, so it does
-            // not count towards the alert. The same stored bytes go out again after a pause.
-            rateLimitedBroadcasts += 1;
-            nextBroadcastAt = this.nowMs() + this.backoff(rateLimitedBroadcasts);
-            if (rateLimitedBroadcasts === BROADCAST_FAILURES_BEFORE_ALERT && !this.stopping) {
-              // Once per stretch of refusals, where an operator looks; the row is not touched
-              // (no `last_error`): the transaction itself is not refused.
-              log.error(
-                {
-                  id: tx.id,
-                  nonce: nonce.toString(),
-                  rateLimited: rateLimitedBroadcasts,
-                  err: result.error,
-                },
-                "broadcast still rate limited by the node, the signer's queue waits behind it",
-              );
-            }
-          } else {
-            broadcastFailures += 1;
-            nextBroadcastAt = this.nowMs() + this.backoff(broadcastFailures);
-            if (broadcastFailures === BROADCAST_FAILURES_BEFORE_ALERT && !this.stopping) {
-              // The signed transaction holds the signer's next nonce: nothing else of that
-              // signer can go out until a node takes it. Say so where an operator looks.
-              const reason = `broadcast refused ${broadcastFailures.toString()} times: ${result.error}`;
-              log.error(
-                { id: tx.id, nonce: nonce.toString(), err: result.error },
-                "transaction cannot be broadcast, the signer's queue is blocked behind it",
-              );
-              await this.store.recordSentError(tx.id, reason);
-            }
-          }
-          if (this.stopping) return;
-        }
-
-        // Looked up even when the broadcast failed: the transaction may be mined all the same.
-        const receipt = await this.findReceipt(state);
+    afterBroadcast: boolean,
+  ): Promise<number> {
+    const worker = this.workers[signer];
+    let finished = 0;
+    if (worker.inFlight.length === 0) return finished;
+    if (!afterBroadcast && this.nowMs() - worker.lastReceiptPollAt < this.settings.receiptPollMs) {
+      return finished;
+    }
+    worker.lastReceiptPollAt = this.nowMs();
+    try {
+      for (;;) {
+        if (this.stopping) return finished;
+        const head = worker.inFlight[0];
+        if (!head) return finished;
+        // Looked up even when its broadcast failed: the transaction may be mined all the same.
+        const receipt = await this.findReceipt(head.state);
         if (receipt) {
-          await this.finalize(signer, tx, receipt, log);
-          return;
+          await this.finalize(signer, head.tx, receipt, log);
+          if (worker.inFlight[0] === head) worker.inFlight.shift();
+          finished += 1;
+          continue;
         }
-        rpcFailures = 0;
-
-        const now = this.nowMs();
-        if (consumedSince !== null) {
-          if (now - consumedSince >= this.settings.replaceAfterMs) {
-            await this.failConsumed(signer, tx, state, nonce, log);
-            return;
-          }
-        } else if (!needsBroadcast && now - lastBroadcastAt >= this.settings.replaceAfterMs) {
-          const mined = await this.client.getTransactionCount({ address, blockTag: "latest" });
-          if (BigInt(mined) > nonce) {
-            // The nonce is used. If it was by one of our attempts its receipt shows up within
-            // the grace period; otherwise another transaction took it.
-            consumedSince = now;
-            log.warn(
-              { id: tx.id, nonce: nonce.toString() },
-              "nonce is mined but no receipt of this transaction was found yet",
-            );
-          } else {
-            const bumped =
-              state.attempts.length - 1 < this.settings.maxFeeBumps
-                ? await this.bump(signer, tx, state, nonce, log)
-                : undefined;
-            if (bumped) {
-              state = bumped;
-            } else if (!reportedStuck) {
-              reportedStuck = true;
-              const reason = `still pending after ${(state.attempts.length - 1).toString()} fee bump(s)`;
-              log.error(
-                { id: tx.id, nonce: nonce.toString(), txHash: latestAttempt(tx, state).hash },
-                `transaction ${reason}, the signer's queue is blocked behind it`,
-              );
-              await this.store.recordSentError(tx.id, reason);
-            }
-            // The replacement, or the latest attempt again in case the mempool dropped it.
-            needsBroadcast = true;
-            nextBroadcastAt = 0;
-            continue;
-          }
+        worker.rpcFailures = 0;
+        const action = await this.watchEarliest(signer, head, log);
+        if (action === "failed") {
+          if (worker.inFlight[0] === head) worker.inFlight.shift();
+          finished += 1;
+          continue;
         }
-      } catch (error: unknown) {
-        if (error instanceof TxSenderError) throw error;
-        rpcFailures += 1;
-        log.warn(
-          { id: tx.id, err: describeError(error), failures: rpcFailures },
-          "error while following a sent transaction, retrying",
-        );
-        await this.pause(this.backoff(rpcFailures));
-        continue;
+        if (action === "broadcast") await this.broadcastPending(signer, log);
+        return finished;
       }
-      await this.pause(this.settings.receiptPollMs);
+    } catch (error: unknown) {
+      if (error instanceof TxSenderError) throw error;
+      worker.rpcFailures += 1;
+      log.warn(
+        {
+          id: worker.inFlight[0]?.tx.id,
+          err: describeError(error),
+          failures: worker.rpcFailures,
+        },
+        "error while following a sent transaction, retrying",
+      );
+      await this.pause(this.backoff(worker.rpcFailures));
+      return finished;
+    }
+  }
+
+  /**
+   * The earliest unmined transaction has no receipt yet. After `replaceAfterMs` from the time a
+   * node took its latest attempt, as the one-at-a-time sender does: fails it when another
+   * transaction took its nonce, otherwise replaces it with a higher fee and the same nonce (the
+   * later ones are never signed again), at most `maxFeeBumps` times, then says the queue is
+   * blocked. With more than one in flight, every `lostCheckMs` meanwhile, asks the node's pending
+   * count: what the node lost is broadcast again from its stored bytes, which does not restart
+   * the replacement timer.
+   */
+  private async watchEarliest(
+    signer: SignerName,
+    head: InFlight,
+    log: Logger,
+  ): Promise<"none" | "broadcast" | "failed"> {
+    const worker = this.workers[signer];
+    const address = this.accounts[signer].address;
+    const { nonce } = head;
+    const now = this.nowMs();
+    if (head.consumedSince !== null) {
+      if (now - head.consumedSince < this.settings.replaceAfterMs) return "none";
+      await this.failConsumed(signer, head.tx, head.state, nonce, log);
+      return "failed";
+    }
+    if (head.needsBroadcast) return "none";
+    if (now - head.replaceTimerFrom >= this.settings.replaceAfterMs) {
+      const mined = await this.client.getTransactionCount({ address, blockTag: "latest" });
+      if (BigInt(mined) > nonce) {
+        // The nonce is used. If it was by one of our attempts its receipt shows up within the
+        // grace period; otherwise another transaction took it.
+        head.consumedSince = now;
+        log.warn(
+          { id: head.tx.id, nonce: nonce.toString() },
+          "nonce is mined but no receipt of this transaction was found yet",
+        );
+        return "none";
+      }
+      const bumped =
+        head.state.attempts.length - 1 < this.settings.maxFeeBumps
+          ? await this.bump(signer, head.tx, head.state, nonce, log)
+          : undefined;
+      if (bumped) {
+        head.state = bumped;
+        head.tx = { ...head.tx, txHash: latestAttempt(head.tx, bumped).hash };
+      } else if (!head.reportedStuck) {
+        head.reportedStuck = true;
+        const reason = `still pending after ${(head.state.attempts.length - 1).toString()} fee bump(s)`;
+        log.error(
+          {
+            id: head.tx.id,
+            nonce: nonce.toString(),
+            txHash: latestAttempt(head.tx, head.state).hash,
+            inFlight: worker.inFlight.length,
+          },
+          `transaction ${reason}, the signer's queue is blocked behind it`,
+        );
+        await this.store.recordSentError(head.tx.id, reason);
+      }
+      // The replacement, or the latest attempt again in case the mempool dropped it. Once a node
+      // takes it, the timer starts again.
+      head.needsBroadcast = true;
+      head.restartsReplaceTimer = true;
+      head.nextBroadcastAt = 0;
+      return "broadcast";
+    }
+    if (!this.serial && now - head.lastLostCheckAt >= worker.lostCheckMs) {
+      head.lastLostCheckAt = now;
+      this.adjustLostCheck(worker);
+      const pending = BigInt(
+        await this.client.getTransactionCount({ address, blockTag: "pending" }),
+      );
+      const lost = worker.inFlight.filter(
+        (entry) => entry.nonce >= pending && !entry.needsBroadcast,
+      );
+      if (lost.length === 0) {
+        // The count shows everything in flight: it can be trusted again.
+        worker.lostCheckMs = this.settings.resendCheckMs;
+        return "none";
+      }
+      log.warn(
+        {
+          pendingCount: pending.toString(),
+          ids: lost.map((entry) => entry.tx.id),
+          nonces: lost.map((entry) => entry.nonce.toString()),
+        },
+        "the node no longer knows transactions of this signer, broadcast again from their stored bytes",
+      );
+      for (const entry of lost) {
+        entry.needsBroadcast = true;
+        entry.lostResend = true;
+        entry.nextBroadcastAt = 0;
+      }
+      return "broadcast";
+    }
+    return "none";
+  }
+
+  /**
+   * Reads the answers to the previous check's re-broadcasts. All "already known": the node had
+   * them and its pending count was wrong (a node that answers `pending` as `latest`, a
+   * load-balanced RPC), so the check slows down, doubling up to once per `replaceAfterMs`, and
+   * stops re-sending the whole window every `resendCheckMs`. One really lost and taken again:
+   * back to `resendCheckMs`.
+   */
+  private adjustLostCheck(worker: Worker): void {
+    const { known, taken } = worker.lostResends;
+    worker.lostResends = { known: 0, taken: 0 };
+    if (taken > 0) {
+      worker.lostCheckMs = this.settings.resendCheckMs;
+    } else if (known > 0) {
+      const ceiling = Math.max(this.settings.resendCheckMs, this.settings.replaceAfterMs);
+      worker.lostCheckMs = Math.min(worker.lostCheckMs * 2, ceiling);
     }
   }
 
@@ -754,6 +1141,7 @@ export class TxSender {
   ): Promise<SenderState | undefined> {
     const previous = latestAttempt(tx, state);
     const suggestion = await this.client.estimateFeesPerGas();
+    this.feeCache = { suggestion, at: this.nowMs() };
     const fees = bumpFees(
       {
         maxFeePerGas: BigInt(previous.maxFeePerGas),
@@ -811,9 +1199,17 @@ export class TxSender {
   }
 
   private async blockTime(blockNumber: bigint, log: Logger): Promise<Date | null> {
+    const cached = this.blockTimes.get(blockNumber);
+    if (cached) return cached;
     try {
       const block = await this.client.getBlock({ blockNumber });
-      return new Date(Number(block.timestamp) * 1000);
+      const time = new Date(Number(block.timestamp) * 1000);
+      this.blockTimes.set(blockNumber, time);
+      if (this.blockTimes.size > BLOCK_TIME_CACHE_SIZE) {
+        const oldest = this.blockTimes.keys().next();
+        if (!oldest.done) this.blockTimes.delete(oldest.value);
+      }
+      return time;
     } catch (error: unknown) {
       // A rate limit says nothing about the block: the receipt is looked up again after a pause
       // rather than recorded without its time.

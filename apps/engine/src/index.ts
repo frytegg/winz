@@ -114,6 +114,11 @@ async function main(): Promise<void> {
       payments,
       identity: identity.directory,
       venueName: env.APP_EXECUTION_VENUE,
+      // ARC_TX_MAX_IN_FLIGHT: how many independent transactions of one signer fly together.
+      tuning:
+        env.ARC_TX_MAX_IN_FLIGHT === undefined
+          ? {}
+          : { txSender: { maxInFlight: env.ARC_TX_MAX_IN_FLIGHT } },
       background: [
         {
           // Gemini catalogue and results, refreshed every minute (SPEC MD-1, MD-3).

@@ -10,7 +10,7 @@ The web app never does either: it writes rows and enqueues jobs, and the engine 
 
 | Service       | What it does                                                                                               |
 | ------------- | ---------------------------------------------------------------------------------------------------------- |
-| `tx-sender`   | The outbox `chain_txs`: nonces, fees, broadcast, receipts. One serial queue per key (relayer, oracle).     |
+| `tx-sender`   | The outbox `chain_txs`: nonces, fees, broadcast, receipts. One queue per key (relayer, oracle), see below. |
 | `book-feed`   | Order books of the instruments in use: Gemini WebSocket, REST as fallback, or a book driven by demo mode.  |
 | `chain-ingest`| Reads the escrow's events and projects them into tickets, lots and exposure.                               |
 | `hedging`     | One policy runner per instrument: orders, fills, allocation to sales, `chargeHedge`, the Hedge desk rows.  |
@@ -46,6 +46,7 @@ start, naming each problem, when one is missing or malformed.
 | `ARC_RPC_MAX_REQUESTS_PER_SECOND`                     | no        | Requests the engine starts in any one second, every method counted. Default 10.       |
 | `ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND`               | no        | Of those, requests of the heavy methods. Default 4.                                   |
 | `ARC_RPC_HEAVY_METHODS`                               | no        | Comma-separated JSON-RPC methods counted as heavy. Default `eth_getLogs`.             |
+| `ARC_TX_MAX_IN_FLIGHT`                                | no        | Transactions of one key broadcast and not mined yet at once. 1 to 64, default 8.      |
 
 Every request the engine makes to its node goes through one limiter shared by all its services:
 the limits above, kept under what Arc's public RPC accepts (it refuses the 13th `eth_getLogs`
@@ -55,6 +56,82 @@ again. On a first start far behind the head, the event reader catches up in rang
 blocks, four a second: 60 000 blocks take about 30 requests and 8 s. On shutdown, requests
 still waiting for their turn after 9 s are released unsent, so the engine stops within its
 15 s grace period.
+
+## Transaction sender
+
+Every transaction of the engine goes through `src/chain/tx-sender.ts`, one queue per key. It
+used to send one transaction per key at a time: simulate, estimate gas and fees, sign, store,
+broadcast, wait for the receipt, then the next. On Arc testnet (a block every 0.46 s) one such
+cycle took 1.0 to 2.2 s. The rehearsal of 18 November (`docs/rehearsals/20261118T090924Z-5042002-yes.md`)
+showed what that costs: its three refund batches, enqueued together, went out one after the
+other and the last one was mined 10 blocks (5 s) after `settle`; the six batches of 300 tickets
+(criterion 6: refunded within 10 s of `settle`) would have taken about 10 s. With three buyers
+at once a sale was ticketed in 3.5 s (median) instead of 1.9 s, and in 4.4 s over a run of 140
+sales: every `buyFor` waited for the relayer's previous transaction to be mined.
+
+Now a key's independent transactions travel together. Up to `ARC_TX_MAX_IN_FLIGHT` of them are
+broadcast and not mined yet at the same time, with consecutive nonces given in the outbox's order
+(oldest first), the order the one-at-a-time sender used. What travels together is declared in one
+place, `src/chain/tx-kinds.ts`, with the reason it is safe:
+
+- `buyFor`: a ticket of a live campaign. The engine checks the budget and the sale state before
+  every quote, and a purchase that reverts on-chain (two purchases together over the budget) ends
+  the payment exactly as a purchase refused in simulation does.
+- `chargeHedge`: tickets already mined, never the same ticket in two charges in flight.
+- `refundBatch`: disjoint tickets of a campaign already settled YES; a batch skips a ticket already
+  paid and never reverts because of another batch.
+
+Everything else is a barrier, any kind the file does not name included: `createCampaignFor`,
+`setPaused`, `closeSales`, `settle`, `payMerchant`, `release`. A barrier is simulated only once
+nothing of its key is in flight, it travels alone, and nothing queued after it is signed until it
+is mined. A pause therefore always comes after every sale queued before it, and no sale queued
+after it is ever signed while it is in flight; `settle` comes after every charge.
+
+What does not change:
+
+- A call that reverts in simulation is `failed` and uses no nonce: the next one takes it.
+- Nonce n + 1 is signed only once a node has taken nonce n. A broadcast refused (rate limit,
+  outage, full pool) holds the queue behind it and is sent again, the same bytes, after a pause;
+  it never leaves a gap that later nonces would wait behind.
+- The signed bytes are stored before they are broadcast. After a restart, every `sent` row is
+  resumed in nonce order from its stored bytes (mined ones are recorded, pending ones followed,
+  ones the node lost broadcast again): nothing is signed twice, no nonce is skipped or reused.
+- Receipts are recorded in nonce order, and only the earliest unmined transaction is looked up and
+  watched. 15 s after a node took its latest attempt it is replaced with a higher fee and the same
+  nonce (at most 3 times, then the error log and the row say the queue is blocked); the later ones
+  are never signed again. With more than one in flight, the node's pending count is also asked
+  every 3 s meanwhile: what it does not show goes out again from its stored bytes. Such a re-send
+  never restarts the 15 s, so a node whose count never shows the transaction (one that answers
+  `pending` as `latest`, a load-balanced RPC, a node that keeps evicting it and taking it back)
+  cannot hold off the fee bump and the alert. A nonce taken by a transaction the engine did not
+  sign fails that one transaction; the later ones are judged on their own nonces.
+- `ARC_TX_MAX_IN_FLIGHT=1` is the one-at-a-time sender, request for request: the simulation, the
+  gas estimate and a fresh fee suggestion are read one after the other for every transaction (a
+  call that reverts costs its simulation only), and the pending count is never asked.
+- On stop nothing new is signed; what is in flight stays `sent` and resumes at the next start.
+
+**What it costs the node.** One transaction costs four requests of its own: the simulation
+(`eth_call`), the gas estimate, the broadcast and its receipt. A burst shares the rest: one fee
+suggestion (two requests with viem, read again at most once a second), one block time per block
+that mined something, one nonce read per start. While transactions wait, a key polls the receipt of
+its earliest one every 300 ms and asks the pending count every 3 s: about 3.7 requests a second
+whatever the number in flight (`src/chain/tx-sender.fake-chain.test.ts` checks that 8 in flight
+cost what 2 do; 1 in flight asks no pending count). So a burst of 8 costs about 27 requests to send
+and 9 to record once mined: about 3.6 s of the limiter's 10 requests a second if nothing else asks.
+Re-sends add to this only when the pending count misses something: at most the window (8) every
+3 s while the node really loses transactions, and, while it answers "already known" to everything
+re-sent (its count, not its pool, is wrong), a check that slows down, doubling up to once every
+15 s: 8 re-sends per 15 s. A stuck earliest transaction is re-sent once per 15 s, as before.
+
+**Why 8.** A refund batch of 50 tickets uses 1.1 to 2.1 M gas, so eight fit in one 30 M gas block
+and a full window can be mined in a single block; the six batches of a 300-ticket campaign go in
+one window with room for two sales. Nodes cap the pending transactions of one account (geth keeps
+16 executable per account by default; Arc's public RPC does not say). When a node refuses a
+transaction for want of room, it is not taken: the sender sends the same bytes again after a pause
+(250 ms, doubling up to 10 s), signs nothing after it meanwhile, and the earlier ones are mined and
+make room; five refusals in a row are logged at error level and noted on the row, as for any
+refused broadcast. If a node keeps refusing, set `ARC_TX_MAX_IN_FLIGHT` under its cap. 1 sends one
+transaction at a time.
 
 ## Demo mode
 

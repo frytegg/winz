@@ -17,7 +17,7 @@ import {
   type BookLevel,
 } from "@winz/shared";
 
-import { TxSender, type ChainClient } from "../../chain";
+import { TxSender, type ChainClient, type TxSenderConfig } from "../../chain";
 import { capturingLogger, type LogEntry } from "../../chain/ingest-test-support";
 import { TEST_SENDER_CONFIG, transientError, wrapClient } from "../../chain/test-support";
 import type { Db } from "../../db";
@@ -122,8 +122,17 @@ export const TEST_HANDLER_OPTIONS: JobHandlerOptions = {
   maxResendDelayMs: 50,
 };
 
-export async function createJobsHarness(): Promise<JobsHarness> {
-  const anvil = await startAnvil();
+export interface JobsHarnessOptions {
+  /** Seconds between blocks (interval mining). Omitted: a block per transaction (automine). */
+  blockTime?: number;
+  /** Settings of the harness's transaction sender over `TEST_SENDER_CONFIG`. */
+  sender?: Partial<TxSenderConfig>;
+}
+
+export async function createJobsHarness(options: JobsHarnessOptions = {}): Promise<JobsHarness> {
+  const anvil = await startAnvil(
+    options.blockTime === undefined ? {} : { blockTime: options.blockTime },
+  );
   let database: TestDatabase | undefined;
   let sender: TxSender | undefined;
   const close = async (): Promise<void> => {
@@ -149,7 +158,12 @@ export async function createJobsHarness(): Promise<JobsHarness> {
       client,
       accounts: { relayer: escrow.accounts.relayer, oracle: escrow.accounts.oracle },
       logger: logger.child({ module: "tx-sender" }),
-      config: { chainId: escrow.chainId, escrowAddress: escrow.escrow, ...TEST_SENDER_CONFIG },
+      config: {
+        chainId: escrow.chainId,
+        escrowAddress: escrow.escrow,
+        ...TEST_SENDER_CONFIG,
+        ...options.sender,
+      },
     });
     await sender.start();
     const clock = new TestClock();
