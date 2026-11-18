@@ -495,6 +495,89 @@ describe("manual pause against Postgres", () => {
     expect(seen.find((entry) => entry.step === "resume:dead")?.status).toBe("paused");
   });
 
+  it("a pause requested in the second an earlier pause was mined, whose job dies, keeps the pause", async () => {
+    const { actors, campaign, clock, pass } = await setup();
+    expect((await pass()).sale).toBe("open");
+    // Every step in one block second s: an earlier pause mined and projected, a resume landed,
+    // then a new pause requested and its job dead (no transaction of its own reached the chain).
+    const second = Math.floor(clock.nowMs / 1000) * 1000 + 1_000;
+    const steps: PauseStep[] = [
+      ...minedJobSteps("pause"),
+      ...minedJobSteps("resume"),
+      step("pause2", "requested"),
+      step("pause2", "running"),
+      step("pause2", "dead"),
+    ];
+    for (const [index, s] of steps.entries()) {
+      await actors.play(s, new Date(second + index * 50));
+    }
+    // The merchant's latest word is a pause the chain never showed: the sale stays paused.
+    expect(await loadManualPauseInput(db, campaign.id)).toEqual({
+      status: "live",
+      pauseJobInFlight: false,
+      pauseEventUnprojected: false,
+      latestPauseJob: { paused: true, pauseProjected: false },
+    });
+    expect(await pass()).toEqual({ sale: "paused_manual", live: "paused_manual", status: "live" });
+    expect(await pass()).toEqual({ sale: "paused_manual", live: "paused_manual", status: "live" });
+  });
+
+  it("only the request's own pause counts as seen on-chain", async () => {
+    const { actors, campaign, clock } = await setup();
+    // Each step a second later: this helper stamps the jobs itself, with the time given.
+    const tick = (): Date => {
+      clock.nowMs += 1_000;
+      return new Date(clock.nowMs);
+    };
+    for (const s of minedJobSteps("pause")) await actors.play(s, tick());
+    expect((await loadManualPauseInput(db, campaign.id))?.latestPauseJob).toEqual({
+      paused: true,
+      pauseProjected: true,
+    });
+    // Another campaign's pause, and this campaign's resume, are not this request's pause.
+    for (const s of minedJobSteps("resume")) await actors.play(s, tick());
+    expect((await loadManualPauseInput(db, campaign.id))?.latestPauseJob).toEqual({
+      paused: false,
+      pauseProjected: false,
+    });
+    const other = new Actors(await seedCampaign());
+    for (const s of minedJobSteps("pause")) await other.play(s, tick());
+    await actors.request("pause2", tick());
+    expect((await loadManualPauseInput(db, campaign.id))?.latestPauseJob).toEqual({
+      paused: true,
+      pauseProjected: false,
+    });
+    // Mined, not projected: not seen yet (and paused by c).
+    await actors.claim("pause2");
+    await actors.mine("pause2", tick());
+    expect(await loadManualPauseInput(db, campaign.id)).toMatchObject({
+      pauseEventUnprojected: true,
+      latestPauseJob: { paused: true, pauseProjected: false },
+    });
+    await actors.project("pause2");
+    expect((await loadManualPauseInput(db, campaign.id))?.latestPauseJob).toEqual({
+      paused: true,
+      pauseProjected: true,
+    });
+  });
+
+  it("a pause that found the chain already paused holds while it is, and ends with the merchant's next resume", async () => {
+    const seen = await playWithPasses([
+      ...minedJobSteps("pause"),
+      step("resume", "requested"),
+      step("pause2", "requested"),
+      step("resume", "running"),
+      step("resume", "nothing-sent"),
+      step("pause2", "running"),
+      // The chain is paused: nothing to send.
+      step("pause2", "nothing-sent"),
+      ...minedJobSteps("resume2"),
+    ]);
+    expectPausedUntilLast(seen);
+    expect(seen.find((entry) => entry.step === "pause2:nothing-sent")?.status).toBe("paused");
+    expect(seen[seen.length - 1]?.status).toBe("live");
+  });
+
   it("one campaign's unfinished job or unprojected event does not pause another", async () => {
     const clock = new ManualClock(T0);
     const runner = new SaleStateRunner({
@@ -552,19 +635,26 @@ describe("manual pause against Postgres", () => {
  * - once it left `paused_manual`, it does not come back without a new request (no flap);
  * - at the end every job has ended, the projected status is the chain's, which is the latest
  *   request's, and the sale state is `paused_manual` after a pause, `open` after a resume.
+ *
+ * Jobs may die (`dead`): a latest resume that died with the chain live counts as ended, and at the
+ * end a dead latest job leaves `paused_manual` if it asked a pause or the chain is paused, `open`
+ * otherwise. With `stepMs`, the steps are stamped `stepMs` apart from the start of a block second
+ * (the passes still run a second apart): with 50, twenty steps share one block second.
  */
-async function brokenPromise(steps: readonly PauseStep[]): Promise<string | null> {
+async function brokenPromise(steps: readonly PauseStep[], stepMs?: number): Promise<string | null> {
   const { actors, clock, pass, campaign } = await setup();
   if ((await pass()).sale !== "open") return "the campaign does not start open";
   const model = new PauseModel();
   const name = steps.map(stepName).join(" → ");
+  const base = Math.floor(clock.nowMs / 1000) * 1000 + 1_000;
   let reopened = false;
   for (const [index, step] of steps.entries()) {
-    await actors.play(step, new Date(clock.nowMs));
-    model.apply(step, clock.nowMs);
+    const at = stepMs === undefined ? clock.nowMs : base + index * stepMs;
+    await actors.play(step, new Date(at));
+    model.apply(step, at);
     const latest = model.latest();
     const landed = !model.chainPaused() && latest !== null && !latest.paused;
-    const finished = landed && latest.status === "done";
+    const finished = landed && (latest.status === "done" || latest.status === "dead");
     // Right after a step, the public row is the one the step leaves: the web API's pause writes
     // only `campaigns.sale_state`, which the next pass copies (see `writeSaleState`).
     const afterStep = await stored(campaign.id);
@@ -582,13 +672,21 @@ async function brokenPromise(steps: readonly PauseStep[]): Promise<string | null
   }
   const latest = model.latest();
   if (latest === null) return `no request in ${name}`;
-  const unfinished = model.jobsView().filter((job) => job.status !== "done");
+  const unfinished = model
+    .jobsView()
+    .filter((job) => job.status !== "done" && job.status !== "dead");
   if (unfinished.length > 0) return `stuck: ${unfinished.map((job) => job.job).join(", ")}`;
   const end = await stored(campaign.id);
-  const expected = latest.paused
-    ? { sale: "paused_manual", live: "paused_manual", status: "paused" }
-    : { sale: "open", live: "open", status: "live" };
-  if (model.chainPaused() !== latest.paused) return `the chain ends against ${latest.job}`;
+  const chainPaused = model.chainPaused();
+  const pausedEnd = latest.status === "dead" ? latest.paused || chainPaused : latest.paused;
+  const expected = {
+    sale: pausedEnd ? "paused_manual" : "open",
+    live: pausedEnd ? "paused_manual" : "open",
+    status: chainPaused ? "paused" : "live",
+  };
+  if (latest.status === "done" && chainPaused !== latest.paused) {
+    return `the chain ends against ${latest.job}`;
+  }
   if (end.sale !== expected.sale || end.live !== expected.live || end.status !== expected.status) {
     return `ends ${JSON.stringify(end)} instead of ${JSON.stringify(expected)} in ${name}`;
   }
@@ -607,9 +705,12 @@ function sample<T>(orders: readonly T[], count: number, seed: number): T[] {
   return picked;
 }
 
-async function expectEveryOrderHolds(orders: readonly PauseStep[][]): Promise<void> {
+async function expectEveryOrderHolds(
+  orders: readonly PauseStep[][],
+  stepMs?: number,
+): Promise<void> {
   for (const order of orders) {
-    expect(await brokenPromise(order)).toBeNull();
+    expect(await brokenPromise(order, stepMs)).toBeNull();
     await clearCampaigns();
   }
 }
@@ -656,6 +757,26 @@ describe("manual pause against Postgres: any number of requests", () => {
     const prefix = minedJobSteps("pause");
     const orders = requestOrders(["resume", "pause2", "resume2"], { prefix });
     await expectEveryOrderHolds(sample(orders, 25, 2).map((order) => [...prefix, ...order]));
+  }, 120_000);
+
+  it("pause, resume, pause again with deaths, every step in one block second: a sample (seeded)", async () => {
+    const orders = requestOrders(["pause", "resume", "pause2"], { deaths: true, stepMs: 50 });
+    const dying = orders.filter((order) => order.some((s) => s.phase === "dead"));
+    await expectEveryOrderHolds(sample(dying, 25, 4), 50);
+  }, 120_000);
+
+  it("after a pause on-chain, resume, pause, resume with deaths in one block second: a sample (seeded)", async () => {
+    const prefix = minedJobSteps("pause");
+    const orders = requestOrders(["resume", "pause2", "resume2"], {
+      prefix,
+      deaths: true,
+      stepMs: 50,
+    });
+    const dying = orders.filter((order) => order.some((s) => s.phase === "dead"));
+    await expectEveryOrderHolds(
+      sample(dying, 25, 5).map((order) => [...prefix, ...order]),
+      50,
+    );
   }, 120_000);
 
   it("pause, resume, pause, resume with transient failures: random orders (seeded)", async () => {

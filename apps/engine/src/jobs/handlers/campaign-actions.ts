@@ -204,7 +204,13 @@ function campaignActionHandler<T extends { campaignId: string }>(
     );
 }
 
-/** The latest pause or resume the merchant asked for: the newest `setPaused` job's request. */
+/**
+ * The latest pause or resume the merchant asked for: the newest `setPaused` job's request. The web
+ * routes stamp these jobs under the campaign's row lock, each strictly after the campaign's
+ * latest one (`apps/web/lib/server/campaign-writes.ts`), so the newest stamp is the request that
+ * took the lock last, whatever the order in which the requests' transactions began; `id` never
+ * decides between two of them.
+ */
 async function latestPauseRequest(
   sql: Db | TransactionSql,
   campaignId: string,
@@ -219,8 +225,8 @@ async function latestPauseRequest(
   return row === undefined ? null : { requestId: row.request_id, paused: row.paused };
 }
 
-/** Whether `requestId` is the merchant's latest request (or the only one known). */
-async function isLatestRequest(
+/** Whether `requestId` is the merchant's latest request (or none is known). */
+export async function isLatestRequest(
   sql: Db | TransactionSql,
   campaignId: string,
   requestId: string,
