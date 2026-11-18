@@ -363,23 +363,30 @@ Dans l'ordre :
 2. Le moteur démarre : Gemini réel par défaut (catalogue et carnets), ou simulé avec
    `--gemini simulated` ; le paiement du budget passe par le Stripe simulé et son webhook, les
    ventes par `DemoPaymentGateway` ; tous les portefeuilles (commerçant compris) sont dérivés de la
-   graine démo, pour que chaque dollar de test versé puisse être rapatrié.
+   graine démo, pour que chaque dollar de test versé puisse être rapatrié. Sur une base jetable
+   (`--throwaway-db` sans `--deploy-block`), le lecteur d'événements du moteur part de la tête de
+   la chaîne au départ moins 50 blocs, et non du bloc de déploiement : une base neuve n'a besoin de
+   rien d'antérieur à la répétition. Le bloc est affiché et écrit dans le reçu
+   (`escrow.engineStartBlock`). Avec `--db-url`, rien ne change, et la répétition attend que le
+   curseur du moteur ait rattrapé la tête avant la première vente (elle l'affiche) : pendant un
+   rattrapage, toutes les requêtes du processus attendent derrière ses `eth_getLogs`, et les délais
+   mesurés ne seraient pas honnêtes.
 3. Le match : le plus proche qui commence dans 45 minutes ou plus, avec une cote vainqueur à deux
-   issues, sur un contrat dont la couverture ne détient rien. Le match et le contrat choisis sont
-   affichés.
+   issues. Le match et le contrat choisis sont affichés.
 4. Le commerçant s'inscrit et crée la campagne ; l'admin pilote le carnet (sous le seuil de pause,
    avec de la profondeur pour toute la répétition). Avant toute vente, une sonde de pause : le
    carnet passe un tick au-dessus du seuil, la page de la campagne doit répondre `paused_price` et
    la route de vente démo refuser une vente (409 `sales_paused`, avant tout paiement ou
    transaction) ; le carnet revient sous le seuil et la répétition attend la réouverture (le délai
-   de reprise du moteur, une dizaine de secondes). L'admin rejoue ensuite les ventes (trois à la fois par défaut,
-   jamais deux du même acheteur en même temps : voir plus bas),
-   déplace le carnet pour remplir les ordres maker jusqu'à ce que chaque ticket soit facturé
+   de reprise du moteur, une dizaine de secondes). L'admin rejoue ensuite les ventes (trois à la
+   fois par défaut, deux du même acheteur pouvant partir ensemble : le moteur crée une seule fois
+   la ligne d'un nouvel acheteur, quel que soit le nombre de ses ventes simultanées), déplace le
+   carnet pour remplir les ordres maker jusqu'à ce que chaque ticket soit facturé
    on-chain ; le commerçant clôt les ventes ; l'admin force le résultat ; la répétition attend le
    règlement, les remboursements (OUI), le paiement du commerçant et la libération, puis
    `POST /api/admin/demo/reset`, arrête le moteur et rapatrie chaque portefeuille démo vers la
-   trésorerie (`sweepDemoWallets` sur Arc ; sur une chaîne locale, le jeton de test est renvoyé
-   après un `anvil_setBalance` qui paie le gaz du transfert).
+   trésorerie (sur Arc, tout le solde natif moins le gaz du transfert, comme `sweepDemoWallets` ;
+   sur une chaîne locale, le jeton de test, après un `anvil_setBalance` qui paie le gaz).
 5. Les invariants (Q-04, critères 3, 4 et 5) : chaque vente a son ticket ; aucune vente au-dessus du
    seuil de pause (le carnet piloté pendant les ventes est resté sous le seuil, aucun prix par vente
    n'étant stocké, et la sonde a vu le moteur suspendre les ventes au-dessus) ni au-delà du budget ; aucune facturation au-dessus de la garantie de son devis,
@@ -393,9 +400,11 @@ Dans l'ordre :
    match et contrat, scénario, chaque transaction (hash, nature, bloc, gaz, frais, lien vers
    l'explorateur d'Arc), les délais (appel de vente → ticket, appel → vente visible sur le détail du
    commerçant, de `settle` au dernier remboursement en blocs, en secondes de chaîne et en temps
-   réel), les invariants, les soldes avant, après règlement et après rapatriement, le coût net et
-   ce qui a été rapatrié. Jamais une clé ni la graine : les deux fichiers sont vérifiés avant
-   d'être écrits. Sur Arc testnet il va dans `docs/rehearsals/` ; le reçu d'une chaîne locale ne va
+   réel), les invariants, les soldes avant, après règlement et après rapatriement, le coût net,
+   ce qui a été rapatrié, ce qui n'a pas pu être relu (« Could not be read »), et le nombre de
+   requêtes de la répétition au nœud, refusées et relancées, étape par étape, avec les compteurs du
+   limiteur (section « Node », aussi affichée en fin de répétition). Jamais une clé ni la graine :
+   les deux fichiers sont vérifiés avant d'être écrits. Sur Arc testnet il va dans `docs/rehearsals/` ; le reçu d'une chaîne locale ne va
    jamais sous `docs/` (un dossier temporaire par défaut).
 
 En cas d'échec d'une étape, ou de Ctrl-C, une fois la campagne en ligne, la répétition la récupère
@@ -409,6 +418,38 @@ libération. Puis le moteur est arrêté, les portefeuilles sont rapatriés et l
 l'escrow (une campagne non libérée) y est écrit. Code de sortie : 0 si tout est passé (ou après
 `--estimate`), 1 si une étape ou un invariant a échoué, 2 si elle a refusé de démarrer.
 
+### Un nœud qui limite la répétition
+
+Le premier passage sur Arc a échoué sur une seule réponse « rate limit exceeded » du RPC public
+(HTTP 429, code -32005) pendant l'attente de la couverture, puis la récupération et le
+rapatriement ont échoué sur la même réponse : la campagne est restée dans l'escrow avec
+6,54 USDC (reçu `docs/rehearsals/20261118T031821Z-5042002-yes.json`). Désormais :
+
+- toutes les requêtes de la répétition passent par le client de `createArcClients`, donc par le
+  limiteur du moteur : le moteur et la répétition partagent ses plafonds et ses pauses (dix
+  requêtes par seconde, quatre `eth_getLogs`, une pause d'une seconde doublée à chaque refus de
+  suite). Ses variables (`ARC_RPC_MAX_REQUESTS_PER_SECOND`,
+  `ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND`, `ARC_RPC_HEAVY_METHODS`) passent de l'environnement de
+  la commande au moteur, ses pauses vont dans le journal du moteur et ses compteurs dans le reçu ;
+- une lecture qui échoue un instant n'est plus une étape en échec : une attente redemande jusqu'à
+  son propre délai, puis dit ce qu'elle attendait et la dernière erreur vue ; les lectures hors
+  attente (soldes, reçus de transactions, événements de la campagne) sont relancées avec un délai
+  qui double, six fois en une demi-minute environ, et le reçu dit précisément ce qui n'a pas pu
+  être lu au lieu de perdre le reste ; le rapatriement relance chaque portefeuille de la même
+  façon, et ne renvoie jamais un transfert déjà parti dont la réponse s'est perdue. Est passager :
+  une limite de débit (quel que soit le libellé du nœud), un délai dépassé, un 408, 425, 429 ou
+  5xx, une connexion refusée ou coupée (le nœud comme Postgres). Le reste fait échouer l'étape
+  tout de suite : un refus du produit (une route qui répond un autre 4xx), un revert, une plage de
+  blocs refusée, un invariant, une interruption ;
+- la répétition est sobre : moins de cinq requêtes par seconde à elle seule pendant les attentes
+  (une lecture de la campagne par seconde ; le nombre de tickets facturés lu dans les journaux de
+  l'escrow au plus une fois toutes les deux secondes et seulement s'il y a un nouveau bloc, par
+  tranches de 1 000 blocs ; pendant le règlement, la tête lue toutes les 500 ms). Aucun
+  `eth_getLogs` en boucle serrée : les événements de la campagne sont relus une fois à la fin.
+  Le délai de `settle` au dernier remboursement garde ses blocs exacts, et son temps réel est
+  l'écart entre les instants où la répétition a vu la tête atteindre chacun des deux blocs, à
+  environ un bloc près.
+
 Rien de ce qui est affiché ou écrit ne contient de secret : les clés, la graine, la clé de chaque
 portefeuille démo et le jeton d'accès d'une URL RPC (le chemin et la requête d'une URL QuickNode ;
 viem cite l'URL dans ses messages d'erreur, que le moteur journalise) sont remplacés par
@@ -418,19 +459,43 @@ adresse e-mail par `<e-mail>`.
 ### Récupérer une campagne bloquée
 
 Si la récupération échoue (le moteur ne répond plus, un délai expire), le reçu le dit sous « Left
-behind » et `stranded` vaut `true`. Avec `--throwaway-db`, la base jetable n'est alors **pas**
-supprimée : c'est la seule qui connaît la campagne. La commande affiche son URL et le dossier de
-données du serveur Postgres, qui reste démarré. Pour finir la campagne :
+behind » et `stranded` vaut `true` (aussi quand l'état de la campagne n'a pas pu être relu). Avec
+`--throwaway-db`, la base jetable n'est alors **pas** supprimée : c'est la seule qui connaît la
+campagne. La commande affiche son URL, le dossier de données du serveur Postgres, qui reste
+démarré, et la commande qui finit la campagne :
 
-1. relancer le moteur sur cette base, avec le même environnement Arc
-   (`DB_URL=<url affichée> pnpm --filter @winz/engine start`) : il reprend ses tâches en attente
-   (clôture, couverture, règlement, paiements) ;
-2. si les ventes sont encore ouvertes, ou si aucun résultat n'a été forcé, appeler les routes du
-   commerçant (`POST /api/campaigns/:id/close`) et de l'admin (`POST /api/admin/demo/result`) d'une
-   instance du web branchée sur la même base, puis attendre la libération ;
-3. rapatrier les portefeuilles démo (le commerçant et les acheteurs du reçu) avec
-   `sweepDemoWallets` ;
-4. arrêter le serveur Postgres (`pg_ctl -D <dossier affiché> stop`) et supprimer son dossier.
+```bash
+cd apps/web
+# Mêmes clés, même graine et même chaîne que la répétition (l'environnement, comme pour elle).
+pnpm exec tsx e2e/rehearsal/run.ts --recover <reçu>.json --db-url <url affichée> --estimate
+pnpm exec tsx e2e/rehearsal/run.ts --recover <reçu>.json --db-url <url affichée>
+```
+
+Elle refuse avant tout envoi ce que refuse une répétition (la chaîne, les rôles de l'escrow
+contre les clés, le gaz avec 20 % de marge pour ce qui reste à envoyer), et vérifie que le reçu,
+la base et la chaîne parlent de la même campagne : identifiant de chaîne, escrow, campagne connue
+de la base avec le même identifiant on-chain, portefeuille du commerçant dérivé de la graine et de
+l'identifiant de la répétition ; elle dit ce qui diffère. `--throwaway-db` est refusé avec
+`--recover`. Elle affiche ensuite où en est la campagne on-chain (en vente, ventes closes,
+réglée, libérée ; tickets vendus, facturés, remboursés ; ce que l'escrow détient pour elle) ;
+`--estimate` s'arrête là. Puis elle démarre le moteur sur cette base avec le câblage de
+production et finit la campagne par la surface publique, exactement comme l'étape `recover` :
+carnet piloté à nouveau comme pendant la répétition, couverture des tickets non facturés, clôture
+des ventes si elles sont ouvertes, NON forcé sauf si un résultat est déjà forcé ou connu (sur
+OUI, les remboursements sont payés aux acheteurs puis rapatriés), attente du règlement, des
+remboursements, du paiement du commerçant et de la libération ; puis `POST /api/admin/demo/reset`,
+arrêt du moteur et rapatriement de chaque portefeuille de la répétition (le commerçant et chaque
+acheteur du reçu).
+
+Elle écrit un **nouveau** reçu à côté du premier (même nom suivi de `-recovery`, JSON et
+Markdown ; `-recovery-2` au passage suivant), qui nomme le reçu qu'il récupère, chaque transaction
+causée avec son hash, l'état de la campagne avant et après, les soldes avant et après, ce qui a
+été rapatrié et ce qui reste ; le reçu d'origine n'est jamais réécrit. Code de sortie : 0
+seulement si la campagne est libérée et que rien ne reste (ou après `--estimate`), 1 sinon, 2 si
+elle a refusé. On peut la relancer sans risque : sur une campagne déjà libérée, elle ne fait que
+rapatrier ce qui reste et le dit ; interrompue (Ctrl-C arrête le moteur, rapatrie et écrit son
+reçu), elle reprend où en est la chaîne. Une fois sortie avec 0 : arrêter le serveur Postgres
+(`pg_ctl -D <dossier affiché> stop`) et supprimer son dossier.
 
 En dernier recours, sans moteur, le contrat ouvre sa voie d'urgence 7 jours après la clôture des
 ventes : n'importe qui peut alors appeler `emergencyClaim` pour chaque ticket et
@@ -455,10 +520,6 @@ plus comptés comme détenus : une nouvelle campagne sur le même contrat est co
 normalement. Une seconde répétition sur la même base rejoue donc la démo sur le même match et le
 même contrat, comme un opérateur devant un jury.
 
-Deux ventes d'un même nouvel acheteur traitées en même temps par le moteur peuvent échouer
-(`IdentityConflictError` à la création de sa ligne `users`, la vente finit « failed ») : la
-répétition ne rejoue donc jamais deux ventes du même acheteur à la fois.
-
 ### Sur une chaîne locale
 
 ```bash
@@ -478,9 +539,16 @@ pnpm exec tsx e2e/rehearsal/run.ts --gemini simulated --throwaway-db --purchases
 
 `--throwaway-db` démarre un Postgres jetable avec toutes les migrations (l'outil des tests du
 moteur) ; sinon `--db-url` ou `DB_URL`. Les tests de la répétition font la même chose sous Vitest
-(`e2e/rehearsal/rehearsal.test.ts` : OUI, NON sur la même base et le même escrow, chaque refus,
-une étape en échec, une vente en échec, Ctrl-C avant les ventes et pendant la couverture, chacun
-suivi de sa récupération, et 60 ventes pour le temps des remboursements ; environ 4 minutes) :
+(`e2e/rehearsal/rehearsal.test.ts` : OUI sur un nœud qui refuse au hasard une part des lectures de
+la répétition et toutes pendant une seconde sur neuf, base neuve lue près de la tête, avec le
+débit de la répétition mesuré pendant la couverture et le règlement ; NON sur la même base et le
+même escrow, depuis le bloc de déploiement ; chaque refus ; une étape en échec, une vente en
+échec, Ctrl-C avant les ventes et pendant la couverture, chacun suivi de sa récupération ;
+60 ventes pour le temps des remboursements ; le rapatriement en USDC natif sur un nœud qui
+refuse ; et trois campagnes laissées en plan comme sur Arc puis finies par `--recover`, deux fois
+chacune : une lecture qui ne revient jamais pendant la clôture puis un OUI déjà forcé, des tickets
+non facturés avec les refus et `--estimate`, et tous les tickets facturés ventes ouvertes ;
+environ 10 minutes, dont 7 avant `--recover`, le limiteur du moteur compris) :
 
 ```bash
 pnpm --filter @winz/web exec vitest run e2e/rehearsal

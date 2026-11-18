@@ -1,20 +1,34 @@
-import { randomBytes } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { randomBytes, randomUUID } from "node:crypto";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { createTestClient, getAddress, http, type Hex } from "viem";
+import { createPublicClient, createTestClient, erc20Abi, getAddress, http, type Hex } from "viem";
 
+import { createArcClients } from "../../../engine/src/chain";
+import { demoWalletAddress } from "../../../engine/src/identity";
 import { startAnvil, type AnvilInstance } from "../../../engine/src/testing/anvil";
 import { deployTestEscrow, testUsdcAbi, type TestEscrow } from "../../../engine/src/testing/escrow";
 import { createTestDatabase, type TestDatabase } from "../../../engine/src/testing/postgres";
-import { LOCAL_CHAIN_ID, runRehearsal, secretsOf } from "./runner";
+import { sweepWallets } from "./chain";
+import { RpcMeter, meteredClient, rateLimitAnswer } from "./rpc";
+import {
+  ENGINE_START_MARGIN_BLOCKS,
+  LOCAL_CHAIN_ID,
+  recoverRehearsal,
+  runRehearsal,
+  secretsOf,
+} from "./runner";
 import { buyerEmail, merchantEmail } from "./scenario";
 import {
   RehearsalRefusedError,
+  type NodeFault,
+  type NodeRequestInfo,
+  type RecoveryOptions,
+  type RecoveryReceipt,
   type RehearsalOptions,
   type RehearsalReceipt,
   type ScenarioInput,
@@ -119,11 +133,58 @@ function optionsFor(
       settleMs: 60_000,
       engineStopMs: 20_000,
     },
+    // Shorter delays than production's (1 s doubling to 16 s), long enough to outlast a burst of
+    // refusals of the faulty node below.
+    readRetry: READ_RETRY,
     // As in the other end-to-end scenarios: E2E_LOG_FILE collects the engine's log when set.
     ...(process.env.E2E_LOG_FILE === undefined || process.env.E2E_LOG_FILE === ""
       ? {}
       : { engineLogFile: process.env.E2E_LOG_FILE }),
     ...extra,
+  };
+}
+
+const READ_RETRY = { attempts: 8, baseDelayMs: 200, maxDelayMs: 2_000 };
+
+/**
+ * A node that answers "rate limit exceeded" (HTTP 429, -32005, as Arc's public RPC did) to 15 %
+ * of the runner's reads at random, and to every one of them for one second in every nine. A
+ * broadcast is never refused (the runner only reads; the sweep's transfer is sent once). Every
+ * request is logged, refused or not, for the request budget.
+ */
+function flakyNode(log: NodeRequestInfo[]): NodeFault {
+  let state = 20_261_118;
+  const random = (): number => {
+    state = (state * 1_103_515_245 + 12_345) % 2_147_483_648;
+    return state / 2_147_483_648;
+  };
+  const start = Date.now();
+  return (request) => {
+    log.push(request);
+    if (request.method === "eth_sendRawTransaction") return null;
+    const inBurst = (request.atMs - start) % 9_000 < 1_000;
+    return inBurst || random() < 0.15 ? rateLimitAnswer(request.method) : null;
+  };
+}
+
+/** The runner's requests during `step`: their rate over the step, and the most in any second. */
+function requestRate(
+  log: readonly NodeRequestInfo[],
+  receipt: RehearsalReceipt,
+  step: string,
+): { requests: number; perSecond: number; mostInOneSecond: number } {
+  const record = receipt.steps.find((item) => item.step === step);
+  if (record === undefined || record.durationMs === null) throw new Error(`no step ${step}`);
+  const times = log.filter((request) => request.step === step).map((request) => request.atMs);
+  let most = 0;
+  for (const [index, at] of times.entries()) {
+    const within = times.slice(index).filter((other) => other < at + 1_000).length;
+    most = Math.max(most, within);
+  }
+  return {
+    requests: times.length,
+    perSecond: (times.length * 1_000) / Math.max(record.durationMs, 1_000),
+    mostInOneSecond: most,
   };
 }
 
@@ -379,10 +440,57 @@ describe("the whole loop in real time", () => {
       const escrow = await deployTestEscrow(anvil);
       shared = { escrow, database };
       const s = await setup({ escrow, database });
-      const options = optionsFor(s, { purchases: 6, buyers: 3, outcome: "yes" });
+      // A fresh database (as --throwaway-db without --deploy-block): the engine starts near the
+      // head. And a node that refuses a share of the runner's reads, in the waits, outside them,
+      // during the sweep and the final reads; the engine keeps a healthy client.
+      const log: NodeRequestInfo[] = [];
+      const headBefore = await s.escrow.publicClient.getBlockNumber();
+      const options = optionsFor(
+        s,
+        { purchases: 6, buyers: 3, outcome: "yes" },
+        { startNearHead: true, nodeFaults: flakyNode(log) },
+      );
       const receipt = await runRehearsal(options);
       expectPassed(receipt);
       expectMined(receipt);
+      // No step failed: every refusal was waited out or read again.
+      expect(receipt.steps.every((item) => item.status === "done")).toBe(true);
+      const rpc = receipt.rpc;
+      if (rpc === null) throw new Error("no request counts");
+      expect(rpc.refused).toBeGreaterThan(5);
+      expect(rpc.rateLimited).toBe(rpc.refused);
+      expect(rpc.retried).toBeGreaterThan(0);
+      expect(rpc.requests).toBe(log.length);
+      expect(rpc.limiter).not.toBeNull();
+      // The faulty node answered the sweep and the reads made once the run was over too.
+      expect(log.filter((request) => request.step === "sweep").length).toBeGreaterThan(0);
+      expect(log.filter((request) => request.step === null).length).toBeGreaterThan(0);
+      expect(s.lines.some((line) => line.startsWith("node: "))).toBe(true);
+      // The runner's own load stays under about five requests a second while it waits.
+      for (const step of ["hedging", "settle"]) {
+        const rate = requestRate(log, receipt, step);
+        process.stdout.write(
+          `[rehearsal] ${step}: ${rate.requests.toString()} requests, ${rate.perSecond.toFixed(2)}/s, at most ${rate.mostInOneSecond.toString()} in one second\n`,
+        );
+        expect(rate.perSecond, step).toBeLessThanOrEqual(5);
+        expect(rate.mostInOneSecond, step).toBeLessThanOrEqual(8);
+      }
+      // No eth_getLogs in a loop: once per new block while hedging, once at the end.
+      expect(
+        log.filter((request) => request.method === "eth_getLogs" && request.step === "settle"),
+      ).toEqual([]);
+      // The engine started near the head, not at the deploy block.
+      const start = receipt.escrow.engineStartBlock ?? -1n;
+      const runStart = receipt.escrow.runStartBlock ?? -1n;
+      expect(runStart).toBeGreaterThanOrEqual(headBefore);
+      expect(start).toBe(
+        runStart - ENGINE_START_MARGIN_BLOCKS > s.escrow.deployedAtBlock
+          ? runStart - ENGINE_START_MARGIN_BLOCKS
+          : s.escrow.deployedAtBlock,
+      );
+      expect(s.lines.some((line) => line.startsWith("fresh database: the engine reads"))).toBe(
+        true,
+      );
       if (receipt.game !== null && receipt.instrument !== null) {
         firstGame = { ticker: receipt.game.ticker, symbol: receipt.instrument.symbol };
       }
@@ -437,6 +545,12 @@ describe("the whole loop in real time", () => {
       const receipt = await runRehearsal(options);
       expectPassed(receipt);
       expectMined(receipt);
+      // A database given (--db-url): the deploy block, as given; the engine resumed from its
+      // cursor, and the run waited for it to reach the head before the first sale.
+      expect(receipt.escrow.engineStartBlock).toBe(s.escrow.deployedAtBlock);
+      expect(s.lines.some((line) => line.startsWith("the engine's event reader is at block"))).toBe(
+        true,
+      );
       // The demo replayed on the instrument of the YES run, whose campaign settled on a forced
       // result: its contracts no longer count as held, so this run's sales are hedged and charged.
       expect(receipt.game?.ticker).toBe(firstGame.ticker);
@@ -621,6 +735,495 @@ describe("criterion 6: the refunds of 60 tickets", () => {
       ).toBe(s.escrow.accounts.treasury.address);
       expectSweptAndReconciled(receipt);
       expectNoSecrets(s, options, receipt);
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------------------------
+// A sweep on a rate-limiting node, in Arc's money mode
+// ---------------------------------------------------------------------------------------------
+
+describe("the sweep on a node that refuses for a moment", () => {
+  it("retries each wallet, never sends a transfer twice, and brings every wei back (native money, as on Arc)", async () => {
+    const relayerKey = anvil.privateKeys[1];
+    const oracleKey = anvil.privateKeys[2];
+    if (relayerKey === undefined || oracleKey === undefined) throw new Error("anvil keys missing");
+    const arc = createArcClients({
+      ARC_CHAIN_ID: LOCAL_CHAIN_ID,
+      ARC_RPC_URL: anvil.rpcUrl,
+      ARC_RPC_FALLBACK_URL: anvil.rpcUrl,
+      ARC_RELAYER_PRIVATE_KEY: relayerKey,
+      ARC_ORACLE_PRIVATE_KEY: oracleKey,
+    });
+    try {
+      const seed = `0x${randomBytes(32).toString("hex")}` as Hex;
+      const wallets = [1, 2, 3].map((n) => ({
+        label: `buyer ${n.toString()}`,
+        email: `w${n.toString()}@example.com`,
+      }));
+      const testClient = createTestClient({
+        mode: "anvil",
+        chain: arc.chain,
+        transport: http(anvil.rpcUrl),
+      });
+      const funded = [3n * 10n ** 17n, 0n, 10n ** 18n];
+      for (const [index, wallet] of wallets.entries()) {
+        await testClient.setBalance({
+          address: getAddress(demoWalletAddress(seed, wallet.email)),
+          value: funded[index] ?? 0n,
+        });
+      }
+      const destination = getAddress(`0x${randomBytes(20).toString("hex")}`);
+      // A few requests of the sweep are refused, early ones and some in the middle of a transfer
+      // (a broadcast never is); every wallet meets one.
+      const refused = new Set([2, 3, 6, 10, 11, 17, 21, 22]);
+      let count = 0;
+      const meter = new RpcMeter();
+      const client = meteredClient(arc.publicClient, {
+        meter,
+        step: () => "sweep",
+        fault: ({ method }) => {
+          if (method === "eth_sendRawTransaction") return null;
+          count += 1;
+          return refused.has(count) ? rateLimitAnswer(method) : null;
+        },
+      });
+      const lines: string[] = [];
+      let retries = 0;
+      const rows = await sweepWallets({
+        client,
+        chain: arc.chain,
+        mode: "native-usdc",
+        token: "0x3600000000000000000000000000000000000000",
+        seed,
+        wallets,
+        destination,
+        local: true,
+        policy: { attempts: 8, baseDelayMs: 50, maxDelayMs: 400 },
+        out: (line) => lines.push(line),
+        onRetry: () => (retries += 1),
+      });
+      expect(
+        rows.map((row) => row.status),
+        lines.join("\n"),
+      ).toEqual(["swept", "empty", "swept"]);
+      expect(retries).toBeGreaterThan(0);
+      expect(meter.requests.filter((request) => !request.ok).length).toBeGreaterThan(0);
+      // Swept to the wei: the wallets end at zero, the destination got the rest after gas.
+      const reader = createPublicClient({ chain: arc.chain, transport: http(anvil.rpcUrl) });
+      for (const wallet of wallets) {
+        expect(
+          await reader.getBalance({ address: getAddress(demoWalletAddress(seed, wallet.email)) }),
+        ).toBe(0n);
+      }
+      const sent = rows.reduce((total, row) => total + row.sentWei, 0n);
+      const gas = rows.reduce((total, row) => total + row.gasWei, 0n);
+      expect(sent + gas).toBe((funded[0] ?? 0n) + (funded[2] ?? 0n));
+      expect(await reader.getBalance({ address: destination })).toBe(sent);
+      // One transfer per wallet swept: none was sent twice.
+      const hashes = rows.flatMap((row) => (row.txHash === null ? [] : [row.txHash]));
+      expect(hashes).toHaveLength(2);
+      expect(
+        meter.requests.filter((request) => request.method === "eth_sendRawTransaction"),
+      ).toHaveLength(2);
+      expect(lines.join("\n")).not.toContain("@example.com");
+    } finally {
+      arc.limiter?.close();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// A campaign left behind, as on Arc, and --recover
+// ---------------------------------------------------------------------------------------------
+
+const RECOVERY_TIMEOUT_MS = 420_000;
+
+function recoveryOptionsFor(
+  s: Setup,
+  receiptPath: string,
+  lines: string[],
+  extra: Partial<RecoveryOptions> = {},
+): RecoveryOptions {
+  const run = optionsFor(s, {});
+  return {
+    receiptPath,
+    databaseUrl: s.database.url,
+    rpcUrl: run.rpcUrl,
+    chainId: run.chainId,
+    local: run.local,
+    escrowAddress: run.escrowAddress,
+    escrowDeployBlock: run.escrowDeployBlock,
+    secrets: run.secrets,
+    // As the command's default: a run on the simulated Gemini is recovered on it whatever this says.
+    gemini: { kind: "live", apiUrl: "http://127.0.0.1:9", wsUrl: "ws://127.0.0.1:9" },
+    estimateOnly: false,
+    out: (line) => lines.push(line),
+    ...(run.timeouts === undefined ? {} : { timeouts: run.timeouts }),
+    readRetry: READ_RETRY,
+    ...extra,
+  };
+}
+
+/** Nothing printed or written by a recovery carries a key, the seed or an e-mail address. */
+function expectRecoveryClean(
+  s: Setup,
+  receipt: RecoveryReceipt,
+  lines: readonly string[],
+  buyers: number,
+): void {
+  const runId = receipt.recovers.runId;
+  const emails = [merchantEmail(runId)];
+  for (let buyer = 1; buyer <= buyers; buyer += 1) emails.push(buyerEmail(runId, buyer));
+  const secrets = secretsOf({ secrets: optionsFor(s, {}).secrets }, emails).map((secret) =>
+    secret.toLowerCase().slice(2),
+  );
+  const texts = [lines.join("\n")];
+  if (receipt.files !== undefined) {
+    texts.push(
+      readFileSync(receipt.files.json, "utf8"),
+      readFileSync(receipt.files.markdown, "utf8"),
+    );
+  }
+  for (const text of texts) {
+    const lower = text.toLowerCase();
+    for (const secret of secrets) expect(lower.includes(secret)).toBe(false);
+    expect(lower).not.toContain("@example.com");
+  }
+}
+
+/** A run that fails and leaves its campaign stranded with the database kept, as on Arc. */
+async function strandedRun(
+  scenario: ScenarioInput,
+  extra: Partial<RehearsalOptions>,
+): Promise<{ s: Setup; receipt: RehearsalReceipt; path: string }> {
+  const s = await setup();
+  const receipt = await runRehearsal(optionsFor(s, scenario, { strand: true, ...extra }));
+  expect(receipt.status).toBe("failed");
+  expect(receipt.stranded, JSON.stringify(receipt.leftBehind)).toBe(true);
+  expect(receipt.engine).toEqual({ started: true, stopped: true });
+  expect(receipt.leftBehind.join("\n")).toMatch(/the recovery of the campaign failed/);
+  expect(receipt.leftBehind.join("\n")).toMatch(/sweep failed: failure injected at step sweep/);
+  const path = receipt.files?.json;
+  if (path === undefined) throw new Error("no receipt written");
+  return { s, receipt, path };
+}
+
+/** Every transaction a recovery lists is on the chain, mined. */
+async function expectOnChain(s: Setup, receipt: RecoveryReceipt): Promise<void> {
+  for (const tx of receipt.transactions) {
+    const mined = await s.escrow.publicClient.getTransactionReceipt({ hash: tx.hash });
+    expect(mined.status, `${tx.kind} ${tx.hash}`).toBe("success");
+    expect(tx.block).toBe(mined.blockNumber);
+  }
+}
+
+function kindsOf(receipt: RecoveryReceipt): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const tx of receipt.transactions.filter((item) => item.ownCampaign)) {
+    counts.set(tx.kind, (counts.get(tx.kind) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/** Released, swept to the micro-unit, a -recovery receipt next to the run's, nothing behind. */
+async function expectReleasedAndSwept(
+  s: Setup,
+  run: { receipt: RehearsalReceipt; path: string },
+  receipt: RecoveryReceipt,
+): Promise<void> {
+  expect(receipt.failure, JSON.stringify(receipt.failure)).toBeNull();
+  expect(receipt.leftBehind).toEqual([]);
+  expect(receipt.unread).toEqual([]);
+  expect(receipt.status).toBe("recovered");
+  expect(receipt.stateAfter?.released).toBe(true);
+  expect(receipt.stateAfter?.escrowHolds).toBe(0n);
+  // Every ticket sold charged exactly once, over the run and its recovery.
+  expect(receipt.stateAfter?.hedgeCharges).toBe(receipt.stateAfter?.ticketsSold);
+  expect(receipt.stateAfter?.ticketsCharged).toBe(receipt.stateAfter?.ticketsSold);
+  // Every wallet of the run holds nothing, to the micro-unit, on the token and in the receipt.
+  const wallets = [run.receipt.roles.merchant, ...run.receipt.roles.buyers.map((b) => b.address)];
+  for (const address of wallets) {
+    if (address === null) continue;
+    const balance = await s.escrow.publicClient.readContract({
+      address: s.escrow.usdc,
+      abi: erc20Abi,
+      functionName: "balanceOf",
+      args: [address],
+    });
+    expect(balance, address).toBe(0n);
+    expect(receipt.balances.after.find((row) => row.address === address)?.moneyWei).toBe(0n);
+  }
+  expect(receipt.files?.json).toBe(
+    join(dirname(run.path), `${basename(run.path, ".json")}-recovery.json`),
+  );
+  expect(receipt.files?.markdown).toMatch(/-recovery\.md$/);
+  await expectOnChain(s, receipt);
+  // The run's receipt is not rewritten.
+  expect(JSON.parse(readFileSync(run.path, "utf8"))).toMatchObject({
+    status: "failed",
+    stranded: true,
+  });
+}
+
+/** A second recovery: nothing left to finish, nothing sent but what the sweep still finds. */
+async function expectRerunSendsNothing(s: Setup, path: string, buyers: number): Promise<void> {
+  const nonces = async (): Promise<number[]> =>
+    Promise.all(
+      [s.escrow.accounts.relayer.address, s.escrow.accounts.oracle.address].map((address) =>
+        s.escrow.publicClient.getTransactionCount({ address }),
+      ),
+    );
+  const before = await nonces();
+  const lines: string[] = [];
+  const again = await recoverRehearsal(recoveryOptionsFor(s, path, lines));
+  expect(again.status, JSON.stringify(again.leftBehind)).toBe("recovered");
+  expect(again.stateBefore?.released).toBe(true);
+  expect(again.engine).toEqual({ started: false, stopped: false });
+  expect(again.transactions).toEqual([]);
+  expect(again.sweep.every((row) => row.status === "empty")).toBe(true);
+  expect(again.actions[0]).toBe(
+    "the campaign was already released: nothing to finish, only the sweep",
+  );
+  expect(again.files?.json).toMatch(/-recovery-2\.json$/);
+  expect(await nonces()).toEqual(before);
+  expectRecoveryClean(s, again, lines, buyers);
+}
+
+describe("a campaign left behind, finished by --recover", () => {
+  it(
+    "a read that never recovers: the wait times out with its own message and the last error; then a result already forced YES, sales closed: recovered with refunds, swept, twice",
+    { timeout: RECOVERY_TIMEOUT_MS },
+    async () => {
+      // From close-sales on, every eth_call of the runner is refused: the route closes the sales,
+      // the engine closes them on-chain, and the runner can never read it.
+      let closing = false;
+      const never: NodeFault = ({ method, step }) => {
+        if (step === "close-sales") closing = true;
+        return closing && method === "eth_call" ? rateLimitAnswer(method) : null;
+      };
+      const run = await strandedRun(
+        { purchases: 2, buyers: 2, refundBps: 5_000 },
+        {
+          nodeFaults: never,
+          timeouts: { closeMs: 8_000, engineStopMs: 20_000 },
+          readRetry: { attempts: 2, baseDelayMs: 50, maxDelayMs: 100 },
+        },
+      );
+      const { s, receipt } = run;
+      expect(receipt.failure?.step).toBe("close-sales");
+      expect(receipt.failure?.reason).toMatch(
+        /^timed out after 8000 ms waiting for the sales closed on-chain; last error: Request exceeds defined limit\./,
+      );
+      // FAILED, and still holds everything recorded before and after.
+      expect(receipt.steps.map((item) => `${item.step}:${item.status}`).slice(0, 8)).toEqual([
+        "start-engine:done",
+        "choose-game:done",
+        "launch-campaign:done",
+        "drive-book:done",
+        "pause-probe:done",
+        "purchases:done",
+        "hedging:done",
+        "close-sales:failed",
+      ]);
+      expect(receipt.purchases).toHaveLength(2);
+      expect(receipt.hedging?.charges).toBe(2);
+      expect(receipt.transactions.filter((tx) => tx.kind === "buyFor")).toHaveLength(2);
+      expect(receipt.transactions.some((tx) => tx.kind === "closeSales")).toBe(true);
+      expect(receipt.balances.before.length).toBeGreaterThan(0);
+      expect(receipt.balances.afterSettlement).toEqual([]);
+      expect(receipt.unread.join("\n")).toMatch(
+        /the balances after settlement: .*Request exceeds defined limit/,
+      );
+      expect(receipt.unread.join("\n")).toMatch(
+        /the campaign on-chain: .*Request exceeds defined limit/,
+      );
+      expect(receipt.rpc?.rateLimited).toBeGreaterThan(0);
+      const markdown = readFileSync(receipt.files?.markdown ?? "", "utf8");
+      expect(markdown).toContain("## Could not be read");
+
+      // Someone forced YES through the demo route before the recovery (stored, not yet settled).
+      const symbol = receipt.instrument?.symbol ?? "";
+      await s.database.db`
+        insert into demo_overrides (instrument, forced_result) values (${symbol}, 'yes')
+        on conflict (instrument) do update set forced_result = 'yes'
+      `;
+      const lines: string[] = [];
+      const recovered = await recoverRehearsal(recoveryOptionsFor(s, run.path, lines));
+      expect(recovered.stateBefore?.stage).toBe("sales closed");
+      expect(recovered.stateBefore?.ticketsCharged).toBe(2);
+      expect(recovered.outcome).toBe("yes");
+      expect(recovered.actions).toContain("result YES already forced or known: not forced again");
+      expect(recovered.stateAfter?.ticketsRefunded).toBe(2);
+      const counts = kindsOf(recovered);
+      expect(counts.get("closeSales") ?? 0).toBe(0);
+      expect(counts.get("settle")).toBe(1);
+      expect(counts.get("refundBatch")).toBe(1);
+      expect(counts.get("payMerchant")).toBe(1);
+      expect(counts.get("release")).toBe(1);
+      // The refunds went to the buyers' demo wallets: swept back, as the merchant's.
+      expect(recovered.sweep.map((row) => `${row.wallet}:${row.status}`)).toEqual([
+        "merchant:swept",
+        "buyer 1:swept",
+        "buyer 2:swept",
+      ]);
+      await expectReleasedAndSwept(s, run, recovered);
+      expectRecoveryClean(s, recovered, lines, 2);
+      await expectRerunSendsNothing(s, run.path, 2);
+    },
+  );
+
+  it(
+    "tickets not all charged, sales open: the refusals first, --estimate sends nothing, then hedged, closed, NO forced, released, swept, twice",
+    { timeout: RECOVERY_TIMEOUT_MS },
+    async () => {
+      // One buyer, two sales at once: the engine creates the new buyer once.
+      const run = await strandedRun(
+        { purchases: 2, buyers: 1, parallel: 2, refundBps: 5_000 },
+        { failAtStep: "hedging" },
+      );
+      const { s, receipt } = run;
+      expect(receipt.purchases).toHaveLength(2);
+      expect(receipt.failure).toEqual({
+        step: "hedging",
+        reason: "failure injected at step hedging",
+      });
+
+      // The refusals: nothing is sent.
+      const refusal = async (options: RecoveryOptions): Promise<readonly string[]> => {
+        const error = await recoverRehearsal(options).catch((caught: unknown) => caught);
+        expect(error).toBeInstanceOf(RehearsalRefusedError);
+        return (error as RehearsalRefusedError).reasons;
+      };
+      const json = JSON.parse(readFileSync(run.path, "utf8")) as Record<string, unknown>;
+      const variant = (patch: (copy: Record<string, unknown>) => void): string => {
+        const copy = JSON.parse(JSON.stringify(json)) as Record<string, unknown>;
+        patch(copy);
+        const path = join(s.receiptDir, `variant-${randomBytes(4).toString("hex")}.json`);
+        writeFileSync(path, JSON.stringify(copy));
+        return path;
+      };
+      const lines: string[] = [];
+      const otherChain = variant((copy) => {
+        (copy.chain as { chainId: number }).chainId = 5_042_002;
+      });
+      expect(await refusal(recoveryOptionsFor(s, otherChain, lines))).toEqual([
+        "the receipt is of a run on chain 5042002, the command is for chain 31337",
+      ]);
+      const stranger = getAddress(`0x${randomBytes(20).toString("hex")}`);
+      expect(
+        (await refusal(recoveryOptionsFor(s, run.path, lines, { escrowAddress: stranger }))).join(
+          "\n",
+        ),
+      ).toContain(
+        `the receipt's escrow is ${receipt.escrow.address}, the command's is ${stranger}`,
+      );
+      const otherSeed = `0x${randomBytes(32).toString("hex")}` as Hex;
+      const seedReasons = await refusal(
+        recoveryOptionsFor(s, run.path, lines, {
+          secrets: { ...optionsFor(s, {}).secrets, demoSeed: otherSeed },
+        }),
+      );
+      expect(seedReasons.join("\n")).toMatch(
+        /derives the merchant wallet .* the receipt's is .*: another seed/,
+      );
+      const unknown = randomUUID();
+      const unknownCampaign = variant((copy) => {
+        (copy.campaign as { id: string }).id = unknown;
+      });
+      expect(await refusal(recoveryOptionsFor(s, unknownCampaign, lines))).toEqual([
+        `the database does not know campaign ${unknown}: give the database the run kept (--db-url)`,
+      ]);
+      for (const file of readdirSync(s.receiptDir).filter((name) => name.startsWith("variant-"))) {
+        await rm(join(s.receiptDir, file));
+      }
+
+      // --estimate: the checks and the state, nothing sent.
+      const relayer = s.escrow.accounts.relayer.address;
+      const oracle = s.escrow.accounts.oracle.address;
+      const nonces = [
+        await s.escrow.publicClient.getTransactionCount({ address: relayer }),
+        await s.escrow.publicClient.getTransactionCount({ address: oracle }),
+      ];
+      const [outboxBefore] = await s.database.db<
+        { n: string }[]
+      >`select count(*)::text as n from chain_txs`;
+      const estimateLines: string[] = [];
+      const estimate = await recoverRehearsal(
+        recoveryOptionsFor(s, run.path, estimateLines, { estimateOnly: true }),
+      );
+      expect(estimate.status).toBe("estimate");
+      expect(estimate.files).toBeUndefined();
+      expect(estimate.stateBefore?.stage).toBe("selling");
+      expect(estimate.stateBefore?.ticketsSold).toBe(2);
+      expect(estimate.stateBefore?.ticketsCharged ?? 2).toBeLessThan(2);
+      expect(estimate.estimate?.oracleGas).toBeGreaterThan(0n);
+      expect(estimateLines.at(-1)).toBe("estimate only: nothing sent");
+      expect([
+        await s.escrow.publicClient.getTransactionCount({ address: relayer }),
+        await s.escrow.publicClient.getTransactionCount({ address: oracle }),
+      ]).toEqual(nonces);
+      const [outboxAfter] = await s.database.db<
+        { n: string }[]
+      >`select count(*)::text as n from chain_txs`;
+      expect(outboxAfter?.n).toBe(outboxBefore?.n);
+
+      // The recovery.
+      const recoveryLines: string[] = [];
+      const recovered = await recoverRehearsal(recoveryOptionsFor(s, run.path, recoveryLines));
+      expect(recovered.stateBefore?.stage).toBe("selling");
+      expect(recovered.outcome).toBe("no");
+      expect(recovered.actions.join("\n")).toMatch(/ticket\(s\) hedged and charged \(2 sold\)/);
+      expect(recovered.actions).toContain("sales closed through the merchant's route");
+      expect(recovered.actions).toContain("result NO forced through the demo route");
+      expect(recovered.stateAfter?.ticketsCharged).toBe(2);
+      const counts = kindsOf(recovered);
+      expect(counts.get("chargeHedge") ?? 0).toBeGreaterThanOrEqual(1);
+      expect(counts.get("closeSales")).toBe(1);
+      expect(counts.get("settle")).toBe(1);
+      expect(counts.get("release")).toBe(1);
+      expect(counts.get("refundBatch") ?? 0).toBe(0);
+      await expectReleasedAndSwept(s, run, recovered);
+      expectRecoveryClean(s, recovered, [...lines, ...estimateLines, ...recoveryLines], 1);
+      await expectRerunSendsNothing(s, run.path, 1);
+    },
+  );
+
+  it(
+    "every ticket charged, sales open (the Arc case): closed, NO forced, released, swept, twice",
+    { timeout: RECOVERY_TIMEOUT_MS },
+    async () => {
+      const run = await strandedRun(
+        { purchases: 2, buyers: 2, refundBps: 5_000 },
+        { failAtStep: "close-sales" },
+      );
+      const { s } = run;
+      const lines: string[] = [];
+      const recovered = await recoverRehearsal(recoveryOptionsFor(s, run.path, lines));
+      expect(recovered.stateBefore).toMatchObject({
+        stage: "selling",
+        ticketsSold: 2,
+        ticketsCharged: 2,
+        released: false,
+      });
+      expect(recovered.stateBefore?.escrowHolds).toBeGreaterThan(0n);
+      expect(recovered.outcome).toBe("no");
+      expect(recovered.actions.some((action) => action.includes("hedged"))).toBe(false);
+      // The engine may still finalize the charges before it settles: no ticket charged twice.
+      const counts = kindsOf(recovered);
+      expect(recovered.stateAfter?.ticketsCharged).toBe(2);
+      expect(counts.get("buyFor") ?? 0).toBe(0);
+      expect(counts.get("closeSales")).toBe(1);
+      expect(counts.get("settle")).toBe(1);
+      expect(counts.get("release")).toBe(1);
+      // The merchant's wallet received half of each sale at once and the release: swept back.
+      expect(recovered.sweep.find((row) => row.wallet === "merchant")?.status).toBe("swept");
+      await expectReleasedAndSwept(s, run, recovered);
+      const markdown = readFileSync(recovered.files?.markdown ?? "", "utf8");
+      expect(markdown).toContain("# Recovery of the rehearsal");
+      expect(markdown).toContain(`Recovers \`${basename(run.path)}\``);
+      expectRecoveryClean(s, recovered, lines, 2);
+      await expectRerunSendsNothing(s, run.path, 2);
     },
   );
 });

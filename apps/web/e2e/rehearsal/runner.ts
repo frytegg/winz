@@ -1,11 +1,20 @@
 import { randomBytes } from "node:crypto";
 import { appendFileSync } from "node:fs";
-import { resolve, sep } from "node:path";
+import { basename, resolve, sep } from "node:path";
 import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import pino, { type Logger } from "pino";
-import { getAddress, isHex, size, type Address, type Hex, type PublicClient } from "viem";
+import {
+  TransactionReceiptNotFoundError,
+  getAddress,
+  isHex,
+  size,
+  type Address,
+  type Hex,
+  type PublicClient,
+  type TransactionReceipt,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import {
@@ -15,21 +24,24 @@ import {
   type DemoResponse,
   type HedgeInstrument,
   type Outcome,
-  winzEscrowAbi,
 } from "@winz/shared";
 
 import { setServerDepsForTesting } from "@/lib/server/deps";
 import { FakeIdentity, TEST_CONFIG } from "@/lib/server/testing/fixtures";
 
 import { startEngine, type Engine } from "../../../engine/src/app";
-import { createArcClients } from "../../../engine/src/chain";
+import {
+  createArcClients,
+  defaultCursorName,
+  readCursor,
+  type RpcLimiter,
+} from "../../../engine/src/chain";
 import { createDb, type Db } from "../../../engine/src/db";
 import {
   DemoIdentityDirectory,
   demoWalletAddress,
   demoWalletKey,
 } from "../../../engine/src/identity";
-import { sweepDemoWallets } from "../../../engine/src/identity/sweep-demo-wallets";
 import {
   BookFeed,
   GeminiRestClient,
@@ -46,21 +58,40 @@ import { SilentTransport, SimulatedGemini, newGame, type Game } from "../support
 import { SimulatedStripe } from "../support/stripe";
 import { WaitTimeoutError, within } from "../support/wait";
 import {
+  BlockClock,
+  CampaignLogFollower,
   allowanceOf,
-  campaignEvents,
   moneyOf,
   moneyModeOf,
   readCampaign,
   readEscrowRoles,
   snapshot,
-  sweepTokenOnLocalChain,
+  sweepWallets,
   type CampaignEvents,
   type OnchainCampaignState,
   type Party,
 } from "./chain";
 import { describeEstimate, estimateRun, formatWei } from "./estimate";
 import { checkInvariants, type DeskSample, type DemoFlag, type MoneyParty } from "./invariants";
-import { redactText, stats, writeReceipt } from "./receipt";
+import { describeRpc, redactText, stats, writeReceipt } from "./receipt";
+import {
+  RecoveryReceiptError,
+  campaignState,
+  describeState,
+  estimateRecovery,
+  readRunReceipt,
+  writeRecoveryReceipt,
+  type RunReceiptFacts,
+} from "./recovery";
+import {
+  RpcMeter,
+  classifyFailure,
+  describeFailure,
+  meteredClient,
+  retryPolicy,
+  sleep,
+  withRetry,
+} from "./rpc";
 import { buyerEmail, buyerOf, merchantEmail, resolveScenario } from "./scenario";
 import {
   InjectedFailureError,
@@ -68,7 +99,7 @@ import {
   RehearsalRefusedError,
   RehearsalStepError,
   type BalanceRow,
-  type Estimate,
+  type CampaignStateRecord,
   type HedgingRecord,
   type MoneyMode,
   type PauseProbe,
@@ -78,6 +109,10 @@ import {
   type RehearsalReceipt,
   type RehearsalStep,
   type RehearsalTimeouts,
+  type RecoveryOptions,
+  type RecoveryReceipt,
+  type RetryPolicy,
+  type RpcLimitsInput,
   type Scenario,
   type StepRecord,
   type TxRecord,
@@ -102,6 +137,8 @@ export const LOCAL_CHAIN_ID = 31_337;
 const ARC_PUBLIC_RPC_URL = "https://rpc.testnet.arc.io";
 
 export const DEFAULT_TIMEOUTS: RehearsalTimeouts = {
+  // A day behind on Arc is about 190 000 blocks: about a minute through the engine's limiter.
+  catchUpMs: 600_000,
   catalogMs: 180_000,
   liveMs: 180_000,
   openMs: 90_000,
@@ -123,6 +160,30 @@ const SPREAD_BPS = 200;
 const ONE_CONTRACT = 1_000_000n;
 const DESK_SAMPLE_MS = 1_000;
 const DASHBOARD_POLL_MS = 100;
+/**
+ * The engine's event reader starts this many blocks before the head on a fresh database (about
+ * 20 s on Arc): nothing before the run concerns it.
+ */
+export const ENGINE_START_MARGIN_BLOCKS = 50n;
+/**
+ * The runner's own load on the node, kept under about five requests a second in all (the
+ * engine's limiter allows ten for the whole process). Its loops that touch the node:
+ *
+ * - the waits that read the campaign on-chain (closed, reconciled, settled): one `eth_call`, and
+ *   for the close one `eth_getBlockByNumber`, every `CHAIN_POLL_MS`: at most 2 a second;
+ * - the count of charged tickets while hedging: one `eth_blockNumber` every `HEDGING_POLL_MS`,
+ *   and one `eth_getLogs` only when a block was mined since: at most 1 a second;
+ * - the block clock of the refund timing, during settle only: one `eth_blockNumber` every
+ *   `BLOCK_CLOCK_MS`: 2 a second.
+ *
+ * The others read the routes and the database in process, not the node: the Hedge desk sampler
+ * (once a second), the merchant's detail during the sales (every 100 ms), the demo sale's
+ * checkout status. The escrow's logs are never read in a loop otherwise: once per new block while
+ * hedging, and once at the end.
+ */
+const CHAIN_POLL_MS = 1_000;
+const HEDGING_POLL_MS = 2_000;
+const BLOCK_CLOCK_MS = 500;
 
 let running = false;
 
@@ -143,6 +204,23 @@ function errorMessage(error: unknown): string {
     return typeof short === "string" ? short : error.message;
   }
   return String(error);
+}
+
+/** The `ARC_RPC_MAX_*` variables of `createArcClients`, from the options. */
+function limiterEnv(limits: RpcLimitsInput | undefined): {
+  ARC_RPC_MAX_REQUESTS_PER_SECOND?: number;
+  ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND?: number;
+  ARC_RPC_HEAVY_METHODS?: string[];
+} {
+  return {
+    ...(limits?.maxRequestsPerSecond === undefined
+      ? {}
+      : { ARC_RPC_MAX_REQUESTS_PER_SECOND: limits.maxRequestsPerSecond }),
+    ...(limits?.maxHeavyRequestsPerSecond === undefined
+      ? {}
+      : { ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND: limits.maxHeavyRequestsPerSecond }),
+    ...(limits?.heavyMethods === undefined ? {} : { ARC_RPC_HEAVY_METHODS: limits.heavyMethods }),
+  };
 }
 
 function engineLogger(
@@ -213,21 +291,7 @@ function stringify(value: unknown): string {
 }
 
 function pause(ms: number, signal: AbortSignal | undefined): Promise<void> {
-  return new Promise((resolvePause, reject) => {
-    if (signal?.aborted === true) {
-      reject(new RehearsalAbortedError());
-      return;
-    }
-    const timer = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolvePause();
-    }, ms);
-    function onAbort(): void {
-      clearTimeout(timer);
-      reject(new RehearsalAbortedError());
-    }
-    signal?.addEventListener("abort", onAbort, { once: true });
-  });
+  return sleep(ms, signal);
 }
 
 function hostOf(url: string): string {
@@ -274,7 +338,21 @@ interface Run {
   recovering: boolean;
   timeouts: RehearsalTimeouts;
   scenario: Scenario;
+  /** The runner's client: counted, behind the engine's limiter (`meteredClient`). */
   client: PublicClient;
+  /** The client of `createArcClients` the engine runs on. */
+  engineClient: PublicClient;
+  /** Every request of `client`, and the retries of the runner's reads. */
+  meter: RpcMeter;
+  /** The limiter shared by the engine and the runner; closed when the run ends. */
+  limiter: RpcLimiter | null;
+  /** The step running now, for the counts of each step. */
+  current: { step: RehearsalStep | null };
+  retry: RetryPolicy;
+  /** The engine's logger (and the limiter's), writing to the engine log file. */
+  logger: Logger;
+  /** What could not be read back after retries, one line each (goes to the receipt). */
+  unread: string[];
   chain: ReturnType<typeof createArcClients>["chain"];
   accounts: ReturnType<typeof createArcClients>["accounts"];
   moneyMode: MoneyMode;
@@ -290,8 +368,14 @@ interface Run {
   gemini: SimulatedGemini | null;
   engine: Engine | null;
   engineController: AbortController | null;
-  /** Wall clock (ISO) and newest chain_txs row before the engine started. */
+  /** Newest chain_txs row before the engine started. */
   txWatermark: Date | null;
+  /**
+   * When the engine started, and the head then: a row of an earlier process that this engine
+   * sends again is listed when it is mined after that block (its work), not when the earlier
+   * process had it mined already and this one only confirmed it.
+   */
+  txSince: { at: Date; block: bigint } | null;
   headers: AuthHeaders | null;
   campaign: { id: string; onchainId: bigint; slug: string; symbol: string } | null;
   budgetPi: string | null;
@@ -313,8 +397,10 @@ interface Run {
   makersFilled: number;
   heldAtClose: bigint | null;
   exposureAtClose: bigint | null;
-  /** Wall clock (ms) at which the rehearsal saw settle, and then the last refund, on-chain. */
-  refundWatch: { settleSeenAtMs: number | null; lastRefundSeenAtMs: number | null } | null;
+  /** The campaign's escrow logs, read once per new block while hedging and once at the end. */
+  logs: CampaignLogFollower | null;
+  /** When each block was first seen during settle: the wall clock of the refund timing. */
+  blockClock: BlockClock | null;
   /** The Hedge desk's row of the instrument once reconciled at close (it may drop it later). */
   deskAtClose: HedgeInstrument | null;
 }
@@ -332,6 +418,33 @@ function signalOf(run: Run): AbortSignal | undefined {
   return run.recovering ? undefined : run.options.signal;
 }
 
+/**
+ * The message of a wait that ran out of time: what it waited for, what it last saw, the last
+ * error its reads met, and the engine's last warnings.
+ */
+function timeoutMessage(
+  run: Run,
+  timeoutMs: number,
+  what: string,
+  seen: unknown,
+  lastError: unknown,
+): string {
+  return (
+    `timed out after ${timeoutMs.toString()} ms waiting for ${what}` +
+    (seen === undefined ? "" : `; last seen: ${stringify(seen)}`) +
+    (lastError === null ? "" : `; last error: ${describeFailure(lastError)}`) +
+    (run.engineLogs.length === 0
+      ? ""
+      : `; engine warnings: ${describeEngineWarnings(run.engineLogs)}`)
+  );
+}
+
+/**
+ * Asks `condition` every `intervalMs` until it holds or `timeoutMs` runs out. A read of the
+ * condition that fails for a moment (`classifyFailure`: a rate limit, a timeout, a 5xx, a dropped
+ * connection) is not a failure: the wait asks again, and if it runs out of time it says what it
+ * waited for and the last error. Any other failure ends the wait at once.
+ */
 async function waitUntil(
   run: Run,
   what: string,
@@ -341,22 +454,54 @@ async function waitUntil(
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   let seen: unknown = undefined;
+  let lastError: unknown = null;
   for (;;) {
     if (signalOf(run)?.aborted === true) throw new RehearsalAbortedError();
-    const result = await condition();
-    const ok = typeof result === "boolean" ? result : result.ok;
-    if (typeof result !== "boolean") seen = result.seen;
-    if (ok) return;
+    try {
+      const result = await condition();
+      const ok = typeof result === "boolean" ? result : result.ok;
+      if (typeof result !== "boolean") seen = result.seen;
+      if (ok) return;
+    } catch (error: unknown) {
+      if (classifyFailure(error) === "permanent") throw error;
+      lastError = error;
+    }
     if (Date.now() >= deadline) {
-      throw new WaitTimeoutError(
-        `timed out after ${timeoutMs.toString()} ms waiting for ${what}` +
-          (seen === undefined ? "" : `; last seen: ${stringify(seen)}`) +
-          (run.engineLogs.length === 0
-            ? ""
-            : `; engine warnings: ${describeEngineWarnings(run.engineLogs)}`),
-      );
+      throw new WaitTimeoutError(timeoutMessage(run, timeoutMs, what, seen, lastError));
     }
     await pause(intervalMs, signalOf(run));
+  }
+}
+
+/**
+ * A read outside a wait: tried again on a transient failure, with doubling delays. It obeys the
+ * run's signal, unless `signal` is given (`undefined`: the reads made once the run is over, which
+ * must finish even after Ctrl-C).
+ */
+function read<T>(
+  run: Run,
+  what: string,
+  body: () => Promise<T>,
+  signal: AbortSignal | undefined = signalOf(run),
+): Promise<T> {
+  return withRetry(what, body, {
+    policy: run.retry,
+    signal,
+    onRetry: () => run.meter.noteRetry(),
+  });
+}
+
+/**
+ * A read whose failure must not stop what follows (the reads made once the run is over, which
+ * Ctrl-C does not interrupt): its value, or null with a line in `unread` saying what could not
+ * be read and why.
+ */
+async function readOrNote<T>(run: Run, what: string, body: () => Promise<T>): Promise<T | null> {
+  try {
+    return await read(run, what, body, undefined);
+  } catch (error: unknown) {
+    run.unread.push(run.redact(`${what}: ${describeFailure(error)}`));
+    return null;
   }
 }
 
@@ -377,6 +522,7 @@ async function step<T>(
     status: "failed",
   };
   run.receipt.steps.push(record);
+  run.current.step = name;
   const started = Date.now();
   run.options.out(`[${name}] started`);
   try {
@@ -394,6 +540,7 @@ async function step<T>(
     throw new RehearsalStepError(name, reason, { cause: error });
   } finally {
     record.durationMs = Date.now() - started;
+    run.current.step = null;
     run.options.out(`[${name}] ${record.status} in ${record.durationMs.toString()} ms`);
   }
 }
@@ -403,25 +550,8 @@ async function step<T>(
 // ---------------------------------------------------------------------------------------------
 
 function refuseEarly(options: RehearsalOptions): Scenario {
-  const reasons: string[] = [];
-  const { chainId } = options;
-  if (chainId === ARC_TESTNET_CHAIN_ID && options.local) {
-    reasons.push(
-      `chain id ${chainId.toString()} is Arc testnet: --local cannot be used with it (start a local chain with another id, e.g. 31337)`,
-    );
-  } else if (chainId !== ARC_TESTNET_CHAIN_ID && chainId !== LOCAL_CHAIN_ID && !options.local) {
-    reasons.push(
-      `chain id ${chainId.toString()} is neither Arc testnet (${ARC_TESTNET_CHAIN_ID.toString()}) nor a local chain (${LOCAL_CHAIN_ID.toString()}, or another id with --local)`,
-    );
-  }
-  const { relayerKey, oracleKey, demoSeed } = options.secrets;
-  if (!validKey(relayerKey)) reasons.push("the relayer key is not 0x followed by 64 hex digits");
-  if (!validKey(oracleKey)) reasons.push("the oracle key is not 0x followed by 64 hex digits");
-  if (!validKey(demoSeed)) reasons.push("the demo wallet seed is not 0x followed by 64 hex digits");
-  if (validKey(relayerKey) && relayerKey.toLowerCase() === oracleKey.toLowerCase()) {
-    reasons.push("the relayer and the oracle must be two different keys");
-  }
-  const local = chainId !== ARC_TESTNET_CHAIN_ID;
+  const reasons = refuseChainAndKeys(options);
+  const local = options.chainId !== ARC_TESTNET_CHAIN_ID;
   if (local && options.receiptDir !== undefined && isUnder(options.receiptDir, DOCS_DIR)) {
     reasons.push(
       "a receipt of a run on a local chain is never written under docs/: choose another directory",
@@ -440,7 +570,7 @@ function emptyReceipt(
 ): RehearsalReceipt {
   const arc = options.chainId === ARC_TESTNET_CHAIN_ID;
   return {
-    version: 1,
+    version: 2,
     runId: "",
     status: "failed",
     failure: null,
@@ -459,6 +589,7 @@ function emptyReceipt(
       address: getAddress(options.escrowAddress),
       deployBlock: options.escrowDeployBlock,
       runStartBlock: null,
+      engineStartBlock: null,
     },
     roles: {
       relayer: privateKeyToAccount(options.secrets.relayerKey).address,
@@ -491,19 +622,135 @@ function emptyReceipt(
     gasWei: 0n,
     sweep: [],
     leftBehind: [],
+    unread: [],
+    rpc: null,
     recovery: null,
     stranded: false,
   };
 }
 
+/** The chain, its clients and its roles, read before anything is sent. */
 interface Preflight {
+  /** The runner's client (counted); `engineClient` is the engine's. */
   client: PublicClient;
+  engineClient: PublicClient;
+  limiter: RpcLimiter | null;
   chain: ReturnType<typeof createArcClients>["chain"];
   accounts: ReturnType<typeof createArcClients>["accounts"];
   moneyMode: MoneyMode;
   token: Address;
   treasury: Address;
-  estimate: Estimate;
+}
+
+/** What the node must be for a run or a recovery to start; nothing is sent here. */
+interface NodeAccess {
+  meter: RpcMeter;
+  current: { step: RehearsalStep | null };
+  logger: Logger;
+  retry: RetryPolicy;
+  signal: AbortSignal | undefined;
+}
+
+/**
+ * Builds the clients (`createArcClients`, with the limiter's variables and the engine's logger
+ * for its cool-downs; the runner reads through `meteredClient` over the same client), then checks
+ * the node's chain id and the escrow's roles against the keys. Throws `RehearsalRefusedError`
+ * when they differ or cannot be read (after retries), with the limiter closed.
+ */
+async function connect(
+  options: Pick<
+    RehearsalOptions,
+    | "chainId"
+    | "rpcUrl"
+    | "rpcFallbackUrl"
+    | "secrets"
+    | "escrowAddress"
+    | "rpcLimits"
+    | "nodeFaults"
+    | "out"
+  >,
+  access: NodeAccess,
+): Promise<Preflight> {
+  const arc = createArcClients(
+    {
+      ARC_CHAIN_ID: options.chainId,
+      ARC_RPC_URL: options.rpcUrl,
+      // As the engine's environment: Arc's public RPC behind the primary one, unless told otherwise.
+      ARC_RPC_FALLBACK_URL:
+        options.rpcFallbackUrl ??
+        (options.chainId === ARC_TESTNET_CHAIN_ID ? ARC_PUBLIC_RPC_URL : options.rpcUrl),
+      ARC_RELAYER_PRIVATE_KEY: options.secrets.relayerKey,
+      ARC_ORACLE_PRIVATE_KEY: options.secrets.oracleKey,
+      ...limiterEnv(options.rpcLimits),
+    },
+    { logger: access.logger.child({ module: "rpc-limiter" }) },
+  );
+  const client = meteredClient(arc.publicClient, {
+    meter: access.meter,
+    step: () => access.current.step,
+    ...(options.nodeFaults === undefined ? {} : { fault: options.nodeFaults }),
+  });
+  const read = <T>(what: string, body: () => Promise<T>): Promise<T> =>
+    withRetry(what, body, {
+      policy: access.retry,
+      signal: access.signal,
+      onRetry: () => access.meter.noteRetry(),
+    });
+  try {
+    let nodeChainId: number;
+    try {
+      nodeChainId = await read("the node's chain id", () => client.getChainId());
+    } catch (error: unknown) {
+      throw new RehearsalRefusedError([
+        `the node at ${hostOf(options.rpcUrl)} cannot be read: ${errorMessage(error)}`,
+      ]);
+    }
+    if (nodeChainId !== options.chainId) {
+      throw new RehearsalRefusedError([
+        `the node answers chain id ${nodeChainId.toString()}, the run was asked for ${options.chainId.toString()}`,
+      ]);
+    }
+    const escrow = getAddress(options.escrowAddress);
+    let roles;
+    try {
+      roles = await read("the escrow's roles", () => readEscrowRoles(client, escrow));
+    } catch (error: unknown) {
+      throw new RehearsalRefusedError([
+        `the escrow ${escrow} cannot be read: ${errorMessage(error)}`,
+      ]);
+    }
+    const relayer = arc.accounts.relayer.address;
+    const oracle = arc.accounts.oracle.address;
+    const out = options.out;
+    out(`chain ${options.chainId.toString()} at ${hostOf(options.rpcUrl)}, escrow ${escrow}`);
+    out(`relayer ${relayer} (escrow's relayer ${roles.relayer})`);
+    out(`oracle ${oracle} (escrow's oracle ${roles.oracle})`);
+    out(`treasury ${roles.treasury}, token ${roles.token}`);
+    const reasons: string[] = [];
+    if (roles.relayer !== relayer)
+      reasons.push(`the escrow's relayer is ${roles.relayer}, the relayer key given is ${relayer}`);
+    if (roles.oracle !== oracle)
+      reasons.push(`the escrow's oracle is ${roles.oracle}, the oracle key given is ${oracle}`);
+    if (roles.treasury !== relayer) {
+      reasons.push(
+        `the escrow's treasury is ${roles.treasury}, not the relayer ${relayer} whose key was given`,
+      );
+    }
+    if (reasons.length > 0) throw new RehearsalRefusedError(reasons);
+    return {
+      client,
+      engineClient: arc.publicClient,
+      limiter: arc.limiter,
+      chain: arc.chain,
+      accounts: arc.accounts,
+      moneyMode: moneyModeOf(options.chainId, roles.token),
+      token: roles.token,
+      treasury: roles.treasury,
+    };
+  } catch (error: unknown) {
+    arc.limiter?.close();
+    throw error;
+  }
 }
 
 async function preflight(
@@ -511,116 +758,77 @@ async function preflight(
   scenario: Scenario,
   receipt: RehearsalReceipt,
   wallets: { merchant: Wallet; buyers: Wallet[] },
+  access: NodeAccess,
 ): Promise<Preflight> {
   const out = options.out;
-  const arc = createArcClients({
-    ARC_CHAIN_ID: options.chainId,
-    ARC_RPC_URL: options.rpcUrl,
-    // As the engine's environment: Arc's public RPC behind the primary one, unless told otherwise.
-    ARC_RPC_FALLBACK_URL:
-      options.rpcFallbackUrl ??
-      (options.chainId === ARC_TESTNET_CHAIN_ID ? ARC_PUBLIC_RPC_URL : options.rpcUrl),
-    ARC_RELAYER_PRIVATE_KEY: options.secrets.relayerKey,
-    ARC_ORACLE_PRIVATE_KEY: options.secrets.oracleKey,
-  });
-  const client = arc.publicClient;
-  let nodeChainId: number;
+  const flight = await connect(options, access);
   try {
-    nodeChainId = await client.getChainId();
+    const { client, moneyMode } = flight;
+    const escrow = getAddress(options.escrowAddress);
+    const relayer = flight.accounts.relayer.address;
+    const oracle = flight.accounts.oracle.address;
+    out(`merchant (demo wallet) ${wallets.merchant.address}`);
+    for (const buyer of wallets.buyers) out(`${buyer.label} (demo wallet) ${buyer.address}`);
+    receipt.roles.treasury = flight.treasury;
+    receipt.chain.moneyMode = moneyMode;
+    receipt.chain.token = flight.token;
+    const read = <T>(what: string, body: () => Promise<T>): Promise<T> =>
+      withRetry(what, body, {
+        policy: access.retry,
+        signal: access.signal,
+        onRetry: () => access.meter.noteRetry(),
+      });
+    const fees = await read("the node's fees", () => client.estimateFeesPerGas());
+    const estimate = estimateRun({ scenario, nodeMaxFeePerGasWei: fees.maxFeePerGas, moneyMode });
+    receipt.estimate = estimate;
+
+    const [treasuryMoney, relayerNative, oracleNative, allowance] = await read(
+      "the balances of the treasury, the relayer and the oracle",
+      () =>
+        Promise.all([
+          moneyOf(client, moneyMode, flight.token, flight.treasury),
+          client.getBalance({ address: relayer }),
+          client.getBalance({ address: oracle }),
+          allowanceOf(client, flight.token, flight.treasury, escrow),
+        ]),
+    );
+    out(
+      `treasury balance: ${formatWei(treasuryMoney, 18)} USDC; allowance to the escrow: ${formatWei(allowance, 6)} USDC`,
+    );
+    out(
+      `oracle native balance: ${formatWei(oracleNative, 18)}${moneyMode === "native-usdc" ? " USDC" : " (gas coin)"}`,
+    );
+    if (moneyMode === "erc20")
+      out(`relayer native balance: ${formatWei(relayerNative, 18)} (gas coin)`);
+    for (const line of describeEstimate(estimate, moneyMode)) out(line);
+
+    const short: string[] = [];
+    if (treasuryMoney < estimate.treasuryNeedsWithMargin) {
+      short.push(
+        `the treasury holds ${formatWei(treasuryMoney, 18)} USDC, the run needs ${formatWei(estimate.treasuryNeedsWithMargin, 18)} with the 20 % margin`,
+      );
+    }
+    if (allowance < estimate.treasuryLocks) {
+      short.push(
+        `the treasury's allowance to the escrow is ${formatWei(allowance, 6)} USDC, the run fronts up to ${formatWei(estimate.treasuryLocks, 6)}`,
+      );
+    }
+    if (oracleNative < estimate.oracleNeedsWithMarginWei) {
+      short.push(
+        `the oracle holds ${formatWei(oracleNative, 18)} for gas, the run needs ${formatWei(estimate.oracleNeedsWithMarginWei, 18)} with the 20 % margin`,
+      );
+    }
+    if (moneyMode === "erc20" && relayerNative < estimate.relayerGasNeedsWithMarginWei) {
+      short.push(
+        `the relayer holds ${formatWei(relayerNative, 18)} for gas, the run needs ${formatWei(estimate.relayerGasNeedsWithMarginWei, 18)} with the 20 % margin`,
+      );
+    }
+    if (short.length > 0) throw new RehearsalRefusedError(short);
+    return flight;
   } catch (error: unknown) {
-    throw new RehearsalRefusedError([
-      `the node at ${hostOf(options.rpcUrl)} cannot be read: ${errorMessage(error)}`,
-    ]);
+    flight.limiter?.close();
+    throw error;
   }
-  if (nodeChainId !== options.chainId) {
-    throw new RehearsalRefusedError([
-      `the node answers chain id ${nodeChainId.toString()}, the run was asked for ${options.chainId.toString()}`,
-    ]);
-  }
-  const escrow = getAddress(options.escrowAddress);
-  let roles;
-  try {
-    roles = await readEscrowRoles(client, escrow);
-  } catch (error: unknown) {
-    throw new RehearsalRefusedError([
-      `the escrow ${escrow} cannot be read: ${errorMessage(error)}`,
-    ]);
-  }
-  const relayer = arc.accounts.relayer.address;
-  const oracle = arc.accounts.oracle.address;
-  out(`chain ${options.chainId.toString()} at ${hostOf(options.rpcUrl)}, escrow ${escrow}`);
-  out(`relayer ${relayer} (escrow's relayer ${roles.relayer})`);
-  out(`oracle ${oracle} (escrow's oracle ${roles.oracle})`);
-  out(`treasury ${roles.treasury}, token ${roles.token}`);
-  out(`merchant (demo wallet) ${wallets.merchant.address}`);
-  for (const buyer of wallets.buyers) out(`${buyer.label} (demo wallet) ${buyer.address}`);
-  const reasons: string[] = [];
-  if (roles.relayer !== relayer)
-    reasons.push(`the escrow's relayer is ${roles.relayer}, the relayer key given is ${relayer}`);
-  if (roles.oracle !== oracle)
-    reasons.push(`the escrow's oracle is ${roles.oracle}, the oracle key given is ${oracle}`);
-  if (roles.treasury !== relayer) {
-    reasons.push(
-      `the escrow's treasury is ${roles.treasury}, not the relayer ${relayer} whose key was given`,
-    );
-  }
-  receipt.roles.treasury = roles.treasury;
-  if (reasons.length > 0) throw new RehearsalRefusedError(reasons);
-
-  const moneyMode = moneyModeOf(options.chainId, roles.token);
-  receipt.chain.moneyMode = moneyMode;
-  receipt.chain.token = roles.token;
-  const fees = await client.estimateFeesPerGas();
-  const estimate = estimateRun({ scenario, nodeMaxFeePerGasWei: fees.maxFeePerGas, moneyMode });
-  receipt.estimate = estimate;
-
-  const [treasuryMoney, relayerNative, oracleNative, allowance] = await Promise.all([
-    moneyOf(client, moneyMode, roles.token, roles.treasury),
-    client.getBalance({ address: relayer }),
-    client.getBalance({ address: oracle }),
-    allowanceOf(client, roles.token, roles.treasury, escrow),
-  ]);
-  out(
-    `treasury balance: ${formatWei(treasuryMoney, 18)} USDC; allowance to the escrow: ${formatWei(allowance, 6)} USDC`,
-  );
-  out(
-    `oracle native balance: ${formatWei(oracleNative, 18)}${moneyMode === "native-usdc" ? " USDC" : " (gas coin)"}`,
-  );
-  if (moneyMode === "erc20")
-    out(`relayer native balance: ${formatWei(relayerNative, 18)} (gas coin)`);
-  for (const line of describeEstimate(estimate, moneyMode)) out(line);
-
-  const short: string[] = [];
-  if (treasuryMoney < estimate.treasuryNeedsWithMargin) {
-    short.push(
-      `the treasury holds ${formatWei(treasuryMoney, 18)} USDC, the run needs ${formatWei(estimate.treasuryNeedsWithMargin, 18)} with the 20 % margin`,
-    );
-  }
-  if (allowance < estimate.treasuryLocks) {
-    short.push(
-      `the treasury's allowance to the escrow is ${formatWei(allowance, 6)} USDC, the run fronts up to ${formatWei(estimate.treasuryLocks, 6)}`,
-    );
-  }
-  if (oracleNative < estimate.oracleNeedsWithMarginWei) {
-    short.push(
-      `the oracle holds ${formatWei(oracleNative, 18)} for gas, the run needs ${formatWei(estimate.oracleNeedsWithMarginWei, 18)} with the 20 % margin`,
-    );
-  }
-  if (moneyMode === "erc20" && relayerNative < estimate.relayerGasNeedsWithMarginWei) {
-    short.push(
-      `the relayer holds ${formatWei(relayerNative, 18)} for gas, the run needs ${formatWei(estimate.relayerGasNeedsWithMarginWei, 18)} with the 20 % margin`,
-    );
-  }
-  if (short.length > 0) throw new RehearsalRefusedError(short);
-  return {
-    client,
-    chain: arc.chain,
-    accounts: arc.accounts,
-    moneyMode,
-    token: roles.token,
-    treasury: roles.treasury,
-    estimate,
-  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -656,12 +864,13 @@ function parties(run: Run): Party[] {
 
 async function startEngineStep(run: Run, identity: FakeIdentity): Promise<void> {
   const options = run.options;
-  const db = createDb(options.databaseUrl, { max: 20 });
+  // A recovery opened the database already, for its checks.
+  const db = run.db ?? createDb(options.databaseUrl, { max: 20 });
   run.db = db;
   const stripe = new SimulatedStripe();
   run.stripe = stripe;
   routeDeps(run, db, stripe, identity);
-  const logger = engineLogger(run.engineLogs, options.engineLogFile, run.redact);
+  const logger = run.logger;
   const marketDataLog = logger.child({ module: "market-data" });
 
   let bookFeed: BookFeed;
@@ -694,21 +903,39 @@ async function startEngineStep(run: Run, identity: FakeIdentity): Promise<void> 
   }
 
   // The newest outbox row before this run: every row after it was written by this run.
-  const [watermark] = await db<{ at: Date | null }[]>`select max(created_at) as at from chain_txs`;
+  const [watermark] = await read(
+    run,
+    "the outbox's newest row",
+    () => db<{ at: Date | null }[]>`select max(created_at) as at from chain_txs`,
+  );
   run.txWatermark = watermark?.at ?? new Date(0);
-  run.receipt.escrow.runStartBlock = await run.client.getBlockNumber();
-  run.receipt.balances.before = await snapshot(run.client, run.moneyMode, run.token, parties(run));
+  const since = new Date();
+  const head = await read(run, "the head of the chain", () =>
+    run.client.getBlockNumber({ cacheTime: 0 }),
+  );
+  run.txSince = { at: since, block: head };
+  run.receipt.escrow.runStartBlock = run.receipt.escrow.runStartBlock ?? head;
+  const engineStartBlock = engineStartBlockOf(options, head);
+  run.receipt.escrow.engineStartBlock = engineStartBlock;
+  run.options.out(
+    options.startNearHead === true
+      ? `fresh database: the engine reads the escrow's events from block ${engineStartBlock.toString()} (the head ${head.toString()} minus ${ENGINE_START_MARGIN_BLOCKS.toString()}), not from its deploy block ${options.escrowDeployBlock.toString()}`
+      : `the engine reads the escrow's events from block ${engineStartBlock.toString()} on an empty database (it resumes from its cursor otherwise)`,
+  );
+  run.receipt.balances.before = await read(run, "the balances before the run", () =>
+    snapshot(run.client, run.moneyMode, run.token, parties(run)),
+  );
 
   const controller = new AbortController();
   run.engineController = controller;
   run.engine = await startEngine({
     db,
     logger,
-    publicClient: run.client,
+    publicClient: run.engineClient,
     accounts: run.accounts,
     chainId: options.chainId,
     escrowAddress: getAddress(options.escrowAddress),
-    escrowDeployBlock: options.escrowDeployBlock,
+    escrowDeployBlock: engineStartBlock,
     bookFeed,
     // As in production: card payments go to Stripe (simulated here), replayed demo sales never do.
     payments: new RoutingPaymentGateway(stripe.engine, new DemoPaymentGateway(db)),
@@ -729,10 +956,52 @@ async function startEngineStep(run: Run, identity: FakeIdentity): Promise<void> 
     signal: controller.signal,
   });
   run.receipt.engine.started = true;
-  run.guaranteeLossesBefore = BigInt((await api.hedgeDesk()).totals.guaranteeLosses);
-  run.sampler = startDeskSampler(run);
   run.options.out(
     `engine started (production intervals), run start block ${String(run.receipt.escrow.runStartBlock)}`,
+  );
+  await waitCaughtUp(run, head);
+  run.guaranteeLossesBefore = BigInt(
+    (await read(run, "the Hedge desk", () => api.hedgeDesk())).totals.guaranteeLosses,
+  );
+  run.sampler = startDeskSampler(run);
+}
+
+/**
+ * Where the engine's event reader starts on an empty database: near the head for a fresh
+ * database (`startNearHead`), never before the escrow's deploy block; the deploy block otherwise.
+ */
+export function engineStartBlockOf(
+  options: Pick<RehearsalOptions, "startNearHead" | "escrowDeployBlock">,
+  head: bigint,
+): bigint {
+  if (options.startNearHead !== true) return options.escrowDeployBlock;
+  const near = head > ENGINE_START_MARGIN_BLOCKS ? head - ENGINE_START_MARGIN_BLOCKS : 0n;
+  return near > options.escrowDeployBlock ? near : options.escrowDeployBlock;
+}
+
+/**
+ * Waits for the engine's log cursor to reach `head` (the head when it started). On a database
+ * that already has a cursor the engine first catches up on what was mined since, and while it
+ * does every request of the process waits behind its eth_getLogs: no sale is measured before.
+ */
+async function waitCaughtUp(run: Run, head: bigint): Promise<void> {
+  const db = run.db;
+  if (db === null) throw new Error("no database");
+  const name = defaultCursorName(getAddress(run.options.escrowAddress));
+  const started = Date.now();
+  let cursor: bigint | null = null;
+  await waitUntil(
+    run,
+    `the engine's event reader to reach block ${head.toString()}`,
+    async () => {
+      cursor = await readCursor(db, name);
+      return { ok: cursor !== null && cursor >= head, seen: { cursor } };
+    },
+    run.timeouts.catchUpMs,
+    CHAIN_POLL_MS,
+  );
+  run.options.out(
+    `the engine's event reader is at block ${String(cursor)}, the head when it started (${head.toString()}), after ${(Date.now() - started).toString()} ms: no measure is taken while it catches up`,
   );
 }
 
@@ -1099,7 +1368,9 @@ async function purchasesStep(run: Run): Promise<void> {
   if (campaign === null || headers === null) throw new Error("no campaign");
   const scenario = run.scenario;
   const samples: { atMs: number; sales: number }[] = [];
-  const baseline = (await api.campaign(headers, campaign.id)).sales;
+  const baseline = (
+    await read(run, "the merchant's detail", () => api.campaign(headers, campaign.id))
+  ).sales;
   let polling = true;
   const poller = (async (): Promise<void> => {
     while (polling) {
@@ -1114,11 +1385,9 @@ async function purchasesStep(run: Run): Promise<void> {
     }
   })();
 
-  // Sales waiting to be replayed, and the buyers with a sale in flight. Two sales of one buyer
-  // are never replayed at once: the engine's first lookup of a new e-mail (resolveUserWallet)
-  // fails with IdentityConflictError when two run concurrently, and the sale ends "failed".
+  // Sales waiting to be replayed, in order. Two sales of one buyer may be in flight at once: the
+  // engine creates a new buyer's row once however many of their sales arrive together.
   const pending = Array.from({ length: scenario.purchases }, (_, index) => index);
-  const busy = new Set<number>();
   const one = async (index: number): Promise<void> => {
     const buyer = buyerOf(index, scenario.buyers);
     const wallet = run.buyers[buyer - 1];
@@ -1174,20 +1443,9 @@ async function purchasesStep(run: Run): Promise<void> {
   let firstError: unknown = null;
   const worker = async (): Promise<void> => {
     while (!stopped && pending.length > 0) {
-      const at = pending.findIndex((index) => !busy.has(buyerOf(index, scenario.buyers)));
-      if (at === -1) {
-        await pause(50, run.options.signal);
-        continue;
-      }
-      const [index] = pending.splice(at, 1);
+      const index = pending.shift();
       if (index === undefined) continue;
-      const buyer = buyerOf(index, scenario.buyers);
-      busy.add(buyer);
-      try {
-        await one(index);
-      } finally {
-        busy.delete(buyer);
-      }
+      await one(index);
     }
   };
   const guarded = async (): Promise<void> => {
@@ -1254,38 +1512,64 @@ async function deskRow(symbol: string): Promise<HedgeInstrument | null> {
   return desk.instruments.find((instrument) => instrument.symbol === symbol) ?? null;
 }
 
-async function chargedTickets(run: Run): Promise<number> {
+/** The campaign's log follower, from the block the run (or the run recovered) started at. */
+function logsOf(run: Run): CampaignLogFollower {
   const campaign = run.campaign;
-  if (campaign === null) return 0;
-  const logs = await run.client.getContractEvents({
-    address: getAddress(run.options.escrowAddress),
-    abi: winzEscrowAbi,
-    eventName: "HedgeCharged",
-    args: { id: campaign.onchainId },
-    fromBlock: run.receipt.escrow.runStartBlock ?? run.options.escrowDeployBlock,
-  });
-  return new Set(logs.map((log) => log.args.ticketId)).size;
+  if (campaign === null) throw new Error("no campaign");
+  run.logs ??= new CampaignLogFollower(
+    run.client,
+    getAddress(run.options.escrowAddress),
+    campaign.onchainId,
+    run.receipt.escrow.runStartBlock ?? run.options.escrowDeployBlock,
+  );
+  return run.logs;
 }
 
-/** Moves the driven book onto the engine's resting makers until `tickets` tickets are charged. */
+/**
+ * Moves the driven book onto the engine's resting makers until `tickets` tickets are charged.
+ * The charges are counted from the escrow's logs, read once per new block at most every
+ * `HEDGING_POLL_MS`; a read that fails for a moment is asked again at the next round, and the
+ * step runs out of time with the count, the last error and the engine's warnings.
+ */
 async function hedgingStep(run: Run, tickets: number = run.scenario.purchases): Promise<void> {
   const campaign = run.campaign;
   const quiet = run.quiet;
   if (campaign === null || quiet === null) throw new Error("no campaign");
+  const logs = logsOf(run);
   const deadline = Date.now() + run.timeouts.hedgingMs;
+  let lastError: unknown = null;
+  let lastRead = 0;
   for (;;) {
     if (signalOf(run)?.aborted === true) throw new RehearsalAbortedError();
-    const charged = await chargedTickets(run);
+    if (Date.now() - lastRead >= HEDGING_POLL_MS) {
+      lastRead = Date.now();
+      try {
+        await logs.catchUp();
+      } catch (error: unknown) {
+        if (classifyFailure(error) === "permanent") throw error;
+        lastError = error;
+      }
+    }
+    const charged = logs.chargedTickets();
     if (charged >= tickets) break;
     if (Date.now() > deadline) {
       throw new WaitTimeoutError(
-        `timed out after ${run.timeouts.hedgingMs.toString()} ms waiting for ${tickets.toString()} tickets charged on-chain (${charged.toString()} charged)` +
-          (run.engineLogs.length === 0
-            ? ""
-            : `; engine warnings: ${describeEngineWarnings(run.engineLogs)}`),
+        timeoutMessage(
+          run,
+          run.timeouts.hedgingMs,
+          `${tickets.toString()} tickets charged on-chain`,
+          { charged },
+          lastError,
+        ),
       );
     }
-    const row = await deskRow(campaign.symbol);
+    let row: HedgeInstrument | null = null;
+    try {
+      row = await deskRow(campaign.symbol);
+    } catch (error: unknown) {
+      if (classifyFailure(error) === "permanent") throw error;
+      lastError = error;
+    }
     const maker = row?.orders.find(
       (order) => order.kind === "maker" && order.side === "buy" && order.status === "working",
     );
@@ -1362,7 +1646,7 @@ async function waitClosed(run: Run): Promise<void> {
       };
     },
     run.timeouts.closeMs,
-    500,
+    CHAIN_POLL_MS,
   );
   await waitUntil(
     run,
@@ -1384,68 +1668,8 @@ async function waitClosed(run: Run): Promise<void> {
       };
     },
     run.timeouts.closeMs,
-    500,
+    CHAIN_POLL_MS,
   );
-}
-
-/** How often the rehearsal reads new blocks for settle and the refunds (the wall-clock measure). */
-const REFUND_WATCH_MS = 100;
-
-/**
- * Reads the escrow's logs of each new block, every 100 ms, and notes the wall-clock moment settle
- * and then the last refund of the campaign were first seen (criterion 6). Block timestamps are in
- * whole seconds, and the outbox's mined_at is the block time, so this is the only wall clock there
- * is; it is late by at most the poll interval and one RPC round trip.
- */
-function watchRefunds(run: Run, id: bigint, fromBlock: bigint): { stop: () => Promise<void> } {
-  const escrow = getAddress(run.options.escrowAddress);
-  const tickets = run.scenario.purchases;
-  const watch = {
-    settleSeenAtMs: null as number | null,
-    lastRefundSeenAtMs: null as number | null,
-  };
-  run.refundWatch = watch;
-  let stopped = false;
-  let next = fromBlock;
-  let refunded = 0;
-  const tick = async (): Promise<void> => {
-    try {
-      // Uncached: the client otherwise answers the same block number for 300 ms.
-      const latest = await run.client.getBlockNumber({ cacheTime: 0 });
-      if (latest < next) return;
-      const range = {
-        address: escrow,
-        abi: winzEscrowAbi,
-        fromBlock: next,
-        toBlock: latest,
-      } as const;
-      const [settled, refunds] = await Promise.all([
-        run.client.getContractEvents({ ...range, eventName: "CampaignSettled", args: { id } }),
-        run.client.getContractEvents({ ...range, eventName: "TicketRefunded", args: { id } }),
-      ]);
-      const seenAt = Date.now();
-      if (settled.length > 0) watch.settleSeenAtMs ??= seenAt;
-      refunded += refunds.length;
-      if (refunds.length > 0 && refunded >= tickets) watch.lastRefundSeenAtMs ??= seenAt;
-      next = latest + 1n;
-    } catch {
-      // A failed read is retried on the next tick, from the same block.
-    }
-  };
-  const loop = (async (): Promise<void> => {
-    while (!stopped) {
-      await tick();
-      await new Promise<void>((resolveTick) => setTimeout(resolveTick, REFUND_WATCH_MS));
-    }
-  })();
-  return {
-    stop: async () => {
-      stopped = true;
-      await loop;
-      // One last read, so that blocks mined since the previous tick are not missed.
-      await tick();
-    },
-  };
 }
 
 async function settleStep(run: Run): Promise<void> {
@@ -1453,14 +1677,22 @@ async function settleStep(run: Run): Promise<void> {
   const headers = run.headers;
   if (campaign === null || headers === null) throw new Error("no campaign");
   const outcome = run.scenario.outcome;
-  const watcher = watchRefunds(run, campaign.onchainId, await run.client.getBlockNumber());
-  await forceResult(run, outcome);
-  await waitSettled(run, outcome).finally(() => watcher.stop());
+  // The wall clock of each new block, from before the result is forced to the release.
+  const clock = new BlockClock(run.client, BLOCK_CLOCK_MS);
+  run.blockClock = clock;
+  await clock.tick();
+  clock.start();
+  try {
+    await forceResult(run, outcome);
+    await waitSettled(run, outcome);
+  } finally {
+    await clock.stop();
+  }
   // Every answer of the public side about the campaign, once settled.
-  const page = await api.publicCampaign(campaign.slug);
+  const page = await read(run, "the campaign page", () => api.publicCampaign(campaign.slug));
   flag(run, "GET /api/c/:slug", page.demo);
   for (const token of run.ticketTokens) {
-    const ticket = await api.ticket(token);
+    const ticket = await read(run, "a ticket page", () => api.ticket(token));
     flag(run, "GET /api/t/:token", ticket.demo);
   }
 }
@@ -1499,42 +1731,104 @@ async function waitSettled(run: Run, outcome: Outcome): Promise<void> {
       };
     },
     run.timeouts.settleMs,
-    500,
+    CHAIN_POLL_MS,
   );
 }
 
 /**
- * After a failure, while the engine still runs: brings the campaign to a release, so that the
- * escrow holds nothing for it when the run ends. Hedges what was sold (settle needs a zero hedge
- * reservation), closes sales through the merchant's route if they are still open, forces NO
- * through the demo route (no refund to send; the merchant's wallet receives what is left and is
- * swept), unless this run already forced a result, and waits for the release. Ctrl-C does not
- * interrupt it; every wait still has its timeout.
+ * The result the campaign settles on, when one is already decided: the merchant's detail says
+ * settled, this run forced one, the demo route forced one (a stored override), or the instrument's
+ * result is known. Null when none is: the recovery then forces NO.
  */
-async function recoverStep(run: Run): Promise<void> {
+async function decidedOutcome(run: Run): Promise<Outcome | null> {
+  const campaign = run.campaign;
+  const headers = run.headers;
+  const db = run.db;
+  if (campaign === null || headers === null || db === null) throw new Error("no campaign");
+  const detail = await read(run, "the merchant's detail", () => api.campaign(headers, campaign.id));
+  if (detail.status === "settled_yes") return "yes";
+  if (detail.status === "settled_no") return "no";
+  if (run.forcedOutcome !== null) return run.forcedOutcome;
+  const [row] = await read(
+    run,
+    "the campaign's forced or known result",
+    () =>
+      db<{ forced: string | null; known: string | null }[]>`
+      select
+        (select forced_result from demo_overrides where instrument = ${campaign.symbol}) as forced,
+        (select outcome from instruments where symbol = ${campaign.symbol}) as known
+    `,
+  );
+  for (const value of [row?.forced, row?.known]) {
+    if (value === "yes" || value === "no") return value;
+  }
+  return null;
+}
+
+/**
+ * Brings the campaign to a release while the engine runs, so that the escrow holds nothing for
+ * it: hedges what was sold and not yet charged (settle needs a zero hedge reservation), closes
+ * sales through the merchant's route if they are still open, forces NO through the demo route
+ * (no refund to send; the merchant's wallet receives what is left and is swept) unless a result
+ * is already forced or known, and waits for the settlement, any refund, the merchant's payment
+ * and the release. Used after a failed step (Ctrl-C does not interrupt it then; every wait keeps
+ * its timeout) and by `--recover`. Each thing it does is added to `actions`.
+ */
+async function recoverStep(run: Run, actions: string[] = []): Promise<void> {
   const campaign = run.campaign;
   const headers = run.headers;
   if (campaign === null || headers === null) throw new Error("no campaign");
+  if (run.options.strand === true) throw new InjectedFailureError("recover");
   const escrow = getAddress(run.options.escrowAddress);
-  const outcome: Outcome = run.forcedOutcome ?? "no";
+  const decided = await decidedOutcome(run);
+  const outcome: Outcome = decided ?? "no";
   const record = { outcome, released: false, reason: null as string | null };
   run.receipt.recovery = record;
   try {
-    const detail = await api.campaign(headers, campaign.id);
+    const detail = await read(run, "the merchant's detail", () =>
+      api.campaign(headers, campaign.id),
+    );
     const open = detail.status === "live" || detail.status === "paused";
     if (open || detail.status === "sales_closed") {
-      const from = run.receipt.escrow.runStartBlock ?? run.options.escrowDeployBlock;
-      const sold = (await campaignEvents(run.client, escrow, campaign.onchainId, from)).purchased
-        .length;
-      if (sold > 0 && run.quiet !== null && (await chargedTickets(run)) < sold) {
-        await hedgingStep(run, sold);
+      if (!run.demoOverridesSet && run.quiet !== null) {
+        // A recovery in a new process: the run's driven book was reset with the demo overrides,
+        // and the engine needs a fresh book to hedge, to reconcile at close and to settle.
+        await setBook(run, run.quiet.bidBps, run.quiet.askBps, open);
+        actions.push(
+          `book driven again at bid ${run.quiet.bidBps.toString()} / ask ${run.quiet.askBps.toString()} bps, as the run drove it`,
+        );
       }
-      if (open) await api.close(headers, campaign.id);
+      const logs = logsOf(run);
+      await read(run, "the campaign's events", () => logs.catchUp());
+      const sold = logs.events().purchased.length;
+      const charged = logs.chargedTickets();
+      if (sold > charged && run.quiet !== null) {
+        await hedgingStep(run, sold);
+        actions.push(
+          `${(sold - charged).toString()} ticket(s) hedged and charged (${sold.toString()} sold)`,
+        );
+      }
+      if (open) {
+        await api.close(headers, campaign.id);
+        actions.push("sales closed through the merchant's route");
+      }
       await waitClosed(run);
     }
-    if (run.forcedOutcome === null) await forceResult(run, outcome);
+    if (decided === null) {
+      await forceResult(run, outcome);
+      actions.push("result NO forced through the demo route");
+    } else {
+      actions.push(`result ${outcome.toUpperCase()} already forced or known: not forced again`);
+    }
     await waitSettled(run, outcome);
-    record.released = (await readCampaign(run.client, escrow, campaign.onchainId)).released;
+    actions.push(
+      `settled ${outcome.toUpperCase()}${outcome === "yes" ? ", refunds and the merchant's due paid" : ""}, released`,
+    );
+    record.released = (
+      await read(run, "the campaign on-chain", () =>
+        readCampaign(run.client, escrow, campaign.onchainId),
+      )
+    ).released;
   } catch (error: unknown) {
     record.reason = run.redact(errorMessage(error));
     throw error;
@@ -1550,40 +1844,22 @@ async function stopEngine(run: Run): Promise<void> {
   run.receipt.engine.stopped = true;
 }
 
+/** Every demo wallet of the run back to the treasury, each tried again for a moment's failure. */
 async function sweepStep(run: Run): Promise<void> {
+  if (run.options.strand === true) throw new InjectedFailureError("sweep");
   const wallets = [run.merchant, ...run.buyers];
-  const out = run.options.out;
-  if (run.moneyMode === "native-usdc") {
-    const results = await sweepDemoWallets({
-      seed: run.options.secrets.demoSeed,
-      emails: wallets.map((wallet) => wallet.email),
-      rpcUrl: run.options.rpcUrl,
-      destination: run.treasury,
-      out,
-    });
-    run.receipt.sweep = results.map((result) => ({
-      wallet:
-        wallets.find((wallet) => wallet.address === getAddress(result.address))?.label ??
-        "demo wallet",
-      address: getAddress(result.address),
-      status: result.status,
-      sentWei: result.sentWei,
-      gasWei: result.gasWei,
-      txHash: result.txHash,
-    }));
-    return;
-  }
-  if (!run.receipt.chain.local)
-    throw new Error("a token sweep with gas top-ups is for local chains only");
-  run.receipt.sweep = await sweepTokenOnLocalChain({
+  run.receipt.sweep = await sweepWallets({
     client: run.client,
     chain: run.chain,
-    rpcUrl: run.options.rpcUrl,
+    mode: run.moneyMode,
     token: run.token,
     seed: run.options.secrets.demoSeed,
     wallets: wallets.map((wallet) => ({ label: wallet.label, email: wallet.email })),
     destination: run.treasury,
-    out,
+    local: run.receipt.chain.local,
+    policy: run.retry,
+    out: run.options.out,
+    onRetry: () => run.meter.noteRetry(),
   });
 }
 
@@ -1593,6 +1869,7 @@ async function sweepStep(run: Run): Promise<void> {
 
 interface OutboxRow {
   id: string;
+  created_at: Date;
   kind: string;
   signer: string;
   signer_address: string | null;
@@ -1624,6 +1901,21 @@ function ownsRow(
   return Array.isArray(ticketIds) && ticketIds.some((id) => ownTickets.has(String(id)));
 }
 
+/** The receipt of `hash`; null when the node does not know it (not mined) or it could not be read. */
+async function minedReceipt(run: Run, what: string, hash: Hex): Promise<TransactionReceipt | null> {
+  try {
+    return await read(run, what, () => run.client.getTransactionReceipt({ hash }), undefined);
+  } catch (error: unknown) {
+    if (error instanceof TransactionReceiptNotFoundError) return null;
+    run.unread.push(run.redact(`${what}: ${describeFailure(error)}`));
+    return null;
+  }
+}
+
+/**
+ * Every outbox row this engine wrote since `run.txWatermark`, or sent since then (a row left
+ * queued by an earlier process and resumed), each with its receipt read from the chain.
+ */
 async function collectTransactions(
   run: Run,
   ownTickets: ReadonlySet<string>,
@@ -1631,37 +1923,44 @@ async function collectTransactions(
   const db = run.db;
   const records: TxRecord[] = [];
   const gasBySigner = new Map<Address, bigint>();
-  if (db === null || run.txWatermark === null) return { rows: [], records, gasBySigner };
-  const rows = await db<OutboxRow[]>`
-    select id, kind, signer, signer_address, status, tx_hash, payload, sent_at, mined_at
-    from chain_txs
-    where created_at > ${run.txWatermark}
-    order by created_at, id
-  `;
+  const watermark = run.txWatermark;
+  const since = run.txSince;
+  if (db === null || watermark === null || since === null) {
+    return { rows: [], records, gasBySigner };
+  }
+  const rows = await readOrNote(
+    run,
+    "the engine's outbox",
+    () =>
+      db<OutboxRow[]>`
+      select id, created_at, kind, signer, signer_address, status, tx_hash, payload, sent_at,
+        mined_at
+      from chain_txs
+      where created_at > ${watermark} or sent_at > ${since.at}
+      order by created_at, id
+    `,
+  );
+  if (rows === null) return { rows: [], records, gasBySigner };
   const explorer = run.receipt.chain.explorer;
   for (const row of rows) {
     if (row.tx_hash === null) continue;
     const hash = row.tx_hash as Hex;
-    let block: bigint | null = null;
-    let gasUsed: bigint | null = null;
+    const receipt = await minedReceipt(run, `the receipt of ${row.kind} ${hash}`, hash);
+    const resumed = row.created_at <= watermark;
+    if (resumed && receipt !== null && receipt.blockNumber <= since.block) continue;
     let feeWei: bigint | null = null;
-    try {
-      const receipt = await run.client.getTransactionReceipt({ hash });
-      block = receipt.blockNumber;
-      gasUsed = receipt.gasUsed;
+    if (receipt !== null) {
       feeWei = receipt.gasUsed * receipt.effectiveGasPrice;
       const from = getAddress(receipt.from);
       gasBySigner.set(from, (gasBySigner.get(from) ?? 0n) + feeWei);
-    } catch {
-      // Not mined (or not found): the row is listed with its status and no receipt.
     }
     records.push({
       kind: row.kind,
       signer: row.signer,
       hash,
       status: row.status,
-      block,
-      gasUsed,
+      block: receipt?.blockNumber ?? null,
+      gasUsed: receipt?.gasUsed ?? null,
       feeWei,
       ownCampaign: ownsRow(run, row.payload, ownTickets),
       explorerUrl: explorer === null ? null : `${explorer}/tx/${hash}`,
@@ -1670,10 +1969,37 @@ async function collectTransactions(
   return { rows, records, gasBySigner };
 }
 
+/** The sweep's transfers as transactions of the receipt, with their blocks. */
+async function sweepTransactions(run: Run): Promise<TxRecord[]> {
+  const explorer = run.receipt.chain.explorer;
+  const records: TxRecord[] = [];
+  for (const row of run.receipt.sweep) {
+    if (row.txHash === null) continue;
+    const mined = await minedReceipt(run, `the receipt of the sweep of ${row.wallet}`, row.txHash);
+    records.push({
+      kind: "sweep",
+      signer: row.wallet,
+      hash: row.txHash,
+      status: row.status,
+      block: mined?.blockNumber ?? null,
+      gasUsed: mined?.gasUsed ?? null,
+      feeWei: row.gasWei,
+      ownCampaign: true,
+      explorerUrl: explorer === null ? null : `${explorer}/tx/${row.txHash}`,
+    });
+  }
+  return records;
+}
+
+/**
+ * The refund timing: blocks from the events, chain seconds from the two blocks' timestamps, and
+ * the wall clock from the block clock that watched the head during settle.
+ */
 async function refundTiming(
   run: Run,
   events: CampaignEvents,
   rows: readonly OutboxRow[],
+  records: readonly TxRecord[],
 ): Promise<RefundTiming | null> {
   const settled = events.settled[0];
   if (settled === undefined || events.refunded.length === 0) return null;
@@ -1681,39 +2007,35 @@ async function refundTiming(
     (max, refund) => (refund.block > max ? refund.block : max),
     0n,
   );
-  const [settleBlock, refundBlock] = await Promise.all([
-    run.client.getBlock({ blockNumber: settled.block }),
-    run.client.getBlock({ blockNumber: lastBlock }),
-  ]);
+  const blocks = await readOrNote(run, "the blocks of settle and of the last refund", () =>
+    Promise.all([
+      run.client.getBlock({ blockNumber: settled.block }),
+      run.client.getBlock({ blockNumber: lastBlock }),
+    ]),
+  );
   const ownTickets = new Set(events.purchased.map((ticket) => ticket.ticketId.toString()));
-  const own = rows.filter((row) => ownsRow(run, row.payload, ownTickets));
-  const batches = own.filter((row) => row.kind === "refundBatch" && row.tx_hash !== null);
-  const batchRecords: RefundTiming["batches"] = [];
-  for (const row of batches) {
-    const hash = row.tx_hash as Hex;
-    const gasUsed = await run.client
-      .getTransactionReceipt({ hash })
-      .then((receipt) => receipt.gasUsed)
-      .catch(() => null);
-    const ticketIds = row.payload.ticketIds;
-    batchRecords.push({
-      hash,
-      tickets: Array.isArray(ticketIds) ? ticketIds.length : 0,
-      gasUsed,
-      sentAt: row.sent_at?.toISOString() ?? null,
-      blockTime: row.mined_at?.toISOString() ?? null,
-    });
-  }
+  const batches = rows.filter(
+    (row) =>
+      ownsRow(run, row.payload, ownTickets) && row.kind === "refundBatch" && row.tx_hash !== null,
+  );
+  const settleSeen = run.blockClock?.firstSeenAtMs(settled.block) ?? null;
+  const lastSeen = run.blockClock?.firstSeenAtMs(lastBlock) ?? null;
   return {
     settleBlock: settled.block,
     lastRefundBlock: lastBlock,
     blocks: lastBlock - settled.block,
-    chainSeconds: refundBlock.timestamp - settleBlock.timestamp,
-    wallMs:
-      run.refundWatch?.settleSeenAtMs == null || run.refundWatch.lastRefundSeenAtMs === null
-        ? null
-        : run.refundWatch.lastRefundSeenAtMs - run.refundWatch.settleSeenAtMs,
-    batches: batchRecords,
+    chainSeconds: blocks === null ? null : blocks[1].timestamp - blocks[0].timestamp,
+    wallMs: settleSeen === null || lastSeen === null ? null : lastSeen - settleSeen,
+    batches: batches.map((row) => {
+      const ticketIds = row.payload.ticketIds;
+      return {
+        hash: row.tx_hash as Hex,
+        tickets: Array.isArray(ticketIds) ? ticketIds.length : 0,
+        gasUsed: records.find((record) => record.hash === row.tx_hash)?.gasUsed ?? null,
+        sentAt: row.sent_at?.toISOString() ?? null,
+        blockTime: row.mined_at?.toISOString() ?? null,
+      };
+    }),
   };
 }
 
@@ -1724,15 +2046,10 @@ async function hedgingRecord(
 ): Promise<HedgingRecord | null> {
   const campaign = run.campaign;
   if (campaign === null) return null;
-  let latest: HedgeInstrument | null = null;
-  let losses: bigint | null = null;
-  try {
-    const desk = await api.hedgeDesk();
-    latest = desk.instruments.find((instrument) => instrument.symbol === campaign.symbol) ?? null;
-    losses = BigInt(desk.totals.guaranteeLosses);
-  } catch {
-    // The desk cannot be read: the row kept at close is used alone.
-  }
+  const desk = await readOrNote(run, "the Hedge desk after the run", () => api.hedgeDesk());
+  const latest =
+    desk?.instruments.find((instrument) => instrument.symbol === campaign.symbol) ?? null;
+  const losses = desk === null ? null : BigInt(desk.totals.guaranteeLosses);
   // The row as it stood at close, when the desk still listed the instrument with its orders.
   const row = run.deskAtClose ?? latest;
   const buys = row?.orders.filter((order) => order.side === "buy") ?? [];
@@ -1793,83 +2110,76 @@ export async function runRehearsal(options: RehearsalOptions): Promise<Rehearsal
   }
 }
 
-async function rehearse(input: RehearsalOptions): Promise<RehearsalReceipt> {
-  const startedAt = new Date().toISOString();
-  const scenario = refuseEarly(input);
-  const timeouts: RehearsalTimeouts = { ...DEFAULT_TIMEOUTS, ...input.timeouts };
-  const runId = randomBytes(6).toString("hex");
-  const seed = input.secrets.demoSeed;
-  const merchant: Wallet = {
-    label: "merchant",
-    email: merchantEmail(runId),
-    address: getAddress(demoWalletAddress(seed, merchantEmail(runId))),
+/** The demo wallets of a run: the merchant and each buyer, derived from the seed and the run id. */
+function walletsOf(
+  seed: Hex,
+  runId: string,
+  buyers: number,
+): { merchant: Wallet; buyers: Wallet[] } {
+  return {
+    merchant: {
+      label: "merchant",
+      email: merchantEmail(runId),
+      address: getAddress(demoWalletAddress(seed, merchantEmail(runId))),
+    },
+    buyers: Array.from({ length: buyers }, (_, index) => {
+      const email = buyerEmail(runId, index + 1);
+      return {
+        label: `buyer ${(index + 1).toString()}`,
+        email,
+        address: getAddress(demoWalletAddress(seed, email)),
+      };
+    }),
   };
-  const buyers: Wallet[] = Array.from({ length: scenario.buyers }, (_, index) => {
-    const email = buyerEmail(runId, index + 1);
-    return {
-      label: `buyer ${(index + 1).toString()}`,
-      email,
-      address: getAddress(demoWalletAddress(seed, email)),
-    };
-  });
-  // Every secret of the run, replaced in every line printed and every text of the receipt.
-  const secrets = runSecrets(
-    input,
-    [merchant, ...buyers].map((wallet) => wallet.email),
-  );
-  const redact = (text: string): string => redactText(text, secrets);
-  const options: RehearsalOptions = { ...input, out: (line) => input.out(redact(line)) };
-  const receipt = emptyReceipt(options, scenario, startedAt);
-  receipt.runId = runId;
-  receipt.roles.merchant = merchant.address;
-  receipt.roles.buyers = buyers.map((buyer, index) => ({
-    number: index + 1,
-    address: buyer.address,
-  }));
+}
 
-  let flight: Preflight;
-  try {
-    flight = await preflight(options, scenario, receipt, { merchant, buyers });
-  } catch (error: unknown) {
-    // Nothing was sent. A node that cannot be read is a refusal too; no reason may quote a secret
-    // (viem's messages carry the RPC URL).
-    if (error instanceof RehearsalRefusedError) {
-      throw new RehearsalRefusedError(error.reasons.map(redact));
-    }
-    throw new RehearsalRefusedError([
-      `the chain could not be read before the run: ${redact(errorMessage(error))}`,
-    ]);
-  }
-  if (options.estimateOnly) {
-    receipt.status = "estimate";
-    receipt.finishedAt = new Date().toISOString();
-    options.out("estimate only: nothing sent");
-    return receipt;
-  }
-
-  const run: Run = {
+/** The run's state before anything happened, around the clients `flight` connected. */
+function newRun(
+  options: RehearsalOptions,
+  parts: {
+    redact: (text: string) => string;
+    timeouts: RehearsalTimeouts;
+    scenario: Scenario;
+    flight: Preflight;
+    access: NodeAccess;
+    runId: string;
+    merchant: Wallet;
+    buyers: Wallet[];
+    receipt: RehearsalReceipt;
+    engineLogs: EngineLogEntry[];
+  },
+): Run {
+  return {
     options,
-    redact,
+    redact: parts.redact,
     recovering: false,
-    timeouts,
-    scenario,
-    client: flight.client,
-    chain: flight.chain,
-    accounts: flight.accounts,
-    moneyMode: flight.moneyMode,
-    token: flight.token,
-    treasury: flight.treasury,
-    runId,
-    merchant,
-    buyers,
-    receipt,
-    engineLogs: [],
+    timeouts: parts.timeouts,
+    scenario: parts.scenario,
+    client: parts.flight.client,
+    engineClient: parts.flight.engineClient,
+    meter: parts.access.meter,
+    limiter: parts.flight.limiter,
+    current: parts.access.current,
+    retry: parts.access.retry,
+    logger: parts.access.logger,
+    unread: [],
+    chain: parts.flight.chain,
+    accounts: parts.flight.accounts,
+    moneyMode: parts.flight.moneyMode,
+    token: parts.flight.token,
+    treasury: parts.flight.treasury,
+    runId: parts.runId,
+    merchant: parts.merchant,
+    buyers: parts.buyers,
+    receipt: parts.receipt,
+    engineLogs: parts.engineLogs,
     db: null,
     stripe: null,
     gemini: null,
     engine: null,
     engineController: null,
     txWatermark: null,
+    txSince: null,
     headers: null,
     campaign: null,
     budgetPi: null,
@@ -1890,9 +2200,75 @@ async function rehearse(input: RehearsalOptions): Promise<RehearsalReceipt> {
     makersFilled: 0,
     heldAtClose: null,
     exposureAtClose: null,
-    refundWatch: null,
+    logs: null,
+    blockClock: null,
     deskAtClose: null,
   };
+}
+
+async function rehearse(input: RehearsalOptions): Promise<RehearsalReceipt> {
+  const startedAt = new Date().toISOString();
+  const scenario = refuseEarly(input);
+  const timeouts: RehearsalTimeouts = { ...DEFAULT_TIMEOUTS, ...input.timeouts };
+  const runId = randomBytes(6).toString("hex");
+  const { merchant, buyers } = walletsOf(input.secrets.demoSeed, runId, scenario.buyers);
+  // Every secret of the run, replaced in every line printed and every text of the receipt.
+  const secrets = runSecrets(
+    input,
+    [merchant, ...buyers].map((wallet) => wallet.email),
+  );
+  const redact = (text: string): string => redactText(text, secrets);
+  const options: RehearsalOptions = { ...input, out: (line) => input.out(redact(line)) };
+  const receipt = emptyReceipt(options, scenario, startedAt);
+  receipt.runId = runId;
+  receipt.roles.merchant = merchant.address;
+  receipt.roles.buyers = buyers.map((buyer, index) => ({
+    number: index + 1,
+    address: buyer.address,
+  }));
+  const engineLogs: EngineLogEntry[] = [];
+  const access: NodeAccess = {
+    meter: new RpcMeter(),
+    current: { step: "preflight" },
+    logger: engineLogger(engineLogs, options.engineLogFile, redact),
+    retry: retryPolicy(options.readRetry),
+    signal: options.signal,
+  };
+
+  let flight: Preflight;
+  try {
+    flight = await preflight(options, scenario, receipt, { merchant, buyers }, access);
+  } catch (error: unknown) {
+    // Nothing was sent. A node that cannot be read is a refusal too; no reason may quote a secret
+    // (viem's messages carry the RPC URL).
+    if (error instanceof RehearsalRefusedError) {
+      throw new RehearsalRefusedError(error.reasons.map(redact));
+    }
+    throw new RehearsalRefusedError([
+      `the chain could not be read before the run: ${redact(errorMessage(error))}`,
+    ]);
+  }
+  access.current.step = null;
+  if (options.estimateOnly) {
+    flight.limiter?.close();
+    receipt.status = "estimate";
+    receipt.finishedAt = new Date().toISOString();
+    options.out("estimate only: nothing sent");
+    return receipt;
+  }
+
+  const run = newRun(options, {
+    redact,
+    timeouts,
+    scenario,
+    flight,
+    access,
+    runId,
+    merchant,
+    buyers,
+    receipt,
+    engineLogs,
+  });
   const identity = new FakeIdentity();
 
   try {
@@ -1922,21 +2298,77 @@ async function rehearse(input: RehearsalOptions): Promise<RehearsalReceipt> {
   return receipt;
 }
 
+/** After the run or the recovery: the demo overrides reset and the engine stopped, whatever failed. */
+async function resetAndStop(run: Run, leftBehind: string[]): Promise<void> {
+  if (run.demoOverridesSet && !run.resetDone && run.db !== null) {
+    try {
+      const answer = await read(run, "the demo reset", () => api.demoReset(), undefined);
+      demoAnswer(run, "POST /api/admin/demo/reset", answer);
+      run.resetDone = true;
+    } catch (error: unknown) {
+      leftBehind.push(`demo overrides could not be reset: ${run.redact(errorMessage(error))}`);
+    }
+  }
+  if (run.engine !== null) {
+    try {
+      await stopEngine(run);
+    } catch (error: unknown) {
+      leftBehind.push(`the engine did not stop in time: ${run.redact(errorMessage(error))}`);
+    }
+  }
+}
+
+/** The sweep step, whatever failed before; a wallet it could not sweep is left behind. */
+async function sweepAll(
+  run: Run,
+  leftBehind: string[],
+): Promise<{ step: RehearsalStep; reason: string } | null> {
+  let failure: { step: RehearsalStep; reason: string } | null = null;
+  try {
+    // Even after Ctrl-C: funds are never left in the demo wallets.
+    await step(run, "sweep", () => sweepStep(run), { ignoreAbort: true });
+  } catch (error: unknown) {
+    const reason = error instanceof RehearsalStepError ? error.message : errorMessage(error);
+    leftBehind.push(`sweep failed: ${run.redact(reason)}`);
+    failure = { step: "sweep", reason: run.redact(reason) };
+  }
+  for (const row of run.receipt.sweep) {
+    if (row.status === "failed") leftBehind.push(`${row.wallet} ${row.address} was not swept`);
+  }
+  return failure;
+}
+
+/** Releases what the run held in this process: routes' dependencies, Gemini, database, limiter. */
+async function release(run: Run): Promise<void> {
+  setServerDepsForTesting(undefined);
+  run.gemini?.close();
+  run.gemini = null;
+  if (run.db !== null) {
+    await run.db.end({ timeout: 5 }).catch(() => undefined);
+    run.db = null;
+  }
+  // Waiting requests are released and no timer keeps the process alive.
+  run.limiter?.close();
+}
+
 /** Whatever happened: stop everything, sweep, read the chain back, check, write the receipt. */
 async function finish(run: Run): Promise<void> {
   const receipt = run.receipt;
   const out = run.options.out;
   await run.sampler?.stop().catch(() => undefined);
   run.sampler = null;
+  const escrow = getAddress(run.options.escrowAddress);
 
   // A failure with the engine still running: bring the campaign to a release before anything is
   // reset or stopped (the recovery needs the driven book and the engine).
   if (receipt.failure !== null && run.engine !== null && run.campaign !== null) {
+    const campaign = run.campaign;
     try {
-      const onchain = await readCampaign(
-        run.client,
-        getAddress(run.options.escrowAddress),
-        run.campaign.onchainId,
+      const onchain = await read(
+        run,
+        "the campaign on-chain",
+        () => readCampaign(run.client, escrow, campaign.onchainId),
+        undefined,
       );
       if (!onchain.released) {
         run.recovering = true;
@@ -1950,129 +2382,62 @@ async function finish(run: Run): Promise<void> {
     }
   }
 
-  if (run.demoOverridesSet && !run.resetDone && run.db !== null) {
-    try {
-      demoAnswer(run, "POST /api/admin/demo/reset", await api.demoReset());
-      run.resetDone = true;
-    } catch (error: unknown) {
-      receipt.leftBehind.push(
-        `demo overrides could not be reset: ${run.redact(errorMessage(error))}`,
-      );
-    }
-  }
-  if (run.engine !== null) {
-    try {
-      await stopEngine(run);
-    } catch (error: unknown) {
-      receipt.leftBehind.push(
-        `the engine did not stop in time: ${run.redact(errorMessage(error))}`,
-      );
-    }
-  }
+  await resetAndStop(run, receipt.leftBehind);
 
-  const escrow = getAddress(run.options.escrowAddress);
-  try {
-    if (receipt.balances.before.length > 0) {
-      receipt.balances.afterSettlement = await snapshot(
-        run.client,
-        run.moneyMode,
-        run.token,
-        parties(run),
-      );
-    }
-  } catch (error: unknown) {
-    receipt.leftBehind.push(
-      `balances after settlement could not be read: ${run.redact(errorMessage(error))}`,
-    );
+  if (receipt.balances.before.length > 0) {
+    receipt.balances.afterSettlement =
+      (await readOrNote(run, "the balances after settlement", () =>
+        snapshot(run.client, run.moneyMode, run.token, parties(run)),
+      )) ?? [];
   }
 
   // The sweep is attempted whatever failed, unless the engine never ran.
   if (run.db !== null) {
-    try {
-      // Even after Ctrl-C: funds are never left in the demo wallets.
-      await step(run, "sweep", () => sweepStep(run), { ignoreAbort: true });
-    } catch (error: unknown) {
-      const reason = error instanceof RehearsalStepError ? error.message : errorMessage(error);
-      receipt.leftBehind.push(`sweep failed: ${run.redact(reason)}`);
-      receipt.failure ??= { step: "sweep", reason: run.redact(reason) };
-    }
-    for (const row of receipt.sweep) {
-      if (row.status === "failed")
-        receipt.leftBehind.push(`${row.wallet} ${row.address} was not swept`);
-    }
-    try {
-      receipt.balances.afterSweep = await snapshot(
-        run.client,
-        run.moneyMode,
-        run.token,
-        parties(run),
-      );
-    } catch (error: unknown) {
-      receipt.leftBehind.push(
-        `balances after the sweep could not be read: ${run.redact(errorMessage(error))}`,
-      );
-    }
+    const failure = await sweepAll(run, receipt.leftBehind);
+    receipt.failure ??= failure;
+    receipt.balances.afterSweep =
+      (await readOrNote(run, "the balances after the sweep", () =>
+        snapshot(run.client, run.moneyMode, run.token, parties(run)),
+      )) ?? [];
   }
 
+  // The chain read back: each read on its own, so that one that fails does not drop the others.
+  const campaign = run.campaign;
   let events: CampaignEvents | null = null;
   let onchain: OnchainCampaignState | null = null;
-  let collected: Awaited<ReturnType<typeof collectTransactions>> = {
-    rows: [],
-    records: [],
-    gasBySigner: new Map(),
-  };
-  try {
-    const campaign = run.campaign;
-    if (campaign !== null) {
-      const from = receipt.escrow.runStartBlock ?? run.options.escrowDeployBlock;
-      events = await campaignEvents(run.client, escrow, campaign.onchainId, from);
-      onchain = await readCampaign(run.client, escrow, campaign.onchainId);
-    }
-    const ownTickets = new Set(
-      (events?.purchased ?? []).map((ticket) => ticket.ticketId.toString()),
+  if (campaign !== null) {
+    const logs = logsOf(run);
+    events = await readOrNote(run, "the campaign's events", async () => {
+      await logs.catchUp();
+      return logs.events();
+    });
+    onchain = await readOrNote(run, "the campaign on-chain", () =>
+      readCampaign(run.client, escrow, campaign.onchainId),
     );
-    collected = await collectTransactions(run, ownTickets);
-    receipt.transactions = [
-      ...collected.records,
-      ...receipt.sweep
-        .filter((row) => row.txHash !== null)
-        .map((row): TxRecord => ({
-          kind: "sweep",
-          signer: row.wallet,
-          hash: row.txHash as Hex,
-          status: row.status,
-          block: null,
-          gasUsed: null,
-          feeWei: row.gasWei,
-          ownCampaign: true,
-          explorerUrl:
-            receipt.chain.explorer === null
-              ? null
-              : `${receipt.chain.explorer}/tx/${String(row.txHash)}`,
-        })),
-    ];
-    for (const tx of receipt.transactions) {
-      if (tx.kind === "sweep" && tx.hash !== "0x") {
-        const mined = await run.client.getTransactionReceipt({ hash: tx.hash }).catch(() => null);
-        if (mined !== null) {
-          tx.block = mined.blockNumber;
-          tx.gasUsed = mined.gasUsed;
-        }
-      }
+  }
+  const ownTickets = new Set((events?.purchased ?? []).map((ticket) => ticket.ticketId.toString()));
+  const collected = await collectTransactions(run, ownTickets);
+  receipt.transactions = [...collected.records, ...(await sweepTransactions(run))];
+  receipt.gasWei = receipt.transactions.reduce((total, tx) => total + (tx.feeWei ?? 0n), 0n);
+  if (campaign !== null) {
+    if (events !== null) {
+      receipt.timings.refunds = await refundTiming(run, events, collected.rows, collected.records);
     }
-    receipt.gasWei = receipt.transactions.reduce((total, tx) => total + (tx.feeWei ?? 0n), 0n);
-    if (campaign !== null && events !== null && onchain !== null) {
-      receipt.timings.refunds = await refundTiming(run, events, collected.rows);
+    if (onchain !== null) {
       receipt.stranded = !onchain.released;
       if (!onchain.released) {
         receipt.leftBehind.push(
           `campaign ${campaign.onchainId.toString()} is not settled: the escrow still holds its budget (${(onchain.hedgeBudget - onchain.hedgeSpent).toString()} micro-USDC unspent) and locked refunds (${onchain.lockedRefunds.toString()} micro-USDC) until it is`,
         );
       }
+    } else {
+      // Unknown is treated as stranded: the database that knows the campaign is kept.
+      receipt.stranded = true;
+      receipt.leftBehind.push(
+        `campaign ${campaign.onchainId.toString()} could not be read on-chain: the escrow may still hold its funds`,
+      );
     }
     receipt.hedging = events === null ? null : await hedgingRecord(run, events, onchain);
-  } catch (error: unknown) {
-    receipt.leftBehind.push(`the chain could not be read back: ${run.redact(errorMessage(error))}`);
   }
 
   receipt.pauseProbe = run.pauseProbe;
@@ -2111,6 +2476,7 @@ async function finish(run: Run): Promise<void> {
     receipt.failure === null &&
     events !== null &&
     onchain !== null &&
+    receipt.balances.afterSettlement.length > 0 &&
     run.stripe !== null &&
     run.budgetPi !== null
   ) {
@@ -2139,21 +2505,21 @@ async function finish(run: Run): Promise<void> {
       out(`${invariant.passed ? "PASSED" : "FAILED"} ${invariant.name}: ${invariant.details}`);
     }
   }
+  receipt.unread = [...run.unread];
+  for (const line of receipt.unread) out(`could not be read: ${line}`);
+  // A pass is a proof: every invariant held and nothing it rests on went unread.
   receipt.status =
     receipt.failure === null &&
+    receipt.unread.length === 0 &&
     receipt.invariants.length > 0 &&
     receipt.invariants.every((item) => item.passed)
       ? "passed"
       : "failed";
-  receipt.finishedAt = new Date().toISOString();
 
-  // Release what the run held in this process.
-  setServerDepsForTesting(undefined);
-  run.gemini?.close();
-  if (run.db !== null) {
-    await run.db.end({ timeout: 5 }).catch(() => undefined);
-    run.db = null;
-  }
+  await release(run);
+  receipt.rpc = run.meter.summary(receipt.steps, run.limiter?.stats ?? null);
+  out(`node: ${describeRpc(receipt.rpc)}`);
+  receipt.finishedAt = new Date().toISOString();
 
   if (run.options.receiptDir !== undefined) {
     const secrets = runSecrets(
@@ -2168,6 +2534,486 @@ async function finish(run: Run): Promise<void> {
     }
   }
   out(`rehearsal ${receipt.status.toUpperCase()}`);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Recovery of a campaign a run left behind (`--recover`)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Finishes the campaign of a FAILED run from its receipt and the database it kept, with the same
+ * steps as the run's own recovery, then sweeps every wallet of the run. Throws
+ * `RehearsalRefusedError` before sending anything when the receipt, the database, the chain and
+ * the keys do not speak of the same campaign, or the balances do not cover what is left to send.
+ * Otherwise returns the recovery's receipt (written next to the run's, which is never
+ * rewritten): `recovered` only when the campaign is released and nothing is left behind.
+ */
+export async function recoverRehearsal(options: RecoveryOptions): Promise<RecoveryReceipt> {
+  if (running)
+    throw new RehearsalRefusedError(["another rehearsal is already running in this process"]);
+  running = true;
+  try {
+    return await recover(options);
+  } finally {
+    running = false;
+  }
+}
+
+/** The refusals of a recovery that need neither the node nor the database. */
+function refuseRecoveryEarly(input: RecoveryOptions, facts: RunReceiptFacts): string[] {
+  const reasons = refuseChainAndKeys(input);
+  if (facts.chainId !== input.chainId) {
+    reasons.push(
+      `the receipt is of a run on chain ${facts.chainId.toString()}, the command is for chain ${input.chainId.toString()}`,
+    );
+  }
+  if (facts.escrow.address !== getAddress(input.escrowAddress)) {
+    reasons.push(
+      `the receipt's escrow is ${facts.escrow.address}, the command's is ${getAddress(input.escrowAddress)} (--escrow)`,
+    );
+  }
+  if (validKey(input.secrets.demoSeed)) {
+    const derived = walletsOf(input.secrets.demoSeed, facts.runId, facts.roles.buyers.length);
+    if (derived.merchant.address !== facts.roles.merchant) {
+      reasons.push(
+        `the demo wallet seed given derives the merchant wallet ${derived.merchant.address} for run ${facts.runId}, the receipt's is ${facts.roles.merchant}: another seed`,
+      );
+    } else {
+      facts.roles.buyers.forEach((buyer, index) => {
+        const address = derived.buyers[index]?.address;
+        if (address !== buyer.address) {
+          reasons.push(
+            `the seed derives ${String(address)} for buyer ${buyer.number.toString()}, the receipt names ${buyer.address}`,
+          );
+        }
+      });
+    }
+  }
+  return reasons;
+}
+
+/** Sentences of `RecoveryOptions` checks shared with a run: chain id and keys. */
+function refuseChainAndKeys(
+  options: Pick<RehearsalOptions, "chainId" | "local" | "secrets">,
+): string[] {
+  const reasons: string[] = [];
+  const { chainId } = options;
+  if (chainId === ARC_TESTNET_CHAIN_ID && options.local) {
+    reasons.push(
+      `chain id ${chainId.toString()} is Arc testnet: --local cannot be used with it (start a local chain with another id, e.g. 31337)`,
+    );
+  } else if (chainId !== ARC_TESTNET_CHAIN_ID && chainId !== LOCAL_CHAIN_ID && !options.local) {
+    reasons.push(
+      `chain id ${chainId.toString()} is neither Arc testnet (${ARC_TESTNET_CHAIN_ID.toString()}) nor a local chain (${LOCAL_CHAIN_ID.toString()}, or another id with --local)`,
+    );
+  }
+  const { relayerKey, oracleKey, demoSeed } = options.secrets;
+  if (!validKey(relayerKey)) reasons.push("the relayer key is not 0x followed by 64 hex digits");
+  if (!validKey(oracleKey)) reasons.push("the oracle key is not 0x followed by 64 hex digits");
+  if (!validKey(demoSeed)) reasons.push("the demo wallet seed is not 0x followed by 64 hex digits");
+  if (validKey(relayerKey) && relayerKey.toLowerCase() === oracleKey.toLowerCase()) {
+    reasons.push("the relayer and the oracle must be two different keys");
+  }
+  return reasons;
+}
+
+/** The campaign's state now, from the escrow, its events (read up to the head) and the head's time. */
+async function readState(run: Run): Promise<CampaignStateRecord> {
+  const campaign = run.campaign;
+  if (campaign === null) throw new Error("no campaign");
+  const logs = logsOf(run);
+  const head = await logs.catchUp();
+  const [onchain, block] = await Promise.all([
+    readCampaign(run.client, getAddress(run.options.escrowAddress), campaign.onchainId),
+    run.client.getBlock({ blockNumber: head }),
+  ]);
+  return campaignState(onchain, logs.events(), head, block.timestamp);
+}
+
+async function recover(input: RecoveryOptions): Promise<RecoveryReceipt> {
+  const startedAt = new Date().toISOString();
+  let facts: RunReceiptFacts;
+  try {
+    facts = readRunReceipt(input.receiptPath);
+  } catch (error: unknown) {
+    if (error instanceof RecoveryReceiptError) throw new RehearsalRefusedError(error.reasons);
+    throw error;
+  }
+  const early = refuseRecoveryEarly(input, facts);
+  if (facts.gemini === "live" && input.gemini.kind !== "live") {
+    early.push("the run read live Gemini: recover it with --gemini live");
+  }
+  const { merchant, buyers } = walletsOf(
+    input.secrets.demoSeed,
+    facts.runId,
+    facts.roles.buyers.length,
+  );
+  const secrets = runSecrets(
+    input,
+    [merchant, ...buyers].map((wallet) => wallet.email),
+  );
+  const redact = (text: string): string => redactText(text, secrets);
+  if (early.length > 0) throw new RehearsalRefusedError(early.map(redact));
+
+  const timeouts: RehearsalTimeouts = { ...DEFAULT_TIMEOUTS, ...input.timeouts };
+  const options: RehearsalOptions = {
+    databaseUrl: input.databaseUrl,
+    rpcUrl: input.rpcUrl,
+    ...(input.rpcFallbackUrl === undefined ? {} : { rpcFallbackUrl: input.rpcFallbackUrl }),
+    chainId: input.chainId,
+    local: input.local,
+    escrowAddress: getAddress(input.escrowAddress),
+    escrowDeployBlock: input.escrowDeployBlock,
+    ...(input.rpcLimits === undefined ? {} : { rpcLimits: input.rpcLimits }),
+    secrets: input.secrets,
+    scenario: facts.scenario,
+    gemini: facts.gemini === "simulated" ? { kind: "simulated" } : input.gemini,
+    estimateOnly: input.estimateOnly,
+    ...(input.engineLogFile === undefined ? {} : { engineLogFile: input.engineLogFile }),
+    out: (line) => input.out(redact(line)),
+    ...(input.signal === undefined ? {} : { signal: input.signal }),
+    ...(input.onStep === undefined ? {} : { onStep: input.onStep }),
+    ...(input.nodeFaults === undefined ? {} : { nodeFaults: input.nodeFaults }),
+    ...(input.readRetry === undefined ? {} : { readRetry: input.readRetry }),
+  };
+  const out = options.out;
+  out(
+    `recovering campaign ${facts.campaign.id} (on-chain id ${facts.campaign.onchainId.toString()}) of run ${facts.runId} from ${basename(facts.file)}`,
+  );
+
+  const engineLogs: EngineLogEntry[] = [];
+  const access: NodeAccess = {
+    meter: new RpcMeter(),
+    current: { step: "preflight" },
+    logger: engineLogger(engineLogs, options.engineLogFile, redact),
+    retry: retryPolicy(options.readRetry),
+    signal: options.signal,
+  };
+  let flight: Preflight;
+  try {
+    flight = await connect(options, access);
+  } catch (error: unknown) {
+    if (error instanceof RehearsalRefusedError) {
+      throw new RehearsalRefusedError(error.reasons.map(redact));
+    }
+    throw new RehearsalRefusedError([
+      `the chain could not be read before the recovery: ${redact(errorMessage(error))}`,
+    ]);
+  }
+
+  // The run's receipt, as the working record of the shared steps.
+  const work = emptyReceipt(options, facts.scenario, startedAt);
+  work.runId = facts.runId;
+  work.escrow.runStartBlock = facts.escrow.runStartBlock;
+  work.roles.treasury = flight.treasury;
+  work.roles.merchant = merchant.address;
+  work.roles.buyers = facts.roles.buyers;
+  work.chain.moneyMode = flight.moneyMode;
+  work.chain.token = flight.token;
+  work.campaign = { ...facts.campaign };
+  const run = newRun(options, {
+    redact,
+    timeouts,
+    scenario: facts.scenario,
+    flight,
+    access,
+    runId: facts.runId,
+    merchant,
+    buyers,
+    receipt: work,
+    engineLogs,
+  });
+  run.campaign = { ...facts.campaign, symbol: facts.instrument };
+  run.quiet = facts.driven;
+  const receipt: RecoveryReceipt = {
+    version: 2,
+    kind: "recovery",
+    recovers: {
+      file: basename(facts.file),
+      runId: facts.runId,
+      status: facts.status,
+      failure: facts.failure === null ? null : { ...facts.failure },
+      startedAt: facts.startedAt,
+    },
+    status: "failed",
+    failure: null,
+    startedAt,
+    finishedAt: startedAt,
+    chain: work.chain,
+    escrow: work.escrow,
+    roles: work.roles,
+    campaign: { ...facts.campaign, instrument: facts.instrument },
+    gemini: facts.gemini,
+    engine: work.engine,
+    outcome: null,
+    actions: [],
+    stateBefore: null,
+    stateAfter: null,
+    estimate: null,
+    steps: work.steps,
+    transactions: [],
+    balances: { before: [], after: [] },
+    sweep: [],
+    leftBehind: [],
+    unread: [],
+    rpc: null,
+  };
+
+  // The checks that need the database and the chain: nothing is sent before they pass.
+  try {
+    const db = createDb(options.databaseUrl, { max: 20 });
+    run.db = db;
+    const reasons: string[] = [];
+    const rows = await read(
+      run,
+      "the campaign in the database",
+      () =>
+        db<{ onchain_id: string | null; instrument: string; wallet: string | null }[]>`
+        select c.onchain_id::text as onchain_id, c.instrument, u.wallet
+        from campaigns c
+        join merchants m on m.id = c.merchant_id
+        join users u on u.id = m.user_id
+        where c.id = ${facts.campaign.id}
+      `,
+    ).catch((error: unknown) => {
+      throw new RehearsalRefusedError([
+        `the database cannot be read: ${redact(describeFailure(error))}`,
+      ]);
+    });
+    const row = rows[0];
+    if (row === undefined) {
+      reasons.push(
+        `the database does not know campaign ${facts.campaign.id}: give the database the run kept (--db-url)`,
+      );
+    } else {
+      if (row.onchain_id !== facts.campaign.onchainId.toString()) {
+        reasons.push(
+          `the database's campaign ${facts.campaign.id} has on-chain id ${String(row.onchain_id)}, the receipt's has ${facts.campaign.onchainId.toString()}`,
+        );
+      }
+      if (row.instrument !== facts.instrument) {
+        reasons.push(
+          `the database's campaign is on ${row.instrument}, the receipt's on ${facts.instrument}`,
+        );
+      }
+      if (row.wallet !== merchant.address.toLowerCase()) {
+        reasons.push(
+          `the database's merchant wallet is ${String(row.wallet)}, the receipt's is ${merchant.address}`,
+        );
+      }
+    }
+    const escrow = getAddress(options.escrowAddress);
+    const onchain = await read(run, "the campaign on-chain", () =>
+      readCampaign(run.client, escrow, facts.campaign.onchainId),
+    );
+    if (onchain.merchant !== merchant.address) {
+      reasons.push(
+        `the escrow's campaign ${facts.campaign.onchainId.toString()} belongs to ${onchain.merchant}, the receipt's merchant is ${merchant.address}`,
+      );
+    }
+    if (reasons.length > 0) throw new RehearsalRefusedError(reasons.map(redact));
+
+    const state = await read(run, "the campaign's state", () => readState(run));
+    receipt.stateBefore = state;
+    out(`campaign ${facts.campaign.onchainId.toString()}: ${describeState(state)}`);
+
+    if (!state.released) {
+      const decided = await decidedBeforeEngine(run);
+      const events = run.logs?.events() ?? null;
+      const refunded = new Set(events?.refunded.map((refund) => refund.ticketId) ?? []);
+      const fees = await read(run, "the node's fees", () => run.client.estimateFeesPerGas());
+      const estimate = estimateRecovery({
+        state,
+        decided,
+        refundableSold: (events?.purchased ?? []).reduce((sum, t) => sum + t.refundable, 0n),
+        unrefundedTickets: (events?.purchased ?? []).filter((t) => !refunded.has(t.ticketId))
+          .length,
+        nodeMaxFeePerGasWei: fees.maxFeePerGas,
+        moneyMode: run.moneyMode,
+      });
+      receipt.estimate = estimate;
+      out(
+        `left to send at worst: relayer ${estimate.relayerGas.toString()} gas, oracle ${estimate.oracleGas.toString()} gas; the treasury pays ${formatWei(estimate.treasuryPays, 6)} USDC (result ${decided === null ? "NO, to be forced" : `${decided.toUpperCase()}, already forced or known`})`,
+      );
+      const [treasuryMoney, relayerNative, oracleNative, allowance] = await read(
+        run,
+        "the balances of the treasury, the relayer and the oracle",
+        () =>
+          Promise.all([
+            moneyOf(run.client, run.moneyMode, run.token, run.treasury),
+            run.client.getBalance({ address: run.accounts.relayer.address }),
+            run.client.getBalance({ address: run.accounts.oracle.address }),
+            allowanceOf(run.client, run.token, run.treasury, escrow),
+          ]),
+      );
+      const short: string[] = [];
+      if (treasuryMoney < estimate.treasuryNeedsWithMargin) {
+        short.push(
+          `the treasury holds ${formatWei(treasuryMoney, 18)} USDC, the recovery needs ${formatWei(estimate.treasuryNeedsWithMargin, 18)} with the 20 % margin`,
+        );
+      }
+      if (allowance < estimate.treasuryPays) {
+        short.push(
+          `the treasury's allowance to the escrow is ${formatWei(allowance, 6)} USDC, the recovery pays ${formatWei(estimate.treasuryPays, 6)}`,
+        );
+      }
+      if (oracleNative < estimate.oracleNeedsWithMarginWei) {
+        short.push(
+          `the oracle holds ${formatWei(oracleNative, 18)} for gas, what is left needs ${formatWei(estimate.oracleNeedsWithMarginWei, 18)} with the 20 % margin`,
+        );
+      }
+      if (run.moneyMode === "erc20" && relayerNative < estimate.relayerGasNeedsWithMarginWei) {
+        short.push(
+          `the relayer holds ${formatWei(relayerNative, 18)} for gas, what is left needs ${formatWei(estimate.relayerGasNeedsWithMarginWei, 18)} with the 20 % margin`,
+        );
+      }
+      if (short.length > 0) throw new RehearsalRefusedError(short.map(redact));
+    }
+  } catch (error: unknown) {
+    run.current.step = null;
+    await release(run);
+    if (error instanceof RehearsalRefusedError) throw error;
+    throw new RehearsalRefusedError([
+      `the recovery could not read what it needs before sending anything: ${redact(errorMessage(error))}`,
+    ]);
+  }
+  run.current.step = null;
+
+  if (options.estimateOnly) {
+    await release(run);
+    receipt.status = "estimate";
+    receipt.rpc = run.meter.summary(receipt.steps, run.limiter?.stats ?? null);
+    receipt.finishedAt = new Date().toISOString();
+    out("estimate only: nothing sent");
+    return receipt;
+  }
+
+  const actions = receipt.actions;
+  receipt.balances.before =
+    (await readOrNote(run, "the balances before the recovery", () =>
+      snapshot(run.client, run.moneyMode, run.token, parties(run)),
+    )) ?? [];
+  if (receipt.stateBefore?.released === true) {
+    actions.push("the campaign was already released: nothing to finish, only the sweep");
+    out("the campaign is already released: only the demo wallets are swept");
+  } else {
+    // The merchant signs in again as the run's merchant: same Privy id, same e-mail, same wallet.
+    const identity = new FakeIdentity();
+    const token = `rehearsal-${facts.runId}`;
+    identity.addUser(token, `did:privy:rehearsal-${facts.runId}`, {
+      email: merchant.email,
+      walletAddress: merchant.address.toLowerCase(),
+    });
+    run.headers = bearer(token);
+    try {
+      await step(run, "start-engine", () => startEngineStep(run, identity));
+      actions.push("engine started on the kept database with the production wiring");
+      await run.sampler?.stop();
+      run.sampler = null;
+      await step(run, "recover", () => recoverStep(run, actions));
+      receipt.outcome = work.recovery?.outcome ?? null;
+      await step(run, "reset", async () => {
+        demoAnswer(run, "POST /api/admin/demo/reset", await api.demoReset());
+        run.resetDone = true;
+      });
+      await step(run, "stop-engine", () => stopEngine(run));
+    } catch (error: unknown) {
+      const failedStep = error instanceof RehearsalStepError ? error.step : "start-engine";
+      const reason = error instanceof RehearsalStepError ? error.message : errorMessage(error);
+      receipt.failure = { step: failedStep, reason: redact(reason) };
+      receipt.outcome = work.recovery?.outcome ?? null;
+      out(`FAILED at ${failedStep}: ${reason}`);
+    }
+    await run.sampler?.stop().catch(() => undefined);
+    run.sampler = null;
+    await resetAndStop(run, receipt.leftBehind);
+  }
+
+  const sweepFailure = await sweepAll(run, receipt.leftBehind);
+  receipt.failure ??= sweepFailure;
+  receipt.sweep = work.sweep;
+  const swept = work.sweep.filter((row) => row.status === "swept");
+  actions.push(
+    swept.length === 0
+      ? "nothing left in the demo wallets to sweep"
+      : `${swept.length.toString()} demo wallet(s) swept back to the treasury`,
+  );
+  receipt.balances.after =
+    (await readOrNote(run, "the balances after the recovery", () =>
+      snapshot(run.client, run.moneyMode, run.token, parties(run)),
+    )) ?? [];
+  for (const row of receipt.balances.after) {
+    const wallet = [merchant, ...buyers].find((item) => item.address === row.address);
+    if (wallet !== undefined && row.moneyWei > 0n) {
+      receipt.leftBehind.push(
+        `${wallet.label} ${row.address} still holds ${formatWei(row.moneyWei, 18)} USDC after the sweep`,
+      );
+    }
+  }
+  receipt.stateAfter = await readOrNote(run, "the campaign's state after the recovery", () =>
+    readState(run),
+  );
+  if (receipt.stateAfter !== null) {
+    out(`campaign ${facts.campaign.onchainId.toString()}: ${describeState(receipt.stateAfter)}`);
+    if (!receipt.stateAfter.released) {
+      receipt.leftBehind.push(
+        `campaign ${facts.campaign.onchainId.toString()} is not released: the escrow still holds ${formatWei(receipt.stateAfter.escrowHolds, 6)} USDC for it`,
+      );
+    }
+  }
+  const ownTickets = new Set(
+    (run.logs?.events().purchased ?? []).map((ticket) => ticket.ticketId.toString()),
+  );
+  const collected = await collectTransactions(run, ownTickets);
+  receipt.transactions = [...collected.records, ...(await sweepTransactions(run))];
+  receipt.leftBehind.push(...work.leftBehind);
+  receipt.unread = [...run.unread];
+  receipt.status =
+    receipt.failure === null &&
+    receipt.stateAfter?.released === true &&
+    receipt.leftBehind.length === 0 &&
+    receipt.unread.length === 0
+      ? "recovered"
+      : "failed";
+
+  await release(run);
+  receipt.rpc = run.meter.summary(receipt.steps, run.limiter?.stats ?? null);
+  out(`node: ${describeRpc(receipt.rpc)}`);
+  for (const line of receipt.leftBehind) out(`left behind: ${line}`);
+  for (const line of receipt.unread) out(`could not be read: ${line}`);
+  receipt.finishedAt = new Date().toISOString();
+  try {
+    receipt.files = await writeRecoveryReceipt(receipt, input.receiptPath, secrets);
+    out(`recovery receipt written: ${receipt.files.json} and ${receipt.files.markdown}`);
+  } catch (error: unknown) {
+    out(`the recovery receipt could not be written: ${redact(errorMessage(error))}`);
+  }
+  out(`recovery ${receipt.status.toUpperCase()}`);
+  return receipt;
+}
+
+/** The result already forced or known, read from the database before the engine starts. */
+async function decidedBeforeEngine(run: Run): Promise<Outcome | null> {
+  const campaign = run.campaign;
+  const db = run.db;
+  if (campaign === null || db === null) return null;
+  const [row] = await read(
+    run,
+    "the campaign's forced or known result",
+    () =>
+      db<{ status: string; forced: string | null; known: string | null }[]>`
+      select c.status,
+        (select forced_result from demo_overrides where instrument = c.instrument) as forced,
+        (select outcome from instruments where symbol = c.instrument) as known
+      from campaigns c where c.id = ${campaign.id}
+    `,
+  );
+  if (row?.status === "settled_yes") return "yes";
+  if (row?.status === "settled_no") return "no";
+  for (const value of [row?.forced, row?.known]) {
+    if (value === "yes" || value === "no") return value;
+  }
+  return null;
 }
 
 /**
