@@ -1,0 +1,38 @@
+# Context of apps/engine/Dockerfile (built from the repository root). Never send a secret, the
+# local installs or build outputs to the builder.
+**/node_modules
+**/.next
+**/.turbo
+**/coverage
+**/dist
+**/*.tsbuildinfo
+.git
+.github
+.claude
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+
+# Not used by the engine image.
+docs
+e2e
+apps/web/app
+apps/web/lib
+apps/web/e2e
+apps/web/public
+supabase
+scripts
+packages/contracts/src
+packages/contracts/test
+packages/contracts/script
+packages/contracts/out
+packages/contracts/cache
+packages/contracts/broadcast
+packages/contracts/artifacts
+test-results
+playwright-report
+**/*.test.ts
+**/*.md
+!apps/engine/README.md
