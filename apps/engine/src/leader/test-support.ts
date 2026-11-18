@@ -24,17 +24,29 @@ import type { AcquireResult, EngineLeaseStore, LeaseRow, RenewResult } from "./l
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Forwards connections to `targetPort`. `cut()` destroys every open connection and, until
- * `restore()`, makes the database unreachable for the pools that go through it, and only for
- * them, in one of two ways:
- * - "refuse": nothing listens (a new connection is refused at once, ECONNREFUSED);
- * - "drop": a new connection is accepted and closed at once, as a proxy whose upstream is gone
- *   does. postgres.js then waits for a usable connection: every query hangs.
+ * Forwards connections to `targetPort`. `cut()` makes the database unreachable, until `restore()`,
+ * for the pools that go through it, and only for them, in one of two ways:
+ * - "refuse": every open connection is destroyed and nothing listens (a new connection is refused
+ *   at once, ECONNREFUSED): every query fails fast;
+ * - "stall": the database goes silent. Every open connection stays open on the client's side and
+ *   nothing comes back on it any more; a new connection is accepted and never answered. Every
+ *   query HANGS, on an existing connection as on a new one. On the database's side the
+ *   connections are closed, so that what they held (a transaction, its locks) is released.
+ *
+ * There is deliberately no mode that accepts a connection and closes it at once: what the client
+ * then sees depends on which side moves first. Closed before the client has written, postgres.js
+ * reconnects in a loop and the query hangs; closed just after, the kernel answers the unread
+ * bytes with a reset and the query is rejected (ECONNRESET). Measured with 30 queries per case:
+ * closed in the accept callback, 30 hung; closed 0 ms or 1 ms later, 30 rejected. A test built on
+ * it passes or fails with the scheduler.
  */
 export class TcpProxy {
-  private readonly sockets = new Set<Socket>();
+  /** Forwarding pairs: the client's socket and the database's. */
+  private readonly pairs = new Map<Socket, Socket>();
+  /** Clients' sockets kept open and silent by a "stall" cut. */
+  private readonly held = new Set<Socket>();
   private server: Server;
-  private mode: "open" | "refuse" | "drop" = "open";
+  private mode: "open" | "refuse" | "stall" = "open";
   private boundPort = 0;
 
   private constructor(
@@ -72,37 +84,69 @@ export class TcpProxy {
   }
 
   private onConnection(client: Socket): void {
+    client.on("error", () => undefined);
+    if (this.mode === "stall") {
+      client.on("close", () => this.held.delete(client));
+      this.hold(client);
+      return;
+    }
     if (this.mode !== "open") {
       client.destroy();
       return;
     }
     const upstream = connect(this.targetPort, this.targetHost);
-    const pair = [client, upstream];
-    for (const socket of pair) {
-      this.sockets.add(socket);
-      socket.on("error", () => undefined);
-      socket.on("close", () => {
-        this.sockets.delete(socket);
-        for (const other of pair) other.destroy();
-      });
-    }
+    upstream.on("error", () => undefined);
+    this.pairs.set(client, upstream);
+    client.on("close", () => {
+      this.pairs.delete(client);
+      this.held.delete(client);
+      upstream.destroy();
+    });
+    // A held client outlives its database connection: that is the stall.
+    upstream.on("close", () => {
+      if (!this.held.has(client)) client.destroy();
+    });
     client.pipe(upstream);
     upstream.pipe(client);
   }
 
-  async cut(mode: "refuse" | "drop"): Promise<void> {
+  /** Keeps `client` open and reads nothing more from it: its peer waits for an answer for good. */
+  private hold(client: Socket): void {
+    this.held.add(client);
+    client.pause();
+  }
+
+  async cut(mode: "refuse" | "stall"): Promise<void> {
     const wasListening = this.mode !== "refuse";
     this.mode = mode;
-    for (const socket of this.sockets) socket.destroy();
-    if (mode === "refuse" && wasListening) {
+    if (mode === "stall") {
+      for (const [client, upstream] of this.pairs) {
+        client.unpipe(upstream);
+        upstream.unpipe(client);
+        this.hold(client);
+        upstream.destroy();
+      }
+      this.pairs.clear();
+      return;
+    }
+    for (const socket of [...this.pairs.keys(), ...this.pairs.values(), ...this.held]) {
+      socket.destroy();
+    }
+    if (wasListening) {
       const closing = this.server;
       await new Promise<void>((resolve) => closing.close(() => resolve()));
     }
   }
 
+  /**
+   * The database is reachable again for new connections. A connection held by a stall is dead for
+   * good: it is closed, so that the query waiting on it fails and its pool opens another.
+   */
   async restore(): Promise<void> {
     const refused = this.mode === "refuse";
     this.mode = "open";
+    for (const client of this.held) client.destroy();
+    this.held.clear();
     if (refused) {
       this.server = this.newServer();
       await this.listen(this.boundPort);

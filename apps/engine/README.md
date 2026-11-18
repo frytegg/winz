@@ -169,8 +169,8 @@ answer to an older renewal cannot trigger it once a newer renewal has succeeded.
 The real process's stop is dominated by the Gemini catalogue sync, whose request in flight is not
 aborted (10 s timeout per attempt); in that test Gemini points at a closed port. A stop can
 outlast the margin: a job handler that ignores its abort keeps the job worker up to its 10 s
-grace, and a service waiting on a database that accepts and drops connections waits for a
-connection that never comes (postgres.js then holds every query; `leader.e2e.test.ts` shows it).
+grace, and a service waiting on a database that has gone silent (it accepts connections and
+answers nothing) waits for an answer that never comes (`leader.e2e.test.ts` shows it).
 So a fenced stop still running 1 s before the lease can expire (`ttl - min(1 s, margin / 4)`
 after the last renewal) is declared stuck: the leader logs it at fatal level and `src/index.ts`
 ends the process with exit code 1, before another engine can take the lease; Railway starts it

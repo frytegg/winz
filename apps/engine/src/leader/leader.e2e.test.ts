@@ -403,7 +403,7 @@ describe("two real engines on one database", () => {
     expect(log.starts("a")).toBe(2);
   }, 60_000);
 
-  it("a fenced stop stuck on a database that drops connections is declared before the lease expires", async () => {
+  it("a fenced stop stuck on a database that stops answering is declared before the lease expires", async () => {
     const proxy = await TcpProxy.start(Number(new URL(harness.database.url).port));
     cleanups.push(() => proxy.close());
     const log = new ServiceLog();
@@ -421,10 +421,23 @@ describe("two real engines on one database", () => {
     await until("A leading", () => a.leader.servicesRunning());
     void b.leader.run();
     await until("B standing by", () => standingBy(b));
+    // Whatever the test's outcome, A's database answers again before A is stopped: a stalled
+    // query never ends, and the stop of A in the cleanup would wait for it.
+    cleanups.push(() => proxy.restore());
     await delay(SETTINGS.renewMs * 2);
+    // The cut falls just after a renewal was answered, the next one `renewMs` away: none is in
+    // flight, so the row read after the cut is the grant A counts from.
+    const renewedBefore = (await leaseRow())?.renewedAt.getTime() ?? 0;
+    await until(
+      "a renewal of A",
+      async () => ((await leaseRow())?.renewedAt.getTime() ?? 0) > renewedBefore,
+      SETTINGS.ttlMs,
+    );
+    await delay(SETTINGS.renewMs / 8);
 
-    // Every query of A now waits for a connection that never works: its services cannot stop.
-    await proxy.cut("drop");
+    // A's database goes silent: every query of A waits for an answer that never comes, and its
+    // services cannot stop.
+    await proxy.cut("stall");
     const lastGrant = await leaseRow();
     const expiresAt = lastGrant?.expiresAt.getTime() ?? 0;
     await until("the overrun declared", () => overruns.length === 1, SETTINGS.ttlMs * 2);
