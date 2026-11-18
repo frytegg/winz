@@ -12,6 +12,7 @@ import {
   type ServiceState,
 } from "./health/server";
 import { DemoIdentityDirectory, PrivyIdentityDirectory, type IdentityDirectory } from "./identity";
+import { EngineLeader, FENCE_MARGIN_MS, newHolderId, PgEngineLease } from "./leader";
 import { createLogger, moduleLogger } from "./logger";
 import { GeminiRestClient, PgCatalogStore, createBookFeed, startCatalogSync } from "./market-data";
 import { DemoPaymentGateway, RoutingPaymentGateway, StripePaymentGateway } from "./payments";
@@ -76,8 +77,10 @@ function identityDirectory(env: EngineEnv): { directory: IdentityDirectory; demo
 
 /**
  * Engine entry point: reads the environment, builds the production parts (Postgres, Gemini, Arc,
- * Stripe, Privy) and hands them to `startEngine`, which runs every subsystem and stops them
- * through one abort signal.
+ * Stripe, Privy), checks that the database answers, and starts as a STANDBY: no service runs
+ * until this process holds the engine lease (src/leader). Each time it takes the lease it calls
+ * `startEngine`, which runs every subsystem and stops them through one abort signal; it renews the
+ * lease while they run and stops them by itself when it can no longer renew it.
  */
 async function main(): Promise<void> {
   const startedAt = new Date();
@@ -87,24 +90,19 @@ async function main(): Promise<void> {
   const log = moduleLogger(root, "engine");
 
   const db = createDb(env.DB_URL, { max: env.DB_POOL_MAX });
-  const stop = new AbortController();
+
+  // A standby must have reached its database: an unreachable one stops the start, as before.
+  try {
+    await db`select 1`;
+  } catch (error: unknown) {
+    log.fatal({ err: error }, "engine could not start: the database does not answer");
+    await db.end({ timeout: 5 }).catch(() => undefined);
+    process.exit(1);
+  }
 
   // One Gemini client for the whole engine, so every request shares one rate limiter.
   const marketDataLog = moduleLogger(root, "market-data");
   const gemini = new GeminiRestClient({ baseUrl: env.GEMINI_API_URL, logger: marketDataLog });
-
-  // Live order books of the instruments in use: WebSocket first, REST as fallback (SPEC MD-2).
-  // A book driven by the demo mode replaces Gemini's for its instrument while it exists.
-  const bookFeed = createBookFeed({
-    db,
-    client: gemini,
-    logger: moduleLogger(root, "book-feed"),
-    socket: {
-      url: env.GEMINI_WS_URL,
-      proxyUrl: env.APP_HTTPS_PROXY_URL,
-      caFile: env.APP_PROXY_CA_FILE,
-    },
-  });
 
   // Card payments go to Stripe; sales replayed by the demo mode (pi_demo_…) never reach it.
   const payments = new RoutingPaymentGateway(
@@ -122,9 +120,23 @@ async function main(): Promise<void> {
   // Every request to the node goes through one limiter (ARC_RPC_* variables), shared by every
   // service through this one client.
   const arc = createArcClients(env, { logger: moduleLogger(root, "rpc") });
-  let engine: Engine;
-  try {
-    engine = await startEngine({
+
+  /** The engine's services, started each time this process takes the lease. */
+  const startServices = (signal: AbortSignal): Promise<Engine> => {
+    // Live order books of the instruments in use: WebSocket first, REST as fallback (SPEC MD-2).
+    // A book driven by the demo mode replaces Gemini's for its instrument while it exists. One
+    // feed per period of leadership: a feed is started once.
+    const bookFeed = createBookFeed({
+      db,
+      client: gemini,
+      logger: moduleLogger(root, "book-feed"),
+      socket: {
+        url: env.GEMINI_WS_URL,
+        proxyUrl: env.APP_HTTPS_PROXY_URL,
+        caFile: env.APP_PROXY_CA_FILE,
+      },
+    });
+    return startEngine({
       db,
       logger: root,
       publicClient: arc.publicClient,
@@ -145,46 +157,57 @@ async function main(): Promise<void> {
         {
           // Gemini catalogue and results, refreshed every minute (SPEC MD-1, MD-3).
           name: "catalog-sync",
-          start: (signal) =>
+          start: (serviceSignal) =>
             startCatalogSync({
               client: gemini,
               store: new PgCatalogStore(db),
               logger: marketDataLog,
-              signal,
+              signal: serviceSignal,
             }),
         },
       ],
-      signal: stop.signal,
+      signal,
     });
-  } catch (error: unknown) {
-    log.fatal({ err: error }, "engine could not start");
-    arc.limiter?.close();
-    await db.end({ timeout: 5 }).catch(() => undefined);
-    process.exit(1);
-  }
+  };
 
-  // What the health listener reports: the sender and the job worker run from here until a stop.
-  let serviceState: ServiceState = "running";
+  // Only one engine works on this database at a time: this one waits as a standby until it holds
+  // the lease (ENGINE_LEASE_* variables).
+  const leader = new EngineLeader({
+    lease: new PgEngineLease({ db, holder: newHolderId(), ttlMs: env.ENGINE_LEASE_TTL_MS }),
+    settings: {
+      ttlMs: env.ENGINE_LEASE_TTL_MS,
+      renewMs: env.ENGINE_LEASE_RENEW_MS,
+      standbyPollMs: env.ENGINE_LEASE_STANDBY_POLL_MS,
+      fenceMarginMs: FENCE_MARGIN_MS,
+    },
+    logger: moduleLogger(root, "leader"),
+    startServices,
+    // A fenced stop stuck past the lease's expiry (a service waiting on a database that does not
+    // answer): the process ends here, before another engine can take the lease, and the platform
+    // starts it again as a standby. The leader has logged why, at fatal level.
+    onFenceOverrun: () => process.exit(1),
+  });
+
   let health: HealthServer | null = null;
-
   let stopping = false;
   const shutdown = (signal: string, exitCode: number): void => {
     if (stopping) return;
     stopping = true;
-    serviceState = "stopped";
     log.info({ signal }, "shutdown requested");
-    stop.abort();
     const forced = setTimeout(() => {
       log.warn({ graceMs: SHUTDOWN_GRACE_MS }, "shutdown grace period elapsed, exiting");
       process.exit(exitCode === 0 ? 1 : exitCode);
     }, SHUTDOWN_GRACE_MS);
     forced.unref();
     arc.limiter?.closeAfter(RPC_LIMITER_RELEASE_MS);
-    void engine.stopped
+    // A leader stops its services (the probe answers 503 meanwhile), then releases the lease; a
+    // standby stops at once.
+    void leader
+      .stop()
       .then(() => {
         // Nothing uses the node any more: a request still waiting for its turn is released.
         arc.limiter?.close();
-        // The probe stays up while the engine stops (it answers 503), and closes before the pool.
+        // The probe closes after the services, before the pool.
         return health?.close();
       })
       .then(() => db.end({ timeout: 5 }))
@@ -199,7 +222,8 @@ async function main(): Promise<void> {
     shutdown("unhandledRejection", 1);
   });
 
-  // PORT set (Railway sets it): GET /healthz for the platform's health check. Unset: no listener.
+  // PORT set (Railway sets it): GET /healthz for the platform's health check, from the standby
+  // on (a healthy standby answers 200 with role "standby"). Unset: no listener.
   if (healthPort !== undefined) {
     try {
       health = await startHealthServer({
@@ -210,14 +234,28 @@ async function main(): Promise<void> {
         chainId: env.ARC_CHAIN_ID,
         cursorName: defaultCursorName(env.ARC_ESCROW_ADDRESS as Hex),
         startedAt,
-        services: () => ({ sender: serviceState, jobs: serviceState }),
+        services: () => {
+          // Stopped as soon as a shutdown begins, not only once the services have stopped: an
+          // engine on its way out must not be reported as working.
+          const state: ServiceState = !stopping && leader.servicesRunning() ? "running" : "stopped";
+          return { sender: state, jobs: state };
+        },
+        lease: () => leader.view(),
       });
       // A stop that began while it was binding has already passed the point where it closes it.
       if (stopping) await health.close();
     } catch (error: unknown) {
       log.fatal({ err: error, port: healthPort }, "health listener could not start");
       shutdown("health-listener", 1);
+      return;
     }
+  }
+
+  if (stopping) return;
+  const exit = await leader.run();
+  if (exit.kind === "failed") {
+    log.fatal({ err: exit.error.cause ?? exit.error }, "engine could not start");
+    shutdown("engine-failed", 1);
   }
 }
 
