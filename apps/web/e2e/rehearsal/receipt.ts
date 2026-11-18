@@ -1,0 +1,324 @@
+import { existsSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
+import { formatMicro, formatWei } from "./estimate";
+import { SecretLeakError, type RehearsalReceipt, type Stats } from "./types";
+
+/**
+ * The receipt of a run: a JSON file and a Markdown file named by the UTC start time, the chain id
+ * and the outcome. Neither may contain a key, the seed or an e-mail address: `assertNoSecrets`
+ * is checked on both texts before anything is written.
+ */
+
+export function stats(values: readonly number[]): Stats {
+  if (values.length === 0) return { count: 0, minMs: null, medianMs: null, maxMs: null };
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  const median =
+    sorted.length % 2 === 1
+      ? (sorted[middle] ?? 0)
+      : Math.round(((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2);
+  return {
+    count: sorted.length,
+    minMs: sorted[0] ?? null,
+    medianMs: median,
+    maxMs: sorted[sorted.length - 1] ?? null,
+  };
+}
+
+/** The receipt as JSON: bigints as decimal strings, the written paths left out. */
+export function receiptJson(receipt: RehearsalReceipt): string {
+  const { files: _files, ...written } = receipt;
+  return `${JSON.stringify(
+    written,
+    (_key, value: unknown) => (typeof value === "bigint" ? value.toString() : value),
+    2,
+  )}\n`;
+}
+
+/**
+ * Throws `SecretLeakError` when `text` contains one of `secrets` (case-insensitive, with or
+ * without its 0x prefix) or anything shaped like an e-mail address. The error never quotes it.
+ */
+export function assertNoSecrets(text: string, secrets: readonly string[], where: string): void {
+  const lower = text.toLowerCase();
+  for (const secret of secrets) {
+    const value = secret.toLowerCase();
+    if (value.length < 16) continue;
+    const bare = value.startsWith("0x") ? value.slice(2) : value;
+    if (lower.includes(value) || lower.includes(bare)) throw new SecretLeakError(where);
+  }
+  if (new RegExp(EMAIL.source, "i").test(text))
+    throw new SecretLeakError(`${where} (e-mail address)`);
+}
+
+const EMAIL = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
+
+/** Shorter values are not treated as secrets (an RPC path such as "v2" is not one). */
+const MIN_REDACTED_LENGTH = 8;
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * `text` with every one of `secrets` (case-insensitive, with or without its 0x prefix) replaced by
+ * `<redacted>` and every e-mail address by `<e-mail>`. Applied to every line the rehearsal prints
+ * and to every free text of the receipt: an engine warning can quote an RPC URL whose path is an
+ * access token (viem puts the URL in its error messages).
+ */
+export function redactText(text: string, secrets: readonly string[]): string {
+  let redacted = text;
+  const values = new Set<string>();
+  for (const secret of secrets) {
+    if (secret.length < MIN_REDACTED_LENGTH) continue;
+    values.add(secret);
+    if (/^0x/i.test(secret) && secret.length - 2 >= MIN_REDACTED_LENGTH)
+      values.add(secret.slice(2));
+  }
+  // Longest first, so that a secret containing another is replaced whole.
+  for (const value of [...values].sort((a, b) => b.length - a.length)) {
+    redacted = redacted.replace(new RegExp(escapeRegExp(value), "gi"), "<redacted>");
+  }
+  return redacted.replace(EMAIL, "<e-mail>");
+}
+
+/** "20261118T203012Z": the start time, UTC, to the second. */
+export function compactUtc(iso: string): string {
+  return iso.replace(/\.\d{3}Z$/, "Z").replace(/[-:]/g, "");
+}
+
+export function receiptBaseName(receipt: RehearsalReceipt): string {
+  const outcome = receipt.scenario?.outcome ?? "none";
+  return `${compactUtc(receipt.startedAt)}-${receipt.chain.chainId.toString()}-${outcome}`;
+}
+
+function ms(value: number | null): string {
+  return value === null ? "–" : `${value.toString()} ms`;
+}
+
+function statsRow(name: string, value: Stats): string {
+  return `| ${name} | ${value.count.toString()} | ${ms(value.minMs)} | ${ms(value.medianMs)} | ${ms(value.maxMs)} |`;
+}
+
+function hashCell(hash: string, url: string | null): string {
+  return url === null ? `\`${hash}\`` : `[\`${hash}\`](${url})`;
+}
+
+/** The Markdown record: facts a reader can check against the explorer, no adjectives. */
+export function receiptMarkdown(receipt: RehearsalReceipt): string {
+  const lines: string[] = [];
+  const status = receipt.status.toUpperCase();
+  const outcome = receipt.scenario?.outcome.toUpperCase() ?? "–";
+  lines.push(`# Rehearsal ${compactUtc(receipt.startedAt)}: ${status}`);
+  lines.push("");
+  lines.push(
+    `Chain ${receipt.chain.chainId.toString()} (${receipt.chain.name}${receipt.chain.local ? ", local" : ""}), RPC host \`${receipt.chain.rpcHost}\`. Escrow \`${receipt.escrow.address}\` (deployed at block ${receipt.escrow.deployBlock.toString()}). Started ${receipt.startedAt}, finished ${receipt.finishedAt}. Outcome asked: ${outcome}. Gemini: ${receipt.gemini}.`,
+  );
+  lines.push("");
+  lines.push(
+    `Engine: ${receipt.engine.started ? "started" : "not started"}, ${receipt.engine.stopped ? "stopped before the receipt was written" : "not stopped cleanly"}. Run id \`${receipt.runId}\`.`,
+  );
+  if (receipt.failure !== null) {
+    lines.push("");
+    lines.push(`**FAILED at step \`${receipt.failure.step}\`**: ${receipt.failure.reason}`);
+  }
+  lines.push("");
+  lines.push("## Roles");
+  lines.push("");
+  lines.push("| Role | Address |");
+  lines.push("|---|---|");
+  lines.push(`| Relayer | \`${receipt.roles.relayer}\` |`);
+  lines.push(`| Oracle | \`${receipt.roles.oracle}\` |`);
+  lines.push(`| Treasury | \`${receipt.roles.treasury ?? "–"}\` |`);
+  lines.push(`| Merchant (demo wallet) | \`${receipt.roles.merchant ?? "–"}\` |`);
+  for (const buyer of receipt.roles.buyers) {
+    lines.push(`| Buyer ${buyer.number.toString()} (demo wallet) | \`${buyer.address}\` |`);
+  }
+
+  lines.push("");
+  lines.push("## Game, campaign, scenario");
+  lines.push("");
+  if (receipt.game !== null) {
+    lines.push(
+      `Game \`${receipt.game.ticker}\` (${receipt.game.title}), starts ${receipt.game.startsAt}.`,
+    );
+  }
+  if (receipt.instrument !== null) {
+    lines.push(
+      `Instrument \`${receipt.instrument.symbol}\` (${receipt.instrument.conditionLabel}), pause threshold ${receipt.instrument.pauseThresholdBps.toString()} bps.`,
+    );
+  }
+  if (receipt.campaign !== null) {
+    lines.push(
+      `Campaign \`${receipt.campaign.id}\`, on-chain id ${receipt.campaign.onchainId.toString()}, slug \`${receipt.campaign.slug}\`.`,
+    );
+  }
+  if (receipt.driven !== null) {
+    lines.push(
+      `Driven book: bid ${receipt.driven.bidBps.toString()} bps, ask ${receipt.driven.askBps.toString()} bps, depth ${receipt.driven.depth.toString()} micro-contracts.`,
+    );
+  }
+  const scenario = receipt.scenario;
+  if (scenario !== null) {
+    lines.push(
+      `Scenario: ${scenario.purchases.toString()} sales of ${scenario.unitsPerPurchase.toString()} unit(s) at ${formatMicro(scenario.unitPrice)} USDC, refund ${scenario.refundBps.toString()} bps, margins ${scenario.usualMarginBps.toString()}/${scenario.minMarginBps.toString()} bps, budget ${formatMicro(scenario.budget)} USDC, ${scenario.buyers.toString()} buyers, ${scenario.parallel.toString()} sales at a time, outcome ${scenario.outcome}.`,
+    );
+  }
+
+  const probe = receipt.pauseProbe;
+  if (probe !== null) {
+    lines.push(
+      probe.skipped === null
+        ? `Pause probe before the sales: book driven to bid ${probe.bidBps.toString()} / ask ${probe.askBps.toString()} bps; the campaign page answered ${probe.saleState ?? "open throughout"}; the demo sale route ${probe.saleRefusal === null ? "accepted a sale" : `answered ${probe.saleRefusal}`}.`
+        : `Pause probe skipped: ${probe.skipped}.`,
+    );
+  }
+
+  if (receipt.estimate !== null) {
+    const estimate = receipt.estimate;
+    lines.push("");
+    lines.push("## Estimate before the run");
+    lines.push("");
+    lines.push(
+      `Fee per gas ${formatWei(estimate.feePerGasWei, 9)} gwei. Treasury fronts at worst ${formatMicro(estimate.treasuryLocks)} USDC. Gas at worst: relayer ${estimate.relayerGas.toString()}, oracle ${estimate.oracleGas.toString()}, sweep ${estimate.sweepGas.toString()}. Treasury needs ${formatWei(estimate.treasuryNeedsWithMargin, 18)} USDC with the 20 % margin.`,
+    );
+  }
+
+  lines.push("");
+  lines.push("## Transactions");
+  lines.push("");
+  if (receipt.transactions.length === 0) {
+    lines.push("None.");
+  } else {
+    lines.push("| Kind | Signer | Status | Block | Gas used | Fee (wei) | Hash |");
+    lines.push("|---|---|---|---|---|---|---|");
+    for (const tx of receipt.transactions) {
+      lines.push(
+        `| ${tx.kind}${tx.ownCampaign ? "" : " (other campaign)"} | ${tx.signer} | ${tx.status} | ${tx.block?.toString() ?? "–"} | ${tx.gasUsed?.toString() ?? "–"} | ${tx.feeWei?.toString() ?? "–"} | ${hashCell(tx.hash, tx.explorerUrl)} |`,
+      );
+    }
+  }
+
+  lines.push("");
+  lines.push("## Timings");
+  lines.push("");
+  lines.push("| Measure | Count | Min | Median | Max |");
+  lines.push("|---|---|---|---|---|");
+  lines.push(statsRow("Demo sale call → ticket issued", receipt.timings.callToTicket));
+  lines.push(
+    statsRow("Demo sale call → sale on the merchant's detail", receipt.timings.callToDashboard),
+  );
+  const refunds = receipt.timings.refunds;
+  if (refunds !== null) {
+    lines.push("");
+    lines.push(
+      `Refunds: settle mined in block ${refunds.settleBlock.toString()}, last refund in block ${refunds.lastRefundBlock.toString()} (${refunds.blocks.toString()} blocks, ${refunds.chainSeconds.toString()} s of chain time, ${refunds.wallMs === null ? "–" : `${refunds.wallMs.toString()} ms`} of wall clock between the rehearsal seeing settle and the last refund on-chain). ${refunds.batches.length.toString()} batch(es):`,
+    );
+    for (const batch of refunds.batches) {
+      lines.push(
+        `- ${batch.tickets.toString()} tickets, gas ${batch.gasUsed?.toString() ?? "–"}, broadcast ${batch.sentAt ?? "–"}, block time ${batch.blockTime ?? "–"}, \`${batch.hash}\``,
+      );
+    }
+  }
+  lines.push("");
+  lines.push("Steps:");
+  lines.push("");
+  for (const step of receipt.steps) {
+    lines.push(`- ${step.step}: ${step.status}, ${ms(step.durationMs)}`);
+  }
+
+  if (receipt.hedging !== null) {
+    const hedging = receipt.hedging;
+    lines.push("");
+    lines.push("## Hedging");
+    lines.push("");
+    lines.push(
+      `${hedging.orders.toString()} orders (${hedging.makerOrders.toString()} maker, ${hedging.takerOrders.toString()} taker), ${hedging.fills.toString()} fills, ${hedging.makersFilledByTheRehearsal.toString()} makers filled by moving the driven book. ${hedging.charges.toString()} tickets charged, ${formatMicro(hedging.hedgeSpent)} USDC spent. Maker savings ${formatMicro(hedging.makerSavings)} USDC, guarantee losses over the run ${formatMicro(hedging.guaranteeLossesDelta)} USDC. At close: held ${hedging.heldAtClose?.toString() ?? "–"}, exposure ${hedging.exposureAtClose?.toString() ?? "–"} micro-contracts.`,
+    );
+  }
+
+  lines.push("");
+  lines.push("## Invariants");
+  lines.push("");
+  if (receipt.invariants.length === 0) lines.push("Not checked.");
+  for (const invariant of receipt.invariants) {
+    lines.push(
+      `- ${invariant.passed ? "PASSED" : "FAILED"}: ${invariant.name}. ${invariant.details}`,
+    );
+  }
+
+  lines.push("");
+  lines.push("## Balances (USDC, 18 decimals)");
+  lines.push("");
+  lines.push("| Account | Address | Before | After settlement | After sweep |");
+  lines.push("|---|---|---|---|---|");
+  const find = (rows: RehearsalReceipt["balances"]["before"], role: string): string => {
+    const row = rows.find((item) => item.role === role);
+    return row === undefined ? "–" : formatWei(row.moneyWei, 18);
+  };
+  for (const row of receipt.balances.before) {
+    lines.push(
+      `| ${row.role} | \`${row.address}\` | ${formatWei(row.moneyWei, 18)} | ${find(receipt.balances.afterSettlement, row.role)} | ${find(receipt.balances.afterSweep, row.role)} |`,
+    );
+  }
+  lines.push("");
+  lines.push(
+    `Net cost of the run for the treasury and the oracle, sweep included: ${receipt.netCostWei === null ? "–" : `${formatWei(receipt.netCostWei, 18)} USDC`}. Gas paid: ${formatWei(receipt.gasWei, 18)} ${receipt.chain.moneyMode === "native-usdc" ? "USDC" : "native coin (not USDC)"}.`,
+  );
+
+  lines.push("");
+  lines.push("## Sweep");
+  lines.push("");
+  if (receipt.sweep.length === 0) lines.push("Nothing swept.");
+  for (const row of receipt.sweep) {
+    lines.push(
+      `- ${row.wallet} \`${row.address}\`: ${row.status}, ${formatWei(row.sentWei, 18)} USDC back${row.txHash === null ? "" : `, \`${row.txHash}\``}`,
+    );
+  }
+  if (receipt.recovery !== null) {
+    const recovery = receipt.recovery;
+    lines.push("");
+    lines.push("## Recovery after the failure");
+    lines.push("");
+    lines.push(
+      `Sales closed and result ${recovery.outcome.toUpperCase()} forced so that the escrow settles and releases: ${recovery.released ? "released" : `not released (${recovery.reason ?? "unknown"})`}.`,
+    );
+  }
+  if (receipt.leftBehind.length > 0) {
+    lines.push("");
+    lines.push("## Left behind");
+    lines.push("");
+    for (const line of receipt.leftBehind) lines.push(`- ${line}`);
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+/**
+ * Writes `<base>.json` and `<base>.md` into `dir` (created when missing), never over an existing
+ * receipt. Both texts are redacted (`redactText`) before they are checked: a secret that slipped
+ * into a free text is replaced rather than costing the run its receipt. `assertNoSecrets` is the
+ * last check, and still refuses to write a text that redaction did not clean. Returns the paths.
+ */
+export async function writeReceipt(
+  receipt: RehearsalReceipt,
+  dir: string,
+  secrets: readonly string[],
+): Promise<{ json: string; markdown: string }> {
+  const json = redactText(receiptJson(receipt), secrets);
+  const markdown = redactText(receiptMarkdown(receipt), secrets);
+  assertNoSecrets(json, secrets, "the JSON receipt");
+  assertNoSecrets(markdown, secrets, "the Markdown receipt");
+  await mkdir(dir, { recursive: true });
+  const base = receiptBaseName(receipt);
+  let name = base;
+  for (let copy = 2; existsSync(join(dir, `${name}.json`)); copy += 1) {
+    name = `${base}-${copy.toString()}`;
+  }
+  const paths = { json: join(dir, `${name}.json`), markdown: join(dir, `${name}.md`) };
+  await writeFile(paths.json, json, { flag: "wx" });
+  await writeFile(paths.markdown, markdown, { flag: "wx" });
+  return paths;
+}
