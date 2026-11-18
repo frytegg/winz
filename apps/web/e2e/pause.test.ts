@@ -1,9 +1,9 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import type { SaleState } from "@winz/shared";
+import { JOB_KINDS, type SaleState } from "@winz/shared";
 
 import { startAnvil, type AnvilInstance } from "../../engine/src/testing/anvil";
-import { api } from "./support/api";
+import { ApiCallError, api } from "./support/api";
 import {
   buy,
   customerEmail,
@@ -222,6 +222,63 @@ async function expectOpenOnlyWhileLive(w: World, campaign: LiveCampaign): Promis
   return answers;
 }
 
+/** Once the page answered open, it never answers anything else in `answers` (no flap). */
+function expectNoPauseAfterOpen(answers: readonly SaleState[]): void {
+  const firstOpen = answers.indexOf("open");
+  expect(firstOpen, `answers: ${answers.join(", ")}`).toBeGreaterThanOrEqual(0);
+  expect(
+    answers.slice(firstOpen).filter((answer) => answer !== "open"),
+    `answers: ${answers.join(", ")}`,
+  ).toEqual([]);
+}
+
+/** The `setPaused` transactions the engine queued for the campaign. */
+async function setPausedTransactions(w: World, campaign: LiveCampaign): Promise<bigint> {
+  const [row] = await w.db<{ n: bigint }[]>`
+    select count(*)::bigint as n from chain_txs
+    where kind = 'setPaused' and payload ->> 'campaignId' = ${campaign.id}
+  `;
+  return row?.n ?? 0n;
+}
+
+/** The campaign's pause and resume jobs the worker has not finished. */
+async function unfinishedPauseJobs(w: World, campaign: LiveCampaign): Promise<bigint> {
+  const [row] = await w.db<{ n: bigint }[]>`
+    select count(*)::bigint as n from jobs
+    where kind = ${JOB_KINDS.setPaused} and payload ->> 'campaignId' = ${campaign.id}
+      and status in ('queued', 'running')
+  `;
+  return row?.n ?? 0n;
+}
+
+/** How long the page keeps being polled once `settled` holds. */
+const AFTER_SETTLED_WATCH_MS = 2_000;
+
+/**
+ * Polls the public campaign page every 50 ms until `settled` holds, then for
+ * `AFTER_SETTLED_WATCH_MS` more: it must never answer `open`.
+ */
+async function expectNeverOpen(
+  campaign: LiveCampaign,
+  settled: () => Promise<boolean>,
+): Promise<void> {
+  const answers: SaleState[] = [];
+  const deadline = Date.now() + REOPEN_TIMEOUT_MS;
+  let settledAt: number | null = null;
+  while (settledAt === null || Date.now() - settledAt < AFTER_SETTLED_WATCH_MS) {
+    const page = await api.publicCampaign(campaign.slug);
+    answers.push(page.saleState);
+    expect(page.saleState, `answers: ${answers.join(", ")}`).not.toBe("open");
+    if (settledAt === null && (await settled())) settledAt = Date.now();
+    if (settledAt === null && Date.now() > deadline) {
+      throw new Error(
+        `the pause did not settle within ${String(REOPEN_TIMEOUT_MS)} ms (answers: ${answers.join(", ")})`,
+      );
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
+  }
+}
+
 describe("pause, then the authorization is cancelled", () => {
   it(
     "1: the merchant pauses before the engine processes the purchase",
@@ -277,17 +334,26 @@ describe("pause, then the authorization is cancelled", () => {
   );
 
   it(
-    "1c: the merchant pauses and resumes back to back",
+    "1c: a pause taken back before the engine sends it reaches nothing on-chain, and the promo sells again without a flap",
     { timeout: SCENARIO_TIMEOUT_MS },
     async () => {
       const { w, campaign } = await liveCampaign({ tuning: SLOW_RECEIPTS });
+      // The engine is down while the merchant pauses and resumes: the pause is superseded before
+      // any worker takes it, whatever the timing, so it can only end with nothing sent.
+      await w.stopEngine();
+      const paused = await api.pause(campaign.merchant.headers, campaign.id);
+      expect(paused.saleState).toBe("paused_manual");
+      await api.resume(campaign.merchant.headers, campaign.id);
+      expect((await api.publicCampaign(campaign.slug)).saleState).toBe("paused_manual");
       const answers = await withBlocksEverySecond(async () => {
-        const paused = await api.pause(campaign.merchant.headers, campaign.id);
-        expect(paused.saleState).toBe("paused_manual");
-        await api.resume(campaign.merchant.headers, campaign.id);
+        await w.startEngine();
         return expectOpenOnlyWhileLive(w, campaign);
       });
-      expect(answers.length).toBeGreaterThan(1);
+      // Once open, the page stays open: the resume that found the chain live did not reopen the
+      // sale while its job still counted as in flight.
+      expectNoPauseAfterOpen(answers);
+      expect(await setPausedTransactions(w, campaign)).toBe(0n);
+      expect(await escrowEvents(w, "CampaignPaused")).toEqual([]);
       expect((await onchainCampaign(w, campaign.onchainId)).status).toBe(ONCHAIN_LIVE);
       await expectSaleAgain(w, campaign);
     },
@@ -324,6 +390,48 @@ describe("pause, then the authorization is cancelled", () => {
         true,
         false,
       ]);
+      expect((await onchainCampaign(w, campaign.onchainId)).status).toBe(ONCHAIN_LIVE);
+      await expectSaleAgain(w, campaign);
+    },
+  );
+
+  it(
+    "1e: the merchant resumes by mistake and pauses again at once: the page never says open",
+    { timeout: SCENARIO_TIMEOUT_MS },
+    async () => {
+      const { w, campaign } = await liveCampaign({ tuning: SLOW_RECEIPTS });
+      await withBlocksEverySecond(async () => {
+        const paused = await api.pause(campaign.merchant.headers, campaign.id);
+        expect(paused.saleState).toBe("paused_manual");
+        await waitOnchainStatus(w, campaign, ONCHAIN_PAUSED);
+        await expectPausedPage(w, campaign.slug, "paused_manual");
+        await api.resume(campaign.merchant.headers, campaign.id);
+        // At once, before the resume has landed: the pause is accepted, not refused as "already
+        // paused" (the sale state still says paused_manual for the resume on its way).
+        const again = await api.pause(campaign.merchant.headers, campaign.id);
+        expect(again.saleState).toBe("paused_manual");
+        await expectNeverOpen(campaign, async () => {
+          const onchain = await onchainCampaign(w, campaign.onchainId);
+          const detail = await api.campaign(campaign.merchant.headers, campaign.id);
+          return (
+            onchain.status === ONCHAIN_PAUSED &&
+            detail.status === "paused" &&
+            (await unfinishedPauseJobs(w, campaign)) === 0n
+          );
+        });
+      });
+      expect((await onchainCampaign(w, campaign.onchainId)).status).toBe(ONCHAIN_PAUSED);
+      // A checkout is refused while paused.
+      const refused = await api.checkout(campaign.slug, 1).then(
+        () => null,
+        (error: unknown) => error,
+      );
+      expect(refused).toBeInstanceOf(ApiCallError);
+      expect((refused as ApiCallError).body.error.code).toBe("sales_paused");
+      // A final resume reopens it.
+      await api.resume(campaign.merchant.headers, campaign.id);
+      const answers = await expectOpenOnlyWhileLive(w, campaign);
+      expectNoPauseAfterOpen(answers);
       expect((await onchainCampaign(w, campaign.onchainId)).status).toBe(ONCHAIN_LIVE);
       await expectSaleAgain(w, campaign);
     },
