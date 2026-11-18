@@ -190,7 +190,7 @@ Tous parallèles entre eux dès que F-05 est figé. Lot à lancer ensemble : C-0
 - [x] **H-01** · Qui : Agent `coder-high`, relu par A · Dép. : X-02 · HE-1, HE-3
   Grand livre d'exposition : chaque `TicketPurchased` crée son lot et augmente l'exposition de l'instrument, toutes campagnes confondues ; écrit `positions` et `live_campaigns`.
   Fini quand : exposition = somme des montants remboursables des tickets, rejouable depuis `chain_events`.
-- [ ] **H-02** · Qui : Agent `coder-high`, relu par A · Dép. : M-02, P-01, H-01 · CA-5
+- [x] **H-02** · Qui : Agent `coder-high`, relu par A · Dép. : M-02, P-01, H-01 · CA-5
   État de vente de chaque campagne (`sale_state`) : ouverte, en pause pour prix, budget, profondeur ou carnet périmé, pause manuelle, close ; reprise après 10 s stables avec un tick de marge ; fin des ventes 5 min avant `startTime`.
   Fini quand : une cote qui oscille autour de p_max ne fait pas clignoter l'état (test), et aucun devis n'est signé hors de l'état « ouverte ».
 - [x] **A-04** · Qui : Agent `coder`, relu par A · Dép. : D-01, I-01 · LT-2, C3
@@ -218,10 +218,10 @@ Lots parallèles : (H-03 → H-04 → H-05, H-06), (R-01 → R-02), (A-05, A-06,
 - [x] **H-06** · Qui : Agent `coder`, relu par A · Dép. : H-04 · HE-5
   Coupe-circuit : Gemini muet, carnet périmé ou plafond dépassé → plus de devis, plus d'ordres, état visible.
   Fini quand : chaque déclencheur est testé, et aucun ordre ne part coupe-circuit actif.
-- [ ] **H-10** · Qui : Agent `coder`, relu par A · Dép. : H-03, H-04, H-05, M-02, X-02 · HE-2, HE-3, HE-4
+- [x] **H-10** · Qui : Agent `coder`, relu par A · Dép. : H-03, H-04, H-05, M-02, X-02 · HE-2, HE-3, HE-4
   Brancher la couverture dans le moteur : un exécuteur par instrument alimenté par le flux de carnets et le grand livre d'exposition, ordres et exécutions enregistrés en base, allocation des exécutions aux lots, envoi des facturations `chargeHedge`, reprise après redémarrage, état public du Hedge desk.
   Fini quand : sur une chaîne locale, une vente déclenche un ordre papier, son exécution est allouée au lot, la facturation part on-chain, et un redémarrage au milieu ne double rien.
-- [ ] **H-08** · Qui : Agent `coder-high`, relu par A · Dép. : H-05 · HE-6
+- [x] **H-08** · Qui : Agent `coder-high`, relu par A · Dép. : H-05 · HE-6
   Réconciliation à la fin des ventes : position ramenée à l'exposition à 0,01 contrat près, puis facturation de tous les lots restants.
   Fini quand : après clôture, `hedgeReserved == 0` on-chain pour chaque campagne de l'instrument.
 - [ ] **H-07** ◇ · Qui : Agent `coder-high`, relu par A · Dép. : H-03, S-06 · HE-10
@@ -239,7 +239,7 @@ Lots parallèles : (H-03 → H-04 → H-05, H-06), (R-01 → R-02), (A-05, A-06,
   Fini quand : sur Anvil, les trois issues laissent le contrat sans un centime dû, et un ticket vers une adresse bloquée reste dû sans bloquer les autres.
 
 ### API
-- [ ] **A-05** · Qui : Agent `coder`, relu par A · Dép. : H-05, D-01 · MDB-1, MDB-2, MDB-3
+- [x] **A-05** · Qui : Agent `coder`, relu par A · Dép. : H-05, D-01 · MDB-1, MDB-2, MDB-3
   `GET /api/hedge-desk`, détail de campagne en direct, bilan après règlement ; alimentation de `live_hedge_desk`.
 - [ ] **A-06** · Qui : Agent `coder`, relu par A · Dép. : S-04, X-02 · HE-1
   `POST /api/webhooks/quicknode` : signature vérifiée, écriture dans `chain_events`.

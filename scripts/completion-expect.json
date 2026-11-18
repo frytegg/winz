@@ -34,9 +34,24 @@
   "H-04": ["apps/engine/src/hedging"],
   "H-05": ["apps/engine/src/hedging"],
   "R-01": ["apps/engine/src/settlement"],
-  "A-05": ["apps/web/app/api/hedge-desk"],
+  "A-05": [
+    "apps/web/app/api/hedge-desk",
+    "apps/web/lib/server/hedge-desk.ts",
+    "apps/engine/src/hedging/runtime/desk.ts"
+  ],
   "A-06": ["apps/web/app/api/webhooks/quicknode"],
   "U-06": ["apps/web/app/hedge-desk"],
   "U-07": ["apps/web/app/admin"],
-  "Q-02": ["e2e"]
+  "Q-02": ["e2e"],
+  "J-02": ["apps/engine/src/jobs/handlers/create-campaign.ts"],
+  "J-03": ["apps/engine/src/jobs/handlers/purchase.ts"],
+  "H-02": ["apps/engine/src/sales/evaluate.ts", "apps/engine/src/sales/service.ts"],
+  "H-10": ["apps/engine/src/hedging/runtime/service.ts", "apps/engine/src/app.ts"],
+  "H-08": ["apps/engine/src/hedging/runtime/service.reconcile.test.ts"],
+  "R-02": ["apps/engine/src/settlement/sequence.ts", "apps/engine/src/settlement/watcher.ts"],
+  "A-07": [
+    "apps/web/lib/server/demo.ts",
+    "apps/engine/src/payments/demo-gateway.ts",
+    "apps/engine/src/market-data/demo-book-store.ts"
+  ]
 }
