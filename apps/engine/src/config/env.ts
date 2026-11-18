@@ -8,41 +8,73 @@ const booleanString = z.enum(["true", "false"]).transform((value) => value === "
  * Everything the engine reads from the environment. Parsed once at startup:
  * a missing or malformed variable stops the process with the full list, before any I/O.
  */
-export const engineEnvSchema = z.object({
-  APP_ENV: z.enum(["development", "test", "production"]).default("development"),
-  APP_LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
-  APP_EXECUTION_VENUE: z.enum(["paper", "gemini-sandbox"]).default("paper"),
-  APP_ADMIN_DEMO_KEY: z.string().min(16),
+export const engineEnvSchema = z
+  .object({
+    APP_ENV: z.enum(["development", "test", "production"]).default("development"),
+    APP_LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
+    APP_EXECUTION_VENUE: z.enum(["paper", "gemini-sandbox"]).default("paper"),
+    APP_ADMIN_DEMO_KEY: z.string().min(16),
 
-  DB_URL: z.string().url(),
+    DB_URL: z.string().url(),
+    // Connections of the engine's pool. The job worker holds one per running job for its lock, and
+    // the sender, the chain reader, hedging, settlement and the sale states share the rest.
+    DB_POOL_MAX: z.coerce.number().int().min(6).max(100).default(20),
 
-  ARC_CHAIN_ID: z.coerce.number().int().positive().default(5_042_002),
-  ARC_RPC_URL: z.string().url(),
-  ARC_RPC_FALLBACK_URL: z.string().url().default("https://rpc.testnet.arc.io"),
-  ARC_ESCROW_ADDRESS: hexAddress,
-  // Block the escrow was deployed at: where the event reader starts when it has no cursor yet.
-  ARC_ESCROW_DEPLOY_BLOCK: z.coerce.bigint().nonnegative(),
-  ARC_USDC_ADDRESS: hexAddress.default("0x3600000000000000000000000000000000000000"),
-  ARC_RELAYER_PRIVATE_KEY: privateKey,
-  ARC_ORACLE_PRIVATE_KEY: privateKey,
+    ARC_CHAIN_ID: z.coerce.number().int().positive().default(5_042_002),
+    ARC_RPC_URL: z.string().url(),
+    ARC_RPC_FALLBACK_URL: z.string().url().default("https://rpc.testnet.arc.io"),
+    ARC_ESCROW_ADDRESS: hexAddress,
+    // Block the escrow was deployed at: where the event reader starts when it has no cursor yet.
+    ARC_ESCROW_DEPLOY_BLOCK: z.coerce.bigint().nonnegative(),
+    ARC_USDC_ADDRESS: hexAddress.default("0x3600000000000000000000000000000000000000"),
+    ARC_RELAYER_PRIVATE_KEY: privateKey,
+    ARC_ORACLE_PRIVATE_KEY: privateKey,
 
-  GEMINI_API_URL: z.string().url().default("https://api.gemini.com"),
-  GEMINI_WS_URL: z.string().url().default("wss://ws.gemini.com"),
-  GEMINI_SANDBOX_API_URL: z.string().url().default("https://api.sandbox.gemini.com"),
-  // Only where direct outbound connections are blocked: the Gemini WebSocket is then opened
-  // through this HTTPS proxy, trusting the CA bundle in the given file.
-  APP_HTTPS_PROXY_URL: z.string().url().optional(),
-  APP_PROXY_CA_FILE: z.string().min(1).optional(),
-  GEMINI_SANDBOX_API_KEY: z.string().min(1).optional(),
-  GEMINI_SANDBOX_API_SECRET: z.string().min(1).optional(),
+    GEMINI_API_URL: z.string().url().default("https://api.gemini.com"),
+    GEMINI_WS_URL: z.string().url().default("wss://ws.gemini.com"),
+    GEMINI_SANDBOX_API_URL: z.string().url().default("https://api.sandbox.gemini.com"),
+    // Only where direct outbound connections are blocked: the Gemini WebSocket is then opened
+    // through this HTTPS proxy, trusting the CA bundle in the given file.
+    APP_HTTPS_PROXY_URL: z.string().url().optional(),
+    APP_PROXY_CA_FILE: z.string().min(1).optional(),
+    GEMINI_SANDBOX_API_KEY: z.string().min(1).optional(),
+    GEMINI_SANDBOX_API_SECRET: z.string().min(1).optional(),
 
-  STRIPE_SECRET_KEY: z.string().startsWith("sk_test_", "only Stripe test keys are allowed"),
+    // Card payments. Without a key the engine can only sell the sales replayed by the demo mode
+    // (payments whose id starts with pi_demo_), and refuses any other payment.
+    STRIPE_SECRET_KEY: z
+      .string()
+      .startsWith("sk_test_", "only Stripe test keys are allowed")
+      .optional(),
 
-  PRIVY_APP_ID: z.string().min(1),
-  PRIVY_APP_SECRET: z.string().min(1),
+    // Buyers' embedded wallets. The app id is the one the web app reads, under the same name.
+    NEXT_PUBLIC_PRIVY_APP_ID: z.string().min(1).optional(),
+    PRIVY_APP_SECRET: z.string().min(1).optional(),
+    // Only without Privy: buyers then get wallets derived from this 32-byte secret, whose keys the
+    // engine can re-derive to sweep test funds back. Demo only: these are not customers' wallets.
+    APP_DEMO_WALLET_SEED: privateKey.optional(),
 
-  APP_API_MOCK: booleanString.default(false),
-});
+    APP_API_MOCK: booleanString.default(false),
+  })
+  .superRefine((env, context) => {
+    const privyId = env.NEXT_PUBLIC_PRIVY_APP_ID !== undefined;
+    const privySecret = env.PRIVY_APP_SECRET !== undefined;
+    if (privyId !== privySecret) {
+      context.addIssue({
+        code: "custom",
+        path: [privyId ? "PRIVY_APP_SECRET" : "NEXT_PUBLIC_PRIVY_APP_ID"],
+        message: "NEXT_PUBLIC_PRIVY_APP_ID and PRIVY_APP_SECRET must be set together",
+      });
+    }
+    if (!privyId && !privySecret && env.APP_DEMO_WALLET_SEED === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["APP_DEMO_WALLET_SEED"],
+        message:
+          "required when Privy is not configured: buyers then get demo wallets derived from it",
+      });
+    }
+  });
 
 export type EngineEnv = z.infer<typeof engineEnvSchema>;
 
