@@ -94,6 +94,8 @@
   --animate-sweep: sweep 760ms var(--ease-in-out) both;
   --animate-confetti: confetti 1.2s var(--ease-out) both;
   --animate-draw: draw 1.4s var(--ease-in-out) infinite;
+  --animate-print: print 2.6s var(--ease-out) infinite;
+  --animate-rise: rise 420ms var(--ease-out) both;
 
   @keyframes pulse-dot {
     0%,
@@ -162,6 +164,27 @@
     70%,
     100% {
       clip-path: inset(0 0 0 0);
+    }
+  }
+  /* A ticket coming out of the printer slot while the purchase is secured, then a pause. */
+  @keyframes print {
+    0% {
+      transform: translateY(-88%);
+    }
+    62%,
+    100% {
+      transform: translateY(0);
+    }
+  }
+  /* The refunded amount lands: up a little, in, once. */
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(14px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
     }
   }
   @keyframes skeleton {

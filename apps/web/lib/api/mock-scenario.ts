@@ -52,19 +52,30 @@ export function setMockScenario(name: string | null): void {
   }
 }
 
-/** The scenario to send for `route`: only when that route has an example of this name. */
+/**
+ * Scenarios that only the mock API knows: they answer an error, not an example, so they are not in
+ * `API_ROUTES` (the back keeps them in `MOCK_REFUSALS`). The front lists them to be able to ask for
+ * them: a fan refused at checkout because the promo paused or closed in the meantime.
+ */
+const MOCK_REFUSALS: Partial<Record<ApiRouteName, readonly string[]>> = {
+  checkout: ["salesPaused", "salesClosed"],
+};
+
+/** The scenario to send for `route`: only when that route has an example or a refusal of this name. */
 export function scenarioFor(route: ApiRouteName, scenario: string | null): string | null {
   if (scenario === null) return null;
-  return Object.prototype.hasOwnProperty.call(API_ROUTES[route].examples, scenario)
-    ? scenario
-    : null;
+  const known =
+    Object.prototype.hasOwnProperty.call(API_ROUTES[route].examples, scenario) ||
+    (MOCK_REFUSALS[route]?.includes(scenario) ?? false);
+  return known ? scenario : null;
 }
 
 /** Every scenario name of every route, for the picker. */
 export function allScenarioNames(): string[] {
   const names = new Set<string>();
-  for (const route of Object.values(API_ROUTES)) {
-    for (const name of Object.keys(route.examples)) names.add(name);
+  for (const [name, route] of Object.entries(API_ROUTES)) {
+    for (const scenario of Object.keys(route.examples)) names.add(scenario);
+    for (const scenario of MOCK_REFUSALS[name as ApiRouteName] ?? []) names.add(scenario);
   }
   names.delete("default");
   return [...names].sort();
