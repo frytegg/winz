@@ -223,9 +223,18 @@ function pauseJoins(sql: Queryable): PendingQuery<Row[]> {
             select 1
             from chain_txs pt
             join chain_events pe on pe.tx_hash = pt.tx_hash
+            -- 'mined': decides for a row still 'sent' whose event a log poller stored and the
+            -- projector projected before the sender read the receipt. A 'reverted' row never
+            -- has events (the sender stores none for a failed receipt, and a revert drops its
+            -- logs), a 'failed' row has no hash (chain/store.ts, markSentFailed and
+            -- markQueuedFailed): a defence for those two.
             where pt.kind = 'setPaused' and pt.status = 'mined'
               and pt.payload ->> 'requestId' = j.payload ->> 'requestId'
               and pe.name = 'CampaignPaused'
+              -- Defences: the request's transaction is setPaused(its campaign's id, true), built
+              -- from the job (jobs/handlers/campaign-actions.ts), and emits only
+              -- CampaignPaused(id, paused) of that call (WinzEscrow.setPaused). No row the
+              -- system writes fails these two; manual-pause.service.test.ts writes them by hand.
               and pe.args ->> 'id' = c.onchain_id::text
               and (pe.args ->> 'paused')::boolean
               and pe.processed_at is not null
