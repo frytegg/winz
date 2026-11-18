@@ -248,3 +248,15 @@ select test.ok(
   'chain_txs has an index on the sent rows by (signer, signer_address, chain_id, nonce)',
   (select string_agg(indexdef, '; ') from pg_indexes where tablename = 'chain_txs')
 );
+
+-- chain_txs (seventh migration): a pause request's own transaction is found by its request id.
+select test.ok(
+  exists (
+    select 1 from pg_indexes
+    where schemaname = 'public' and tablename = 'chain_txs'
+      and indexname = 'chain_txs_set_paused_request_idx'
+      and indexdef like '%(payload ->> ''requestId''::text)%WHERE (kind = ''setPaused''::text)'
+  ),
+  'chain_txs has a partial index on the request id of its setPaused rows',
+  (select string_agg(indexdef, '; ') from pg_indexes where tablename = 'chain_txs')
+);
