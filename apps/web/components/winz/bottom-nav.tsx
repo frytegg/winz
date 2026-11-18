@@ -42,6 +42,7 @@ export function BottomNav({
   return (
     <nav
       aria-label={copy.nav.main}
+      data-bottom-nav=""
       className="pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto flex w-full max-w-[430px] items-center gap-3 bg-gradient-to-t from-ink via-ink/85 to-transparent px-4 pb-[max(1rem,var(--safe-bottom))] pt-8"
     >
       <ul className="pointer-events-auto flex h-[76px] min-w-0 flex-1 items-center rounded-full bg-white-pill px-1">
