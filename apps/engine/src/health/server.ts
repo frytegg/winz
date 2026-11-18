@@ -9,8 +9,8 @@ import type { LeaseView } from "../leader/leader";
 
 /**
  * The engine's health listener: one route, `GET /healthz`, for the platform's health check
- * (Railway reads it during a deploy). Off unless `PORT` is set, so local runs and tests listen on
- * nothing. Built on node:http, no dependency.
+ * (Render checks it during a deploy and every few seconds after it). Off unless `PORT` is set, so
+ * local runs and tests listen on nothing. Built on node:http, no dependency.
  *
  * It reads what the engine already knows: its start time, the cursor of the escrow's event reader
  * (a database read, which is also the database probe), the chain's head (one `eth_blockNumber`),
@@ -26,7 +26,7 @@ import type { LeaseView } from "../leader/leader";
 
 /**
  * `PORT`, read apart from the engine's own schema (`config/env.ts`), which this listener does not
- * change. Unset or empty: no listener. Railway sets it for every service.
+ * change. Unset or empty: no listener. Render sets it (10000 by default) on every web service.
  */
 export const engineHealthEnvSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65_535).optional(),

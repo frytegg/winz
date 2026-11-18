@@ -84,6 +84,6 @@ A client close without a code is reported as 1005.
 - Sessions longer than 5 minutes, server-initiated disconnects, connection or subscription limits
   beyond 79 streams in one request.
 - Trades on a sports instrument during a game (the shape was verified on crypto markets only).
-- That the connection works from Railway (the S-05 done criterion): only this sandbox was tried.
+- That the connection works from Render, the engine's host (the S-05 done criterion): only this sandbox was tried.
 - TASKS.md asks for a 10-minute recording; the brief asked for 3 to 5. The longest session is 5
   minutes, trimmed here to stay under 200 KB.

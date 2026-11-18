@@ -57,8 +57,8 @@ Ordre imposé en fin de parcours : build complet → `/harden` → corrections �
 Tout le reste en dépend. F-02, puis F-03, sont les deux seules tâches vraiment en série.
 
 - [ ] **F-01** · Qui : A · Dép. : aucune
-  Comptes et clés côté back : projet Supabase, point d'accès QuickNode sur Arc testnet, projet Railway, compte sandbox Gemini (`exchange.sandbox.gemini.com`), clés relayer et oracle générées, premiers USDC du faucet sur le relayer.
-  Fini quand : chaque secret est dans le gestionnaire de secrets de Railway et de Vercel, `.env.example` liste toutes les variables sans valeur.
+  Comptes et clés côté back : projet Supabase, point d'accès QuickNode sur Arc testnet, service Render, compte sandbox Gemini (`exchange.sandbox.gemini.com`), clés relayer et oracle générées, premiers USDC du faucet sur le relayer.
+  Fini quand : chaque secret est dans les variables d'environnement du service Render (page Environment) et du projet Vercel, `.env.example` liste toutes les variables sans valeur.
   État au 18 nov. : aucun compte n'existe encore. La marche à suivre, étape par étape avec la commande qui prouve chacune, est dans `docs/deploy.md` ; `pnpm env:check <engine|web>` dit si un environnement est complet.
 - [ ] **F-02** · Qui : A · Dép. : aucune · Hypothèse 8
   Demander une allocation d'USDC testnet à l'équipe Circle/Arc sur place (besoin : environ 15 000).
@@ -97,7 +97,7 @@ Chacune répond à une incertitude de la revue (question ouverte 9). Si une sond
   Fini quand : une livraison réelle est enregistrée comme fichier d'exemple, la vérification de signature passe, et le délai de livraison est mesuré.
 - [ ] **S-05** · Qui : Agent `coder`, relu par A · Dép. : F-04 · MD-2
   Gemini temps réel : se connecter à `wss://ws.gemini.com`, s'abonner à `@bookTicker`, `@depth10` et au flux des transactions d'un instrument sportif coté ; enregistrer 10 minutes.
-  Fini quand : l'enregistrement est commité comme jeu de carnets pour les tests, les formats de message sont documentés, et la connexion marche depuis Railway.
+  Fini quand : l'enregistrement est commité comme jeu de carnets pour les tests, les formats de message sont documentés, et la connexion marche depuis Render.
 - [ ] **S-06** · Qui : A · Dép. : F-01 · HE-10, question ouverte 1
   Sandbox Gemini : clé de rôle Trader, acceptation des conditions, un ordre `makerOrCancel` sur un marché crypto, puis son annulation.
   Fini quand : identifiants d'ordre notés. Si le compte est refusé : le noter ici, H-07 bascule sur un serveur simulé.

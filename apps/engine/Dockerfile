@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 #
-# Image of the engine (apps/engine). Built from the REPOSITORY ROOT as context, which is what
-# Railway does with railway.json:
+# Image of the engine (apps/engine). Built from the REPOSITORY ROOT as context, which is how the
+# Render web service is set (Root Directory empty, Docker Build Context Directory ".", Dockerfile
+# Path apps/engine/Dockerfile: docs/deploy.md, step 2):
 #
 #   docker build -f apps/engine/Dockerfile -t winz-engine .
 #
@@ -27,7 +28,8 @@ COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
 COPY packages/pricing/package.json packages/pricing/
 COPY packages/contracts/package.json packages/contracts/
-# The optional secret "ca" is only for builds behind a TLS-intercepting proxy; Railway passes none.
+# The optional secret "ca" is only for builds behind a TLS-intercepting proxy; the hosted build
+# passes none.
 RUN --mount=type=secret,id=ca,required=false \
     if [ -s /run/secrets/ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/ca; fi; \
     corepack install && \

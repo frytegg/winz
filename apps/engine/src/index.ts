@@ -222,8 +222,8 @@ async function main(): Promise<void> {
     shutdown("unhandledRejection", 1);
   });
 
-  // PORT set (Railway sets it): GET /healthz for the platform's health check, from the standby
-  // on (a healthy standby answers 200 with role "standby"). Unset: no listener.
+  // PORT set (Render sets it on a web service): GET /healthz for the platform's health check,
+  // from the standby on (a healthy standby answers 200 with role "standby"). Unset: no listener.
   if (healthPort !== undefined) {
     try {
       health = await startHealthServer({

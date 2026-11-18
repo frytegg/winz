@@ -20,9 +20,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const TARGETS = ["engine", "web"];
 
-/** Variables the platforms set themselves: never reported as typos. */
+/** Variables the platforms (Vercel, Render) set themselves: never reported as typos. */
 const PLATFORM =
-  /^(VERCEL|VERCEL_.+|RAILWAY_.+|NODE_ENV|NODE_OPTIONS|TZ|ENABLE_EXPERIMENTAL_COREPACK|PORT|HOSTNAME|CI)$/;
+  /^(VERCEL|VERCEL_.+|RENDER|RENDER_.+|NODE_ENV|NODE_OPTIONS|TZ|ENABLE_EXPERIMENTAL_COREPACK|PORT|HOSTNAME|CI)$/;
 /** In the process environment (no --file), only names that look like ours are inspected. */
 const PROJECT_NAME = /^(APP|DB|ARC|GEMINI|STRIPE|PRIVY|NEXT_PUBLIC|QUICKNODE|SUPABASE)_[A-Z0-9_]+$/;
 /** A secret's name. Such a variable read only by the engine has no business on the web app. */

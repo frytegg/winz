@@ -250,6 +250,18 @@ describe("checkEnv", () => {
     assert.deepEqual(report.extras, []);
   });
 
+  test("Render's own variables in a checked file are not reported as typos", () => {
+    const report = check("engine", {
+      ...ENGINE,
+      RENDER: "true",
+      RENDER_SERVICE_NAME: "winz-engine",
+      RENDER_EXTERNAL_URL: "https://winz-engine.onrender.com",
+      PORT: "10000",
+    });
+    assert.deepEqual(report.extras, []);
+    assert.equal(rowOf(report, "PORT").status, "set");
+  });
+
   test("the report never contains a value", () => {
     const text = formatReport(check("engine", ENGINE), "test");
     for (const value of Object.values(ENGINE))

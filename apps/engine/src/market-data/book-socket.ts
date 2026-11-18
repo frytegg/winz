@@ -33,7 +33,7 @@ export interface WsBookSocketOptions {
   url?: string;
   /**
    * An HTTP proxy that tunnels with CONNECT, e.g. "http://127.0.0.1:3128". Unset on a host with
-   * direct egress (Railway); set where outbound traffic must go through a proxy.
+   * direct egress (the hosted engine); set where outbound traffic must go through a proxy.
    */
   proxyUrl?: string;
   /** Extra CA bundle (PEM file) for a TLS-intercepting proxy. */

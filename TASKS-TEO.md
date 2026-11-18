@@ -6,14 +6,14 @@ Rendu Devpost : **vendredi 20 novembre, 12 h CST**.
 ## Accès au dépôt
 
 - Dépôt : https://github.com/frytegg/winz (Alexandre t'invite comme collaborateur, tu acceptes l'invitation reçue par e-mail ou sur https://github.com/frytegg/winz/invitations).
-- Tout le travail en cours est sur la branche `frytegg/modest-bohr-wipl43` (PR n° 1) tant qu'elle n'est pas fusionnée dans `main`.
+- Le code est sur `main` depuis le 18 novembre au soir : tes branches partent de `main` et tes PR visent `main`.
 
 ```bash
 git clone https://github.com/frytegg/winz.git
 ```
 
 ```bash
-cd winz && git checkout frytegg/modest-bohr-wipl43
+cd winz && git checkout main
 ```
 
 ```bash
