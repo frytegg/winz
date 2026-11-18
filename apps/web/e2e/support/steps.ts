@@ -14,6 +14,12 @@ import { onchainCampaign, tokenBalance, type World } from "./world";
 /** The underdog's book: Arkansas wins at 10–12 %. */
 export const QUIET_BOOK = { bidBps: 1000, askBps: 1200 };
 
+/** Rounds `fillRestingMaker` allows: one per maker filled, plus those the engine withdrew first. */
+const MAX_MAKER_ROUNDS = 12;
+
+/** A desk order in one of these states is gone without having been filled in full. */
+const WITHDRAWN_STATUSES: ReadonlySet<string> = new Set(["cancelled", "rejected"]);
+
 /**
  * Hedges the campaign's sales the way a market does: each maker order the engine rests on the
  * paper venue (read from the Hedge desk) is filled by bringing the ask down to its price, then the
@@ -44,20 +50,26 @@ export async function fillRestingMaker(
     );
     if (charged >= charges) break;
     const resting = maker as { id: string; priceBps: number } | null;
-    if (resting === null || round >= 5) {
+    if (resting === null || round >= MAX_MAKER_ROUNDS) {
       throw new Error(`no maker left to fill and only ${charged.toString()} tickets charged`);
     }
-    prices.push(resting.priceBps);
     w.gemini.setBook(campaign.symbol, {
       bidBps: Math.min(QUIET_BOOK.bidBps, resting.priceBps - 100),
       askBps: resting.priceBps,
     });
-    await w.waitFor(`the maker ${resting.id} filled`, async () => {
+    // The engine withdraws a resting maker and posts another when the exposure changes under it
+    // (a sale projected a moment after the desk was read): that order will never fill, so the
+    // round ends there and the next one reads the desk again.
+    let filled = false;
+    await w.waitFor(`the maker ${resting.id} filled, or withdrawn by the engine`, async () => {
       const row = await deskInstrument(campaign.symbol);
       const order = row?.orders.find((item) => item.id === resting.id);
-      return { ok: order?.status === "filled", seen: order };
+      filled = order?.status === "filled";
+      const withdrawn = order === undefined || WITHDRAWN_STATUSES.has(order.status);
+      return { ok: filled || withdrawn, seen: order };
     });
     w.gemini.setBook(campaign.symbol, QUIET_BOOK);
+    if (filled) prices.push(resting.priceBps);
   }
   await w.waitFor(`exactly ${charges.toString()} tickets charged on-chain`, async () => {
     const charged = await hedgeCharges(w, campaign.onchainId);
