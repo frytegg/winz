@@ -8,6 +8,7 @@ import { Chip } from "@/components/ui/chip";
 import { ChipRow } from "@/components/ui/chip-row";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchField } from "@/components/ui/search-field";
+import { SPORT_ICONS } from "@/components/ui/sport-icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MatchCard } from "@/components/winz/match-card";
 import { apiFetch, errorMessage } from "@/lib/api/client";
@@ -109,6 +110,7 @@ export function StepGame(): React.JSX.Element {
             <Chip
               key={value}
               label={copy.sports[value]}
+              icon={SPORT_ICONS[value]}
               active={sport === value}
               onClick={() => setSport(value)}
             />
