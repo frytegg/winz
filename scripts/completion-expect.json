@@ -59,5 +59,11 @@
     "apps/web/e2e/pause.test.ts",
     "apps/web/e2e/demo.test.ts",
     "apps/web/e2e/restart.test.ts"
+  ],
+  "Q-04": [
+    "apps/web/e2e/rehearsal/invariants.ts",
+    "docs/rehearsals/20261118T090535Z-5042002-yes.md",
+    "docs/rehearsals/20261118T090714Z-5042002-no.md",
+    "docs/rehearsals/20261118T090924Z-5042002-yes.md"
   ]
 }

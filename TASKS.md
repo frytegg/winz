@@ -44,7 +44,7 @@ Rendu Devpost : **vendredi 20 novembre, 12 h CST**. Finale : samedi 21 novembre.
 |---|---|---|
 | G0 | mardi 17, midi | Squelette en place, contrats d'API figés et relus par Téo, API simulée servie, sondes lancées |
 | G1 | mercredi 18, midi | Une vente de bout en bout sur Arc testnet : campagne créée, paiement par carte de test, ticket on-chain, ticket affiché |
-| G2 | mercredi 18, soir | Boucle complète en mode démo : vente, couverture papier, facturation, règlement YES et NO, remboursements, commerçant payé. C'est le « Must tourne mercredi soir » de la spec |
+| G2 | mercredi 18, soir | Boucle complète en mode démo : vente, couverture papier, facturation, règlement YES et NO, remboursements, commerçant payé. C'est le « Must tourne mercredi soir » de la spec. **Passée le 18 nov. à 09:07 UTC sur Arc testnet** (reçus `docs/rehearsals/20261118T090535Z-5042002-yes.md` et `…090714Z-5042002-no.md`) |
 | G3 | jeudi 19, soir | Preuves faites (300 tickets, e2e, deux répétitions), `completion-check` vert sur les Must, puis `/harden` et corrections |
 | G4 | vendredi 20, 12 h | Vidéo et Devpost rendus |
 
@@ -244,9 +244,10 @@ Lots parallèles : (H-03 → H-04 → H-05, H-06), (R-01 → R-02), (A-05, A-06,
 - [ ] **A-06** · Qui : Agent `coder`, relu par A · Dép. : S-04, X-02 · HE-1
   `POST /api/webhooks/quicknode` : signature vérifiée, écriture dans `chain_events`.
   Fini quand : la livraison enregistrée en S-04 est acceptée, une signature fausse est refusée, un doublon est ignoré.
-- [ ] **A-07** · Qui : Agent `coder-high`, relu par A · Dép. : M-02, R-01, J-03 · MDB-4
+- [x] **A-07** · Qui : Agent `coder-high`, relu par A · Dép. : M-02, R-01, J-03 · MDB-4
   Mode démo derrière la clé admin : carnet piloté pour un instrument, résultat forcé, vente rejouée ; le drapeau « démo » remonte dans toutes les réponses concernées.
   Fini quand : les trois actions marchent sur le testnet et font apparaître le bandeau.
+  Fait le 18 nov. sur Arc testnet (reçus `docs/rehearsals/20261118T090535Z-5042002-yes.md` et `…090714Z-5042002-no.md`) : carnet piloté, vente rejouée, résultat forcé OUI puis NON ; chaque réponse sur la campagne porte `demo: true` (218 et 287 réponses, aucune fausse). Le bandeau lui-même est U-07.
 - [ ] **A-08** ◇ · Qui : Agent `coder` · Dép. : A-02 · CA-6 (Should)
   Recharge du budget (`topUpBudgetFor`).
 
@@ -277,8 +278,10 @@ Fin de vague : **porte G2**, boucle complète en mode démo sur le testnet, issu
 - [ ] **Q-03** · Qui : A · Dép. : G2 · Critères 6 et 7
   Mesures sur Arc testnet : 300 tickets remboursés en moins de 10 s après `settle` ; vente visible au tableau de bord en moins de 3 s ; cote du ticket à moins de 2 s.
   Fini quand : les chiffres et les hash de transaction sont dans `docs/`.
-- [ ] **Q-04** · Qui : A · Dép. : G2 · Critères 3, 4, 5
+  État au 18 nov. (reçus dans `docs/rehearsals/`) : vente visible sur le détail du commerçant en 1,2 à 2,3 s (médiane 1,9 s) une vente à la fois (`…090714Z-5042002-no.md`) ; 140 tickets remboursés en 3 lots, 10 blocs soit 5 s après `settle` (`…090924Z-5042002-yes.md`). Restent : la mesure à 300 tickets (la trésorerie doit avancer environ 400 USDC, elle en a 193) et le décalage de la cote du ticket.
+- [x] **Q-04** · Qui : A · Dép. : G2 · Critères 3, 4, 5
   Relevé sur le scénario de démo : aucune vente au-delà de p_max ou du budget, `U × p` sous `U_max`, aucun lot facturé au-delà de son devis.
+  Fait le 18 nov. sur Arc testnet : les onze invariants de la répétition (`apps/web/e2e/rehearsal/invariants.ts`) passent sur trois répétitions, OUI 12 ventes, NON 12 ventes, OUI 140 ventes (section « Invariants » de chaque reçu de `docs/rehearsals/`).
 - [ ] **Q-05** · Qui : A et T · Dép. : G2 · Critères 1 et 2
   Chronométrage sur téléphone : campagne en ligne en moins de 2 minutes et 15 taps ; ticket en moins de 30 secondes après le scan ; Apple Pay réel.
 - [ ] **Q-06** · Qui : A et T · Dép. : Q-01 à Q-05 · Critère 8
