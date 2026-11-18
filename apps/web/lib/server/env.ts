@@ -23,7 +23,13 @@ export const webEnvSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().min(1),
   PRIVY_APP_SECRET: z.string().min(1),
   NEXT_PUBLIC_PRIVY_APP_ID: z.string().min(1),
-  QUICKNODE_STREAMS_TOKEN: z.string().min(1),
+  /**
+   * Security token of the QuickNode Stream (docs/quicknode.md). Optional: without it,
+   * `POST /api/webhooks/quicknode` answers 503 and the engine's two other sources carry the events.
+   */
+  QUICKNODE_STREAMS_TOKEN: z.string().min(1).optional(),
+  /** QuickNode's name of the stream's network, checked on every delivery. Default `arc-testnet`. */
+  QUICKNODE_STREAMS_NETWORK: z.string().min(1).default("arc-testnet"),
   /**
    * Address of the deployed WinzEscrow on Arc testnet, shown in the collapsed "technical details"
    * of a campaign. Optional: until the contract is deployed, `onchain` is null in the answers.

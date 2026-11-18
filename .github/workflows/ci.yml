@@ -34,5 +34,6 @@ jobs:
       - run: pnpm test
       # The scripts' own tests (node:test through tsx): turbo's test task does not run them.
       - run: pnpm exec tsx --test scripts/env-check.test.mjs scripts/smoke.test.mjs
+      - run: node --test scripts/quicknode-record.test.mjs
       - run: pnpm db:test
       - run: pnpm build
