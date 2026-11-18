@@ -1,10 +1,10 @@
 import {
   TransactionNotFoundError,
   TransactionReceiptNotFoundError,
-  createWalletClient,
-  custom,
+  encodeFunctionData,
   erc20Abi,
   getAddress,
+  keccak256,
   parseEventLogs,
   toHex,
   type Address,
@@ -13,7 +13,6 @@ import {
   type Log,
   type PublicClient,
   type TransactionReceipt,
-  type WalletClient,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
@@ -470,28 +469,20 @@ export interface SweepInput {
   minedTimeoutMs?: number;
 }
 
+/** A sweep transfer was mined and reverted: the wallet still holds its money. */
+export class SweepRevertedError extends Error {
+  constructor(public readonly hash: Hex) {
+    super(`transfer ${hash} reverted`);
+    this.name = "SweepRevertedError";
+  }
+}
+
 /** Gas a token transfer is given; the wallet is topped up with twice its cost. */
 const TOKEN_TRANSFER_GAS = 80_000n;
 /** Gas of a plain native transfer to an account without code. */
 const NATIVE_TRANSFER_GAS = 21_000n;
 
 type LooseRequest = (args: { method: string; params?: unknown }) => Promise<unknown>;
-
-/** A wallet client that signs locally and sends through `client` (its limiter and its counts). */
-function walletThrough(client: PublicClient, chain: Chain, key: Hex): WalletClient {
-  const send = client.request as unknown as LooseRequest;
-  return createWalletClient({
-    account: privateKeyToAccount(key),
-    chain,
-    transport: custom(
-      {
-        request: ({ method, params }: { method: string; params?: unknown }) =>
-          send({ method, params }),
-      },
-      { retryCount: 0 },
-    ),
-  });
-}
 
 /** Polls the receipt of `hash` until it is mined; transient read failures are waited out. */
 async function waitMined(
@@ -520,63 +511,110 @@ async function waitMined(
   }
 }
 
-/** True while the node still knows `hash` (pending or mined). */
-async function stillKnown(client: PublicClient, hash: Hex): Promise<boolean> {
+/** What the node knows of a transaction: mined (with its receipt), pending, or nothing. */
+type Lookup =
+  { kind: "mined"; receipt: TransactionReceipt } | { kind: "pending" } | { kind: "unknown" };
+
+async function lookUp(client: PublicClient, hash: Hex): Promise<Lookup> {
+  try {
+    return { kind: "mined", receipt: await client.getTransactionReceipt({ hash }) };
+  } catch (error: unknown) {
+    if (!(error instanceof TransactionReceiptNotFoundError)) throw error;
+  }
   try {
     await client.getTransaction({ hash });
-    return true;
+    return { kind: "pending" };
   } catch (error: unknown) {
-    if (error instanceof TransactionNotFoundError) return false;
+    if (error instanceof TransactionNotFoundError) return { kind: "unknown" };
     throw error;
   }
 }
 
-interface WalletSweep {
-  row: SweepRecordRow;
-  /** A transfer sent by an earlier attempt whose outcome is not known yet. */
-  pending: { hash: Hex; sentWei: bigint } | null;
+/**
+ * What a node answers to a broadcast of bytes it already holds (pending, or mined: the nonce is
+ * then used). For the same signed bytes, that is a success: the transfer is the node's already.
+ */
+const ALREADY_KNOWN = /already known|already imported|known transaction|nonce too low/i;
+
+function alreadyKnown(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 12 && typeof current === "object" && current !== null; depth += 1) {
+    const fields = current as { message?: unknown; shortMessage?: unknown; details?: unknown };
+    for (const text of [fields.message, fields.shortMessage, fields.details]) {
+      if (typeof text === "string" && ALREADY_KNOWN.test(text)) return true;
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
 }
 
-async function sweepOnce(input: SweepInput, key: Hex, state: WalletSweep): Promise<void> {
-  const { client, row } = { client: input.client, row: state.row };
-  const timeoutMs = input.minedTimeoutMs ?? 120_000;
-  if (state.pending !== null) {
-    // An earlier attempt sent a transfer: find out what became of it before sending another.
-    const { hash, sentWei } = state.pending;
-    let receipt: TransactionReceipt | null = null;
-    try {
-      receipt = await client.getTransactionReceipt({ hash });
-    } catch (error: unknown) {
-      if (!(error instanceof TransactionReceiptNotFoundError)) throw error;
-    }
-    if (receipt === null && (await stillKnown(client, hash))) {
-      receipt = await waitMined(client, hash, timeoutMs);
-    }
-    state.pending = null;
-    if (receipt !== null && receipt.status === "success") {
-      row.status = "swept";
-      row.sentWei = sentWei;
-      row.gasWei = receipt.gasUsed * receipt.effectiveGasPrice;
-      row.txHash = hash;
-      return;
-    }
-    // Reverted or dropped: the wallet still holds its money; it is swept again below.
-  }
+/** A transfer the sweep signed, recorded by its hash before it is broadcast. */
+interface SignedTransfer {
+  hash: Hex;
+  /** The signed bytes: a re-broadcast sends exactly these, never a new signature. */
+  raw: Hex;
+  sentWei: bigint;
+}
 
+interface WalletSweep {
+  row: SweepRecordRow;
+  /** A transfer signed by an earlier attempt or this one whose outcome is not known yet. */
+  pending: SignedTransfer | null;
+}
+
+/**
+ * Broadcasts `state.pending`. When the broadcast fails, the node is asked about the transfer's
+ * hash before anything is decided: a node that holds it (pending or mined), or answers that it
+ * already does, has it, and it is waited for. A node that does not know it after a refusal
+ * (a permanent failure) never took it: `pending` is cleared. After a transient failure the
+ * transfer stays pending, and the next attempt looks it up again.
+ */
+async function broadcast(client: PublicClient, state: WalletSweep): Promise<void> {
+  const transfer = state.pending;
+  if (transfer === null) throw new Error("no transfer to broadcast");
+  try {
+    await (client.request as unknown as LooseRequest)({
+      method: "eth_sendRawTransaction",
+      params: [transfer.raw],
+    });
+    return;
+  } catch (error: unknown) {
+    if (alreadyKnown(error)) return;
+    let found: Lookup;
+    try {
+      found = await lookUp(client, transfer.hash);
+    } catch {
+      // The node cannot be asked now: the transfer stays pending and is looked up again.
+      throw error;
+    }
+    if (found.kind !== "unknown") return;
+    if (classifyFailure(error) === "permanent") state.pending = null;
+    throw error;
+  }
+}
+
+/** Signs, without sending, the transfer of the wallet's whole money; null when it holds none. */
+async function signTransfer(
+  input: SweepInput,
+  key: Hex,
+  address: Address,
+): Promise<SignedTransfer | null> {
+  const { client } = input;
+  const account = privateKeyToAccount(key);
   if (input.mode === "native-usdc") {
-    const balance = await client.getBalance({ address: row.address });
-    const fees = await client.estimateFeesPerGas();
+    const [balance, fees] = await Promise.all([
+      client.getBalance({ address }),
+      client.estimateFeesPerGas(),
+    ]);
     const price = fees.maxFeePerGas;
     const gasWei = NATIVE_TRANSFER_GAS * price;
-    if (balance <= gasWei) {
-      row.status = "empty";
-      return;
-    }
+    if (balance <= gasWei) return null;
     const value = balance - gasWei;
-    const wallet = walletThrough(client, input.chain, key);
-    const hash = await wallet.sendTransaction({
-      account: wallet.account ?? privateKeyToAccount(key),
-      chain: input.chain,
+    const nonce = await client.getTransactionCount({ address, blockTag: "pending" });
+    const raw = await account.signTransaction({
+      type: "eip1559",
+      chainId: input.chain.id,
+      nonce,
       to: input.destination,
       value,
       gas: NATIVE_TRANSFER_GAS,
@@ -584,58 +622,109 @@ async function sweepOnce(input: SweepInput, key: Hex, state: WalletSweep): Promi
       maxFeePerGas: price,
       maxPriorityFeePerGas: price,
     });
-    state.pending = { hash, sentWei: value };
-  } else {
-    const balance = await client.readContract({
-      address: input.token,
-      abi: erc20Abi,
-      functionName: "balanceOf",
-      args: [row.address],
+    return { hash: keccak256(raw), raw, sentWei: value };
+  }
+  const balance = await client.readContract({
+    address: input.token,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: [address],
+  });
+  if (balance === 0n) return null;
+  if (!input.local) throw new Error("a token sweep with gas top-ups is for local chains only");
+  const fees = await client.estimateFeesPerGas();
+  const topUp = TOKEN_TRANSFER_GAS * fees.maxFeePerGas * 2n;
+  const native = await client.getBalance({ address });
+  if (native < topUp) {
+    // Local chains only: no role key sends anything, so the engine's nonces are untouched.
+    await (client.request as unknown as LooseRequest)({
+      method: "anvil_setBalance",
+      params: [address, toHex(topUp)],
     });
-    if (balance === 0n) {
-      row.status = "empty";
-      return;
-    }
-    if (!input.local) throw new Error("a token sweep with gas top-ups is for local chains only");
-    const fees = await client.estimateFeesPerGas();
-    const topUp = TOKEN_TRANSFER_GAS * fees.maxFeePerGas * 2n;
-    const native = await client.getBalance({ address: row.address });
-    if (native < topUp) {
-      // Local chains only: no role key sends anything, so the engine's nonces are untouched.
-      await (client.request as unknown as LooseRequest)({
-        method: "anvil_setBalance",
-        params: [row.address, toHex(topUp)],
-      });
-    }
-    const wallet = walletThrough(client, input.chain, key);
-    const hash = await wallet.writeContract({
-      account: wallet.account ?? privateKeyToAccount(key),
-      chain: input.chain,
-      address: input.token,
+  }
+  const nonce = await client.getTransactionCount({ address, blockTag: "pending" });
+  const raw = await account.signTransaction({
+    type: "eip1559",
+    chainId: input.chain.id,
+    nonce,
+    to: input.token,
+    data: encodeFunctionData({
       abi: erc20Abi,
       functionName: "transfer",
       args: [input.destination, balance],
-      gas: TOKEN_TRANSFER_GAS,
-    });
-    state.pending = { hash, sentWei: balance * WEI_PER_MICRO };
-  }
-  const { hash, sentWei } = state.pending;
-  const receipt = await waitMined(client, hash, timeoutMs);
-  state.pending = null;
-  if (receipt.status !== "success") throw new Error(`transfer ${hash} reverted`);
-  row.status = "swept";
-  row.sentWei = sentWei;
+    }),
+    gas: TOKEN_TRANSFER_GAS,
+    maxFeePerGas: fees.maxFeePerGas,
+    maxPriorityFeePerGas: fees.maxPriorityFeePerGas,
+  });
+  return { hash: keccak256(raw), raw, sentWei: balance * WEI_PER_MICRO };
+}
+
+/** The row of a transfer mined: swept with its hash, or failed (and thrown) when it reverted. */
+function settleRow(
+  row: SweepRecordRow,
+  transfer: SignedTransfer,
+  receipt: TransactionReceipt,
+): void {
+  row.txHash = transfer.hash;
   row.gasWei = receipt.gasUsed * receipt.effectiveGasPrice;
-  row.txHash = hash;
+  if (receipt.status !== "success") {
+    // The wallet still holds its money: reported failed, with the transfer it caused.
+    throw new SweepRevertedError(transfer.hash);
+  }
+  row.status = "swept";
+  row.sentWei = transfer.sentWei;
+}
+
+async function sweepOnce(input: SweepInput, key: Hex, state: WalletSweep): Promise<void> {
+  const { client } = input;
+  const row = state.row;
+  const timeoutMs = input.minedTimeoutMs ?? 120_000;
+  if (state.pending !== null) {
+    // An earlier attempt signed a transfer whose answer is not known: find out what became of
+    // it before anything else. A node that does not know it is sent the same bytes again.
+    const found = await lookUp(client, state.pending.hash);
+    if (found.kind === "unknown") {
+      try {
+        await broadcast(client, state);
+      } catch (error: unknown) {
+        // Refused (`pending` cleared): none of it reached the node, a new one is signed below.
+        if (state.pending !== null) throw error;
+      }
+    }
+    const transfer = state.pending;
+    if (transfer !== null) {
+      const receipt =
+        found.kind === "mined" ? found.receipt : await waitMined(client, transfer.hash, timeoutMs);
+      state.pending = null;
+      settleRow(row, transfer, receipt);
+      return;
+    }
+  }
+
+  const transfer = await signTransfer(input, key, row.address);
+  if (transfer === null) {
+    row.status = "empty";
+    return;
+  }
+  // Recorded before the broadcast: an answer lost on the way back cannot lose the transfer.
+  state.pending = transfer;
+  await broadcast(client, state);
+  const receipt = await waitMined(client, transfer.hash, timeoutMs);
+  state.pending = null;
+  settleRow(row, transfer, receipt);
 }
 
 /**
  * Sends each demo wallet's money to `destination`: on Arc its whole native balance minus the gas
  * of the transfer (as the engine's `sweepDemoWallets`), on a local chain its whole token balance
- * after `anvil_setBalance` gave it the gas. Every request goes through the runner's client. A
- * wallet that fails for a moment is tried again (`policy`, doubling delays), and a transfer sent
- * by an attempt whose answer was lost is looked up rather than sent twice; a wallet still failing
- * is reported `failed` and the others are still swept.
+ * after `anvil_setBalance` gave it the gas. Every request goes through the runner's client. Each
+ * transfer is signed here and recorded by its hash before `eth_sendRawTransaction`: when the
+ * broadcast fails, or its answer is lost after the node took it, the hash is looked up (mined,
+ * pending, or unknown to the node) before anything else, a transfer the node holds is waited for
+ * and never signed again, and one it does not know is sent again as the same bytes. A wallet that
+ * fails for a moment is tried again (`policy`, doubling delays); a wallet still failing is
+ * reported `failed`, with the hash of any transfer it signed, and the others are still swept.
  */
 export async function sweepWallets(input: SweepInput): Promise<SweepRecordRow[]> {
   const results: SweepRecordRow[] = [];
@@ -676,7 +765,9 @@ export async function sweepWallets(input: SweepInput): Promise<SweepRecordRow[]>
       if (state.pending !== null) row.txHash = state.pending.hash;
       input.out(
         `sweep ${wallet.label} ${address}: failed (${describeFailure(lastError)})` +
-          (state.pending === null ? "" : `; transfer ${state.pending.hash} sent, not seen mined`),
+          (state.pending === null
+            ? ""
+            : `; transfer ${state.pending.hash} signed, not seen mined (the node may still hold it)`),
       );
     } else if (row.status === "swept") {
       input.out(
@@ -687,4 +778,36 @@ export async function sweepWallets(input: SweepInput): Promise<SweepRecordRow[]>
     }
   }
   return results;
+}
+
+/**
+ * What the sweep left in the demo wallets, one sentence each, from the balances read after it
+ * (`after`; null when they could not be read): a wallet that still holds money, and a wallet
+ * whose sweep failed unless its balance was read at zero (its transfer was mined after all, or
+ * there was nothing to bring back). Pure.
+ */
+export function walletsLeftBehind(
+  sweep: readonly SweepRecordRow[],
+  after: readonly BalanceRow[] | null,
+  wallets: readonly { label: string; address: Address }[],
+): string[] {
+  const lines: string[] = [];
+  for (const wallet of wallets) {
+    const balance = after?.find((row) => row.address === wallet.address);
+    const failed = sweep.some((row) => row.address === wallet.address && row.status === "failed");
+    if (balance === undefined) {
+      if (failed) {
+        lines.push(
+          `${wallet.label} ${wallet.address} was not swept, and its balance after the sweep could not be read`,
+        );
+      }
+    } else if (balance.moneyWei > 0n) {
+      lines.push(
+        failed
+          ? `${wallet.label} ${wallet.address} was not swept: it still holds ${formatWei(balance.moneyWei, 18)} USDC`
+          : `${wallet.label} ${wallet.address} still holds ${formatWei(balance.moneyWei, 18)} USDC after the sweep`,
+      );
+    }
+  }
+  return lines;
 }

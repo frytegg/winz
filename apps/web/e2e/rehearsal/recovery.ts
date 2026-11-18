@@ -15,6 +15,8 @@ import type {
   MoneyMode,
   RecoveryEstimate,
   RecoveryReceipt,
+  RecoveryResult,
+  RecoveryResultSource,
   Scenario,
 } from "./types";
 
@@ -304,6 +306,67 @@ export function estimateRecovery(input: RecoveryEstimateInput): RecoveryEstimate
   };
 }
 
+/** The escrow's `Outcome` enum, as `CampaignSettled` carries it. */
+const ONCHAIN_OUTCOMES: readonly (Outcome | "void")[] = ["yes", "no", "void"];
+
+/** The result `CampaignSettled` names (0 YES, 1 NO, 2 VOID); null for any other value. */
+export function settledOutcome(onchain: number): Outcome | "void" | null {
+  return ONCHAIN_OUTCOMES[onchain] ?? null;
+}
+
+function why(source: RecoveryResultSource | null, settled: string): string {
+  switch (source) {
+    case "forced by this recovery":
+      return "no result was forced or known any more when this recovery started (the run's own reset clears the result it forced, even when the settlement has not landed yet), so the recovery forced NO; the money comes back all the same, through the merchant's wallet and the sweep";
+    case "already forced in the database":
+      return `the result ${settled} was already forced in the database when this recovery started, and the recovery kept it`;
+    case "known in the database":
+      return `the instrument's result was already known in the database as ${settled}`;
+    case "already settled on-chain":
+      return "the campaign was already settled on-chain when this recovery started";
+    case null:
+      return "the recovery did not decide it";
+  }
+}
+
+/**
+ * The result a recovery settled the campaign with (`settled`: the outcome of its
+ * `CampaignSettled` event, null when it is not settled), where it came from, and one sentence
+ * when it is not the outcome the run's scenario asked for. Pure.
+ */
+export function recoveryResult(input: {
+  settled: number | null;
+  source: RecoveryResultSource | null;
+  scenarioOutcome: Outcome;
+  runId: string;
+}): RecoveryResult {
+  const settledWith = input.settled === null ? null : settledOutcome(input.settled);
+  const differs =
+    settledWith === null || settledWith === input.scenarioOutcome
+      ? null
+      : `The campaign was settled ${settledWith.toUpperCase()}, not ${input.scenarioOutcome.toUpperCase()} as the scenario of run ${input.runId} asked: ${why(input.source, settledWith.toUpperCase())}.`;
+  return {
+    settledWith,
+    source: input.source,
+    scenarioOutcome: input.scenarioOutcome,
+    differs,
+  };
+}
+
+/** The lines of a recovery's result, for its Markdown. */
+export function resultLines(result: RecoveryResult | null | undefined): string[] {
+  if (result === null || result === undefined) return [];
+  const settled =
+    result.settledWith === null
+      ? "not settled"
+      : `${result.settledWith.toUpperCase()} (${result.source ?? "source unknown"})`;
+  const lines = [
+    `Settled with: ${settled}; the run's scenario asked for ${result.scenarioOutcome.toUpperCase()}.`,
+  ];
+  if (result.differs !== null) lines.push("", result.differs);
+  return lines;
+}
+
 /** The recovery receipt's base name: the run's, with `-recovery`. */
 export function recoveryBaseName(runReceiptPath: string): string {
   return `${basename(runReceiptPath).replace(/\.json$/i, "")}-recovery`;
@@ -355,6 +418,8 @@ export function recoveryMarkdown(receipt: RecoveryReceipt): string {
   lines.push(
     `Result waited for: ${receipt.outcome === null ? "–" : receipt.outcome.toUpperCase()}.`,
   );
+  const result = resultLines(receipt.result);
+  if (result.length > 0) lines.push("", ...result);
   if (receipt.estimate !== null) {
     const estimate = receipt.estimate;
     lines.push("");

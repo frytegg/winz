@@ -533,7 +533,32 @@ export interface RecoveryEstimate {
   oracleNeedsWithMarginWei: bigint;
 }
 
+/**
+ * Where the result a campaign was settled with came from: it was settled on-chain before the
+ * recovery started; a result was forced in the database (`demo_overrides`, still set); the
+ * instrument's result was known in the database; the recovery forced NO itself because none of
+ * those held (for example after the run's own reset cleared the result it had forced).
+ */
+export type RecoveryResultSource =
+  | "already settled on-chain"
+  | "already forced in the database"
+  | "known in the database"
+  | "forced by this recovery";
+
+/** The result a recovery settled the campaign with, and how it compares with the run's. */
+export interface RecoveryResult {
+  /** From the campaign's `CampaignSettled` event; null when the campaign is not settled. */
+  settledWith: Outcome | "void" | null;
+  /** Where the result came from; null when the recovery stopped before it was decided. */
+  source: RecoveryResultSource | null;
+  /** The outcome the original receipt's scenario asked for. */
+  scenarioOutcome: Outcome;
+  /** One plain sentence when `settledWith` differs from `scenarioOutcome`, else null. */
+  differs: string | null;
+}
+
 export interface RecoveryReceipt {
+  /** 2: `result` was added as an optional field (absent from the receipts written before it). */
   version: 2;
   kind: "recovery";
   /** The receipt this recovery finishes (never rewritten). */
@@ -557,6 +582,8 @@ export interface RecoveryReceipt {
   engine: { started: boolean; stopped: boolean };
   /** The result waited for: the one already forced or known, else NO, forced by the recovery. */
   outcome: Outcome | null;
+  /** The result the campaign was settled with, where it came from, and whether it is the run's. */
+  result?: RecoveryResult | null;
   /** What the recovery did, in order, one sentence each. */
   actions: string[];
   stateBefore: CampaignStateRecord | null;

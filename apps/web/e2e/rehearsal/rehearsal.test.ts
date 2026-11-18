@@ -1,3 +1,4 @@
+import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -6,7 +7,15 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { createPublicClient, createTestClient, erc20Abi, getAddress, http, type Hex } from "viem";
+import {
+  createPublicClient,
+  createTestClient,
+  erc20Abi,
+  getAddress,
+  http,
+  type Address,
+  type Hex,
+} from "viem";
 
 import { createArcClients } from "../../../engine/src/chain";
 import { demoWalletAddress } from "../../../engine/src/identity";
@@ -926,11 +935,104 @@ function kindsOf(receipt: RecoveryReceipt): Map<string, number> {
   return counts;
 }
 
+/** The nonces of the relayer and the oracle, and the rows of the engine's outbox. */
+async function sentSoFar(s: Setup): Promise<{ nonces: number[]; outbox: string | undefined }> {
+  const nonces = await Promise.all(
+    [s.escrow.accounts.relayer.address, s.escrow.accounts.oracle.address].map((address) =>
+      s.escrow.publicClient.getTransactionCount({ address }),
+    ),
+  );
+  const [row] = await s.database.db<{ n: string }[]>`select count(*)::text as n from chain_txs`;
+  return { nonces, outbox: row?.n };
+}
+
+const WEB_DIR = fileURLToPath(new URL("../..", import.meta.url));
+const TSX = fileURLToPath(new URL("../../../../node_modules/.bin/tsx", import.meta.url));
+const COMMAND_TIMEOUT_MS = 120_000;
+
+/**
+ * `run.ts --recover`, the command a person types, on this test's chain and database: its exit
+ * code and what it printed. Its environment holds only what it needs (anvil's public development
+ * keys and this test's throwaway seed), never the repository's .env.
+ */
+async function recoverCommand(
+  s: Setup,
+  receiptPath: string,
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  const { secrets } = optionsFor(s, {});
+  const child: ChildProcess = spawn(
+    TSX,
+    [
+      "e2e/rehearsal/run.ts",
+      "--recover",
+      receiptPath,
+      "--db-url",
+      s.database.url,
+      "--rpc-url",
+      anvil.rpcUrl,
+      "--chain-id",
+      LOCAL_CHAIN_ID.toString(),
+      "--escrow",
+      s.escrow.escrow,
+      "--deploy-block",
+      s.escrow.deployedAtBlock.toString(),
+      "--gemini",
+      "simulated",
+      "--engine-log",
+      join(s.receiptDir, "recover-command-engine.log"),
+    ],
+    {
+      cwd: WEB_DIR,
+      env: {
+        PATH: process.env.PATH ?? "",
+        HOME: process.env.HOME ?? "",
+        ...(process.env.TMPDIR === undefined ? {} : { TMPDIR: process.env.TMPDIR }),
+        NODE_ENV: "test",
+        APP_LOG_LEVEL: "warn",
+        ARC_RELAYER_PRIVATE_KEY: secrets.relayerKey,
+        ARC_ORACLE_PRIVATE_KEY: secrets.oracleKey,
+        APP_DEMO_WALLET_SEED: secrets.demoSeed,
+      },
+    },
+  );
+  child.stdin?.end();
+  let stdout = "";
+  let stderr = "";
+  child.stdout?.on("data", (chunk: Buffer) => (stdout += chunk.toString("utf8")));
+  child.stderr?.on("data", (chunk: Buffer) => (stderr += chunk.toString("utf8")));
+  return new Promise((resolveCommand, reject) => {
+    const timer = setTimeout(() => {
+      // Only the process this test started, by its own handle.
+      child.kill("SIGKILL");
+      reject(new Error(`run.ts --recover did not exit within ${COMMAND_TIMEOUT_MS.toString()} ms`));
+    }, COMMAND_TIMEOUT_MS);
+    child.on("error", (error: Error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("close", (code: number | null) => {
+      clearTimeout(timer);
+      resolveCommand({ code, stdout, stderr });
+    });
+  });
+}
+
+/** Sets an account's native balance on the test chain. */
+async function setNative(s: Setup, address: Address, value: bigint): Promise<void> {
+  const testClient = createTestClient({
+    mode: "anvil",
+    chain: s.escrow.chain,
+    transport: http(anvil.rpcUrl),
+  });
+  await testClient.setBalance({ address, value });
+}
+
 /** Released, swept to the micro-unit, a -recovery receipt next to the run's, nothing behind. */
 async function expectReleasedAndSwept(
   s: Setup,
   run: { receipt: RehearsalReceipt; path: string },
   receipt: RecoveryReceipt,
+  suffix = "-recovery",
 ): Promise<void> {
   expect(receipt.failure, JSON.stringify(receipt.failure)).toBeNull();
   expect(receipt.leftBehind).toEqual([]);
@@ -955,9 +1057,16 @@ async function expectReleasedAndSwept(
     expect(receipt.balances.after.find((row) => row.address === address)?.moneyWei).toBe(0n);
   }
   expect(receipt.files?.json).toBe(
-    join(dirname(run.path), `${basename(run.path, ".json")}-recovery.json`),
+    join(dirname(run.path), `${basename(run.path, ".json")}${suffix}.json`),
   );
-  expect(receipt.files?.markdown).toMatch(/-recovery\.md$/);
+  expect(receipt.files?.markdown).toBe(
+    join(dirname(run.path), `${basename(run.path, ".json")}${suffix}.md`),
+  );
+  // The result it settled with is named, and the Markdown says it.
+  expect(receipt.result?.settledWith).toBe(receipt.outcome);
+  expect(readFileSync(receipt.files?.markdown ?? "", "utf8")).toContain(
+    `Settled with: ${String(receipt.result?.settledWith).toUpperCase()} (${String(receipt.result?.source)})`,
+  );
   await expectOnChain(s, receipt);
   // The run's receipt is not rewritten.
   expect(JSON.parse(readFileSync(run.path, "utf8"))).toMatchObject({
@@ -967,7 +1076,12 @@ async function expectReleasedAndSwept(
 }
 
 /** A second recovery: nothing left to finish, nothing sent but what the sweep still finds. */
-async function expectRerunSendsNothing(s: Setup, path: string, buyers: number): Promise<void> {
+async function expectRerunSendsNothing(
+  s: Setup,
+  path: string,
+  buyers: number,
+  suffix = "-recovery-2",
+): Promise<void> {
   const nonces = async (): Promise<number[]> =>
     Promise.all(
       [s.escrow.accounts.relayer.address, s.escrow.accounts.oracle.address].map((address) =>
@@ -985,7 +1099,10 @@ async function expectRerunSendsNothing(s: Setup, path: string, buyers: number): 
   expect(again.actions[0]).toBe(
     "the campaign was already released: nothing to finish, only the sweep",
   );
-  expect(again.files?.json).toMatch(/-recovery-2\.json$/);
+  expect(again.files?.json?.endsWith(`${suffix}.json`)).toBe(true);
+  // Settled before it started: it says so, and with which result.
+  expect(again.result?.source).toBe("already settled on-chain");
+  expect(again.result?.settledWith).not.toBeNull();
   expect(await nonces()).toEqual(before);
   expectRecoveryClean(s, again, lines, buyers);
 }
@@ -1049,11 +1166,57 @@ describe("a campaign left behind, finished by --recover", () => {
         on conflict (instrument) do update set forced_result = 'yes'
       `;
       const lines: string[] = [];
+
+      // The treasury cannot pay what is left (the merchant's due on YES, 2 × 0.25): refused
+      // before anything is sent, the shortfall named.
+      const treasury = s.escrow.accounts.treasury.address;
+      const owner = s.escrow.accounts.owner.address;
+      const tokens = (address: Address): Promise<bigint> =>
+        s.escrow.publicClient.readContract({
+          address: s.escrow.usdc,
+          abi: erc20Abi,
+          functionName: "balanceOf",
+          args: [address],
+        });
+      const moved = (await tokens(treasury)) - 100_000n;
+      await s.escrow.publicClient.waitForTransactionReceipt({
+        hash: await s.escrow.wallets.treasury.writeContract({
+          address: s.escrow.usdc,
+          abi: erc20Abi,
+          functionName: "transfer",
+          args: [owner, moved],
+        }),
+      });
+      const beforeRefusal = await sentSoFar(s);
+      const short = await recoverRehearsal(recoveryOptionsFor(s, run.path, lines)).catch(
+        (error: unknown) => error,
+      );
+      expect(short).toBeInstanceOf(RehearsalRefusedError);
+      expect((short as RehearsalRefusedError).reasons).toEqual([
+        "the treasury holds 0.1 USDC, the recovery needs 0.6 with the 20 % margin",
+      ]);
+      expect(await sentSoFar(s)).toEqual(beforeRefusal);
+      await s.escrow.publicClient.waitForTransactionReceipt({
+        hash: await s.escrow.wallets.owner.writeContract({
+          address: s.escrow.usdc,
+          abi: erc20Abi,
+          functionName: "transfer",
+          args: [treasury, moved],
+        }),
+      });
+
       const recovered = await recoverRehearsal(recoveryOptionsFor(s, run.path, lines));
       expect(recovered.stateBefore?.stage).toBe("sales closed");
       expect(recovered.stateBefore?.ticketsCharged).toBe(2);
       expect(recovered.outcome).toBe("yes");
       expect(recovered.actions).toContain("result YES already forced or known: not forced again");
+      // Settled YES, as the run asked, on the result forced in the database: nothing more to say.
+      expect(recovered.result).toEqual({
+        settledWith: "yes",
+        source: "already forced in the database",
+        scenarioOutcome: "yes",
+        differs: null,
+      });
       expect(recovered.stateAfter?.ticketsRefunded).toBe(2);
       const counts = kindsOf(recovered);
       expect(counts.get("closeSales") ?? 0).toBe(0);
@@ -1138,6 +1301,35 @@ describe("a campaign left behind, finished by --recover", () => {
         await rm(join(s.receiptDir, file));
       }
 
+      // The oracle's and the relayer's gas do not cover what is left to send: the command exits
+      // 2 before anything is sent, each shortfall named.
+      const gasAccounts = [s.escrow.accounts.oracle.address, s.escrow.accounts.relayer.address];
+      const gasBefore = await Promise.all(
+        gasAccounts.map((address) => s.escrow.publicClient.getBalance({ address })),
+      );
+      const beforeRefusal = await sentSoFar(s);
+      let command: { code: number | null; stdout: string; stderr: string };
+      try {
+        await setNative(s, s.escrow.accounts.oracle.address, 1_000n);
+        await setNative(s, s.escrow.accounts.relayer.address, 2_000n);
+        command = await recoverCommand(s, run.path);
+      } finally {
+        // Both accounts are shared by every escrow of this file.
+        for (const [index, address] of gasAccounts.entries()) {
+          await setNative(s, address, gasBefore[index] ?? 0n);
+        }
+      }
+      expect(command.code, command.stderr).toBe(2);
+      expect(command.stderr).toContain("refuses to start");
+      expect(command.stderr).toMatch(
+        /- the oracle holds 0\.000000000000001 for gas, what is left needs [0-9.]+ with the 20 % margin/,
+      );
+      expect(command.stderr).toMatch(
+        /- the relayer holds 0\.000000000000002 for gas, what is left needs [0-9.]+ with the 20 % margin/,
+      );
+      expect(await sentSoFar(s)).toEqual(beforeRefusal);
+      lines.push(command.stdout, command.stderr);
+
       // --estimate: the checks and the state, nothing sent.
       const relayer = s.escrow.accounts.relayer.address;
       const oracle = s.escrow.accounts.oracle.address;
@@ -1176,6 +1368,22 @@ describe("a campaign left behind, finished by --recover", () => {
       expect(recovered.actions.join("\n")).toMatch(/ticket\(s\) hedged and charged \(2 sold\)/);
       expect(recovered.actions).toContain("sales closed through the merchant's route");
       expect(recovered.actions).toContain("result NO forced through the demo route");
+      // The run asked for YES; its own reset cleared every override (none is left for the
+      // instrument), so the recovery forced NO and says so.
+      const [overrides] = await s.database.db<{ n: number }[]>`
+        select count(*)::int as n from demo_overrides
+        where instrument = ${receipt.instrument?.symbol ?? ""}
+      `;
+      expect(overrides?.n).toBe(0);
+      expect(recovered.result?.settledWith).toBe("no");
+      expect(recovered.result?.source).toBe("forced by this recovery");
+      expect(recovered.result?.differs).toMatch(
+        /^The campaign was settled NO, not YES as the scenario of run [0-9a-f]{12} asked: no result was forced or known any more when this recovery started/,
+      );
+      expect(recoveryLines).toContain(recovered.result?.differs);
+      expect(readFileSync(recovered.files?.markdown ?? "", "utf8")).toContain(
+        recovered.result?.differs ?? "no sentence",
+      );
       expect(recovered.stateAfter?.ticketsCharged).toBe(2);
       const counts = kindsOf(recovered);
       expect(counts.get("chargeHedge") ?? 0).toBeGreaterThanOrEqual(1);
@@ -1190,7 +1398,7 @@ describe("a campaign left behind, finished by --recover", () => {
   );
 
   it(
-    "every ticket charged, sales open (the Arc case): closed, NO forced, released, swept, twice",
+    "every ticket charged, sales open (the Arc case): interrupted after the close, then resumed: closed, NO forced, released, swept, nothing sent twice",
     { timeout: RECOVERY_TIMEOUT_MS },
     async () => {
       const run = await strandedRun(
@@ -1198,32 +1406,136 @@ describe("a campaign left behind, finished by --recover", () => {
         { failAtStep: "close-sales" },
       );
       const { s } = run;
+      const campaignId = run.receipt.campaign?.id ?? "";
+
+      // A recovery interrupted (the abort signal, as Ctrl-C sends it) once its first transaction,
+      // the close of the sales, is mined.
+      const [clock] = await s.database.db<{ now: Date }[]>`select now() as now`;
+      const since = clock?.now ?? new Date(0);
+      const controller = new AbortController();
+      const pollErrors: unknown[] = [];
+      let poller: ReturnType<typeof setInterval> | null = null;
+      const firstLines: string[] = [];
+      let first: RecoveryReceipt;
+      try {
+        first = await recoverRehearsal(
+          recoveryOptionsFor(s, run.path, firstLines, {
+            signal: controller.signal,
+            onStep: (name) => {
+              if (name !== "recover" || poller !== null) return;
+              poller = setInterval(() => {
+                s.database.db<{ n: number }[]>`
+                  select count(*)::int as n from chain_txs
+                  where kind = 'closeSales' and status = 'mined' and created_at > ${since}
+                    and payload->>'campaignId' = ${campaignId}
+                `.then(
+                  ([row]) => {
+                    if ((row?.n ?? 0) > 0) controller.abort();
+                  },
+                  (error: unknown) => pollErrors.push(error),
+                );
+              }, 100);
+            },
+          }),
+        );
+      } finally {
+        if (poller !== null) clearInterval(poller);
+      }
+      expect(pollErrors).toEqual([]);
+      expect(controller.signal.aborted).toBe(true);
+      expect(first.status).toBe("failed");
+      expect(first.failure).toEqual({ step: "recover", reason: "interrupted" });
+      expect(first.engine).toEqual({ started: true, stopped: true });
+      expect(first.files?.json).toMatch(/-recovery\.json$/);
+      expect(kindsOf(first).get("closeSales")).toBe(1);
+      expect(first.leftBehind.join("\n")).toMatch(/is not released: the escrow still holds/);
+      // The merchant's half of each sale was brought back all the same.
+      expect(first.sweep.find((row) => row.wallet === "merchant")?.status).toBe("swept");
+      await expectOnChain(s, first);
+      expectRecoveryClean(s, first, firstLines, 2);
+
+      // Run again: it finishes from where the chain is.
       const lines: string[] = [];
       const recovered = await recoverRehearsal(recoveryOptionsFor(s, run.path, lines));
-      expect(recovered.stateBefore).toMatchObject({
-        stage: "selling",
-        ticketsSold: 2,
-        ticketsCharged: 2,
-        released: false,
-      });
+      expect(recovered.stateBefore?.ticketsSold).toBe(2);
+      expect(recovered.stateBefore?.ticketsCharged).toBe(2);
       expect(recovered.stateBefore?.escrowHolds).toBeGreaterThan(0n);
       expect(recovered.outcome).toBe("no");
+      expect(recovered.result?.settledWith).toBe("no");
       expect(recovered.actions.some((action) => action.includes("hedged"))).toBe(false);
-      // The engine may still finalize the charges before it settles: no ticket charged twice.
-      const counts = kindsOf(recovered);
       expect(recovered.stateAfter?.ticketsCharged).toBe(2);
-      expect(counts.get("buyFor") ?? 0).toBe(0);
-      expect(counts.get("closeSales")).toBe(1);
-      expect(counts.get("settle")).toBe(1);
-      expect(counts.get("release")).toBe(1);
-      // The merchant's wallet received half of each sale at once and the release: swept back.
+      // Each receipt lists only the transactions its own run caused; together, each once.
+      const firstHashes = new Set(first.transactions.map((tx) => tx.hash));
+      expect(recovered.transactions.filter((tx) => firstHashes.has(tx.hash))).toEqual([]);
+      const together = new Map<string, number>();
+      for (const receipt of [first, recovered]) {
+        for (const [kind, count] of kindsOf(receipt)) {
+          together.set(kind, (together.get(kind) ?? 0) + count);
+        }
+      }
+      expect(together.get("buyFor") ?? 0).toBe(0);
+      expect(together.get("closeSales")).toBe(1);
+      expect(together.get("settle")).toBe(1);
+      expect(together.get("release")).toBe(1);
+      expect(kindsOf(recovered).get("release")).toBe(1);
+      // The merchant's wallet received the release: swept back.
       expect(recovered.sweep.find((row) => row.wallet === "merchant")?.status).toBe("swept");
-      await expectReleasedAndSwept(s, run, recovered);
+      await expectReleasedAndSwept(s, run, recovered, "-recovery-2");
       const markdown = readFileSync(recovered.files?.markdown ?? "", "utf8");
       expect(markdown).toContain("# Recovery of the rehearsal");
       expect(markdown).toContain(`Recovers \`${basename(run.path)}\``);
       expectRecoveryClean(s, recovered, lines, 2);
-      await expectRerunSendsNothing(s, run.path, 2);
+      await expectRerunSendsNothing(s, run.path, 2, "-recovery-3");
+    },
+  );
+
+  it(
+    "a run that failed before it drove the book (driven: null): no book driven again, no hedge waited for; closed, NO forced, released, swept",
+    { timeout: RECOVERY_TIMEOUT_MS },
+    async () => {
+      const run = await strandedRun({ purchases: 2, buyers: 1 }, { failAtStep: "drive-book" });
+      const { s, receipt } = run;
+      expect(receipt.failure).toEqual({
+        step: "drive-book",
+        reason: "failure injected at step drive-book",
+      });
+      expect(receipt.driven).toBeNull();
+      expect(JSON.parse(readFileSync(run.path, "utf8"))).toMatchObject({ driven: null });
+      const lines: string[] = [];
+      const recovered = await recoverRehearsal(recoveryOptionsFor(s, run.path, lines));
+      expect(recovered.stateBefore).toMatchObject({
+        stage: "selling",
+        ticketsSold: 0,
+        ticketsCharged: 0,
+        released: false,
+      });
+      expect(recovered.steps.map((item) => `${item.step}:${item.status}`)).toEqual([
+        "start-engine:done",
+        "recover:done",
+        "reset:done",
+        "stop-engine:done",
+        "sweep:done",
+      ]);
+      expect(recovered.actions).toEqual([
+        "engine started on the kept database with the production wiring",
+        "sales closed through the merchant's route",
+        "result NO forced through the demo route",
+        "settled NO, released",
+        "1 demo wallet(s) swept back to the treasury",
+      ]);
+      const counts = kindsOf(recovered);
+      expect([...counts.keys()].sort()).toEqual(["closeSales", "release", "settle", "sweep"]);
+      expect(counts.get("closeSales")).toBe(1);
+      expect(counts.get("settle")).toBe(1);
+      expect(counts.get("release")).toBe(1);
+      // The budget came back to the merchant's wallet on release, and from it to the treasury.
+      expect(recovered.sweep.map((row) => `${row.wallet}:${row.status}`)).toEqual([
+        "merchant:swept",
+        "buyer 1:empty",
+      ]);
+      expect(recovered.result?.source).toBe("forced by this recovery");
+      await expectReleasedAndSwept(s, run, recovered);
+      expectRecoveryClean(s, recovered, lines, 1);
     },
   );
 });

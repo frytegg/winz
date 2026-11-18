@@ -67,6 +67,7 @@ import {
   readEscrowRoles,
   snapshot,
   sweepWallets,
+  walletsLeftBehind,
   type CampaignEvents,
   type OnchainCampaignState,
   type Party,
@@ -80,6 +81,7 @@ import {
   describeState,
   estimateRecovery,
   readRunReceipt,
+  recoveryResult,
   writeRecoveryReceipt,
   type RunReceiptFacts,
 } from "./recovery";
@@ -111,6 +113,7 @@ import {
   type RehearsalTimeouts,
   type RecoveryOptions,
   type RecoveryReceipt,
+  type RecoveryResultSource,
   type RetryPolicy,
   type RpcLimitsInput,
   type Scenario,
@@ -385,6 +388,8 @@ interface Run {
   pauseProbe: PauseProbe | null;
   /** The result this run forced through the demo route, if any. */
   forcedOutcome: Outcome | null;
+  /** Where the result the recovery waits for came from (set by `recoverStep`). */
+  resultSource: DecidedSource | null;
   demoFlags: DemoFlag[];
   firstDemoActionDone: boolean;
   demoOverridesSet: boolean;
@@ -1735,20 +1740,43 @@ async function waitSettled(run: Run, outcome: Outcome): Promise<void> {
   );
 }
 
+/** Where an already decided result comes from: a recovery's sources, or this run's own force. */
+type DecidedSource = RecoveryResultSource | "forced by the run";
+
+interface Decided {
+  outcome: Outcome;
+  source: DecidedSource;
+}
+
+/** The first of the database's forced and known results that is a result. Pure. */
+function decidedIn(
+  row: { forced: string | null; known: string | null } | undefined,
+): Decided | null {
+  if (row?.forced === "yes" || row?.forced === "no") {
+    return { outcome: row.forced, source: "already forced in the database" };
+  }
+  if (row?.known === "yes" || row?.known === "no") {
+    return { outcome: row.known, source: "known in the database" };
+  }
+  return null;
+}
+
 /**
  * The result the campaign settles on, when one is already decided: the merchant's detail says
  * settled, this run forced one, the demo route forced one (a stored override), or the instrument's
- * result is known. Null when none is: the recovery then forces NO.
+ * result is known; with where it came from. Null when none is: the recovery then forces NO.
  */
-async function decidedOutcome(run: Run): Promise<Outcome | null> {
+async function decidedOutcome(run: Run): Promise<Decided | null> {
   const campaign = run.campaign;
   const headers = run.headers;
   const db = run.db;
   if (campaign === null || headers === null || db === null) throw new Error("no campaign");
   const detail = await read(run, "the merchant's detail", () => api.campaign(headers, campaign.id));
-  if (detail.status === "settled_yes") return "yes";
-  if (detail.status === "settled_no") return "no";
-  if (run.forcedOutcome !== null) return run.forcedOutcome;
+  if (detail.status === "settled_yes")
+    return { outcome: "yes", source: "already settled on-chain" };
+  if (detail.status === "settled_no") return { outcome: "no", source: "already settled on-chain" };
+  if (run.forcedOutcome !== null)
+    return { outcome: run.forcedOutcome, source: "forced by the run" };
   const [row] = await read(
     run,
     "the campaign's forced or known result",
@@ -1759,10 +1787,7 @@ async function decidedOutcome(run: Run): Promise<Outcome | null> {
         (select outcome from instruments where symbol = ${campaign.symbol}) as known
     `,
   );
-  for (const value of [row?.forced, row?.known]) {
-    if (value === "yes" || value === "no") return value;
-  }
-  return null;
+  return decidedIn(row);
 }
 
 /**
@@ -1781,7 +1806,8 @@ async function recoverStep(run: Run, actions: string[] = []): Promise<void> {
   if (run.options.strand === true) throw new InjectedFailureError("recover");
   const escrow = getAddress(run.options.escrowAddress);
   const decided = await decidedOutcome(run);
-  const outcome: Outcome = decided ?? "no";
+  const outcome: Outcome = decided?.outcome ?? "no";
+  run.resultSource = decided?.source ?? null;
   const record = { outcome, released: false, reason: null as string | null };
   run.receipt.recovery = record;
   try {
@@ -1816,6 +1842,7 @@ async function recoverStep(run: Run, actions: string[] = []): Promise<void> {
     }
     if (decided === null) {
       await forceResult(run, outcome);
+      run.resultSource = "forced by this recovery";
       actions.push("result NO forced through the demo route");
     } else {
       actions.push(`result ${outcome.toUpperCase()} already forced or known: not forced again`);
@@ -2072,19 +2099,34 @@ async function hedgingRecord(
   };
 }
 
-function moneyParties(run: Run, gasBySigner: ReadonlyMap<Address, bigint>): MoneyParty[] {
-  const before = run.receipt.balances.before;
-  const after = run.receipt.balances.afterSettlement;
-  return before.map((row: BalanceRow) => {
+/**
+ * The accounts whose money the invariants follow, from the balances before the run and after
+ * settlement. An account missing from `after` is not followed (its change would be invented): it
+ * is left out, so that the money check says it was not measured, and named in `unread`. Pure.
+ */
+export function moneyPartiesOf(
+  before: readonly BalanceRow[],
+  after: readonly BalanceRow[],
+  mode: MoneyMode,
+  gasBySigner: ReadonlyMap<Address, bigint>,
+): { parties: MoneyParty[]; unread: string[] } {
+  const parties: MoneyParty[] = [];
+  const unread: string[] = [];
+  for (const row of before) {
     const later = after.find((item) => item.address === row.address);
-    return {
+    if (later === undefined) {
+      unread.push(`the balance of ${row.role} ${row.address} after settlement: not read`);
+      continue;
+    }
+    parties.push({
       role: row.role,
       address: row.address,
       beforeWei: row.moneyWei,
-      afterWei: later?.moneyWei ?? row.moneyWei,
-      gasWei: run.moneyMode === "native-usdc" ? (gasBySigner.get(row.address) ?? 0n) : 0n,
-    };
-  });
+      afterWei: later.moneyWei,
+      gasWei: mode === "native-usdc" ? (gasBySigner.get(row.address) ?? 0n) : 0n,
+    });
+  }
+  return { parties, unread };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -2188,6 +2230,7 @@ function newRun(
     drivenAsksWhileOpen: [],
     pauseProbe: null,
     forcedOutcome: null,
+    resultSource: null,
     demoFlags: [],
     firstDemoActionDone: false,
     demoOverridesSet: false,
@@ -2318,7 +2361,10 @@ async function resetAndStop(run: Run, leftBehind: string[]): Promise<void> {
   }
 }
 
-/** The sweep step, whatever failed before; a wallet it could not sweep is left behind. */
+/**
+ * The sweep step, whatever failed before. What it left in the wallets is judged afterwards, from
+ * the balances read after it (`walletsLeftBehind`), not from its rows alone.
+ */
 async function sweepAll(
   run: Run,
   leftBehind: string[],
@@ -2331,9 +2377,6 @@ async function sweepAll(
     const reason = error instanceof RehearsalStepError ? error.message : errorMessage(error);
     leftBehind.push(`sweep failed: ${run.redact(reason)}`);
     failure = { step: "sweep", reason: run.redact(reason) };
-  }
-  for (const row of run.receipt.sweep) {
-    if (row.status === "failed") leftBehind.push(`${row.wallet} ${row.address} was not swept`);
   }
   return failure;
 }
@@ -2395,10 +2438,13 @@ async function finish(run: Run): Promise<void> {
   if (run.db !== null) {
     const failure = await sweepAll(run, receipt.leftBehind);
     receipt.failure ??= failure;
-    receipt.balances.afterSweep =
-      (await readOrNote(run, "the balances after the sweep", () =>
-        snapshot(run.client, run.moneyMode, run.token, parties(run)),
-      )) ?? [];
+    const afterSweep = await readOrNote(run, "the balances after the sweep", () =>
+      snapshot(run.client, run.moneyMode, run.token, parties(run)),
+    );
+    receipt.balances.afterSweep = afterSweep ?? [];
+    receipt.leftBehind.push(
+      ...walletsLeftBehind(receipt.sweep, afterSweep, [run.merchant, ...run.buyers]),
+    );
   }
 
   // The chain read back: each read on its own, so that one that fails does not drop the others.
@@ -2462,14 +2508,6 @@ async function finish(run: Run): Promise<void> {
         )
         .reduce((total, row) => total + row.moneyWei, 0n);
     receipt.netCostWei = roleMoney(before) - roleMoney(afterSweep);
-    for (const row of afterSweep) {
-      const wallet = [run.merchant, ...run.buyers].find((item) => item.address === row.address);
-      if (wallet !== undefined && row.moneyWei > 0n) {
-        receipt.leftBehind.push(
-          `${wallet.label} ${row.address} still holds ${formatWei(row.moneyWei, 18)} USDC after the sweep`,
-        );
-      }
-    }
   }
 
   if (
@@ -2480,6 +2518,13 @@ async function finish(run: Run): Promise<void> {
     run.stripe !== null &&
     run.budgetPi !== null
   ) {
+    const money = moneyPartiesOf(
+      receipt.balances.before,
+      receipt.balances.afterSettlement,
+      run.moneyMode,
+      collected.gasBySigner,
+    );
+    run.unread.push(...money.unread.map(run.redact));
     receipt.invariants = checkInvariants({
       scenario: run.scenario,
       outcome: run.scenario.outcome,
@@ -2491,7 +2536,7 @@ async function finish(run: Run): Promise<void> {
       escrow,
       treasury: run.treasury,
       merchant: run.merchant.address,
-      parties: moneyParties(run, collected.gasBySigner),
+      parties: money.parties,
       deskSamples: run.deskSamples,
       demoFlags: run.demoFlags,
       stripe: {
@@ -2818,7 +2863,7 @@ async function recover(input: RecoveryOptions): Promise<RecoveryReceipt> {
     out(`campaign ${facts.campaign.onchainId.toString()}: ${describeState(state)}`);
 
     if (!state.released) {
-      const decided = await decidedBeforeEngine(run);
+      const decided = (await decidedBeforeEngine(run))?.outcome ?? null;
       const events = run.logs?.events() ?? null;
       const refunded = new Set(events?.refunded.map((refund) => refund.ticketId) ?? []);
       const fees = await read(run, "the node's fees", () => run.client.estimateFeesPerGas());
@@ -2938,21 +2983,34 @@ async function recover(input: RecoveryOptions): Promise<RecoveryReceipt> {
       ? "nothing left in the demo wallets to sweep"
       : `${swept.length.toString()} demo wallet(s) swept back to the treasury`,
   );
-  receipt.balances.after =
-    (await readOrNote(run, "the balances after the recovery", () =>
-      snapshot(run.client, run.moneyMode, run.token, parties(run)),
-    )) ?? [];
-  for (const row of receipt.balances.after) {
-    const wallet = [merchant, ...buyers].find((item) => item.address === row.address);
-    if (wallet !== undefined && row.moneyWei > 0n) {
-      receipt.leftBehind.push(
-        `${wallet.label} ${row.address} still holds ${formatWei(row.moneyWei, 18)} USDC after the sweep`,
-      );
-    }
-  }
+  const after = await readOrNote(run, "the balances after the recovery", () =>
+    snapshot(run.client, run.moneyMode, run.token, parties(run)),
+  );
+  receipt.balances.after = after ?? [];
+  receipt.leftBehind.push(...walletsLeftBehind(work.sweep, after, [merchant, ...buyers]));
   receipt.stateAfter = await readOrNote(run, "the campaign's state after the recovery", () =>
     readState(run),
   );
+  // The result the campaign was settled with, from its event, and where that result came from.
+  const settledEvent = run.logs?.events().settled[0] ?? null;
+  const settledBefore =
+    receipt.stateBefore !== null &&
+    (receipt.stateBefore.released ||
+      receipt.stateBefore.stage === "settled yes" ||
+      receipt.stateBefore.stage === "settled no" ||
+      receipt.stateBefore.stage === "void");
+  const source: RecoveryResultSource | null = settledBefore
+    ? "already settled on-chain"
+    : run.resultSource === null || run.resultSource === "forced by the run"
+      ? null
+      : run.resultSource;
+  receipt.result = recoveryResult({
+    settled: settledEvent?.outcome ?? null,
+    source,
+    scenarioOutcome: facts.scenario.outcome,
+    runId: facts.runId,
+  });
+  if (receipt.result.differs !== null) out(receipt.result.differs);
   if (receipt.stateAfter !== null) {
     out(`campaign ${facts.campaign.onchainId.toString()}: ${describeState(receipt.stateAfter)}`);
     if (!receipt.stateAfter.released) {
@@ -2993,7 +3051,7 @@ async function recover(input: RecoveryOptions): Promise<RecoveryReceipt> {
 }
 
 /** The result already forced or known, read from the database before the engine starts. */
-async function decidedBeforeEngine(run: Run): Promise<Outcome | null> {
+async function decidedBeforeEngine(run: Run): Promise<Decided | null> {
   const campaign = run.campaign;
   const db = run.db;
   if (campaign === null || db === null) return null;
@@ -3008,12 +3066,9 @@ async function decidedBeforeEngine(run: Run): Promise<Outcome | null> {
       from campaigns c where c.id = ${campaign.id}
     `,
   );
-  if (row?.status === "settled_yes") return "yes";
-  if (row?.status === "settled_no") return "no";
-  for (const value of [row?.forced, row?.known]) {
-    if (value === "yes" || value === "no") return value;
-  }
-  return null;
+  if (row?.status === "settled_yes") return { outcome: "yes", source: "already settled on-chain" };
+  if (row?.status === "settled_no") return { outcome: "no", source: "already settled on-chain" };
+  return decidedIn(row);
 }
 
 /**
