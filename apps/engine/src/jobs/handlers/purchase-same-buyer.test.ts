@@ -69,7 +69,16 @@ class GatedDirectory implements IdentityDirectory {
       this.waiting = [];
       for (const release of released) release();
     }
-    await Promise.race([gate, sleep(GATE_TIMEOUT_MS)]);
+    // The timeout's timer is cleared once the gate opens, so no round leaves one pending.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, GATE_TIMEOUT_MS);
+    });
+    try {
+      await Promise.race([gate, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
     await sleep(5);
     return this.inner.findOrCreateWalletByEmail(email);
   }
