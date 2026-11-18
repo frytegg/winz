@@ -4,11 +4,20 @@ import type { Outcome } from "@winz/shared";
 
 import type { CampaignEvents, OnchainCampaignState } from "./chain";
 import { WEI_PER_MICRO } from "./estimate";
-import type { InvariantResult, PauseProbe, Scenario } from "./types";
+import { ODDS_LAG_LIMIT_MS } from "./odds";
+import type {
+  InvariantResult,
+  LagStats,
+  OddsReaderRecord,
+  OddsRecord,
+  PauseProbe,
+  Scenario,
+} from "./types";
 
 /**
- * The invariants checked at the end of a run (TASKS.md Q-04, SPEC section 17 criteria 3, 4, 5),
- * each with the numbers it was decided on. Pure: everything is measured before.
+ * The invariants checked at the end of a run (TASKS.md Q-04, SPEC section 17 criteria 3, 4, 5;
+ * and Q-03, criterion 7, for the ticket's odds), each with the numbers it was decided on. Pure:
+ * everything is measured before.
  */
 
 /** The longest the unhedged notional may stay above its limit (criterion 4). */
@@ -53,6 +62,12 @@ export interface InvariantInput {
   deskSamples: readonly DeskSample[];
   demoFlags: readonly DemoFlag[];
   stripe: { budgetPi: string; intentIds: readonly string[]; callIds: readonly string[] };
+  /**
+   * The lag of the ticket's odds (Q-03): null when the run measured nothing (the twelfth
+   * invariant is then reported not measured). Absent: the twelfth invariant is not checked
+   * (callers that predate it).
+   */
+  odds?: OddsRecord | null;
 }
 
 function sum(values: readonly bigint[]): bigint {
@@ -324,7 +339,73 @@ export function nothingReachedStripe(input: InvariantInput): InvariantResult {
   );
 }
 
+function lagText(lag: LagStats): string {
+  const ms = (value: number | null): string => (value === null ? "–" : `${value.toString()} ms`);
+  return `median ${ms(lag.medianMs)}, p95 ${ms(lag.p95Ms)}, max ${ms(lag.maxMs)}`;
+}
+
+/** One source of a measured path: every sample appeared and the p95 is under the limit. */
+function readerHolds(reader: OddsReaderRecord): boolean {
+  return reader.failed === 0 && reader.lag.p95Ms !== null && reader.lag.p95Ms < ODDS_LAG_LIMIT_MS;
+}
+
+function readerText(reader: OddsReaderRecord): string {
+  const total = reader.lag.count + reader.failed;
+  return `${reader.source}: ${reader.lag.count.toString()}/${total.toString()} samples appeared (${reader.failed.toString()} failed), ${lagText(reader.lag)}`;
+}
+
+export const ODDS_INVARIANT = "the ticket's odds follow the book within 2 s";
+
+/**
+ * Criterion 7, second half. PASSED when, on each path measured, no sample failed and the p95 of
+ * every source the ticket reads is under 2 000 ms; FAILED otherwise. A path not measured (live
+ * window 0, simulated Gemini, no live update in the window) is said so and does not fail it; when
+ * no path was measured, it is NOT MEASURED, never passed.
+ */
+export function oddsFollowTheBook(odds: OddsRecord | null): InvariantResult {
+  if (odds === null) {
+    return {
+      name: ODDS_INVARIANT,
+      passed: false,
+      measured: false,
+      details: "not measured: the run stopped before the odds were measured",
+    };
+  }
+  const paths: {
+    name: string;
+    measured: boolean;
+    note: string | null;
+    readers: OddsReaderRecord[];
+  }[] = [
+    { name: "driven book", ...odds.driven },
+    { name: "live feed", ...odds.live },
+  ];
+  const measured = paths.filter((path) => path.measured && path.readers.length > 0);
+  const parts = paths.map((path) =>
+    path.measured && path.readers.length > 0
+      ? `${path.name}: ${path.readers.map(readerText).join("; ")}`
+      : `${path.name}: not measured (${path.note ?? "no source read"})`,
+  );
+  const limit = `limit: p95 under ${ODDS_LAG_LIMIT_MS.toString()} ms and no failed sample on each path measured`;
+  if (measured.length === 0) {
+    return {
+      name: ODDS_INVARIANT,
+      passed: false,
+      measured: false,
+      details: `not measured. ${parts.join(". ")}. ${limit}`,
+    };
+  }
+  const passed = measured.every((path) => path.readers.every(readerHolds));
+  return {
+    name: ODDS_INVARIANT,
+    passed,
+    measured: true,
+    details: `${parts.join(". ")}. ${limit}`,
+  };
+}
+
 export function checkInvariants(input: InvariantInput): InvariantResult[] {
+  const odds = input.odds === undefined ? [] : [oddsFollowTheBook(input.odds)];
   return [
     everySaleTicketed(input),
     noSaleAbovePauseThreshold(input),
@@ -337,5 +418,6 @@ export function checkInvariants(input: InvariantInput): InvariantResult[] {
     moneyAddsUp(input),
     demoFlagsTrue(input),
     nothingReachedStripe(input),
+    ...odds,
   ];
 }

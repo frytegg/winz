@@ -13,10 +13,14 @@ export const REHEARSAL_STEPS = [
   "start-engine",
   "choose-game",
   "launch-campaign",
+  /** Live Gemini only, before the book is driven: the lag of the campaign's live row (Q-03). */
+  "odds-live",
   "drive-book",
   "pause-probe",
   "purchases",
   "hedging",
+  /** The driven book moved to distinct prices, each followed to where the ticket reads it (Q-03). */
+  "odds-driven",
   "close-sales",
   "settle",
   /** Only after a failure: close the campaign and force a NO, so the escrow releases its funds. */
@@ -141,6 +145,20 @@ export interface RehearsalOptions {
   nodeFaults?: NodeFault;
   /** Retries of the reads made outside the waits (and of each wallet of the sweep). */
   readRetry?: Partial<RetryPolicy>;
+  /** The measure of the ticket's odds lag (`--odds-*` flags); defaults in `ODDS_LAG_DEFAULTS`. */
+  oddsLag?: Partial<OddsLagOptions>;
+}
+
+/** How the lag of the ticket's odds behind the book is measured (SPEC 17, criterion 7; Q-03). */
+export interface OddsLagOptions {
+  /** Prices the driven book is set to, one sample each (1 to 100). */
+  samples: number;
+  /** A new value that is not readable within this long is a failed sample, never dropped (ms). */
+  sampleTimeoutMs: number;
+  /** How long the live instrument's row is watched, live Gemini only (ms); 0 skips it. */
+  liveWindowMs: number;
+  /** How often each source is read while waiting (ms). */
+  pollMs: number;
 }
 
 /** The variables `ARC_RPC_MAX_REQUESTS_PER_SECOND`, `…_HEAVY_REQUESTS_PER_SECOND`, `ARC_RPC_HEAVY_METHODS`. */
@@ -312,6 +330,98 @@ export interface InvariantResult {
   passed: boolean;
   /** What was measured, in numbers. */
   details: string;
+  /**
+   * False when nothing it rests on was measured: reported NOT MEASURED, and never passed. Absent
+   * on the invariants that are always measured (and on receipts written before it existed).
+   */
+  measured?: boolean;
+}
+
+/** Lags of one source, ms; p95 by nearest rank. Null fields when no sample was taken. */
+export interface LagStats {
+  count: number;
+  minMs: number | null;
+  medianMs: number | null;
+  p95Ms: number | null;
+  maxMs: number | null;
+}
+
+/** One place the ticket reads its odds, and how late the new odds were readable there. */
+export interface OddsReaderRecord {
+  /** E.g. "live_instruments read as anon" or "GET /api/t/:token". */
+  source: string;
+  /**
+   * The judged lags of the samples that appeared: on the driven path from the moment the call
+   * that set the book returned; on the live path, the moment seen minus the row's observed_at.
+   */
+  lag: LagStats;
+  /** Driven path only: the same samples from the moment that call was sent. */
+  lagFromSent: LagStats | null;
+  /** Samples whose new value was not readable within the timeout. */
+  failed: number;
+  /** Reads of this source that answered an error (each one read again at the next poll). */
+  readErrors: number;
+  /** The last read error, redacted, or null. */
+  lastError: string | null;
+  /** Longest single read, ms: with the polling period, the bound of the measurement error. */
+  longestReadMs: number | null;
+}
+
+/** One price of the driven book and what each source did with it. */
+export interface DrivenOddsSample {
+  bidBps: number;
+  askBps: number;
+  /** The mid the ticket must show: floor((bid + ask) / 2). */
+  midBps: number;
+  /** How long the call that set the book took (sent → returned), ms. */
+  callMs: number;
+  /** Per reader (in `readers` order): lag from the call's return, ms; null when it never appeared. */
+  lagsMs: (number | null)[];
+}
+
+export interface DrivenOddsRecord {
+  measured: boolean;
+  /** Why it was not measured, or what limited it; null otherwise. */
+  note: string | null;
+  instrument: string | null;
+  readers: OddsReaderRecord[];
+  samples: DrivenOddsSample[];
+}
+
+export interface LiveOddsRecord {
+  /** False when not run (simulated Gemini, window 0) and when no update was observed. */
+  measured: boolean;
+  note: string | null;
+  instrument: string | null;
+  windowMs: number;
+  readers: OddsReaderRecord[];
+  /** Every update seen: seen − observed_at, ms. */
+  lagsMs: number[];
+}
+
+/**
+ * How late the odds a ticket shows are on the book they come from (SPEC 17, criterion 7, second
+ * half; Q-03), on the driven book and on the live feed.
+ */
+export interface OddsRecord {
+  /** The engine's book feed: minimum time between two writes of one instrument (ms). */
+  writeThrottleMs: number | null;
+  /** The engine's book feed: how often demo_overrides is read (ms). */
+  demoRefreshMs: number | null;
+  pollMs: number;
+  sampleTimeoutMs: number;
+  /** How the live_instruments row was read (as the anonymous role, or why not). */
+  rowAccess: string;
+  /** What the driven path is judged from, and why. */
+  judgedFrom: string;
+  /** What live_instruments.observed_at is, and so what the live lag includes. */
+  observedAt: string;
+  /** The bound of the measurement error. */
+  measurementError: string;
+  /** What the numbers do not include. */
+  excludes: string;
+  driven: DrivenOddsRecord;
+  live: LiveOddsRecord;
 }
 
 /**
@@ -466,6 +576,11 @@ export interface RehearsalReceipt {
     callToDashboard: Stats;
     refunds: RefundTiming | null;
   };
+  /**
+   * The lag of the ticket's odds (Q-03). Optional: absent from receipts written before it (the
+   * version stays 2); null when the run stopped before the engine started.
+   */
+  odds?: OddsRecord | null;
   hedging: HedgingRecord | null;
   invariants: InvariantResult[];
   balances: {
