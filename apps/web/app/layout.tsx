@@ -6,6 +6,7 @@ import { MockScenarioPicker } from "@/components/dev/mock-scenario-picker";
 import { AppShell } from "@/components/ui/app-shell";
 import { DemoBanner } from "@/components/ui/demo-banner";
 import { ToastProvider } from "@/components/ui/toast";
+import { AuthProvider } from "@/lib/auth";
 import { copy } from "@/lib/copy";
 
 import "./globals.css";
@@ -52,9 +53,11 @@ export default function RootLayout({ children }: { children: ReactNode }): React
     <html lang="en" className={sora.variable}>
       <body>
         <DemoBanner />
-        <ToastProvider>
-          <AppShell>{children}</AppShell>
-        </ToastProvider>
+        <AuthProvider>
+          <ToastProvider>
+            <AppShell>{children}</AppShell>
+          </ToastProvider>
+        </AuthProvider>
         <MockScenarioPicker />
       </body>
     </html>

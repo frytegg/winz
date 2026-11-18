@@ -91,6 +91,9 @@
   --animate-shake: shake 200ms var(--ease-out);
   --animate-screen-in: screen-in 240ms var(--ease-out);
   --animate-skeleton: skeleton 1.4s var(--ease-in-out) infinite;
+  --animate-sweep: sweep 760ms var(--ease-in-out) both;
+  --animate-confetti: confetti 1.2s var(--ease-out) both;
+  --animate-draw: draw 1.4s var(--ease-in-out) infinite;
 
   @keyframes pulse-dot {
     0%,
@@ -123,6 +126,42 @@
     to {
       opacity: 1;
       transform: translateY(0);
+    }
+  }
+  /* "Your promo is live!": a lime wipe up the screen and off the top, once. */
+  @keyframes sweep {
+    0% {
+      transform: translateY(100%);
+    }
+    45% {
+      transform: translateY(0);
+    }
+    55% {
+      transform: translateY(0);
+    }
+    100% {
+      transform: translateY(-100%);
+    }
+  }
+  /* A handful of lime and white diamonds falling, once. `--dx` is each one's drift. */
+  @keyframes confetti {
+    0% {
+      opacity: 1;
+      transform: translate3d(0, -24px, 0) rotate(45deg);
+    }
+    100% {
+      opacity: 0;
+      transform: translate3d(var(--dx, 0), 55dvh, 0) rotate(225deg);
+    }
+  }
+  /* The W being drawn, left to right, while the promo goes live. */
+  @keyframes draw {
+    0% {
+      clip-path: inset(0 100% 0 0);
+    }
+    70%,
+    100% {
+      clip-path: inset(0 0 0 0);
     }
   }
   @keyframes skeleton {

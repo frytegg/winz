@@ -76,7 +76,7 @@ Règles : un seul gros élément lime par écran. Texte toujours noir (`#131314`
 ## 6. Illustrations
 
 - Équipes : `logoUrl` est souvent `null`. Afficher l'illustration du sport (`/sports/football-*.png` casques, `basketball-*.png` baskets, `soccer-*.png` crampons), choisie de façon stable par équipe (hash de l'abréviation), sinon un monogramme rond (abréviation, fond couleur d'équipe). Jamais de logo officiel de ligue ou d'équipe.
-- Photo héro M0 : `/onboarding/hero.png` (joueur en noir et blanc, dégradé vers le noir en bas). Vérifier les droits de l'image ; si doute, flouter le maillot ou la remplacer par une photo libre (Unsplash, mention dans le README).
+- Photo héro M0 : `/onboarding/hero.jpg`, une photo libre de droits (Pexels, noir et blanc, dégradé vers le noir en bas), qui remplace celle des maquettes dont les droits sont inconnus. Source, licence et réserves dans `design-system/winz/CREDITS.md`.
 - Slides M0 : `/onboarding/slide-*.png` (cartes de stats flottantes, mockups iPhone).
 
 ## 7. Mouvement
