@@ -250,6 +250,7 @@ class CampaignCreation {
         this.deps.identity,
         row.merchant_email,
         "merchant",
+        { logger: this.log },
       );
       this.log.info(
         { campaignId: row.id },
