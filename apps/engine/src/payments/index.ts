@@ -19,3 +19,9 @@ export {
   type FakeGatewayMethod,
   type FakeIntentEffects,
 } from "./fake-gateway";
+export {
+  DEMO_PAYMENT_INTENT_PREFIX,
+  DemoPaymentGateway,
+  isDemoPaymentIntentId,
+} from "./demo-gateway";
+export { RoutingPaymentGateway, StripeNotConfiguredError } from "./routing-gateway";

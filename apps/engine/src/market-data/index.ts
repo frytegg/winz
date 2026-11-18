@@ -118,6 +118,13 @@ export type {
   BookTransportListener,
   TradePrint,
 } from "./book-transport";
+export {
+  DemoBookError,
+  PgDemoBookStore,
+  parseDemoBook,
+  type DemoBookRow,
+  type DemoBookStore,
+} from "./demo-book-store";
 export { RestBookPoller, type BookFetcher, type RestBookPollerOptions } from "./rest-book-poller";
 export { schedulerSleep, systemScheduler, type CancelTimer, type Scheduler } from "./scheduler";
 export {
