@@ -1,3 +1,5 @@
+import type { Sport } from "@winz/shared";
+
 import { pickTeamArt } from "@/lib/team-art";
 import { splitEventTitle } from "@/lib/wizard/draft";
 
@@ -26,13 +28,16 @@ export function abbreviate(name: string): string {
  * letters, and the illustration is the football one. It is wrong as soon as the game is not football.
  * `null` when the title has no "vs": the screen then shows the title as one line.
  */
-export function teamsFromTitle(title: string): { away: FanTeam; home: FanTeam } | null {
+export function teamsFromTitle(
+  title: string,
+  sport: Sport = "football",
+): { away: FanTeam; home: FanTeam } | null {
   const names = splitEventTitle(title);
   if (names === null) return null;
   const [awayName, homeName] = names;
   const away = abbreviate(awayName);
   const home = abbreviate(homeName);
-  const art = pickTeamArt("football", away, home);
+  const art = pickTeamArt(sport, away, home);
   return {
     away: { name: awayName, abbreviation: away, art: art?.away ?? null },
     home: { name: homeName, abbreviation: home, art: art?.home ?? null },
