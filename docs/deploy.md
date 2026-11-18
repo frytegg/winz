@@ -2,8 +2,13 @@
 
 Une seule page, dans l'ordre : Supabase, puis le moteur sur Railway, puis l'application web sur
 Vercel, Stripe, et le premier essai depuis un téléphone. Chaque étape finit par une commande qui
-prouve qu'elle a marché. Qui fait quoi (TASKS.md) : Alexandre (A) Supabase, Railway, QuickNode
-(F-01) ; Téo (T) Vercel, son domaine, Stripe et Privy (F-03).
+prouve qu'elle a marché. Qui fait quoi : Alexandre (A) Supabase, Railway, QuickNode (F-01) et le
+projet Vercel (le dépôt est dans son compte GitHub, celui de Téo ne le voit pas) ; Téo (T) Stripe,
+Privy et l'enregistrement du domaine chez eux (F-03).
+
+**La branche à déployer est `frytegg/modest-bohr-wipl43`, pas `main`** : `main` ne contient pas
+encore le code. Railway et Vercel déploient la branche par défaut du dépôt si on ne leur dit rien ;
+les étapes 2 et 3 disent où la choisir.
 
 ## Ce qui a été exécuté ici, et ce qui ne l'a pas été
 
@@ -145,7 +150,8 @@ racine (Dockerfile, contrôle de santé `/healthz`, redémarrage `ON_FAILURE`, c
 draining), que Railway ne lit plus pour un nouveau service : voir l'étape 1.
 Le moteur n'a pas d'étape de build : il exécute ses sources TypeScript avec tsx.
 
-1. New Project → Deploy from GitHub repo → ce dépôt. Ne pas définir de Root Directory : le
+1. New Project → Deploy from GitHub repo → ce dépôt, puis dans le service : Settings → Source →
+   branche `frytegg/modest-bohr-wipl43` (pas `main`, qui n'a pas le code). Ne pas définir de Root Directory : le
    Dockerfile se construit depuis la racine. **Railway ne lira pas `railway.json`** : sa
    documentation dit que Config as Code est déprécié, qu'un nouveau service ne peut plus s'y
    inscrire et que les fichiers existants cessent d'être lus le 1er décembre 2026 ; son remplaçant
@@ -275,13 +281,16 @@ Le moteur n'a pas d'étape de build : il exécute ses sources TypeScript avec ts
    chaîne 5042002 ; `SignerHistoryMismatchError` : une clé a changé alors que la base garde des
    transactions envoyées par l'ancienne (son message dit quoi faire).
 
-## 3. L'application web sur Vercel (T)
+## 3. L'application web sur Vercel (A)
 
 Pas de `vercel.json` : avec un monorepo pnpm, le projet Vercel pointe sur `apps/web`, et un
 `vercel.json` y serait lu, pas à la racine ; tout ce qu'il porterait se règle dans le tableau de
 bord.
 
 1. Add New → Project → importer ce dépôt. Réglages (Settings → Build and Deployment) :
+   - **Branche de production** : `frytegg/modest-bohr-wipl43` (Settings → Environments →
+     Production → Branch Tracking). Le premier déploiement, fait sur `main` à l'import, échoue :
+     c'est attendu, `main` n'a pas `apps/web`. Changer la branche puis redéployer ;
    - **Root Directory** : `apps/web` (bouton Edit à l'import, ou Settings → Build and
      Deployment → Root Directory). « Include files outside the root directory in the Build Step »
      doit rester **activé**, ce qui est le défaut : les paquets `@winz/shared` et `@winz/pricing`
