@@ -53,5 +53,11 @@
     "apps/web/lib/server/demo.ts",
     "apps/engine/src/payments/demo-gateway.ts",
     "apps/engine/src/market-data/demo-book-store.ts"
+  ],
+  "Q-01": [
+    "apps/web/e2e/loop.test.ts",
+    "apps/web/e2e/pause.test.ts",
+    "apps/web/e2e/demo.test.ts",
+    "apps/web/e2e/restart.test.ts"
   ]
 }
