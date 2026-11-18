@@ -11,6 +11,7 @@ import {
   type ApiError,
   type TopUpCampaignResponse,
 } from "@winz/shared";
+import type { TransactionSql } from "postgres";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { POST as postTopUp } from "@/app/api/campaigns/[id]/top-up/route";
@@ -18,12 +19,19 @@ import { GET as getCheckout } from "@/app/api/checkout/[pi]/route";
 import { POST as postStripe } from "@/app/api/webhooks/stripe/route";
 
 import { createTestDatabase, type TestDatabase } from "../../../engine/src/testing/postgres";
-import { TOP_UP_MESSAGES, TOP_UP_OVER_MESSAGE } from "./budget-top-up";
+import {
+  MAX_ROUNDS,
+  TOP_UP_CONFLICTS,
+  TOP_UP_MESSAGES,
+  TOP_UP_OVER_MESSAGE,
+  topUpCampaign,
+} from "./budget-top-up";
 import { MAX_CARD_AMOUNT } from "./campaign-writes";
 import { findSellableCampaign } from "./checkout";
 import type { Db } from "./db";
 import { setServerDepsForTesting } from "./deps";
 import { PaymentGatewayError, type PaymentGateway } from "./payments-gateway";
+import { ApiRouteError } from "./route";
 import {
   FakePaymentGateway,
   signStripeBody,
@@ -293,7 +301,10 @@ describe("POST /api/campaigns/:id/top-up: the payment", () => {
     const otherAmount = await refusal(await topUp(campaignId, { amount: "600000000", requestId }));
     expect(otherAmount).toEqual({
       status: 409,
-      error: { code: "conflict", message: "This request was already used for another top-up" },
+      error: {
+        code: "conflict",
+        message: "This request was already used for another top-up; make a new request to top up",
+      },
     });
     const otherCampaign = await refusal(
       await topUp(other, { amount: FIVE_HUNDRED.toString(), requestId }),
@@ -1071,11 +1082,13 @@ describe("no call to the payment provider while the campaign's row is locked", (
     } finally {
       held.release();
     }
+    // Its own payment was created, then withdrawn: the request is over, and the answer says so.
     expect(await refusal(await pending)).toEqual({
       status: 409,
       error: {
         code: "conflict",
-        message: "A top-up of this promo is being paid; try again once it is credited",
+        message:
+          "A top-up of this promo is being paid; once it is credited, make a new request to top up again",
       },
     });
     const mine = topUpIntentsOf(campaignId).find(
@@ -1089,6 +1102,9 @@ describe("no call to the payment provider while the campaign's row is locked", (
       [other.requestId, "requires_payment", null],
       [requestId, "failed", TOP_UP_MESSAGES.withdrawn],
     ]);
+    expect(
+      await refusal(await topUp(campaignId, { amount: FIVE_HUNDRED.toString(), requestId })),
+    ).toEqual({ status: 409, error: { code: "conflict", message: TOP_UP_OVER_MESSAGE } });
   });
 
   it("an unneeded payment whose cancel fails is refunded, never kept, if it is ever paid", async () => {
@@ -1242,5 +1258,602 @@ describe("a repeated request answered by the status of its top-up", () => {
       status: 409,
       error: { code: "conflict", message: TOP_UP_OVER_MESSAGE },
     });
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// The second follow-up: no request is left on a payment that can no longer be paid, and no
+// merchant is locked out of topping up
+// ---------------------------------------------------------------------------------------------
+
+class InjectedDbError extends Error {
+  constructor(readonly code: string) {
+    super(`injected database error ${code}`);
+    this.name = "InjectedDbError";
+  }
+}
+
+interface ScriptedDb {
+  /** `db`, with the transactions (and, while down, every query) scripted. */
+  db: Db;
+  /** How many transactions were begun through `db`: the first is the decision's. */
+  begins: () => number;
+  /** The errors injected so far, in order. */
+  injected: InjectedDbError[];
+  /** While true, every transaction and every query fails as when the database is down. */
+  down: boolean;
+}
+
+/**
+ * `db` for one call of `topUpCampaign`, as `failFirstTransactions` of the sign-in's tests does it:
+ * `before` runs before the n-th transaction begins (1: the decision, 2: the first commit), and a
+ * code from `failAfterWork` makes that transaction do its work, then fail with that code (so it
+ * rolls back, as the unique index's refusal would).
+ */
+function scriptedDb(
+  script: {
+    before?: (begin: number) => Promise<void>;
+    failAfterWork?: (begin: number) => string | null;
+  } = {},
+): ScriptedDb {
+  let begins = 0;
+  const injected: InjectedDbError[] = [];
+  const fail = (code: string): InjectedDbError => {
+    const error = new InjectedDbError(code);
+    injected.push(error);
+    return error;
+  };
+  const begin = async (work: (tx: TransactionSql) => Promise<unknown>): Promise<unknown> => {
+    begins += 1;
+    const n = begins;
+    await script.before?.(n);
+    if (state.down) throw fail("08006");
+    const code = script.failAfterWork?.(n) ?? null;
+    if (code === null) return db.begin(work);
+    return db.begin(async (tx: TransactionSql): Promise<unknown> => {
+      await work(tx);
+      throw fail(code);
+    });
+  };
+  const wrapped = new Proxy(db, {
+    get(target: Db, property: string | symbol, receiver: unknown): unknown {
+      if (property === "begin") return begin;
+      return Reflect.get(target, property, receiver) as unknown;
+    },
+    apply(target: Db, thisArg: unknown, args: unknown[]): unknown {
+      if (state.down) return Promise.reject(fail("08006"));
+      return Reflect.apply(target, thisArg, args) as unknown;
+    },
+  });
+  const state: ScriptedDb = { db: wrapped, begins: () => begins, injected, down: false };
+  return state;
+}
+
+/** The whole answer of a response, whatever its status: a failure shows what came back. */
+async function answerOf(response: Response): Promise<{ status: number; body: unknown }> {
+  return { status: response.status, body: (await response.json()) as unknown };
+}
+
+/** The body of a 409 to a request that is over. */
+const overBody = { error: { code: "conflict", message: TOP_UP_OVER_MESSAGE } };
+
+/** The error `promise` rejects with; a failure if it resolves. */
+async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
+  try {
+    await promise;
+  } catch (error: unknown) {
+    return error;
+  }
+  throw new Error("expected a rejection");
+}
+
+/** `topUpCampaign` called directly as Joe, on a scripted database. */
+async function topUpThrough(
+  scripted: ScriptedDb,
+  campaignId: string,
+  requestId: string,
+  amount: bigint = FIVE_HUNDRED,
+): Promise<TopUpCampaignResponse> {
+  return topUpCampaign(
+    scripted.db,
+    payments,
+    joeMerchant,
+    campaignId,
+    { amount: amount.toString(), requestId },
+    now,
+  );
+}
+
+/** Another request's payment, created at the fake, not recorded yet. */
+async function anotherPayment(campaignId: string): Promise<{ requestId: string; pi: string }> {
+  const requestId = randomUUID();
+  const created = await payments.createBudgetTopUpPayment({
+    campaignId,
+    requestId,
+    amount: 300_000_000n,
+  });
+  return { requestId, pi: created.id };
+}
+
+/** Every intent of the campaign that can still be paid is recorded by an open top-up. */
+async function expectNoPayableOrphan(campaignId: string): Promise<void> {
+  const rows = await topUpRows(campaignId);
+  const payable = topUpIntentsOf(campaignId)
+    .filter((intent) => intent.status !== "canceled")
+    .map((intent) => intent.id)
+    .sort();
+  const open = rows
+    .filter((row) => row.status === "requires_payment" || row.status === "processing")
+    .map((row) => row.stripe_pi)
+    .sort();
+  expect(payable).toEqual(open);
+}
+
+describe("a repeated request whose top-up changes while its client secret is read", () => {
+  it.each([
+    [
+      "replaced by a newer request",
+      async (campaignId: string): Promise<void> => {
+        await topUpOk(campaignId);
+      },
+    ],
+    [
+      "declined, its payment cancelled by the webhook",
+      async (_campaignId: string, pi: string): Promise<void> => {
+        payments.pay(pi, "requires_payment_method", "joe@example.com");
+        await deliver("payment_intent.payment_failed", pi);
+      },
+    ],
+  ])("%s: answers 409, never the secret of the cancelled intent", async (_label, change) => {
+    freshGateway();
+    const campaignId = await liveCampaign();
+    const first = await topUpOk(campaignId);
+    const pi = first.budgetPayment.paymentIntentId;
+    const held = payments.holdTopUpCalls(["retrieveClientSecret"]);
+    const pending = topUp(campaignId, {
+      amount: FIVE_HUNDRED.toString(),
+      requestId: first.requestId,
+    });
+    try {
+      await within(5_000, held.waiting(1), "the repeat reaching the provider");
+      await within(5_000, change(campaignId, pi), "the change of the top-up");
+    } finally {
+      held.release();
+    }
+    const answer = await refusal(await pending);
+    expect(answer).toEqual({
+      status: 409,
+      error: { code: "conflict", message: TOP_UP_OVER_MESSAGE },
+    });
+    expect(JSON.stringify(answer)).not.toContain(first.budgetPayment.clientSecret);
+    expect(payments.intents.get(pi)?.status).toBe("canceled");
+  });
+
+  it("answers the secret when the top-up did not change meanwhile (control)", async () => {
+    freshGateway();
+    const campaignId = await liveCampaign();
+    const first = await topUpOk(campaignId);
+    const held = payments.holdTopUpCalls(["retrieveClientSecret"]);
+    const pending = topUp(campaignId, {
+      amount: FIVE_HUNDRED.toString(),
+      requestId: first.requestId,
+    });
+    try {
+      await within(5_000, held.waiting(1), "the repeat reaching the provider");
+    } finally {
+      held.release();
+    }
+    expect(topUpCampaignResponseSchema.parse(await (await pending).json())).toEqual(first);
+  });
+});
+
+describe("a unique index refusing the commit of a top-up", () => {
+  it("a 23505 on the first commit is retried: one row, a payable intent, nothing cancelled", async () => {
+    freshGateway();
+    const campaignId = await liveCampaign();
+    const requestId = randomUUID();
+    const scripted = scriptedDb({ failAfterWork: (n) => (n === 2 ? "23505" : null) });
+    const answer = await topUpThrough(scripted, campaignId, requestId);
+    expect(scripted.injected.map((error) => error.code)).toEqual(["23505"]);
+    expect(scripted.begins()).toBe(3);
+    expect(answer).toMatchObject({ requestId, status: "requires_payment" });
+    expect(await topUpRows(campaignId)).toMatchObject([
+      {
+        request_id: requestId,
+        stripe_pi: answer.budgetPayment.paymentIntentId,
+        status: "requires_payment",
+      },
+    ]);
+    expect(payments.intents.get(answer.budgetPayment.paymentIntentId)?.status).toBe(
+      "requires_payment_method",
+    );
+    expect(payments.cancelCalls).toEqual([]);
+    expect(payments.createCalls).toBe(1);
+  });
+
+  it("the same requestId twice, the provider slow, one call refused by the index every round: both answer the same payable intent, never cancelled", async () => {
+    freshGateway();
+    const campaignId = await liveCampaign();
+    const requestId = randomUUID();
+    const body = { amount: FIVE_HUNDRED.toString(), requestId };
+    const held = payments.holdTopUpCalls(["createBudgetTopUpPayment"]);
+    const twin = topUp(campaignId, body);
+    // Every commit of this call waits for the twin's answer, then is refused by the index.
+    const scripted = scriptedDb({
+      before: async (n) => {
+        if (n >= 2) await twin;
+      },
+      failAfterWork: (n) => (n >= 2 && n <= 1 + MAX_ROUNDS ? "23505" : null),
+    });
+    const pending = topUpThrough(scripted, campaignId, requestId);
+    try {
+      await within(5_000, held.waiting(2), "both calls reaching the provider");
+    } finally {
+      held.release();
+    }
+    const twinResponse = await twin;
+    expect(twinResponse.status).toBe(200);
+    const twinAnswer = topUpCampaignResponseSchema.parse(await twinResponse.json());
+    const answer = await pending;
+    expect(scripted.injected).toHaveLength(MAX_ROUNDS);
+    expect(answer).toEqual(twinAnswer);
+    expect(payments.cancelCalls).toEqual([]);
+    expect(payments.intents.get(answer.budgetPayment.paymentIntentId)?.status).toBe(
+      "requires_payment_method",
+    );
+    expect(await topUpRows(campaignId)).toMatchObject([
+      { request_id: requestId, stripe_pi: answer.budgetPayment.paymentIntentId },
+    ]);
+    expect((await topUpRows(campaignId))[0]?.status).toBe("requires_payment");
+  });
+
+  it("the index refusing every round with no row of the request: 409, its payment withdrawn", async () => {
+    freshGateway();
+    const campaignId = await liveCampaign();
+    const requestId = randomUUID();
+    const scripted = scriptedDb({
+      failAfterWork: (n) => (n >= 2 && n <= 1 + MAX_ROUNDS ? "23505" : null),
+    });
+    const error = await rejectionOf(topUpThrough(scripted, campaignId, requestId));
+    expect(error).toBeInstanceOf(ApiRouteError);
+    expect(error).toMatchObject({ status: 409, message: TOP_UP_CONFLICTS.justRequested });
+    expect(await topUpRows(campaignId)).toMatchObject([
+      { request_id: requestId, status: "failed", message: TOP_UP_MESSAGES.withdrawn },
+    ]);
+    await expectNoPayableOrphan(campaignId);
+    expect(topUpIntentsOf(campaignId)).toHaveLength(1);
+  });
+
+  it("other requests taking the slot every round: after MAX_ROUNDS, 409 and no payable intent that no row knows", async () => {
+    freshGateway();
+    const campaignId = await liveCampaign();
+    const requestId = randomUUID();
+    const others: { requestId: string; pi: string }[] = [];
+    // Before each commit, another request records an unpaid top-up, replacing the one before it
+    // (whose intent this request has just cancelled).
+    const scripted = scriptedDb({
+      before: async (n) => {
+        if (n < 2 || n > 1 + MAX_ROUNDS) return;
+        const previous = others.at(-1);
+        if (previous !== undefined) {
+          await db`
+            update budget_top_ups set status = 'failed', message = ${TOP_UP_MESSAGES.replaced}
+            where request_id = ${previous.requestId}
+          `;
+        }
+        const other = await anotherPayment(campaignId);
+        others.push(other);
+        await db`
+          insert into budget_top_ups (request_id, campaign_id, stripe_pi, amount, status)
+          values (${other.requestId}, ${campaignId}, ${other.pi}, 300000000, 'requires_payment')
+        `;
+      },
+    });
+    const error = await rejectionOf(topUpThrough(scripted, campaignId, requestId));
+    expect(error).toBeInstanceOf(ApiRouteError);
+    expect(error).toMatchObject({ status: 409, message: TOP_UP_CONFLICTS.justRequested });
+    expect(others).toHaveLength(MAX_ROUNDS);
+    const mine = topUpIntentsOf(campaignId).find(
+      (intent) => intent.metadata.requestId === requestId,
+    );
+    expect(mine?.status).toBe("canceled");
+    // The last other request's top-up is the one open, and its intent the one payable.
+    const last = others.at(-1);
+    expect(payments.intents.get(last?.pi ?? "")?.status).toBe("requires_payment_method");
+    await expectNoPayableOrphan(campaignId);
+    expect(
+      (await topUpRows(campaignId)).filter((row) => row.request_id === requestId),
+    ).toMatchObject([{ status: "failed", message: TOP_UP_MESSAGES.withdrawn }]);
+    // The message says it: the same request can never go through.
+    expect(
+      await refusal(await topUp(campaignId, { amount: FIVE_HUNDRED.toString(), requestId })),
+    ).toEqual({ status: 409, error: { code: "conflict", message: TOP_UP_OVER_MESSAGE } });
+  });
+
+  it("a top-up paid between the two lock periods: 409, the new payment withdrawn", async () => {
+    freshGateway();
+    const campaignId = await liveCampaign();
+    const requestId = randomUUID();
+    const other = await anotherPayment(campaignId);
+    const held = payments.holdTopUpCalls(["createBudgetTopUpPayment"]);
+    const pending = topUp(campaignId, { amount: FIVE_HUNDRED.toString(), requestId });
+    try {
+      await within(5_000, held.waiting(1), "the top-up reaching the provider");
+      // Another request's top-up recorded and paid meanwhile, its webhook delivered.
+      payments.pay(other.pi, "succeeded", "joe@example.com");
+      await db`
+        insert into budget_top_ups (request_id, campaign_id, stripe_pi, amount, status)
+        values (${other.requestId}, ${campaignId}, ${other.pi}, 300000000, 'processing')
+      `;
+    } finally {
+      held.release();
+    }
+    expect(await refusal(await pending)).toEqual({
+      status: 409,
+      error: { code: "conflict", message: TOP_UP_CONFLICTS.inFlightOver },
+    });
+    const mine = topUpIntentsOf(campaignId).find(
+      (intent) => intent.metadata.requestId === requestId,
+    );
+    expect(mine?.status).toBe("canceled");
+    expect(payments.cancelCalls.map((call) => call.id)).toEqual([mine?.id]);
+    expect(
+      (await topUpRows(campaignId)).map((row) => [row.request_id, row.status, row.message]),
+    ).toEqual([
+      [other.requestId, "processing", null],
+      [requestId, "failed", TOP_UP_MESSAGES.withdrawn],
+    ]);
+    await expectNoPayableOrphan(campaignId);
+    expect(
+      await refusal(await topUp(campaignId, { amount: FIVE_HUNDRED.toString(), requestId })),
+    ).toEqual({ status: 409, error: { code: "conflict", message: TOP_UP_OVER_MESSAGE } });
+  });
+});
+
+describe("a request whose payment was withdrawn can never be paid", () => {
+  it("the database down for both the commit and the withdraw's record, then the same request: 409, never a dead secret", async () => {
+    freshGateway();
+    const campaignId = await liveCampaign();
+    const requestId = randomUUID();
+    const scripted = scriptedDb();
+    const held = payments.holdTopUpCalls(["createBudgetTopUpPayment"]);
+    const pending = topUpThrough(scripted, campaignId, requestId);
+    try {
+      await within(5_000, held.waiting(1), "the top-up reaching the provider");
+      scripted.down = true;
+    } finally {
+      held.release();
+    }
+    const error = await rejectionOf(pending);
+    expect(error).toBeInstanceOf(InjectedDbError);
+    scripted.down = false;
+    // The payment is cancelled, and nothing could record it.
+    const [intent] = topUpIntentsOf(campaignId);
+    if (intent === undefined) throw new Error("no intent was created");
+    expect(intent.status).toBe("canceled");
+    expect(await topUpRows(campaignId)).toEqual([]);
+    // Stripe's canceled webhook comes, finds no top-up, and is acknowledged.
+    await deliver("payment_intent.canceled", intent.id);
+    expect(await topUpRows(campaignId)).toEqual([]);
+
+    // The front retries with the same requestId: the provider answers the same (cancelled)
+    // intent, which is read and found dead (without that read: 200 with the dead secret).
+    const retry = await answerOf(
+      await topUp(campaignId, { amount: FIVE_HUNDRED.toString(), requestId }),
+    );
+    expect(retry).toEqual({ status: 409, body: overBody });
+    expect(JSON.stringify(retry)).not.toContain(intent.clientSecret);
+    expect(await topUpRows(campaignId)).toMatchObject([
+      {
+        request_id: requestId,
+        stripe_pi: intent.id,
+        status: "failed",
+        message: TOP_UP_MESSAGES.cancelled,
+      },
+    ]);
+    // Nothing holds the campaign's slot: a new request goes through.
+    const fresh = await topUpOk(campaignId);
+    expect(fresh.requestId).not.toBe(requestId);
+    await expectNoPayableOrphan(campaignId);
+  });
+
+  it("reads the status of every payment it creates, once, with the lock released", async () => {
+    freshGateway();
+    const campaignId = await liveCampaign();
+    const before = payments.retrieveCalls;
+    await topUpOk(campaignId);
+    expect(payments.retrieveCalls).toBe(before + 1);
+  });
+});
+
+describe("every 409 of the route says whether the same requestId can succeed later", () => {
+  it("the messages of a request that is over ask for a new request; the others for a retry", () => {
+    for (const message of [
+      TOP_UP_OVER_MESSAGE,
+      TOP_UP_CONFLICTS.inFlightOver,
+      TOP_UP_CONFLICTS.beingPaidOver,
+      TOP_UP_CONFLICTS.justRequested,
+      TOP_UP_CONFLICTS.usedElsewhere,
+    ]) {
+      expect(message).toContain("make a new request");
+    }
+    for (const message of [TOP_UP_CONFLICTS.inFlight, TOP_UP_CONFLICTS.beingPaid]) {
+      expect(message).toContain("try again");
+      expect(message).not.toContain("new request");
+    }
+  });
+
+  it("a top-up on its way, refused before any payment: the same request goes through once it is credited", async () => {
+    freshGateway();
+    const campaignId = await liveCampaign();
+    const first = await topUpOk(campaignId);
+    payments.pay(first.budgetPayment.paymentIntentId, "succeeded", "joe@example.com");
+    await deliver("payment_intent.succeeded", first.budgetPayment.paymentIntentId);
+    const requestId = randomUUID();
+    const body = { amount: FIVE_HUNDRED.toString(), requestId };
+    expect(await refusal(await topUp(campaignId, body))).toEqual({
+      status: 409,
+      error: { code: "conflict", message: TOP_UP_CONFLICTS.inFlight },
+    });
+    await db`
+      update budget_top_ups set status = 'credited', tx_hash = ${`0x${"ef".repeat(32)}`}
+      where stripe_pi = ${first.budgetPayment.paymentIntentId}
+    `;
+    expect(await topUpOk(campaignId, FIVE_HUNDRED, requestId)).toMatchObject({
+      requestId,
+      status: "requires_payment",
+    });
+  });
+
+  it("a top-up being paid, refused before any payment: the same request goes through once that payment failed", async () => {
+    freshGateway();
+    const campaignId = await liveCampaign();
+    const first = await topUpOk(campaignId);
+    const pi = first.budgetPayment.paymentIntentId;
+    payments.pay(pi, "processing", "joe@example.com");
+    const requestId = randomUUID();
+    const body = { amount: FIVE_HUNDRED.toString(), requestId };
+    expect(await refusal(await topUp(campaignId, body))).toEqual({
+      status: 409,
+      error: { code: "conflict", message: TOP_UP_CONFLICTS.beingPaid },
+    });
+    expect(topUpIntentsOf(campaignId)).toHaveLength(1);
+    payments.pay(pi, "requires_payment_method", "joe@example.com");
+    await deliver("payment_intent.payment_failed", pi);
+    expect(await topUpOk(campaignId, FIVE_HUNDRED, requestId)).toMatchObject({
+      requestId,
+      status: "requires_payment",
+    });
+  });
+
+  it("a promo not live yet: the same request goes through once it is", async () => {
+    freshGateway();
+    const campaignId = await liveCampaign({
+      status: "funding",
+      onchainId: null,
+      slug: null,
+      saleState: "closed",
+    });
+    const requestId = randomUUID();
+    const body = { amount: FIVE_HUNDRED.toString(), requestId };
+    expect(await refusal(await topUp(campaignId, body))).toEqual({
+      status: 409,
+      error: { code: "conflict", message: "This promo is not live yet" },
+    });
+    nextOnchainId += 1n;
+    await db`
+      update campaigns set status = 'live', sale_state = 'open', onchain_id = ${nextOnchainId}
+      where id = ${campaignId}
+    `;
+    expect(await topUpOk(campaignId, FIVE_HUNDRED, requestId)).toMatchObject({ requestId });
+  });
+});
+
+describe("a top-up whose payment a newer request cancelled, the newer request then refused", () => {
+  async function raiseBudgetToTheCap(campaignId: string): Promise<void> {
+    await db`update campaigns set budget = ${MAX_CARD_AMOUNT} where id = ${campaignId}`;
+  }
+
+  it.each([
+    [
+      "the campaign closes while the provider answers",
+      closeItsSales,
+      {
+        status: 409,
+        error: {
+          code: "sales_closed",
+          message: "Sales are closed for this promo: its budget can no longer be topped up",
+        },
+      },
+    ],
+    [
+      "the budget reaches the cap while the provider answers",
+      raiseBudgetToTheCap,
+      {
+        status: 400,
+        error: {
+          code: "invalid_request",
+          message: "Invalid body.amount: the promo's budget would go above $999,999.99",
+        },
+      },
+    ],
+  ])(
+    "%s: the cancelled top-up ends at once, and its repeat answers 409",
+    async (_label, change, refused) => {
+      freshGateway();
+      const campaignId = await liveCampaign();
+      const replaced = await topUpOk(campaignId);
+      const pi = replaced.budgetPayment.paymentIntentId;
+      const held = payments.holdTopUpCalls(["createBudgetTopUpPayment"]);
+      const pending = topUp(campaignId, {
+        amount: FIVE_HUNDRED.toString(),
+        requestId: randomUUID(),
+      });
+      try {
+        await within(5_000, held.waiting(1), "the top-up reaching the provider");
+        await within(2_000, change(campaignId), "the change of the campaign");
+      } finally {
+        held.release();
+      }
+      expect(await refusal(await pending)).toEqual(refused);
+      expect(payments.intents.get(pi)?.status).toBe("canceled");
+      // Without ending it: 200 with the secret of its cancelled intent.
+      const repeat = await answerOf(
+        await topUp(campaignId, {
+          amount: FIVE_HUNDRED.toString(),
+          requestId: replaced.requestId,
+        }),
+      );
+      expect(repeat).toEqual({ status: 409, body: overBody });
+      expect(JSON.stringify(repeat)).not.toContain(replaced.budgetPayment.clientSecret);
+      expect((await topUpRows(campaignId))[0]).toMatchObject({
+        request_id: replaced.requestId,
+        status: "failed",
+        message: TOP_UP_MESSAGES.cancelledForNewer,
+      });
+      // The provider's late canceled webhook changes nothing.
+      await deliver("payment_intent.canceled", pi);
+      expect((await topUpRows(campaignId))[0]).toMatchObject({
+        request_id: replaced.requestId,
+        status: "failed",
+        message: TOP_UP_MESSAGES.cancelledForNewer,
+      });
+      await expectNoPayableOrphan(campaignId);
+    },
+  );
+
+  it("the creation of the newer payment fails: the cancelled top-up ends at once, and its repeat answers 409", async () => {
+    freshGateway();
+    const campaignId = await liveCampaign();
+    const replaced = await topUpOk(campaignId);
+    const pi = replaced.budgetPayment.paymentIntentId;
+    payments.failure = new PaymentGatewayError("Stripe is down");
+    const failed = await refusal(
+      await topUp(campaignId, { amount: FIVE_HUNDRED.toString(), requestId: randomUUID() }),
+    );
+    expect(failed.status).toBe(502);
+    payments.failure = null;
+    expect(payments.intents.get(pi)?.status).toBe("canceled");
+    // Without ending it: 200 with the secret of its cancelled intent.
+    const repeat = await answerOf(
+      await topUp(campaignId, { amount: FIVE_HUNDRED.toString(), requestId: replaced.requestId }),
+    );
+    expect(repeat).toEqual({ status: 409, body: overBody });
+    expect(JSON.stringify(repeat)).not.toContain(replaced.budgetPayment.clientSecret);
+    expect(await topUpRows(campaignId)).toMatchObject([
+      {
+        request_id: replaced.requestId,
+        status: "failed",
+        message: TOP_UP_MESSAGES.cancelledForNewer,
+      },
+    ]);
+    await deliver("payment_intent.canceled", pi);
+    expect(await topUpRows(campaignId)).toMatchObject([
+      { status: "failed", message: TOP_UP_MESSAGES.cancelledForNewer },
+    ]);
+    // The slot is free: a new request goes through without cancelling anything more.
+    const cancels = payments.cancelCalls.length;
+    await topUpOk(campaignId);
+    expect(payments.cancelCalls).toHaveLength(cancels);
   });
 });
