@@ -95,4 +95,36 @@ describe("loadEngineEnv", () => {
     expect(loadEngineEnv({ ...valid, DB_POOL_MAX: "12" }).DB_POOL_MAX).toBe(12);
     expect(issuesOf(() => loadEngineEnv({ ...valid, DB_POOL_MAX: "2" }))).toContain("DB_POOL_MAX");
   });
+
+  it("leaves the RPC limits unset unless given, and reads them when they are", () => {
+    const unset = loadEngineEnv(valid);
+    expect(unset.ARC_RPC_MAX_REQUESTS_PER_SECOND).toBeUndefined();
+    expect(unset.ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND).toBeUndefined();
+    expect(unset.ARC_RPC_HEAVY_METHODS).toBeUndefined();
+
+    const set = loadEngineEnv({
+      ...valid,
+      ARC_RPC_MAX_REQUESTS_PER_SECOND: "25",
+      ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND: "2.5",
+      ARC_RPC_HEAVY_METHODS: " eth_getLogs, eth_estimateGas ,",
+    });
+    expect(set.ARC_RPC_MAX_REQUESTS_PER_SECOND).toBe(25);
+    expect(set.ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND).toBe(2.5);
+    expect(set.ARC_RPC_HEAVY_METHODS).toEqual(["eth_getLogs", "eth_estimateGas"]);
+  });
+
+  it("refuses RPC limits that cannot work", () => {
+    expect(
+      issuesOf(() => loadEngineEnv({ ...valid, ARC_RPC_MAX_REQUESTS_PER_SECOND: "0" })),
+    ).toContain("ARC_RPC_MAX_REQUESTS_PER_SECOND");
+    expect(
+      issuesOf(() => loadEngineEnv({ ...valid, ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND: "fast" })),
+    ).toContain("ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND");
+    expect(issuesOf(() => loadEngineEnv({ ...valid, ARC_RPC_HEAVY_METHODS: "getLogs" }))).toContain(
+      "ARC_RPC_HEAVY_METHODS",
+    );
+    expect(issuesOf(() => loadEngineEnv({ ...valid, ARC_RPC_HEAVY_METHODS: " , " }))).toContain(
+      "ARC_RPC_HEAVY_METHODS",
+    );
+  });
 });

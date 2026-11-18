@@ -32,6 +32,12 @@ export interface ChainIngestOptions {
   confirmations?: bigint;
   /** Row of `chain_cursor`. Default `escrow-logs:<lowercase escrow address>`. */
   cursorName?: string;
+  /** Least time between the starts of two `eth_getLogs`, in ms. Default 250. */
+  minRequestGapMs?: number;
+  /** First wait after a rate-limited `eth_getLogs`, doubled in a row. Default 1 000. */
+  rateLimitBaseDelayMs?: number;
+  /** Longest wait after rate-limited `eth_getLogs`. Default 30 000. */
+  rateLimitMaxDelayMs?: number;
   /** First delay after a failure, doubled at each failure in a row. Default 1 000. */
   retryBaseMs?: number;
   /** Longest delay after failures. Default 30 000. */
@@ -120,6 +126,9 @@ export function startChainIngest(options: ChainIngestOptions): ChainIngest {
       cursorName: options.cursorName,
       maxBlockRange: options.maxBlockRange,
       confirmations: options.confirmations,
+      minRequestGapMs: options.minRequestGapMs,
+      rateLimitBaseDelayMs: options.rateLimitBaseDelayMs,
+      rateLimitMaxDelayMs: options.rateLimitMaxDelayMs,
     },
     logger,
   );
