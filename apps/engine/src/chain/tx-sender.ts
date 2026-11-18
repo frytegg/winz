@@ -86,6 +86,14 @@ interface InFlight {
    * attempt, as the one-at-a-time sender measured it. A re-broadcast of the same bytes after the
    * pending-count check does not restart it, so a node whose count never shows the transaction
    * cannot hold off the fee bump and the stuck alert for ever.
+   *
+   * A transaction cannot be mined before the one before it, so the time it spent behind it does
+   * not count in full: when it becomes the earliest (the one before it was recorded mined,
+   * reverted or failed), the timer is moved so that at least `resendCheckMs` remain before it can
+   * be replaced (`becameEarliest`); with `resendCheckMs >= replaceAfterMs` it simply restarts.
+   * One that waited behind a stalled earliest is then not fee-bumped the moment it becomes the
+   * earliest, when it would be mined in the next block; under a real fee spike the window
+   * recovers one transaction per `resendCheckMs`, not one per `replaceAfterMs`.
    */
   replaceTimerFrom: number;
   /** The next broadcast a node takes restarts the replacement timer (a new attempt, a restart). */
@@ -514,6 +522,7 @@ export class TxSender {
     const worker = this.workers[signer];
     const rows = await this.store.sentRows(this.keys[signer]);
     const known = new Map(worker.inFlight.map((entry) => [entry.tx.id, entry]));
+    const previousEarliest = worker.inFlight[0];
     const next: InFlight[] = [];
     for (const row of rows) {
       const existing = known.get(row.id);
@@ -525,6 +534,16 @@ export class TxSender {
       next.push(this.track(row, readSenderState(row)));
     }
     worker.inFlight = next;
+    // The earliest was finished outside this worker's own lookups: the next one now leads.
+    const earliest = next[0];
+    if (
+      earliest &&
+      previousEarliest &&
+      earliest !== previousEarliest &&
+      known.has(earliest.tx.id)
+    ) {
+      this.becameEarliest(earliest);
+    }
   }
 
   private track(tx: ChainTx, state: SenderState): InFlight {
@@ -987,14 +1006,14 @@ export class TxSender {
         const receipt = await this.findReceipt(head.state);
         if (receipt) {
           await this.finalize(signer, head.tx, receipt, log);
-          if (worker.inFlight[0] === head) worker.inFlight.shift();
+          this.shiftEarliest(worker, head);
           finished += 1;
           continue;
         }
         worker.rpcFailures = 0;
         const action = await this.watchEarliest(signer, head, log);
         if (action === "failed") {
-          if (worker.inFlight[0] === head) worker.inFlight.shift();
+          this.shiftEarliest(worker, head);
           finished += 1;
           continue;
         }
@@ -1017,10 +1036,31 @@ export class TxSender {
     }
   }
 
+  /** Drops the earliest once it is final; the next one becomes the earliest. */
+  private shiftEarliest(worker: Worker, head: InFlight): void {
+    if (worker.inFlight[0] !== head) return;
+    worker.inFlight.shift();
+    const next = worker.inFlight[0];
+    if (next) this.becameEarliest(next);
+  }
+
+  /**
+   * `entry` is now the earliest unmined transaction of its signer. It could not be mined before
+   * the one before it, so the time it waited behind it does not count in full: at least
+   * `resendCheckMs` (or the whole `replaceAfterMs`, when that is shorter) remain before it can be
+   * replaced. See `InFlight.replaceTimerFrom`.
+   */
+  private becameEarliest(entry: InFlight): void {
+    const left = Math.min(this.settings.resendCheckMs, this.settings.replaceAfterMs);
+    const from = this.nowMs() - this.settings.replaceAfterMs + left;
+    if (from > entry.replaceTimerFrom) entry.replaceTimerFrom = from;
+  }
+
   /**
    * The earliest unmined transaction has no receipt yet. After `replaceAfterMs` from the time a
-   * node took its latest attempt, as the one-at-a-time sender does: fails it when another
-   * transaction took its nonce, otherwise replaces it with a higher fee and the same nonce (the
+   * node took its latest attempt, as the one-at-a-time sender does (that time moved so that at
+   * least `resendCheckMs` remain once it became the earliest: `becameEarliest`): fails it when
+   * another transaction took its nonce, otherwise replaces it with a higher fee and the same nonce (the
    * later ones are never signed again), at most `maxFeeBumps` times, then says the queue is
    * blocked. With more than one in flight, every `lostCheckMs` meanwhile, asks the node's pending
    * count: what the node lost is broadcast again from its stored bytes, which does not restart

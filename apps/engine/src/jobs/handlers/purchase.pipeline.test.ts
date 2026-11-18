@@ -3,14 +3,21 @@
  * mining at 0.5 s; Arc makes a block about every 0.46 s): simultaneous sales are ticketed within
  * a few blocks instead of a block each, and a pause sent during a burst of sales is a barrier:
  * no sale is ticketed after it is mined, and every payment ends captured or cancelled, never
- * both and never neither.
+ * both and never neither. The pause is sent once straight into the sender, and once as the
+ * merchant sends it: the web route's `campaign.set_paused` job run by its real handler, then a
+ * resume the same way.
  */
+import { randomUUID } from "node:crypto";
+
 import { encodeFunctionData, parseEventLogs, type Hex } from "viem";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { winzEscrowAbi, type BookLevel } from "@winz/shared";
+import { JOB_KINDS, jobIdempotencyKey, winzEscrowAbi, type BookLevel } from "@winz/shared";
 
 import { createDb, type Db } from "../../db";
+import { enqueueJob } from "../enqueue";
+import { createSetPausedHandler } from "./campaign-actions";
+import { finishPauseJobs } from "./campaign-actions.test-support";
 import { createPurchaseHandler } from "./purchase";
 import {
   CONTRACT,
@@ -44,11 +51,18 @@ afterEach(async () => {
   harness = undefined;
 });
 
-async function setUp(maxInFlight: number): Promise<{ h: JobsHarness; campaign: LiveCampaign }> {
-  const h = await createJobsHarness({ blockTime: 0.5, sender: { maxInFlight } });
+/** `maxInFlight` omitted: the sender's default window. */
+async function setUp(maxInFlight?: number): Promise<{ h: JobsHarness; campaign: LiveCampaign }> {
+  const h = await createJobsHarness({
+    blockTime: 0.5,
+    sender: maxInFlight === undefined ? {} : { maxInFlight },
+  });
   harness = h;
   jobsDb = createDb(h.database.url, { max: 30 });
-  const campaign = await createLiveCampaign(h, `pipeline-${maxInFlight.toString()}`);
+  const campaign = await createLiveCampaign(
+    h,
+    `pipeline-${maxInFlight === undefined ? "default" : maxInFlight.toString()}`,
+  );
   h.books.set(campaign.symbol, { asks: ASKS, bids: BIDS });
   return { h, campaign };
 }
@@ -230,5 +244,186 @@ describe("a campaign paused during a burst of sales", () => {
     }
     // The first wave travelled together.
     expect(spread(waveOne.map((row) => row.block as bigint))).toBeLessThanOrEqual(2n);
+  }, 240_000);
+});
+
+/**
+ * What POST /api/campaigns/:id/pause and /resume write (`apps/web/lib/server/campaign-writes.ts`),
+ * in one transaction: a pause sets the sale state to `paused_manual` at once, then the request's
+ * `campaign.set_paused` job row. Returns the request id.
+ */
+async function merchantRequest(
+  h: JobsHarness,
+  campaignId: string,
+  paused: boolean,
+): Promise<string> {
+  const requestId = randomUUID();
+  await h.db.begin(async (tx) => {
+    if (paused)
+      await tx`update campaigns set sale_state = 'paused_manual' where id = ${campaignId}`;
+    await enqueueJob(tx, {
+      kind: JOB_KINDS.setPaused,
+      payload: { campaignId, paused, requestId },
+      idempotencyKey: jobIdempotencyKey.setPaused(requestId),
+    });
+  });
+  return requestId;
+}
+
+/** The job worker's run of a `campaign.set_paused` job: the real handler, then the job done. */
+async function runPauseJob(
+  h: JobsHarness,
+  campaignId: string,
+  paused: boolean,
+  requestId: string,
+): Promise<void> {
+  const handler = createSetPausedHandler(h.deps(jobsDb === undefined ? {} : { db: jobsDb }));
+  await runHandler(h, handler, { campaignId, paused, requestId });
+  await finishPauseJobs(h, campaignId);
+}
+
+/** The `setPaused` transaction of a merchant request: mined, and its block. */
+async function pauseTx(
+  h: JobsHarness,
+  requestId: string,
+): Promise<{ status: string; block: bigint }> {
+  const [row] = await h.db<{ status: string; block_number: bigint | null }[]>`
+    select status, block_number from chain_txs
+    where kind = 'setPaused' and payload ->> 'requestId' = ${requestId}
+    order by created_at
+  `;
+  if (row === undefined) throw new Error(`no setPaused transaction for request ${requestId}`);
+  return { status: row.status, block: row.block_number ?? -1n };
+}
+
+async function storedSaleState(
+  h: JobsHarness,
+  campaignId: string,
+): Promise<{ status: string; stored: string; live: string | null }> {
+  const [row] = await h.db<{ status: string; sale_state: string; live: string | null }[]>`
+    select c.status, c.sale_state, l.sale_state as live
+    from campaigns c left join live_campaigns l on l.slug = c.slug
+    where c.id = ${campaignId}
+  `;
+  if (row === undefined) throw new Error(`no campaign ${campaignId}`);
+  return { status: row.status, stored: row.sale_state, live: row.live };
+}
+
+function rowsOfPayment(rows: readonly BuyRow[], pi: string): BuyRow[] {
+  return rows.filter((row) => row.key.startsWith(`buyFor:${pi}:`));
+}
+
+async function ticketBlocks(h: JobsHarness): Promise<bigint[]> {
+  const logs = await h.escrow.publicClient.getLogs({
+    address: h.escrow.escrow,
+    fromBlock: h.escrow.deployedAtBlock,
+    toBlock: "latest",
+  });
+  return parseEventLogs({ abi: winzEscrowAbi, eventName: "TicketPurchased", logs }).map(
+    (event) => event.blockNumber,
+  );
+}
+
+describe("the merchant's pause job during a burst of sales, then a resume (default window)", () => {
+  it("tickets no sale after the pause is mined, settles every payment once, stores paused_manual, refuses the later sales, and tickets again after the resume", async () => {
+    const { h, campaign } = await setUp();
+    const { campaignId } = campaign;
+    const inFlight: string[] = [];
+    const racing: string[] = [];
+    const afterPause: string[] = [];
+    const afterResume: string[] = [];
+    for (let index = 0; index < 5; index += 1) inFlight.push(await pay(h, campaign, index));
+    for (let index = 5; index < 8; index += 1) racing.push(await pay(h, campaign, index));
+    for (let index = 8; index < 12; index += 1) afterPause.push(await pay(h, campaign, index));
+
+    // A burst of sales in flight: their buyFor are in the outbox.
+    const first = inFlight.map((pi) => sell(h, pi));
+    for (;;) {
+      if ((await buyRows(h)).length >= inFlight.length) break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    // More sales start as the merchant clicks pause; the pause job runs at once; then sales whose
+    // purchase jobs start after the job row was written.
+    const racingSales = racing.map((pi) => sell(h, pi));
+    const pauseRequest = await merchantRequest(h, campaignId, true);
+    const pauseJob = runPauseJob(h, campaignId, true, pauseRequest);
+    const refusedSales = afterPause.map((pi) => sell(h, pi));
+    await Promise.all([...first, ...racingSales, ...refusedSales, pauseJob]);
+
+    const pause = await pauseTx(h, pauseRequest);
+    expect(pause.status).toBe("mined");
+    expect((await getCampaign(h, campaign.onchainId)).status).toBe(1);
+    // The database was told: the projected pause, and the merchant's sale state.
+    const paused = await storedSaleState(h, campaignId);
+    expect(paused).toMatchObject({ status: "paused", stored: "paused_manual" });
+    if (paused.live !== null) expect(paused.live).toBe("paused_manual");
+
+    // Every payment ends captured with its ticket, or cancelled without one: never both, never
+    // neither.
+    const statuses = await expectSettledPayments(h, [...inFlight, ...racing, ...afterPause]);
+    expect(statuses.slice(0, inFlight.length)).toEqual(Array(inFlight.length).fill("ticketed"));
+    expect(statuses.slice(inFlight.length + racing.length)).toEqual(
+      Array(afterPause.length).fill("cancelled_paused"),
+    );
+
+    const rows = await buyRows(h);
+    // No sale is ticketed after the pause is mined: every mined purchase is in an earlier block.
+    for (const [index, pi] of [...inFlight, ...racing].entries()) {
+      const mined = rowsOfPayment(rows, pi).filter((row) => row.status === "mined");
+      if (statuses[index] === "ticketed") {
+        expect(mined, pi).toHaveLength(1);
+        expect(mined[0]?.block as bigint, pi).toBeLessThan(pause.block);
+      } else {
+        expect(mined, pi).toEqual([]);
+      }
+    }
+    // The sales started after the pause job's row: refused by the engine's own sale-state check
+    // (no buyFor at all), or by the escrow on SalesArePaused; never signed into a ticket.
+    let refusedBySaleState = 0;
+    let refusedOnChain = 0;
+    for (const pi of afterPause) {
+      const own = rowsOfPayment(rows, pi);
+      if (own.length === 0) refusedBySaleState += 1;
+      else refusedOnChain += 1;
+      for (const row of own) {
+        expect(["failed", "reverted"], pi).toContain(row.status);
+        expect(row.error, pi).toBe("SalesArePaused");
+      }
+    }
+    const ticketed = statuses.filter((status) => status === "ticketed").length;
+    const pausedTickets = await ticketBlocks(h);
+    expect(pausedTickets).toHaveLength(ticketed);
+    for (const block of pausedTickets) expect(block).toBeLessThan(pause.block);
+
+    // The merchant resumes: the job brings the chain back to live, the sale state reopens.
+    const resumeRequest = await merchantRequest(h, campaignId, false);
+    await runPauseJob(h, campaignId, false, resumeRequest);
+    const resume = await pauseTx(h, resumeRequest);
+    expect(resume.status).toBe("mined");
+    expect(resume.block).toBeGreaterThan(pause.block);
+    expect((await getCampaign(h, campaign.onchainId)).status).toBe(0);
+    const resumed = await storedSaleState(h, campaignId);
+    expect(resumed).toMatchObject({ status: "live", stored: "open" });
+    if (resumed.live !== null) expect(resumed.live).toBe("open");
+
+    // Sales are ticketed again.
+    for (let index = 12; index < 15; index += 1) afterResume.push(await pay(h, campaign, index));
+    await Promise.all(afterResume.map((pi) => sell(h, pi)));
+    expect(await expectSettledPayments(h, afterResume)).toEqual(
+      Array(afterResume.length).fill("ticketed"),
+    );
+    const allTickets = await ticketBlocks(h);
+    expect(allTickets).toHaveLength(ticketed + afterResume.length);
+    // None while the campaign was paused on-chain.
+    for (const block of allTickets) {
+      expect(block < pause.block || block > resume.block, block.toString()).toBe(true);
+    }
+    process.stdout.write(
+      `[merchant pause job] pause mined in block ${pause.block.toString()}, resume in ${resume.block.toString()}; ` +
+        `racing sales ${statuses
+          .slice(inFlight.length, inFlight.length + racing.length)
+          .join(", ")}; later sales refused by the sale state ${refusedBySaleState.toString()}, ` +
+        `on-chain ${refusedOnChain.toString()}; ${allTickets.length.toString()} tickets in all\n`,
+    );
   }, 240_000);
 });

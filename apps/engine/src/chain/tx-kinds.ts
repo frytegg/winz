@@ -36,9 +36,12 @@ export const INDEPENDENT_TX_KINDS: Readonly<Record<string, string>> = Object.fre
    * safety net cuts one sorted list into batches after waiting for its own earlier batches. Each
    * charge only lowers its own tickets' reservations and pays the treasury out of the escrow,
    * which holds every reservation. `settle` (oracle) is a barrier, so no charge is in flight
-   * with it. The one overlap left (the safety net charging while a charge of the hedging lane is
-   * still in flight, after the finalizer failed) reverts on-chain with `HedgeAlreadyCharged`
-   * instead of failing in simulation: both are read the same way by both callers.
+   * with it. The safety net, which runs only after the finalizer failed, first waits (within its
+   * transaction wait) for every `chargeHedge` of the outbox still queued or sent that holds one of
+   * the campaign's tickets, the hedging lane's included, and reads the tickets again after it. The
+   * one overlap left (a lane charge still not final after that wait) reverts on-chain with
+   * `HedgeAlreadyCharged` instead of failing in simulation: both are read the same way by both
+   * callers.
    */
   chargeHedge:
     "tickets already mined, disjoint between the charges in flight; an overlap reverts HedgeAlreadyCharged, handled as a simulation failure is",
