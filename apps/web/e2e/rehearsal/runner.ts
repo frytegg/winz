@@ -74,7 +74,19 @@ import {
 } from "./chain";
 import { describeEstimate, estimateRun, formatWei } from "./estimate";
 import { checkInvariants, type DeskSample, type DemoFlag, type MoneyParty } from "./invariants";
-import { describeRpc, redactText, stats, writeReceipt } from "./receipt";
+import {
+  OddsRangeError,
+  drivenNotMeasured,
+  drivenOddsBooks,
+  liveNotMeasured,
+  liveRowSource,
+  measureDriven,
+  measureLive,
+  oddsRecordOf,
+  resolveOddsLag,
+  type OddsSource,
+} from "./odds";
+import { describeRpc, redactText, stats, verdictOf, writeReceipt } from "./receipt";
 import {
   RecoveryReceiptError,
   campaignState,
@@ -102,6 +114,9 @@ import {
   RehearsalStepError,
   type BalanceRow,
   type CampaignStateRecord,
+  type DrivenOddsRecord,
+  type LiveOddsRecord,
+  type OddsLagOptions,
   type HedgingRecord,
   type MoneyMode,
   type PauseProbe,
@@ -408,6 +423,14 @@ interface Run {
   blockClock: BlockClock | null;
   /** The Hedge desk's row of the instrument once reconciled at close (it may drop it later). */
   deskAtClose: HedgeInstrument | null;
+  /** The measure of the ticket's odds lag (Q-03), resolved from `options.oddsLag`. */
+  oddsOptions: OddsLagOptions;
+  /** The engine's book feed settings, read from the instance the engine runs. */
+  feedSettings: { writeThrottleMs: number | null; demoRefreshMs: number | null } | null;
+  /** How the live_instruments row was read (as anon, or why not). */
+  oddsRowAccess: string | null;
+  oddsLive: LiveOddsRecord | null;
+  oddsDriven: DrivenOddsRecord | null;
 }
 
 function flag(run: Run, source: string, demo: boolean): void {
@@ -587,6 +610,7 @@ function refuseEarly(options: RehearsalOptions): Scenario {
   }
   const { scenario, problems } = resolveScenario(options.scenario);
   reasons.push(...problems);
+  reasons.push(...resolveOddsLag(options.oddsLag).problems);
   if (reasons.length > 0 || scenario === null) throw new RehearsalRefusedError(reasons);
   return scenario;
 }
@@ -643,6 +667,7 @@ function emptyReceipt(
       callToDashboard: stats([]),
       refunds: null,
     },
+    odds: null,
     hedging: null,
     invariants: [],
     balances: { before: [], afterSettlement: [], afterSweep: [] },
@@ -930,6 +955,11 @@ async function startEngineStep(run: Run, identity: FakeIdentity): Promise<void> 
     });
   }
 
+  run.feedSettings = {
+    writeThrottleMs: feedSetting(bookFeed, "writeThrottleMs"),
+    demoRefreshMs: feedSetting(bookFeed, "demoRefreshMs"),
+  };
+
   // The newest outbox row before this run: every row after it was written by this run.
   const [watermark] = await read(
     run,
@@ -990,6 +1020,16 @@ async function startEngineStep(run: Run, identity: FakeIdentity): Promise<void> 
     (await read(run, "the Hedge desk", () => api.hedgeDesk())).totals.guaranteeLosses,
   );
   run.sampler = startDeskSampler(run);
+}
+
+/**
+ * A setting of the engine's book feed as the instance holds it (the runner passes none, so these
+ * are the feed's own defaults, as in production). BookFeed exposes no getter for them: the field
+ * is read by name and null is reported when it is not a number.
+ */
+function feedSetting(feed: BookFeed, name: "writeThrottleMs" | "demoRefreshMs"): number | null {
+  const value: unknown = Reflect.get(feed, name);
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 /**
@@ -1386,6 +1426,159 @@ async function pauseProbeStep(run: Run): Promise<void> {
   );
   await setBook(run, quiet.bidBps, quiet.askBps, true);
   await waitOpenOnQuietBook(run);
+}
+
+// ---------------------------------------------------------------------------------------------
+// The ticket's odds (Q-03, criterion 7): see odds.ts
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The live path, before the book is driven: the campaign's own live_instruments row, which the
+ * engine's feed writes from Gemini's books since the campaign went live. Another instrument of the
+ * catalogue would do only if the feed followed it, and it follows only the instruments of live or
+ * paused campaigns and the web's tracked_instruments rows: none is certain to exist.
+ */
+async function oddsLiveStep(run: Run): Promise<void> {
+  const db = run.db;
+  const campaign = run.campaign;
+  if (db === null || campaign === null) throw new Error("no campaign");
+  const options = run.oddsOptions;
+  const demo = await read(
+    run,
+    "the demo overrides of the instrument",
+    () => db<{ n: number }[]>`
+      select count(*)::int as n from demo_overrides
+       where instrument = ${campaign.symbol} and book is not null
+    `,
+  );
+  if ((demo[0]?.n ?? 0) > 0) {
+    run.oddsLive = liveNotMeasured(
+      "a demo book is in force on the instrument: its row does not follow Gemini",
+      campaign.symbol,
+      options.liveWindowMs,
+    );
+    return;
+  }
+  const { source, access } = await read(run, "the live_instruments row's access", () =>
+    liveRowSource(db, campaign.symbol),
+  );
+  run.oddsRowAccess = access;
+  const signal = signalOf(run);
+  run.oddsLive = await measureLive({
+    instrument: campaign.symbol,
+    source,
+    windowMs: options.liveWindowMs,
+    pollMs: options.pollMs,
+    ...(signal === undefined ? {} : { signal }),
+    redact: run.redact,
+  });
+  const live = run.oddsLive;
+  const lag = live.readers[0]?.lag;
+  run.options.out(
+    live.measured && lag !== undefined
+      ? `live odds: ${lag.count.toString()} updates of ${campaign.symbol} in ${(options.liveWindowMs / 1_000).toString()} s, seen − observed_at median ${String(lag.medianMs)} ms, p95 ${String(lag.p95Ms)} ms, max ${String(lag.maxMs)} ms`
+      : `live odds: not measured (${live.note ?? "–"})`,
+  );
+}
+
+/**
+ * The driven path, once every ticket is hedged and before the sales close: the book is set to
+ * `samples` prices under the pause threshold (sales stay open), above any working maker buy
+ * (none should be left, and none may be filled by the measure), and after each one the ticket's
+ * two sources are read until they show the new mid. The quiet book is put back afterwards, and
+ * the campaign must answer open on it again, whatever happened.
+ */
+async function oddsDrivenStep(run: Run): Promise<void> {
+  const db = run.db;
+  const campaign = run.campaign;
+  const quiet = run.quiet;
+  const token = run.ticketTokens[0];
+  if (db === null || campaign === null || quiet === null) throw new Error("no campaign");
+  const options = run.oddsOptions;
+  if (token === undefined) {
+    run.oddsDriven = drivenNotMeasured("no ticket was issued", campaign.symbol);
+    return;
+  }
+  const row = await read(run, "the Hedge desk", () => deskRow(campaign.symbol));
+  const makerBuys = (row?.orders ?? [])
+    .filter((order) => order.side === "buy" && order.status === "working")
+    .map((order) => order.priceBps);
+  const highestBuy = makerBuys.length === 0 ? 0 : Math.max(...makerBuys);
+  let books: { bidBps: number; askBps: number; midBps: number }[];
+  try {
+    books = drivenOddsBooks(options.samples, {
+      minAskBps: Math.max(100 + SPREAD_BPS, highestBuy + 100),
+      maxAskBps: Math.floor((run.pauseThresholdBps - 100) / 100) * 100,
+      currentAskBps: quiet.askBps,
+      spreadBps: SPREAD_BPS,
+    });
+  } catch (error: unknown) {
+    if (!(error instanceof OddsRangeError)) throw error;
+    run.oddsDriven = drivenNotMeasured(error.message, campaign.symbol);
+    return;
+  }
+  const rowSource = await read(run, "the live_instruments row's access", () =>
+    liveRowSource(db, campaign.symbol),
+  );
+  run.oddsRowAccess = rowSource.access;
+  const ticketSource: OddsSource = {
+    name: "GET /api/t/:token",
+    read: async () => {
+      const ticket = await api.ticket(token);
+      flag(run, "GET /api/t/:token", ticket.demo);
+      return { valueBps: ticket.probabilityBps, observedAtMs: null };
+    },
+  };
+  const signal = signalOf(run);
+  try {
+    run.oddsDriven = await measureDriven({
+      instrument: campaign.symbol,
+      books,
+      setBook: (bidBps, askBps) => setBook(run, bidBps, askBps, true),
+      sources: [rowSource.source, ticketSource],
+      pollMs: options.pollMs,
+      sampleTimeoutMs: options.sampleTimeoutMs,
+      jitterMs: run.feedSettings?.demoRefreshMs ?? 1_000,
+      ...(signal === undefined ? {} : { signal }),
+      redact: run.redact,
+      onSample: (sample, index) => {
+        run.options.out(
+          `odds ${(index + 1).toString()}/${books.length.toString()}: book ${sample.bidBps.toString()}/${sample.askBps.toString()} bps (mid ${sample.midBps.toString()}), set in ${sample.callMs.toString()} ms; readable ${sample.lagsMs.map((lag) => (lag === null ? "never" : `after ${lag.toString()} ms`)).join(" (row), ")} (ticket)`,
+        );
+      },
+    });
+  } finally {
+    await setBook(run, quiet.bidBps, quiet.askBps, true);
+    await waitOpenOnQuietBook(run);
+  }
+}
+
+/** The odds record of the run: null before the engine started; each path not reached said so. */
+function oddsOf(run: Run): RehearsalReceipt["odds"] {
+  if (run.feedSettings === null) return null;
+  const options = run.oddsOptions;
+  const instrument = run.campaign?.symbol ?? null;
+  const live =
+    run.oddsLive ??
+    liveNotMeasured(
+      run.options.gemini.kind === "simulated"
+        ? "the run used the simulated Gemini: there is no live feed to measure"
+        : options.liveWindowMs === 0
+          ? "the window is 0 (--odds-window 0)"
+          : "the run stopped before the live window",
+      instrument,
+      options.liveWindowMs,
+    );
+  const driven =
+    run.oddsDriven ?? drivenNotMeasured("the run stopped before the driven measure", instrument);
+  return oddsRecordOf({
+    options,
+    writeThrottleMs: run.feedSettings.writeThrottleMs,
+    demoRefreshMs: run.feedSettings.demoRefreshMs,
+    rowAccess: run.oddsRowAccess,
+    driven,
+    live,
+  });
 }
 
 async function purchasesStep(run: Run): Promise<void> {
@@ -2267,6 +2460,11 @@ function newRun(
     logs: null,
     blockClock: null,
     deskAtClose: null,
+    oddsOptions: resolveOddsLag(options.oddsLag).options,
+    feedSettings: null,
+    oddsRowAccess: null,
+    oddsLive: null,
+    oddsDriven: null,
   };
 }
 
@@ -2339,10 +2537,14 @@ async function rehearse(input: RehearsalOptions): Promise<RehearsalReceipt> {
     await step(run, "start-engine", () => startEngineStep(run, identity));
     const { symbol } = await step(run, "choose-game", () => chooseGameStep(run, identity));
     await step(run, "launch-campaign", () => launchCampaignStep(run, symbol));
+    if (run.options.gemini.kind === "live" && run.oddsOptions.liveWindowMs > 0) {
+      await step(run, "odds-live", () => oddsLiveStep(run));
+    }
     await step(run, "drive-book", () => driveBookStep(run));
     await step(run, "pause-probe", () => pauseProbeStep(run));
     await step(run, "purchases", () => purchasesStep(run));
     await step(run, "hedging", () => hedgingStep(run));
+    await step(run, "odds-driven", () => oddsDrivenStep(run));
     await step(run, "close-sales", () => closeSalesStep(run));
     await step(run, "settle", () => settleStep(run));
     await step(run, "reset", async () => {
@@ -2504,6 +2706,7 @@ async function finish(run: Run): Promise<void> {
   }
 
   receipt.pauseProbe = run.pauseProbe;
+  receipt.odds = oddsOf(run);
   receipt.timings.callToTicket = stats(
     receipt.purchases.flatMap((purchase) =>
       purchase.callToTicketMs === null ? [] : [purchase.callToTicketMs],
@@ -2561,10 +2764,11 @@ async function finish(run: Run): Promise<void> {
         intentIds: [...run.stripe.intents.keys()],
         callIds: run.stripe.calls.map((call) => call.id),
       },
+      odds: receipt.odds ?? null,
     });
     for (const invariant of receipt.invariants) {
       invariant.details = run.redact(invariant.details);
-      out(`${invariant.passed ? "PASSED" : "FAILED"} ${invariant.name}: ${invariant.details}`);
+      out(`${verdictOf(invariant)} ${invariant.name}: ${invariant.details}`);
     }
   }
   receipt.unread = [...run.unread];

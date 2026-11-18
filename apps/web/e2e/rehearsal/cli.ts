@@ -8,7 +8,14 @@ import { getAddress, isAddress, type Address, type Hex } from "viem";
 
 import { ARC_TESTNET_CHAIN_ID, parseUsd } from "@winz/shared";
 
-import type { GeminiMode, RehearsalOptions, RpcLimitsInput, ScenarioInput } from "./types";
+import { resolveOddsLag } from "./odds";
+import type {
+  GeminiMode,
+  OddsLagOptions,
+  RehearsalOptions,
+  RpcLimitsInput,
+  ScenarioInput,
+} from "./types";
 
 /**
  * The command line of the rehearsal: flags and environment into `RehearsalOptions`. Pure apart
@@ -38,6 +45,12 @@ Flags (each overrides its variable):
   --purchases <n=12> --units <n=1> --unit-price <usdc=0.50> --refund-pct <pct=100>
   --usual-margin-pct <pct=65> --min-margin-pct <pct=45> --budget <usdc> --outcome <yes|no>
   --buyers <n=6> --parallel <n=3> --gemini <live|simulated>
+  The lag of the ticket's odds behind the book (criterion 7, receipt section "Ticket odds"):
+  --odds-samples <n=10>     prices the driven book is set to, each followed to the ticket
+  --odds-timeout <s=10>     a price not readable on the ticket within this is a failed sample
+  --odds-window <s=60>      live Gemini only: how long the campaign's live row is watched before
+                            the book is driven; 0 skips it
+  --odds-poll-ms <ms=50>    how often the ticket's sources are read while waiting
   --estimate            print the addresses, the balances and the worst case, send nothing
   --receipt-dir <dir>   default docs/rehearsals on Arc testnet, a temp directory elsewhere
   --engine-log <file>   the engine's JSON log (default: a temp file)
@@ -157,6 +170,19 @@ function rpcLimitsOf(problems: string[], env: Env): RpcLimitsInput | undefined {
   return Object.keys(limits).length === 0 ? undefined : limits;
 }
 
+/** Flags of the odds measure: a recovery measures nothing. */
+const ODDS_FLAGS = ["odds-samples", "odds-timeout", "odds-window", "odds-poll-ms"] as const;
+
+/** Seconds, with at most three decimals, → whole milliseconds. */
+function seconds(problems: string[], name: string, value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (!/^\d+(\.\d{1,3})?$/.test(value)) {
+    problems.push(`${name} must be a number of seconds, e.g. 10 or 2.5`);
+    return undefined;
+  }
+  return Math.round(Number(value) * 1_000);
+}
+
 /** Flags of the scenario: they describe a new run, not the recovery of an old one. */
 const SCENARIO_FLAGS = [
   "purchases",
@@ -237,6 +263,12 @@ export function parseCli(argv: readonly string[], env: Env): CliResult {
         `${scenarioFlags.map((flag) => `--${flag}`).join(", ")}: the scenario is the receipt's, not the command's, with --recover`,
       );
     }
+    const oddsFlags = ODDS_FLAGS.filter((flag) => values[flag] !== undefined);
+    if (oddsFlags.length > 0) {
+      problems.push(
+        `${oddsFlags.map((flag) => `--${flag}`).join(", ")}: a recovery measures no odds`,
+      );
+    }
   } else if (!throwawayDb && databaseUrl === null && values.estimate !== true) {
     // An estimate reads the chain only.
     problems.push("no database: --db-url, DB_URL, or --throwaway-db");
@@ -263,6 +295,18 @@ export function parseCli(argv: readonly string[], env: Env): CliResult {
   set("outcome", outcome === "yes" || outcome === "no" ? outcome : undefined);
   set("buyers", integer(problems, "--buyers", values.buyers));
   set("parallel", integer(problems, "--parallel", values.parallel));
+
+  const oddsLag: Partial<OddsLagOptions> = {};
+  const samples = integer(problems, "--odds-samples", values["odds-samples"]);
+  if (samples !== undefined) oddsLag.samples = samples;
+  const timeout = seconds(problems, "--odds-timeout", values["odds-timeout"]);
+  if (timeout !== undefined) oddsLag.sampleTimeoutMs = timeout;
+  const window = seconds(problems, "--odds-window", values["odds-window"]);
+  if (window !== undefined) oddsLag.liveWindowMs = window;
+  const poll = integer(problems, "--odds-poll-ms", values["odds-poll-ms"]);
+  if (poll !== undefined) oddsLag.pollMs = poll;
+  const oddsProblems = resolveOddsLag(oddsLag).problems;
+  if (Object.keys(oddsLag).length > 0) problems.push(...oddsProblems);
 
   const geminiKind = values.gemini ?? "live";
   let gemini: GeminiMode = { kind: "simulated" };
@@ -305,6 +349,7 @@ export function parseCli(argv: readonly string[], env: Env): CliResult {
       escrowDeployBlock,
       secrets,
       scenario,
+      ...(Object.keys(oddsLag).length === 0 ? {} : { oddsLag }),
       gemini,
       // A fresh database needs nothing that happened before the run.
       startNearHead: throwawayDb && blockGiven === undefined,
@@ -340,6 +385,10 @@ function parse(argv: readonly string[]): {
     buyers?: string;
     parallel?: string;
     gemini?: string;
+    "odds-samples"?: string;
+    "odds-timeout"?: string;
+    "odds-window"?: string;
+    "odds-poll-ms"?: string;
     estimate?: boolean;
     "receipt-dir"?: string;
     "engine-log"?: string;
@@ -370,6 +419,10 @@ function parse(argv: readonly string[]): {
       buyers: { type: "string" },
       parallel: { type: "string" },
       gemini: { type: "string" },
+      "odds-samples": { type: "string" },
+      "odds-timeout": { type: "string" },
+      "odds-window": { type: "string" },
+      "odds-poll-ms": { type: "string" },
       estimate: { type: "boolean" },
       "receipt-dir": { type: "string" },
       "engine-log": { type: "string" },

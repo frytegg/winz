@@ -20,9 +20,11 @@ import {
   moneyAddsUp,
   noSaleAbovePauseThreshold,
   noSaleBeyondBudget,
+  ODDS_INVARIANT,
   refundsEqualRefundable,
   type InvariantInput,
 } from "./invariants";
+import { ODDS_LAG_DEFAULTS, lagStats, liveNotMeasured, oddsRecordOf } from "./odds";
 import {
   assertNoSecrets,
   compactUtc,
@@ -217,6 +219,34 @@ describe("invariants", () => {
     const results = checkInvariants(input);
     expect(results.filter((result) => !result.passed)).toEqual([]);
     expect(results).toHaveLength(11);
+  });
+
+  it("checks a twelfth, the ticket's odds (Q-03), when the run gives its odds record", () => {
+    const row = {
+      source: "live_instruments read as anon",
+      lag: lagStats([300, 650, 900]),
+      lagFromSent: lagStats([310, 660, 910]),
+      failed: 0,
+      readErrors: 0,
+      lastError: null,
+      longestReadMs: 2,
+    };
+    const odds = oddsRecordOf({
+      options: ODDS_LAG_DEFAULTS,
+      writeThrottleMs: 500,
+      demoRefreshMs: 1_000,
+      rowAccess: "read as the anonymous role",
+      driven: { measured: true, note: null, instrument: "GEMI-X", readers: [row], samples: [] },
+      live: liveNotMeasured("simulated Gemini", "GEMI-X", 60_000),
+    });
+    const results = checkInvariants({ ...input, odds });
+    expect(results).toHaveLength(12);
+    expect(results.filter((result) => !result.passed)).toEqual([]);
+    expect(results[11]).toMatchObject({ name: ODDS_INVARIANT, passed: true, measured: true });
+    // A run that measured nothing: not measured, never passed.
+    const none = checkInvariants({ ...input, odds: null });
+    expect(none).toHaveLength(12);
+    expect(none[11]).toMatchObject({ name: ODDS_INVARIANT, passed: false, measured: false });
   });
 
   it("the money check finds one micro-unit astray, and a gas payment is not money lost", () => {

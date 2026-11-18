@@ -436,13 +436,15 @@ Dans l'ordre :
    chaque seconde) ; l'escrow ne détient plus rien pour la campagne ; chaque remboursement égal au
    remboursable du ticket ; l'argent juste au micro-USDC près entre trésorerie, acheteurs,
    commerçant et escrow, gaz à part ; chaque réponse portant `demo` pour cette campagne à `true` ;
-   rien de la vente démo n'a atteint Stripe.
+   rien de la vente démo n'a atteint Stripe. Le douzième (Q-03, critère 7) : la cote du ticket suit
+   le carnet à moins de 2 s (section suivante).
 6. Le reçu, JSON et Markdown, nommé par l'heure UTC de départ, la chaîne et l'issue : chaîne,
    escrow, adresses des rôles et des portefeuilles (acheteurs numérotés, aucune adresse e-mail),
    match et contrat, scénario, chaque transaction (hash, nature, bloc, gaz, frais, lien vers
    l'explorateur d'Arc), les délais (appel de vente → ticket, appel → vente visible sur le détail du
    commerçant, de `settle` au dernier remboursement en blocs, en secondes de chaîne et en temps
-   réel), les invariants, les soldes avant, après règlement et après rapatriement, le coût net,
+   réel), le décalage de la cote du ticket (section « Ticket odds »), les invariants, les soldes
+   avant, après règlement et après rapatriement, le coût net,
    ce qui a été rapatrié, ce qui n'a pas pu être relu (« Could not be read »), et le nombre de
    requêtes de la répétition au nœud, refusées et relancées, étape par étape, avec les compteurs du
    limiteur (section « Node », aussi affichée en fin de répétition). Jamais une clé ni la graine :
@@ -460,6 +462,55 @@ libération. Puis le moteur est arrêté, les portefeuilles sont rapatriés et l
 `FAILED`, l'étape, la raison, la récupération et tout ce qui a été mesuré ; ce qui reste dans
 l'escrow (une campagne non libérée) y est écrit. Code de sortie : 0 si tout est passé (ou après
 `--estimate`), 1 si une étape ou un invariant a échoué, 2 si elle a refusé de démarrer.
+
+### La cote du ticket (critère 7, Q-03)
+
+Le critère : « le ticket vivant suit la cote avec moins de 2 secondes de décalage ». Il n'y a pas
+encore de page de ticket dans `apps/web` ; ce qu'elle lit est fixé par les données : la réponse de
+`GET /api/t/:token` porte `probabilityBps`, le `mid_bps` de la ligne `live_instruments` de
+l'instrument (premier affichage), et `instrumentSymbol`, par lequel la page suit cette ligne en
+Supabase Realtime (SPEC 7 ; la migration initiale donne `select` à `anon` sur les tables `live_*`
+sous une politique `using (true)`). La répétition mesure donc les deux : la ligne lue **comme le
+rôle anonyme** (`set local role anon` dans une transaction, sûr derrière le pooler de Supabase, si
+bien que le droit et la politique RLS s'appliquent ; si la connexion ne peut pas prendre ce rôle,
+elle lit avec sa propre connexion et le reçu le dit), et la route.
+
+- **Carnet piloté** (étape `odds-driven`, une fois chaque ticket facturé et avant la clôture) : le
+  carnet est placé sur N prix distincts (`--odds-samples`, 10 par défaut), tous sous le seuil de
+  pause (les ventes restent ouvertes), au-dessus de tout ordre maker d'achat encore actif (aucun ne
+  doit être rempli par la mesure), aucun égal au précédent, pris bas, haut, bas, haut. Après chacun,
+  les deux sources sont lues toutes les `--odds-poll-ms` (50 ms) jusqu'à montrer le nouveau mid ;
+  un prix qui n'apparaît pas en `--odds-timeout` secondes (10) est un échantillon en échec, gardé,
+  jamais écarté. Chaque prix part après une pause tirée entre 0 et la période de lecture des
+  carnets démo du moteur (1 s), pour ne pas toujours tomber au même instant de son cycle. Le délai
+  jugé part du **retour** de l'appel qui pose le carnet : le carnet n'existe à sa source qu'une fois
+  la route admin l'a écrit, et c'est de là qu'un client qui regarde le marché le voit bouger ; le
+  délai depuis l'**envoi** de l'appel (qui ajoute le temps de la route) est donné à côté. Le carnet
+  calme est remis ensuite, et la campagne doit à nouveau répondre ouverte dessus.
+- **Flux en direct** (étape `odds-live`, avec Gemini réel seulement, avant que le carnet soit
+  piloté) : la ligne de l'instrument de la campagne est lue toutes les 50 ms pendant
+  `--odds-window` secondes (60 ; 0 la saute), et chaque fois que son `observed_at` avance,
+  « vu − `observed_at` » est un échantillon. C'est le seul instrument dont le flux est sûr : le
+  moteur ne suit que les instruments des campagnes en ligne ou en pause et les lignes
+  `tracked_instruments` du web. `observed_at` est l'heure de **réception** du message Gemini par le
+  moteur (trame WebSocket ou réponse REST), pas l'horodatage de Gemini : ce délai exclut le réseau
+  depuis Gemini. Sans mise à jour pendant la fenêtre, le reçu dit « no update observed » : ce n'est
+  pas un succès.
+
+Le reçu (section « Ticket odds » du Markdown, champ `odds` du JSON, optionnel : la version reste 2,
+`--recover` et les anciens reçus marchent comme avant) donne, par chemin et par source, le nombre
+d'échantillons, les échecs, min, médiane, p95 (rang le plus proche) et max en millisecondes ; la
+période d'écriture des carnets du moteur (`writeThrottleMs`, 500 ms) et celle de lecture des
+carnets démo (`demoRefreshMs`, 1 s), lues sur l'instance du moteur ; la période de lecture ; la
+borne de l'erreur de mesure (un délai est surestimé d'au plus une période plus une lecture, jamais
+sous-estimé) ; et ce qu'il n'inclut pas : la poussée de Supabase Realtime jusqu'au téléphone et le
+rendu de la page, que seul un projet déployé peut mesurer (la route est appelée dans le processus,
+sans HTTP). L'invariant passe quand, sur chaque chemin mesuré, aucun échantillon n'a échoué et le
+p95 de chaque source est sous 2 000 ms ; un chemin non mesuré (Gemini simulé, fenêtre à 0, aucune
+mise à jour) est dit tel et ne fait pas échouer la répétition ; quand rien n'a été mesuré,
+l'invariant est « NOT MEASURED », jamais passé. Sur le carnet piloté, le délai tient surtout à la
+lecture des carnets démo par le moteur (au plus 1 s) ; sur le flux en direct, à la période
+d'écriture (au plus 500 ms).
 
 ### Un nœud qui limite la répétition
 
@@ -623,8 +674,18 @@ couvre pas le dû du commerçant ; des tickets non facturés avec les refus, la 
 puis un NON forcé que le reçu dit différent du OUI demandé ; tous les tickets facturés ventes
 ouvertes, avec une récupération interrompue par le signal d'arrêt après la clôture puis relancée ;
 et une répétition arrêtée avant de piloter le carnet (`driven` à `null`). Chacune est relancée une
-fois de plus, sauf la dernière. Environ 12 minutes, dont 7 avant `--recover`, le limiteur du moteur
-compris). `e2e/rehearsal/sweep.unit.test.ts` rapatrie un portefeuille à travers un nœud qui accepte
+fois de plus, sauf la dernière. La cote du ticket : le OUI mesure les 10 prix par défaut sur le
+carnet piloté (le 18 novembre : médiane 602 ms, p95 1 003 ms sur la ligne lue comme `anon` comme sur
+la route, le chemin en direct dit non mesuré), les autres répétitions 3 prix ; une répétition dont
+toutes les lignes `live_instruments` sont verrouillées 3 s au début de la mesure, l'écriture du
+moteur attendant derrière, a un premier prix jamais lisible en 1,5 s : échantillon en échec, le
+douzième invariant échoue, et lui seul, la répétition va au bout. Ces ajouts coûtent environ
+75 s : 31 s d'étape `odds-driven` dans les répétitions existantes et 43 s pour celle au verrou.
+Environ 11 minutes en tout, dont 7 avant `--recover`, le limiteur du moteur compris).
+`e2e/rehearsal/odds.unit.test.ts` vérifie sans base ni chaîne les statistiques (p95 au rang le plus
+proche), les prix pilotés, les deux boucles de mesure contre de fausses sources (un échantillon
+jamais visible est gardé en échec, une lecture en erreur est relue, aucune mise à jour en direct
+n'est pas un succès), chaque verdict du douzième invariant, la section du reçu et les options. `e2e/rehearsal/sweep.unit.test.ts` rapatrie un portefeuille à travers un nœud qui accepte
 le transfert et perd sa réponse, en minage immédiat et avec un bloc par seconde, en USDC natif et
 avec le jeton de test : un seul transfert atteint le nœud, la ligne dit `swept` avec son hash et son
 montant, le portefeuille finit à zéro. Il y ajoute trois chemins : la recherche qui suit la réponse
@@ -668,6 +729,9 @@ L'escrow et son bloc de déploiement sont lus dans `packages/contracts/deploymen
 autre). Les clés et la graine ne se passent que par l'environnement, jamais par une option.
 Options du scénario : `--purchases` (12, jusqu'à 300), `--units` (1), `--unit-price` (0.50),
 `--refund-pct` (100), `--usual-margin-pct` (65), `--min-margin-pct` (45), `--budget` (de quoi
-couvrir chaque garantie), `--outcome` (`yes` ou `no`), `--buyers` (6), `--parallel` (3). Le journal
+couvrir chaque garantie), `--outcome` (`yes` ou `no`), `--buyers` (6), `--parallel` (3). Options
+de la mesure de la cote du ticket : `--odds-samples` (10 prix du carnet piloté, de 1 à 100),
+`--odds-timeout` (10 s par prix), `--odds-window` (60 s de flux en direct ; 0 la saute) et
+`--odds-poll-ms` (50 ms) ; refusées avec `--recover`, qui ne mesure rien. Le journal
 du moteur va dans un fichier temporaire (`--engine-log` pour en choisir un), le reçu dans
 `docs/rehearsals/` (`--receipt-dir`).
