@@ -7,8 +7,9 @@
  * After every step, H as the hedging derives it (the restore, the instrument listing and the
  * derived write of `positions.held`) equals what the lots of unsettled campaigns were allocated
  * plus the inventory held ahead of exposure, less an over-sale not replaced yet; and the costs are
- * conserved: what the buy fills cost is what the lots were allocated, plus the inventory's cost,
- * plus the cost basis of what was resold.
+ * conserved to the micro-USDC: what the buy fills cost is what the lots were allocated, plus the
+ * inventory's cost, plus the cost basis of what was resold, plus the cost of the buys that
+ * replaced an over-sale (all as the allocation store records or returns them).
  */
 import { randomBytes } from "node:crypto";
 
@@ -147,7 +148,7 @@ async function simulate(seed: number): Promise<Run> {
   const run: Run = { steps: 0, sales: 0, buys: 0, resales: 0, overSales: 0, settlements: 0 };
   let boughtCost = 0n;
   let soldCostBasis = 0n;
-  let shortEver = false;
+  let replacedCost = 0n;
   let settledBefore = new Map<string, string>();
   const steps = random.int(8, 30);
 
@@ -188,6 +189,7 @@ async function simulate(seed: number): Promise<Run> {
       });
       if (result.status !== "recorded") throw new Error("buy not recorded");
       boughtCost += fillCost(priceBps, qty, fee);
+      if (result.replacedShort !== null) replacedCost += result.replacedShort.cost;
       run.buys += 1;
     } else if (roll <= 16) {
       // A resale of surplus; one in eight goes beyond the inventory (an over-sale on the venue).
@@ -210,10 +212,7 @@ async function simulate(seed: number): Promise<Run> {
       if (result.status !== "recorded" || result.sale === null)
         throw new Error("sale not recorded");
       soldCostBasis += result.sale.costBasis;
-      if (result.sale.shortQty > 0n) {
-        shortEver = true;
-        run.overSales += 1;
-      }
+      if (result.sale.shortQty > 0n) run.overSales += 1;
       run.resales += 1;
     } else if (open.length > 0) {
       // A settlement, as the projection writes it; sometimes a new campaign opens on the instrument.
@@ -259,18 +258,13 @@ async function simulate(seed: number): Promise<Run> {
     }
     settledBefore = lots.settledLots;
 
-    // Costs conserved (the allocation's own property), while no over-sale left a short whose
-    // replacement cost belongs to no lot. Exact up to one resale. Beyond, the inventory rebuilt
-    // from the tables takes everything sold from a fill in ONE take, rounded up once, where each
-    // resale had been costed rounded up on its own: the recorded cost bases can then exceed the
-    // rebuilt view by at most one micro-USDC per resale after the first (a property of the
-    // allocation store, reported; settlements play no part in it).
-    if (!shortEver) {
-      const excess = lots.lotCost + inventory.cost + soldCostBasis - boughtCost;
-      expect(excess >= 0n, `${where}: costs ${excess.toString()}`).toBe(true);
-      const extraResales = run.resales > 1 ? BigInt(run.resales - 1) : 0n;
-      expect(excess <= extraResales, `${where}: costs ${excess.toString()}`).toBe(true);
-    }
+    // Costs conserved exactly (the allocation's own property), after any number of resales of a
+    // fill and after an over-sale: a resale costs its share of what was sold from each fill in
+    // all, so the inventory rebuilt from the tables carries exactly what the resales left, and the
+    // buys that replace an over-sale return what that replacement cost. Settlements play no part.
+    expect(lots.lotCost + inventory.cost + soldCostBasis + replacedCost, `${where}: costs`).toBe(
+      boughtCost,
+    );
   }
   return run;
 }
