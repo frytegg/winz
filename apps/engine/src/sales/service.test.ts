@@ -196,9 +196,18 @@ async function projectPause(campaignId: string, paused: boolean, txHash: string)
   });
 }
 
-/** A `CampaignPaused` mined, stored and projected. */
+/**
+ * A `CampaignPaused` mined, stored and projected; then the job that asked for it ends `done`, as
+ * the set_paused handler does once it has projected its receipt (none for a pause made on-chain
+ * directly).
+ */
 async function minePause(campaignId: string, paused: boolean, at: Date): Promise<void> {
   await projectPause(campaignId, paused, await storePauseEvent(campaignId, paused, at));
+  await db`
+    update jobs set status = 'done'
+    where kind = ${JOB_KINDS.setPaused} and payload ->> 'campaignId' = ${campaignId}
+      and (payload ->> 'paused')::boolean = ${paused} and status in ('queued', 'running')
+  `;
 }
 
 /** A ticket and its lot reserving `maxHedgeCost` on the campaign's budget. */
@@ -547,8 +556,9 @@ describe("SaleStateRunner against Postgres", () => {
       expect((await pass()).sale).toBe("paused_manual");
       clock.advance(1_000);
       await enqueuePauseJob(id, false, new Date(clock.nowMs));
-      // The merchant's last word is "resume", nothing is paused on-chain.
-      expect((await pass()).sale).toBe("open");
+      // The merchant's last word is "resume", but the pause may still reach the chain first:
+      // paused until the chain answers both (manual-pause.service.test.ts plays every order).
+      expect((await pass()).sale).toBe("paused_manual");
       clock.advance(2_000);
       await minePause(id, true, new Date(clock.nowMs));
       expect((await pass()).sale).toBe("paused_manual");
@@ -1432,6 +1442,45 @@ describe("startSaleStates", () => {
 
       books.setBook(bookAt(1_900n, T0, 1_000_000_000n, SYMBOL));
       await waitFor(async () => (await storedState(campaign.id)).sale === "paused_price");
+    } finally {
+      stop.abort();
+      await service.stopped;
+    }
+  });
+
+  it("a book event ends the grace even when the feed drops the book before the pass reads it", async () => {
+    const books = new HandBookSource();
+    const campaign = await seedCampaign();
+    let clockReads = 0;
+    const stop = new AbortController();
+    // The default grace (10 s) on a clock that does not move: only a book event can end it.
+    const service = startSaleStates({
+      db,
+      bookFeed: books,
+      logger: silent,
+      signal: stop.signal,
+      intervalMs: 20,
+      clock: () => {
+        clockReads += 1;
+        return T0;
+      },
+    });
+    try {
+      // The instrument is tracked and its campaign kept open by the grace, with no book.
+      await waitFor(() => Promise.resolve(clockReads >= 4));
+      expect((await storedState(campaign.id)).sale).toBe("open");
+
+      // A book arrives, and the feed drops it again before any pass reads it (both happen in the
+      // same tick; a pass reads the book only after its query of the campaigns).
+      books.setBook(bookAt(1_200n, T0, 1_000_000_000n, SYMBOL));
+      books.dropBook(SYMBOL);
+      // The grace is over for the instrument: the missing book pauses the campaign at once,
+      // although the grace time (frozen clock) never runs out.
+      await waitFor(async () => (await storedState(campaign.id)).sale === "paused_depth");
+      expect(await storedState(campaign.id)).toMatchObject({
+        sale: "paused_depth",
+        live: "paused_depth",
+      });
     } finally {
       stop.abort();
       await service.stopped;
