@@ -165,6 +165,8 @@ export interface InstrumentInput {
   eventTicker: string;
   label: string;
   type?: "moneyline" | "spread" | "total";
+  /** `instruments.side`: the team the contract pays on, "tie", or null (the default). */
+  side?: "home" | "away" | "tie" | null;
   bidBps?: number | null;
   askBps?: number | null;
   syncedAt?: Date | null;
@@ -174,10 +176,12 @@ export interface InstrumentInput {
 export async function insertInstrument(db: Db, input: InstrumentInput): Promise<void> {
   await db`
     insert into instruments (
-      symbol, event_ticker, label, type, onchain_id, best_bid_bps, best_ask_bps, active, synced_at
+      symbol, event_ticker, label, type, side, onchain_id, best_bid_bps, best_ask_bps, active,
+      synced_at
     ) values (
       ${input.symbol}, ${input.eventTicker}, ${input.label}, ${input.type ?? "spread"},
-      ${onchainIdOf(input.symbol)}, ${input.bidBps ?? null}, ${input.askBps ?? null},
+      ${input.side ?? null}, ${onchainIdOf(input.symbol)}, ${input.bidBps ?? null},
+      ${input.askBps ?? null},
       ${input.active ?? true}, ${input.syncedAt === undefined ? new Date() : input.syncedAt}
     )
   `;
@@ -230,6 +234,10 @@ export interface CampaignInput {
   outcome?: Outcome | null;
   demo?: boolean;
   createdAt?: Date;
+  /** `campaigns.live_at`; null (the default) until the engine projects the creation. */
+  liveAt?: Date | null;
+  /** `campaigns.budget_pi`; null by default. */
+  budgetPi?: string | null;
 }
 
 export async function insertCampaign(db: Db, input: CampaignInput): Promise<string> {
@@ -237,7 +245,7 @@ export async function insertCampaign(db: Db, input: CampaignInput): Promise<stri
     insert into campaigns (
       merchant_id, instrument, event_ticker, product, condition_label, promise, unit_price,
       refund_bps, usual_margin_bps, min_margin_bps, pause_threshold_bps, budget, sales_close,
-      status, sale_state, slug, outcome, onchain_id, demo, created_at
+      status, sale_state, slug, outcome, onchain_id, demo, created_at, live_at, budget_pi
     ) values (
       ${input.merchantId}, ${input.instrument}, ${input.eventTicker},
       ${input.product ?? "Large pizza"}, ${input.conditionLabel ?? "Texas wins by 14+"},
@@ -246,7 +254,8 @@ export async function insertCampaign(db: Db, input: CampaignInput): Promise<stri
       ${input.pauseThresholdBps ?? 1800}, ${input.budget ?? 1_000_000_000n}, ${input.salesClose},
       ${input.status ?? "live"}, ${input.saleState ?? "open"},
       ${input.slug === undefined ? null : input.slug}, ${input.outcome ?? null},
-      ${input.onchainId ?? null}, ${input.demo ?? false}, ${input.createdAt ?? new Date()}
+      ${input.onchainId ?? null}, ${input.demo ?? false}, ${input.createdAt ?? new Date()},
+      ${input.liveAt ?? null}, ${input.budgetPi ?? null}
     )
     returning id
   `;

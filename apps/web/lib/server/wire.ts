@@ -1,4 +1,11 @@
-import { BOOK_STALE_AFTER_MS, BPS, mulDivUp, type SaleState } from "@winz/shared";
+import {
+  BOOK_STALE_AFTER_MS,
+  BPS,
+  mulDivUp,
+  type CampaignEvent,
+  type SaleState,
+  type Sport,
+} from "@winz/shared";
 
 /**
  * Small pure conversions from database values to the wire format of `packages/shared` (money as
@@ -82,4 +89,38 @@ export function liveProbabilityBps(
  */
 export function effectiveSaleState(stored: SaleState, salesClose: Date, now: Date): SaleState {
   return now.getTime() >= salesClose.getTime() ? "closed" : stored;
+}
+
+/**
+ * The columns of an `events` row a campaign's game is made of (`campaignEventSchema`), selected
+ * as `e.sport as event_sport, e.league as event_league, e.home_name, e.home_abbreviation,
+ * e.home_logo_url, e.away_name, e.away_abbreviation, e.away_logo_url`.
+ */
+export interface EventTeamsRow {
+  event_sport: Sport;
+  event_league: string;
+  home_name: string;
+  home_abbreviation: string;
+  home_logo_url: string | null;
+  away_name: string;
+  away_abbreviation: string;
+  away_logo_url: string | null;
+}
+
+/** The game of a campaign or a ticket on the wire, from its event's row. */
+export function toCampaignEvent(row: EventTeamsRow): CampaignEvent {
+  return {
+    sport: row.event_sport,
+    league: row.event_league,
+    home: {
+      name: row.home_name,
+      abbreviation: row.home_abbreviation,
+      logoUrl: safeUrl(row.home_logo_url),
+    },
+    away: {
+      name: row.away_name,
+      abbreviation: row.away_abbreviation,
+      logoUrl: safeUrl(row.away_logo_url),
+    },
+  };
 }

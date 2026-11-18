@@ -72,6 +72,7 @@ Tout le reste en dépend. F-02, puis F-03, sont les deux seules tâches vraiment
 - [ ] **F-05** · Qui : Agent `coder-high`, relu par A puis T · Dép. : F-04 · Section 10, PR-4
   `packages/shared` : types du domaine, unités (micro-USDC, points de base, micro-contrats) avec conversions testées, schémas zod de chaque requête et réponse de la section 10, une réponse d'exemple par route, interface Solidity `IWinzEscrow` et types des événements.
   Fini quand : chaque route de la section 10 a son schéma et son exemple, les exemples passent leur schéma en test, et **Téo a validé les formes** (porte G0).
+  État au 18 novembre : les six ajouts demandés par Téo avant le gel sont faits et testés (`requestId` sur `POST /api/campaigns`, encore facultatif ; `event` ; `subjectName` et `resultLabel` ; `team` et `winProbabilityBps` ; `createdAt` et `liveAt` ; pas d'expiration des campagnes `funding`), liste dans `apps/web/README.md`. Reste pour cocher : le front envoie `requestId`, le champ devient obligatoire, Téo valide les formes.
 - [x] **F-06** · Qui : Agent `coder`, relu par T · Dép. : F-05
   API simulée : avec `APP_API_MOCK=true`, chaque route renvoie son exemple, avec quelques scénarios (campagne ouverte, en pause, réglée YES, réglée NO).
   Fini quand : Téo construit ses écrans sans qu'aucun service du back ne tourne.

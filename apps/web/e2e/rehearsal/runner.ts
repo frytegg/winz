@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { appendFileSync } from "node:fs";
 import { basename, resolve, sep } from "node:path";
 import { Writable } from "node:stream";
@@ -1246,6 +1246,8 @@ async function launchCampaignStep(run: Run, symbol: string): Promise<void> {
     minMarginBps: scenario.minMarginBps,
     budget: scenario.budget.toString(),
     product: "Rehearsal item",
+    // One requestId per creation, as the front sends it: the creation is idempotent on it.
+    requestId: randomUUID(),
   });
   const budgetPi = created.budgetPayment.paymentIntentId;
   run.budgetPi = budgetPi;

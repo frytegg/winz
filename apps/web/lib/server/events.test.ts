@@ -24,6 +24,7 @@ function instrumentRow(overrides: Partial<CatalogueInstrumentRow>): CatalogueIns
     event_ticker: "EV",
     label: "Texas wins",
     type: "moneyline",
+    side: null,
     best_bid_bps: 1100,
     best_ask_bps: 1200,
     synced_at: new Date(now.getTime() - 30_000),
