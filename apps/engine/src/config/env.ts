@@ -29,6 +29,24 @@ export const engineEnvSchema = z
     ARC_USDC_ADDRESS: hexAddress.default("0x3600000000000000000000000000000000000000"),
     ARC_RELAYER_PRIVATE_KEY: privateKey,
     ARC_ORACLE_PRIVATE_KEY: privateKey,
+    // Limits every request of the engine keeps towards its node (chain/rpc-limiter.ts). Unset:
+    // 10 requests a second, 4 of them heavy, the heavy one being eth_getLogs.
+    ARC_RPC_MAX_REQUESTS_PER_SECOND: z.coerce.number().positive().max(10_000).optional(),
+    ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND: z.coerce.number().positive().max(10_000).optional(),
+    ARC_RPC_HEAVY_METHODS: z
+      .string()
+      .transform((value) =>
+        value
+          .split(",")
+          .map((method) => method.trim())
+          .filter((method) => method !== ""),
+      )
+      .pipe(
+        z
+          .array(z.string().regex(/^[a-z][a-z0-9]*_[A-Za-z0-9]+$/, "must be JSON-RPC method names"))
+          .min(1, "must name at least one method"),
+      )
+      .optional(),
 
     GEMINI_API_URL: z.string().url().default("https://api.gemini.com"),
     GEMINI_WS_URL: z.string().url().default("wss://ws.gemini.com"),

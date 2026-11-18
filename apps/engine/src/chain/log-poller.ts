@@ -2,16 +2,34 @@ import type { Logger } from "pino";
 import type { Address } from "viem";
 
 import type { Db } from "../db";
+import { abortableSleep } from "./clock";
 import { summarizeError } from "./error-summary";
 import { decodeEscrowLogs } from "./events";
 import { ChainIngestConfigError } from "./ingest-errors";
+import { classifyRpcRefusal, type RpcRefusal } from "./rpc-errors";
 import type { DecodedEvent, Queryable, ReceiptLog } from "./types";
 
 /** `chain_events.source` of rows written by the `eth_getLogs` poller (HE-1, the third source). */
 export const LOGS_SOURCE = "logs";
 
-/** Default width of one `eth_getLogs` request, in blocks. */
+/**
+ * Default width of one `eth_getLogs` request, in blocks. Arc's public RPC accepts a span of
+ * 9 999 blocks and refuses 10 000 (`-32012 requested range too large`).
+ */
 export const DEFAULT_MAX_BLOCK_RANGE = 2_000n;
+
+/**
+ * Default least time between the starts of two `eth_getLogs`: four a second. Arc's public RPC
+ * accepted 12 within 1.4 s and refused the 13th (HTTP 429, -32005). A catch-up of 60 000 blocks
+ * is then 30 requests in about 7.5 s.
+ */
+export const DEFAULT_MIN_REQUEST_GAP_MS = 250;
+
+/** Default first wait after a rate-limit answer; doubled each time in a row. */
+export const DEFAULT_RATE_LIMIT_BASE_DELAY_MS = 1_000;
+
+/** Default longest wait after rate-limit answers. */
+export const DEFAULT_RATE_LIMIT_MAX_DELAY_MS = 30_000;
 
 /** Successful requests in a row after which a range that was halved is doubled again. */
 const RANGE_RECOVERY_SUCCESSES = 16;
@@ -45,6 +63,19 @@ export interface LogPollerConfig {
    * there is no reorg handling either way.
    */
   confirmations?: bigint;
+  /** Least time between the starts of two `eth_getLogs`, in ms. Default 250 (four a second). */
+  minRequestGapMs?: number;
+  /**
+   * First wait after the node answers "rate limited", in ms, before the same range is asked
+   * again. Doubled at each such answer in a row, with jitter. Default 1 000.
+   */
+  rateLimitBaseDelayMs?: number;
+  /** Longest of those waits, in ms. Default 30 000. */
+  rateLimitMaxDelayMs?: number;
+  /** How a failed `eth_getLogs` is read. Default `classifyRpcRefusal`. */
+  classifyError?: (error: unknown) => RpcRefusal;
+  /** Source of the jitter, in [0, 1). Default `Math.random`. */
+  random?: () => number;
 }
 
 export interface PollResult {
@@ -56,6 +87,30 @@ export interface PollResult {
   events: number;
   /** Of those, rows actually inserted (the others came first from another source). */
   inserted: number;
+  /** `eth_getLogs` answered "rate limited" and waited out before asking the same range again. */
+  rateLimited: number;
+}
+
+function isAborted(signal: AbortSignal | undefined): boolean {
+  return signal?.aborted === true;
+}
+
+/**
+ * Wait before asking again after the `inARow`-th rate-limit answer in a row: `baseMs` doubled
+ * each time, at most `maxMs`, of which a random half is taken off ("equal jitter") so that
+ * several clients refused together do not come back together. Never below half of the
+ * undiscounted wait, so it only grows with `inARow` on average, and never above `maxMs`.
+ */
+export function rateLimitDelayMs(
+  inARow: number,
+  baseMs: number,
+  maxMs: number,
+  random: number,
+): number {
+  const exponent = Math.min(Math.max(inARow, 1) - 1, 30);
+  const full = Math.min(maxMs, baseMs * 2 ** exponent);
+  const jitter = Math.min(Math.max(random, 0), 1);
+  return Math.round(full / 2 + (full / 2) * jitter);
 }
 
 /** Name of the cursor row of the poller of `escrow`, when none is configured. */
@@ -63,51 +118,13 @@ export function defaultCursorName(escrow: Address): string {
   return `escrow-logs:${escrow.toLowerCase()}`;
 }
 
-/** Messages and codes of an error and of every error in its `cause` chain. */
-function errorChain(error: unknown): { messages: string[]; codes: number[] } {
-  const messages: string[] = [];
-  const codes: number[] = [];
-  let current: unknown = error;
-  for (let depth = 0; depth < 10 && current !== undefined && current !== null; depth += 1) {
-    if (typeof current === "string") {
-      messages.push(current);
-      break;
-    }
-    if (typeof current !== "object") break;
-    const record = current as Record<string, unknown>;
-    for (const key of ["message", "shortMessage", "details"] as const) {
-      const value = record[key];
-      if (typeof value === "string") messages.push(value);
-    }
-    if (typeof record.code === "number") codes.push(record.code);
-    current = record.cause;
-  }
-  return { messages, codes };
-}
-
-const RANGE_REFUSAL_PATTERNS: readonly RegExp[] = [
-  /block range/i,
-  /range (is )?too (large|wide|big)/i,
-  /exceeds? .*range/i,
-  /max(imum)? .*range/i,
-  /too many (results|logs|blocks)/i,
-  /more than \d+ (results|logs|blocks)/i,
-  /query returned more than/i,
-  /response (size|is too)/i,
-  /log response size exceeded/i,
-];
-
 /**
  * Whether an `eth_getLogs` failure is the node refusing the size of the request (too many
- * blocks or too many results), as opposed to the node being unreachable or failing. Nodes word
- * it differently; EIP-1474 reserves code -32005 for "limit exceeded".
+ * blocks or too many results), as opposed to a rate limit, an unreachable node or a failure.
+ * See `classifyRpcRefusal`: a bare -32005 is read as a rate limit, not as a size refusal.
  */
 export function isRangeRefusal(error: unknown): boolean {
-  const { messages, codes } = errorChain(error);
-  if (codes.includes(-32005)) return true;
-  return messages.some((message) =>
-    RANGE_REFUSAL_PATTERNS.some((pattern) => pattern.test(message)),
-  );
+  return classifyRpcRefusal(error) === "too-large";
 }
 
 /**
@@ -162,8 +179,15 @@ export class LogPoller {
   readonly cursorName: string;
   private readonly maxRange: bigint;
   private readonly confirmations: bigint;
+  private readonly minGapMs: number;
+  private readonly rateLimitBaseMs: number;
+  private readonly rateLimitMaxMs: number;
+  private readonly classify: (error: unknown) => RpcRefusal;
+  private readonly random: () => number;
   private range: bigint;
   private successesSinceShrink = 0;
+  /** Start of the last `eth_getLogs`, epoch ms, or null before the first. */
+  private lastRequestAt: number | null = null;
 
   constructor(
     private readonly db: Db,
@@ -174,9 +198,23 @@ export class LogPoller {
     this.cursorName = config.cursorName ?? defaultCursorName(config.escrowAddress);
     this.maxRange = config.maxBlockRange ?? DEFAULT_MAX_BLOCK_RANGE;
     this.confirmations = config.confirmations ?? 0n;
+    this.minGapMs = config.minRequestGapMs ?? DEFAULT_MIN_REQUEST_GAP_MS;
+    this.rateLimitBaseMs = config.rateLimitBaseDelayMs ?? DEFAULT_RATE_LIMIT_BASE_DELAY_MS;
+    this.rateLimitMaxMs = config.rateLimitMaxDelayMs ?? DEFAULT_RATE_LIMIT_MAX_DELAY_MS;
+    this.classify = config.classifyError ?? classifyRpcRefusal;
+    this.random = config.random ?? Math.random;
     if (this.maxRange < 1n) throw new ChainIngestConfigError("maxBlockRange must be at least 1");
     if (this.confirmations < 0n) throw new ChainIngestConfigError("confirmations must be >= 0");
     if (config.fromBlock < 0n) throw new ChainIngestConfigError("fromBlock must be >= 0");
+    if (!Number.isFinite(this.minGapMs) || this.minGapMs < 0) {
+      throw new ChainIngestConfigError("minRequestGapMs must be >= 0");
+    }
+    if (!Number.isFinite(this.rateLimitBaseMs) || this.rateLimitBaseMs <= 0) {
+      throw new ChainIngestConfigError("rateLimitBaseDelayMs must be positive");
+    }
+    if (!Number.isFinite(this.rateLimitMaxMs) || this.rateLimitMaxMs < this.rateLimitBaseMs) {
+      throw new ChainIngestConfigError("rateLimitMaxDelayMs must be at least rateLimitBaseDelayMs");
+    }
     this.range = this.maxRange;
   }
 
@@ -188,18 +226,38 @@ export class LogPoller {
   /**
    * Reads everything between the cursor and the head. Throws the first RPC or database error
    * it cannot handle; what was read before it is stored and the cursor stays there. Stops
-   * between two ranges when `signal` aborts.
+   * between two ranges, and at once during a wait, when `signal` aborts.
+   *
+   * Two `eth_getLogs` start at least `minRequestGapMs` apart. A size refusal halves the range
+   * and asks again at once; a rate limit waits (`rateLimitDelayMs`) and asks again for the same
+   * range, so that a node that keeps refusing is asked less and less often, never more.
    */
   async pollOnce(signal?: AbortSignal): Promise<PollResult> {
-    const result: PollResult = { toBlock: null, requests: 0, events: 0, inserted: 0 };
+    const result: PollResult = {
+      toBlock: null,
+      requests: 0,
+      events: 0,
+      inserted: 0,
+      rateLimited: 0,
+    };
     const latest = await this.client.getBlockNumber({ cacheTime: 0 });
     const head = latest - this.confirmations;
     const cursor = await readCursor(this.db, this.cursorName);
     let next = cursor === null ? this.config.fromBlock : cursor + 1n;
+    let rateLimitedInARow = 0;
 
     while (next <= head && signal?.aborted !== true) {
+      if (this.lastRequestAt !== null) {
+        const gap = this.lastRequestAt + this.minGapMs - Date.now();
+        if (gap > 0) {
+          await abortableSleep(gap, signal);
+          // The sleep returns early on abort; the loop's condition does not see it (narrowed).
+          if (isAborted(signal)) break;
+        }
+      }
       const to = next + this.range - 1n < head ? next + this.range - 1n : head;
       let logs: readonly ReceiptLog[];
+      this.lastRequestAt = Date.now();
       try {
         logs = await this.client.getLogs({
           address: this.config.escrowAddress,
@@ -207,7 +265,30 @@ export class LogPoller {
           toBlock: to,
         });
       } catch (error: unknown) {
-        if (this.range > 1n && isRangeRefusal(error)) {
+        const refusal = this.classify(error);
+        if (refusal === "rate-limited") {
+          rateLimitedInARow += 1;
+          result.rateLimited += 1;
+          const waitMs = rateLimitDelayMs(
+            rateLimitedInARow,
+            this.rateLimitBaseMs,
+            this.rateLimitMaxMs,
+            this.random(),
+          );
+          this.logger.warn(
+            {
+              error: summarizeError(error),
+              fromBlock: next,
+              toBlock: to,
+              inARow: rateLimitedInARow,
+              waitMs,
+            },
+            "node rate-limited eth_getLogs, waiting before asking for the same range again",
+          );
+          await abortableSleep(waitMs, signal);
+          continue;
+        }
+        if (this.range > 1n && refusal === "too-large") {
           const refused = this.range;
           this.range = refused / 2n;
           this.successesSinceShrink = 0;
@@ -225,6 +306,7 @@ export class LogPoller {
         }
         throw error;
       }
+      rateLimitedInARow = 0;
       result.requests += 1;
       this.recordSuccess();
 

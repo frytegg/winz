@@ -105,9 +105,15 @@ describe("isRangeRefusal", () => {
     expect(isRangeRefusal(new Error(message))).toBe(true);
   });
 
-  it("recognizes EIP-1474's limit-exceeded code anywhere in the cause chain", () => {
+  it("reads EIP-1474's limit-exceeded code by its message: a bare -32005 is a rate limit", () => {
+    // Before the first rehearsal any -32005 halved the range. Arc's public RPC answers its rate
+    // limit with -32005, so a bare -32005 is now read as a rate limit (see classifyRpcRefusal).
     const inner = Object.assign(new Error("limit"), { code: -32005 });
-    expect(isRangeRefusal(new Error("RPC request failed", { cause: inner }))).toBe(true);
+    expect(isRangeRefusal(new Error("RPC request failed", { cause: inner }))).toBe(false);
+    const sized = Object.assign(new Error("query returned more than 10000 results"), {
+      code: -32005,
+    });
+    expect(isRangeRefusal(new Error("RPC request failed", { cause: sized }))).toBe(true);
     expect(isRangeRefusal(new TestRangeRefusedError(5n))).toBe(true);
   });
 
