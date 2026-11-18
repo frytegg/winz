@@ -66,7 +66,7 @@ export function Stepper({
           {label}
         </label>
       ) : null}
-      <div className="flex h-12 items-center justify-between rounded-full border border-stroke px-0.5">
+      <div className="flex h-12 items-center justify-between rounded-full border border-stroke px-0.5 has-[input:focus-visible]:border-lime has-[input:focus-visible]:outline-2 has-[input:focus-visible]:-outline-offset-1 has-[input:focus-visible]:outline-lime">
         <button
           type="button"
           aria-label={copy.common.decrease(label)}

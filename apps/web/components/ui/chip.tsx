@@ -29,7 +29,7 @@ export function Chip({
         "inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-4 text-body",
         "transition-[transform,background-color,color,box-shadow] duration-150 ease-out active:scale-[0.97]",
         active && variant === "fill" && "bg-lime text-ink",
-        active && variant === "outline" && "bg-card-raised text-text ring-1 ring-lime",
+        active && variant === "outline" && "bg-card-raised text-text ring-1 ring-inset ring-lime",
         !active && "bg-card-raised text-text",
         "disabled:opacity-40",
         className,

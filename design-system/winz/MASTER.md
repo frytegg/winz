@@ -16,19 +16,19 @@ Jamais de jargon : on parle de « promo », de « chance it's free », de « ref
 |---|---|---|
 | `--color-lime` | `#D8FE35` | Accent unique : CTA principal, chiffres clés ($ des montants, % des remboursements), état actif, écran REFUNDED. Valeur exacte des SVG du logo. |
 | `--color-lime-press` | `#C6EC22` | Lime pressé / survol |
-| `--color-lime-dim` | `#6F7F1C` | CTA désactivé (maquettes M1b, M3 : lime à ~45 % sur fond) |
+| `--color-lime-dim` | `#788A1E` | CTA désactivé (maquettes M1b, M3 : lime à ~45 % sur fond). Texte `#131314` dessus : 4,8:1. Le `#6F7F1C` des maquettes ne donnait que 4,2:1 |
 | `--color-lime-line` | `rgba(216,254,53,0.15)` | Diagonales du motif |
 | `--color-ink` | `#131314` | Fond d'app (prélevé sur les maquettes ; la spec dit `#0B0B0C` pour le fond système : l'utiliser pour `theme-color` et le splash) |
 | `--color-ink-deep` | `#0B0B0C` | Fond derrière la colonne sur desktop, barre d'état |
 | `--color-card` | `#1C1C1F` | Cartes (spec) |
 | `--color-card-raised` | `#2A2A2D` | Cartes surélevées, segmented control, champs pleins (maquettes ≈ `#2E2E2E`) |
-| `--color-stroke` | `rgba(255,255,255,0.28)` | Contour des champs (maquettes : fin trait gris clair) |
+| `--color-stroke` | `rgba(255,255,255,0.34)` | Contour des champs (maquettes : fin trait gris clair, à 0,28). À 0,34 le contour atteint 3,1:1 sur le fond (WCAG 1.4.11) ; à 0,28 il n'avait que 2,5:1 |
 | `--color-text` | `#FFFFFF` | Texte |
 | `--color-muted` | `#A1A1AA` | Texte secondaire (≥ AA sur ink) |
 | `--color-subtle` | `#6B6B70` | Texte tertiaire, ≥ 18 px seulement |
 | `--color-white-pill` | `#FFFFFF` | Pilules blanches (solde, bouton Apple Pay, Deposit) : texte `#131314` |
 | `--color-danger` | `#FF5A5F` | Erreur, ligne « Auto-pause » du graphe |
-| `--color-team-a` / `--color-team-b` | `#F5A524` / `#1F8A70` | Points de couleur des équipes (maquettes : orange / vert), générés par équipe si pas de couleur |
+| `--color-team-a` / `--color-team-b` | `#F5A524` / `#1A7F66` | Points de couleur des équipes (maquettes : orange / vert), générés par équipe si pas de couleur |
 
 Règles : un seul gros élément lime par écran. Texte toujours noir (`#131314`) sur lime. Le blanc pur est réservé au texte et aux pilules blanches. Pas d'autres teintes vives, pas de dégradé violet/bleu.
 

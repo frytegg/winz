@@ -79,7 +79,7 @@ export function MatchCard({
 
   const content = (
     <>
-      <div className="flex items-start gap-2">
+      <div className={cn("flex items-start gap-2", disabled && "opacity-40")}>
         <Side team={away} art={art?.away ?? null} side="a" chanceBps={awayChanceBps} />
         <div className="flex w-[96px] shrink-0 flex-col items-center gap-1 pt-1">
           <span className="figures text-clock">
@@ -111,7 +111,6 @@ export function MatchCard({
     "block w-full rounded-card-sm p-5 text-left",
     "transition-[transform,background-color,color,opacity] duration-180 ease-out",
     selected ? "scale-[1.01] bg-lime text-ink" : "bg-card-raised text-text",
-    disabled && "opacity-40",
     className,
   );
 

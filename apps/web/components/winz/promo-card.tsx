@@ -40,38 +40,40 @@ export function PromoCard({
 
   const content = (
     <>
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="text-title">
-          <LimePercent text={title} tone={selected ? "ink" : "lime"} />
-        </h3>
-        {recommended && !disabled ? (
-          <span
-            className={cn(
-              "inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-caption",
-              selected ? "bg-ink text-lime" : "bg-lime text-ink",
-            )}
-          >
-            <Check className="size-3.5" strokeWidth={2} aria-hidden="true" />
-            {copy.pickPromo.recommended}
-          </span>
-        ) : null}
+      <div className={cn(disabled && "opacity-40")}>
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="text-title">
+            <LimePercent text={title} tone={selected ? "ink" : "lime"} />
+          </h3>
+          {recommended && !disabled ? (
+            <span
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-caption",
+                selected ? "bg-ink text-lime" : "bg-lime text-ink",
+              )}
+            >
+              <Check className="size-3.5" strokeWidth={2} aria-hidden="true" />
+              {copy.pickPromo.recommended}
+            </span>
+          ) : null}
+        </div>
+        <p className={cn("mt-2 text-body", muted)}>{headline}</p>
+        <div className="mt-4 flex flex-col gap-1.5 text-body">
+          {costBps === null ? null : (
+            <span className="figures">{copy.pickPromo.cost(bpsToWholePercent(costBps))}</span>
+          )}
+          {probabilityBps === null ? null : (
+            <span className="figures">
+              {copy.pickPromo.chance(bpsToWholePercent(probabilityBps))}
+            </span>
+          )}
+        </div>
       </div>
-      <p className={cn("mt-2 text-body", muted)}>{headline}</p>
-      <div className="mt-4 flex flex-col gap-1.5 text-body">
-        {costBps === null ? null : (
-          <span className="figures">{copy.pickPromo.cost(bpsToWholePercent(costBps))}</span>
-        )}
-        {probabilityBps === null ? null : (
-          <span className="figures">
-            {copy.pickPromo.chance(bpsToWholePercent(probabilityBps))}
-          </span>
-        )}
-        {disabled ? (
-          <span className={muted}>
-            {unavailableReason === "stale_book" ? copy.pickPromo.staleBook : copy.pickPromo.noBook}
-          </span>
-        ) : null}
-      </div>
+      {disabled ? (
+        <p className="mt-3 text-body text-muted">
+          {unavailableReason === "stale_book" ? copy.pickPromo.staleBook : copy.pickPromo.noBook}
+        </p>
+      ) : null}
     </>
   );
 
@@ -79,7 +81,6 @@ export function PromoCard({
     "block w-full rounded-card-sm p-5 text-left",
     "transition-[transform,background-color,color,opacity] duration-180 ease-out",
     selected ? "scale-[1.01] bg-lime text-ink" : "bg-card-raised text-text",
-    disabled && "opacity-40",
     className,
   );
 
