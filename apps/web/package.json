@@ -12,20 +12,28 @@
   },
   "dependencies": {
     "@privy-io/node": "^0.40.0",
+    "@serwist/next": "^9.5.15",
     "@supabase/supabase-js": "^2.119.0",
     "@winz/pricing": "workspace:*",
     "@winz/shared": "workspace:*",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.75.0",
     "next": "^15.5.29",
     "pino": "^10.4.0",
     "postgres": "^4.1.1",
+    "qrcode": "^1.5.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "serwist": "^9.5.15",
     "stripe": "^23.1.0",
+    "tailwind-merge": "^3.7.0",
     "viem": "^2.58.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.5",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "tailwindcss": "^4.3.5"
