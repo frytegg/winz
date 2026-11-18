@@ -236,11 +236,73 @@ function answer(row: ActionRow, saleState: SaleState, now: Date): CampaignAction
   return { status: row.status, saleState: effectiveSaleState(saleState, row.sales_close, now) };
 }
 
+/** The merchant's latest pause or resume request of a campaign (its `campaign.set_paused` job). */
+interface LatestPauseRequest {
+  requestId: string | null;
+  /** True for a pause, false for a resume. */
+  paused: boolean;
+  /** The job's state: `queued` or `running` until the engine has carried it out. */
+  status: string;
+}
+
+async function latestPauseRequest(
+  tx: JobSql,
+  campaignId: string,
+): Promise<LatestPauseRequest | null> {
+  const [latest] = await tx<
+    { request_id: string | null; paused: boolean | null; status: string }[]
+  >`
+    select payload ->> 'requestId' as request_id, (payload ->> 'paused')::boolean as paused, status
+    from jobs
+    where kind = ${JOB_KINDS.setPaused} and payload ->> 'campaignId' = ${campaignId}
+    order by created_at desc, id desc
+    limit 1
+  `;
+  if (latest === undefined || latest.paused === null) return null;
+  return { requestId: latest.request_id, paused: latest.paused, status: latest.status };
+}
+
 /**
- * POST /api/campaigns/:id/pause: only while live and selling (not already paused by hand, before
- * sales close). `sale_state` becomes `paused_manual` at once, so no quote is signed from now on,
- * and the `setPaused` job writes the pause on-chain. Answers the stored status (it changes when
- * the engine projects the on-chain pause) and `paused_manual`.
+ * The request `requestId` already made for this campaign (a repeated call: a retry of the same
+ * click), or null. Its key is global: a key already used for another campaign or for the other
+ * action is refused.
+ */
+async function repeatedRequest(
+  tx: JobSql,
+  campaignId: string,
+  requestId: string,
+  paused: boolean,
+): Promise<boolean> {
+  const [job] = await tx<{ campaign_id: string | null; paused: boolean | null }[]>`
+    select payload ->> 'campaignId' as campaign_id, (payload ->> 'paused')::boolean as paused
+    from jobs
+    where idempotency_key = ${jobIdempotencyKey.setPaused(requestId)}
+  `;
+  if (job === undefined) return false;
+  if (job.campaign_id !== campaignId || job.paused !== paused) {
+    throw conflict("This request was already used for another action");
+  }
+  return true;
+}
+
+function unfinished(request: LatestPauseRequest): boolean {
+  return request.status === "queued" || request.status === "running";
+}
+
+/**
+ * POST /api/campaigns/:id/pause: only while live or paused, before sales close. The pause is the
+ * merchant's safety control, so it is refused as "already paused" only when their LATEST request
+ * for this campaign is itself a pause that is still in force (stored `paused_manual`, or the
+ * campaign paused on-chain), or when they have made none and the campaign is paused on-chain.
+ * When their latest request is a resume, landed or not, a new pause is accepted: the resume may
+ * be on its way, and the state stays `paused_manual` until it lands, which is no reason to let the
+ * promo reopen against the merchant's latest word. The engine carries out the latest request
+ * only (a superseded resume sends nothing, or is undone by this pause).
+ *
+ * `sale_state` becomes `paused_manual` at once, so no quote is signed from now on, and the
+ * `setPaused` job writes the pause on-chain. The same `requestId` twice enqueues once and answers
+ * the stored state. Answers the stored status (it changes when the engine projects the on-chain
+ * pause) and `paused_manual`.
  */
 export async function pauseCampaign(
   db: Db,
@@ -253,10 +315,19 @@ export async function pauseCampaign(
     const row = await lockOwnCampaign(tx, merchantId, campaignId);
     if (notLiveYet(row)) throw conflict("This promo is not live yet");
     if (salesOver(row, now)) throw conflict("Sales are already closed for this promo");
-    if (row.status === "paused" || row.sale_state === "paused_manual") {
-      throw conflict("This promo is already paused");
+    if (row.status !== "live" && row.status !== "paused") {
+      throw conflict("This promo cannot be paused now");
     }
-    if (row.status !== "live") throw conflict("This promo cannot be paused now");
+    if (await repeatedRequest(tx, row.id, requestId, true)) {
+      return answer(row, row.sale_state, now);
+    }
+    const latest = await latestPauseRequest(tx, row.id);
+    const pausedOnChain = row.status === "paused";
+    const alreadyPaused =
+      latest === null
+        ? pausedOnChain
+        : latest.paused && (pausedOnChain || row.sale_state === "paused_manual");
+    if (alreadyPaused) throw conflict("This promo is already paused");
     await tx`update campaigns set sale_state = 'paused_manual' where id = ${row.id}`;
     await enqueueJob(
       tx,
@@ -269,10 +340,14 @@ export async function pauseCampaign(
 }
 
 /**
- * POST /api/campaigns/:id/resume: only after a manual pause (stored `paused_manual`, or the
- * on-chain status `paused`), before sales close. Enqueues the `setPaused` job; `sale_state` is left
- * as it is and recomputed by the engine once the resume is on-chain (it may then be any automatic
- * pause). A resume already waiting in the queue is not enqueued twice. Answers the stored state.
+ * POST /api/campaigns/:id/resume: before sales close, unless both the merchant's latest intent
+ * and the chain say live: their latest request is a resume that the engine has carried out (or
+ * they have made none) and the campaign is live on-chain ("not paused"). A resume asked while a
+ * pause is still on its way is accepted: it supersedes the pause (the engine carries out the
+ * latest request only, and a pause already sent is undone after it is mined). A resume already
+ * waiting in the queue is not enqueued twice, nor is the same `requestId`. `sale_state` is left
+ * as it is and recomputed by the engine once the resume is on-chain (it may then be any
+ * automatic pause). Answers the stored state.
  */
 export async function resumeCampaign(
   db: Db,
@@ -285,28 +360,25 @@ export async function resumeCampaign(
     const row = await lockOwnCampaign(tx, merchantId, campaignId);
     if (notLiveYet(row)) throw conflict("This promo is not live yet");
     if (salesOver(row, now)) throw conflict("Sales are already closed for this promo");
-    if (row.status !== "paused" && row.sale_state !== "paused_manual") {
-      throw conflict("This promo is not paused");
+    if (row.status !== "live" && row.status !== "paused") {
+      throw conflict("This promo cannot be resumed now");
     }
-    const [latest] = await tx<{ paused: boolean | null; status: string }[]>`
-      select (payload ->> 'paused')::boolean as paused, status
-      from jobs
-      where kind = ${JOB_KINDS.setPaused} and payload ->> 'campaignId' = ${row.id}
-      order by created_at desc, id desc
-      limit 1
-    `;
-    const resumePending =
-      latest !== undefined &&
-      latest.paused === false &&
-      (latest.status === "queued" || latest.status === "running");
-    if (!resumePending) {
-      await enqueueJob(
-        tx,
-        JOB_KINDS.setPaused,
-        { campaignId: row.id, paused: false, requestId },
-        jobIdempotencyKey.setPaused(requestId),
-      );
+    if (await repeatedRequest(tx, row.id, requestId, false)) {
+      return answer(row, row.sale_state, now);
     }
+    const latest = await latestPauseRequest(tx, row.id);
+    // A second click while the resume waits in the queue adds nothing.
+    if (latest !== null && !latest.paused && unfinished(latest)) {
+      return answer(row, row.sale_state, now);
+    }
+    const intentLive = latest === null || !latest.paused;
+    if (intentLive && row.status === "live") throw conflict("This promo is not paused");
+    await enqueueJob(
+      tx,
+      JOB_KINDS.setPaused,
+      { campaignId: row.id, paused: false, requestId },
+      jobIdempotencyKey.setPaused(requestId),
+    );
     return answer(row, row.sale_state, now);
   });
 }
