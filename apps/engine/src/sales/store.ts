@@ -1,4 +1,4 @@
-import type { TransactionSql } from "postgres";
+import type { PendingQuery, Row, TransactionSql } from "postgres";
 import { z } from "zod";
 
 import {
@@ -19,7 +19,7 @@ import type {
 
 import type { Db } from "../db";
 import { SaleStateConfigError, SaleStateRowError } from "./errors";
-import type { PauseJobView } from "./manual-pause";
+import type { ManualPauseInput, PauseJobView } from "./manual-pause";
 import type { SaleTerms } from "./evaluate";
 
 /**
@@ -168,6 +168,115 @@ export function parseCampaignSaleRow(row: unknown): CampaignSaleRow {
   };
 }
 
+/** A client or a transaction: the pause rule's inputs can be read inside a caller's transaction. */
+type Queryable = Db | TransactionSql;
+
+/**
+ * The columns the manual pause rule reads for the campaign aliased `c`, with `pauseJoins` in the
+ * `from` clause (see `isManuallyPaused` and `ManualPauseInput`):
+ *
+ * - `pause_job_in_flight`: a `campaign.set_paused` job of the campaign is `queued` or `running`
+ *   and the `setPaused` transaction of THE SAME REQUEST (its `requestId`) is not mined. Only that
+ *   transaction tells that the job's work reached the chain: a mined transaction of another
+ *   campaign, or of an earlier request of this one, says nothing about this job;
+ * - `pause_event_unprojected`: a `CampaignPaused` of the campaign is stored and not projected;
+ * - `job_paused`, `job_created_at`: the latest `campaign.set_paused` job of the campaign;
+ * - `last_pause_at`: the time of its latest projected on-chain pause.
+ */
+function pauseColumns(sql: Queryable): PendingQuery<Row[]> {
+  return sql`
+      pj.paused as job_paused,
+      pj.created_at as job_created_at,
+      ev.paused_at as last_pause_at,
+      exists (
+        select 1 from jobs fj
+        where fj.kind = ${JOB_KINDS.setPaused} and fj.payload ->> 'campaignId' = c.id::text
+          and fj.status in ('queued', 'running')
+          and not exists (
+            select 1 from chain_txs ft
+            where ft.kind = 'setPaused' and ft.status = 'mined'
+              and ft.payload ->> 'requestId' = fj.payload ->> 'requestId'
+          )
+      ) as pause_job_in_flight,
+      (c.onchain_id is not null and exists (
+        select 1 from chain_events ue
+        where ue.name = 'CampaignPaused'
+          and ue.args ->> 'id' = c.onchain_id::text
+          and ue.processed_at is null
+      )) as pause_event_unprojected
+  `;
+}
+
+/** The lateral joins `pauseColumns` reads (`pj`, `ev`), for the campaign aliased `c`. */
+function pauseJoins(sql: Queryable): PendingQuery<Row[]> {
+  return sql`
+    left join lateral (
+      select (j.payload ->> 'paused')::boolean as paused, j.created_at
+      from jobs j
+      where j.kind = ${JOB_KINDS.setPaused} and j.payload ->> 'campaignId' = c.id::text
+      order by j.created_at desc, j.id desc
+      limit 1
+    ) pj on true
+    left join lateral (
+      select max(coalesce(ce.block_time, ce.created_at)) as paused_at
+      from chain_events ce
+      where c.onchain_id is not null
+        and ce.name = 'CampaignPaused'
+        and ce.args ->> 'id' = c.onchain_id::text
+        and (ce.args ->> 'paused')::boolean
+        and ce.processed_at is not null
+    ) ev on true
+  `;
+}
+
+const pauseRowSchema = z.object({
+  status: z.enum(CAMPAIGN_STATUSES),
+  job_paused: z.boolean().nullable(),
+  job_created_at: dateSchema.nullable(),
+  last_pause_at: dateSchema.nullable(),
+  pause_job_in_flight: z.boolean(),
+  pause_event_unprojected: z.boolean(),
+});
+
+/**
+ * What the manual pause rule reads for one campaign (`isManuallyPaused`), with the same queries
+ * as `loadCampaignSaleRows`, through `sql`: inside a caller's transaction it sees that
+ * transaction's own writes (a projection not committed yet). Null when the campaign does not
+ * exist. Throws `SaleStateRowError` on an unexpected shape.
+ */
+export async function loadManualPauseInput(
+  sql: Queryable,
+  campaignId: string,
+): Promise<ManualPauseInput | null> {
+  const [row] = await sql`
+    select c.status, ${pauseColumns(sql)}
+    from campaigns c
+    ${pauseJoins(sql)}
+    where c.id = ${campaignId}
+  `;
+  if (row === undefined) return null;
+  const parsed = pauseRowSchema.safeParse(row);
+  if (!parsed.success) {
+    throw new SaleStateRowError(
+      campaignId,
+      parsed.error.issues.map(
+        (issue) => `${issue.path.map(String).join(".") || "$"}: ${issue.message}`,
+      ),
+    );
+  }
+  const r = parsed.data;
+  return {
+    status: r.status,
+    pauseJobInFlight: r.pause_job_in_flight,
+    pauseEventUnprojected: r.pause_event_unprojected,
+    latestPauseJob:
+      r.job_paused === null || r.job_created_at === null
+        ? null
+        : { paused: r.job_paused, createdAtMs: toMs(r.job_created_at) },
+    lastOnChainPauseAtMs: r.last_pause_at === null ? null : toMs(r.last_pause_at),
+  };
+}
+
 /** Default longest time one statement of the sale states may run or wait for a lock. */
 export const DEFAULT_STATEMENT_TIMEOUT_MS = 5_000;
 
@@ -239,25 +348,7 @@ export async function loadCampaignSaleRows(
       coalesce(lot.charged, 0)::bigint as charged,
       coalesce(lot.reserved, 0)::bigint as reserved,
       greatest(coalesce(p.exposure, 0) - coalesce(p.held, 0), 0)::bigint as pending,
-      pj.paused as job_paused,
-      pj.created_at as job_created_at,
-      ev.paused_at as last_pause_at,
-      exists (
-        select 1 from jobs fj
-        where fj.kind = ${JOB_KINDS.setPaused} and fj.payload ->> 'campaignId' = c.id::text
-          and fj.status in ('queued', 'running')
-          and not exists (
-            select 1 from chain_txs ft
-            where ft.kind = 'setPaused' and ft.status = 'mined'
-              and ft.payload ->> 'requestId' = fj.payload ->> 'requestId'
-          )
-      ) as pause_job_in_flight,
-      (c.onchain_id is not null and exists (
-        select 1 from chain_events ue
-        where ue.name = 'CampaignPaused'
-          and ue.args ->> 'id' = c.onchain_id::text
-          and ue.processed_at is null
-      )) as pause_event_unprojected,
+      ${pauseColumns(tx)},
       exists (
         select 1 from jobs cj
         where cj.kind = ${JOB_KINDS.closeSales} and cj.payload ->> 'campaignId' = c.id::text
@@ -273,22 +364,7 @@ export async function loadCampaignSaleRows(
       from lots l
       where l.campaign_id = c.id
     ) lot on true
-    left join lateral (
-      select (j.payload ->> 'paused')::boolean as paused, j.created_at
-      from jobs j
-      where j.kind = ${JOB_KINDS.setPaused} and j.payload ->> 'campaignId' = c.id::text
-      order by j.created_at desc, j.id desc
-      limit 1
-    ) pj on true
-    left join lateral (
-      select max(coalesce(ce.block_time, ce.created_at)) as paused_at
-      from chain_events ce
-      where c.onchain_id is not null
-        and ce.name = 'CampaignPaused'
-        and ce.args ->> 'id' = c.onchain_id::text
-        and (ce.args ->> 'paused')::boolean
-        and ce.processed_at is not null
-    ) ev on true
+    ${pauseJoins(tx)}
     where (c.status in ('live', 'paused') or c.sale_state <> 'closed') ${filter}
     order by c.id
   `;
