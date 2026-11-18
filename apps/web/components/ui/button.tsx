@@ -1,58 +1,12 @@
-import { cva, type VariantProps } from "class-variance-authority";
 import { ArrowUpRight, LoaderCircle, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
-import { cn } from "@/lib/utils";
-
-/**
- * The signature pill (MASTER section 5): a label on the left, a black round arrow on the right.
- * One big lime button per screen. Text is always dark on lime, never white.
- */
-const button = cva(
-  [
-    "group relative inline-flex w-full items-center rounded-full font-normal",
-    "transition-[transform,background-color,opacity] duration-150 ease-out",
-    "active:scale-[0.98] disabled:pointer-events-none aria-disabled:pointer-events-none",
-  ],
-  {
-    variants: {
-      variant: {
-        primary:
-          "bg-lime text-ink hover:bg-lime-press disabled:bg-lime-dim aria-disabled:bg-lime-dim",
-        white: "bg-white-pill text-ink disabled:opacity-50 aria-disabled:opacity-50",
-        dark: "bg-card-raised text-text disabled:opacity-50 aria-disabled:opacity-50",
-      },
-      size: {
-        lg: "h-16 pl-6 pr-1.5 text-lead",
-        md: "h-12 pl-5 pr-1 text-body",
-      },
-      centered: {
-        true: "justify-center px-5",
-        false: "justify-between",
-      },
-    },
-    defaultVariants: { variant: "primary", size: "lg", centered: false },
-  },
-);
-
-const arrowCircle = cva("grid shrink-0 place-items-center rounded-full bg-ink", {
-  variants: {
-    variant: {
-      primary: "text-lime ring-1 ring-lime",
-      white: "text-text",
-      dark: "text-lime",
-    },
-    size: { lg: "size-[52px]", md: "size-10" },
-  },
-});
-
-type Variant = NonNullable<VariantProps<typeof button>["variant"]>;
-type Size = NonNullable<VariantProps<typeof button>["size"]>;
+import { arrowCircle, buttonClasses, type ButtonSize, type ButtonVariant } from "./button-styles";
 
 interface ButtonBaseProps {
-  variant?: Variant;
-  size?: Size;
+  variant?: ButtonVariant;
+  size?: ButtonSize;
   /** Show the round arrow on the right. On by default; turn it off for a centered label. */
   arrow?: boolean;
   /** Another icon in the round (the Withdraw button points down-left). */
@@ -82,7 +36,7 @@ export function Button({
   ...rest
 }: ButtonProps): React.JSX.Element {
   const inactive = disabled === true || loading;
-  const classes = cn(button({ variant, size, centered: !arrow }), className);
+  const classes = buttonClasses({ variant, size, arrow, loading, className });
   const content = (
     <>
       <span className="flex min-w-0 items-center gap-2.5 truncate">

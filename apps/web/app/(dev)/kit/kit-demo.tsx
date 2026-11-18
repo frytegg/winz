@@ -4,6 +4,7 @@ import { apiExamples } from "@winz/shared";
 import {
   ArrowDownLeft,
   Beer,
+  CreditCard,
   Hamburger,
   Pizza,
   Search,
@@ -17,9 +18,11 @@ import { BackButton, IconButton } from "@/components/ui/icon-button";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
+import { ChipRow } from "@/components/ui/chip-row";
 import { Countdown } from "@/components/ui/countdown";
 import { Field } from "@/components/ui/field";
 import { Gauge } from "@/components/ui/gauge";
+import { CashIcon, ReceiptIcon } from "@/components/ui/icons";
 import { LimePercent } from "@/components/ui/lime-percent";
 import { Logo } from "@/components/ui/logo";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -129,6 +132,9 @@ export function KitDemo(): React.JSX.Element {
       </Section>
 
       <Section title="Buttons">
+        <p className="text-caption text-muted">
+          Primary: default, disabled, loading. The label is #131314 on every lime or white surface.
+        </p>
         <Button onClick={() => toast.show(copy.common.copied)}>Start a promo</Button>
         <Button disabled>Disabled</Button>
         <Button
@@ -138,19 +144,39 @@ export function KitDemo(): React.JSX.Element {
             setTimeout(() => setLoading(false), 1600);
           }}
         >
-          Loading on tap
+          {loading ? "Loading" : "Tap to load"}
         </Button>
+        <Button loading>Loading (always)</Button>
+        <p className="text-caption text-muted">White: large, compact, with an icon, disabled.</p>
+        <Button variant="white">Deposit now</Button>
         <Button variant="white" size="md" arrow={false}>
           Buy with Apple Pay
         </Button>
+        <Button variant="white" size="md" arrow={false} leading={<CreditCard className="size-5" />}>
+          Pay with card
+        </Button>
+        <Button variant="white" disabled>
+          White disabled
+        </Button>
+        <p className="text-caption text-muted">Dark: default and disabled.</p>
         <Button variant="dark" size="md" arrow={false}>
           Pay with card
         </Button>
+        <Button variant="dark" size="md" arrow={false} disabled>
+          Dark disabled
+        </Button>
+        <p className="text-caption text-muted">Compact pair (home screen).</p>
         <div className="grid grid-cols-2 gap-3">
           <Button size="md" icon={ArrowDownLeft}>
             Withdraw
           </Button>
           <Button size="md" variant="white">
+            Deposit
+          </Button>
+          <Button size="md" disabled icon={ArrowDownLeft}>
+            Withdraw
+          </Button>
+          <Button size="md" variant="white" disabled>
             Deposit
           </Button>
         </div>
@@ -248,7 +274,10 @@ export function KitDemo(): React.JSX.Element {
           value={tab}
           onChange={setTab}
         />
-        <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5">
+        <p className="text-caption text-muted">
+          Selected chip (1px lime ring inside the pill), then press Tab to see the focus outline.
+        </p>
+        <ChipRow label="Sport">
           <Chip label="All" active={sport === "all"} onClick={() => setSport("all")} />
           <Chip
             label={copy.sports.football}
@@ -256,8 +285,8 @@ export function KitDemo(): React.JSX.Element {
             onClick={() => setSport("football")}
           />
           <Chip label={copy.sports.basketball} disabled />
-        </div>
-        <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5">
+        </ChipRow>
+        <ChipRow label="Category">
           {(
             [
               ["bar", Beer],
@@ -276,7 +305,7 @@ export function KitDemo(): React.JSX.Element {
               onClick={() => setCategory(key)}
             />
           ))}
-        </div>
+        </ChipRow>
       </Section>
 
       <Section title="Match cards">
@@ -337,12 +366,20 @@ export function KitDemo(): React.JSX.Element {
           closesAt={inOneDay}
         />
         <div className="grid grid-cols-2 gap-3">
-          <StatTile label={copy.campaignDetail.sales}>47</StatTile>
-          <StatTile label="Long amount">
-            <Money micro="12420500000" />
+          <StatTile label={copy.campaignDetail.sales} icon={ReceiptIcon}>
+            47
           </StatTile>
-          <StatTile label={copy.campaignDetail.grossSales}>
+          <StatTile label={copy.campaignDetail.grossSales} icon={CashIcon}>
             <Money micro="940000000" compact />
+          </StatTile>
+          <StatTile label={copy.campaignDetail.coverage} icon={ReceiptIcon}>
+            100<span className="text-lime">%</span>
+          </StatTile>
+          <StatTile label={copy.campaignDetail.coverageCost} icon={CashIcon}>
+            <Money micro="112000000" compact />
+          </StatTile>
+          <StatTile label="Long amount" icon={CashIcon}>
+            <Money micro="12420500000" />
           </StatTile>
         </div>
         <div className="flex items-center justify-between">
@@ -371,7 +408,7 @@ export function KitDemo(): React.JSX.Element {
         <TicketShell
           top={
             <div>
-              <p className="text-[17px] font-semibold">Joe&apos;s Pizza</p>
+              <p className="text-lead font-semibold">Joe&apos;s Pizza</p>
               <p className="text-muted">Large pizza × 1</p>
               <p className="mt-3">
                 <Money micro="20000000" /> paid

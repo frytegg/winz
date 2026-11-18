@@ -8,13 +8,13 @@
   /* Colors (MASTER section 2) */
   --color-lime: #d8fe35;
   --color-lime-press: #c6ec22;
-  --color-lime-dim: #6f7f1c;
+  --color-lime-dim: #788a1e;
   --color-lime-line: rgba(216, 254, 53, 0.15);
   --color-ink: #131314;
   --color-ink-deep: #0b0b0c;
   --color-card: #1c1c1f;
   --color-card-raised: #2a2a2d;
-  --color-stroke: rgba(255, 255, 255, 0.28);
+  --color-stroke: rgba(255, 255, 255, 0.34);
   --color-text: #ffffff;
   --color-muted: #a1a1aa;
   /* Only for text of 18px or more (contrast). */
@@ -22,7 +22,7 @@
   --color-white-pill: #ffffff;
   --color-danger: #ff5a5f;
   --color-team-a: #f5a524;
-  --color-team-b: #1f8a70;
+  --color-team-b: #1a7f66;
 
   /* Font: the variable is set by next/font in layout.tsx. Change the family there only. */
   --font-sans: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
@@ -191,9 +191,15 @@ button,
   -webkit-touch-callout: none;
 }
 
-:focus-visible {
-  outline: 2px solid var(--color-lime);
-  outline-offset: 2px;
+/*
+ * The default focus indicator. In the base layer on purpose: an unlayered rule would beat every
+ * Tailwind utility, so a component could never tune its own (a field draws it inside its border).
+ */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-lime);
+    outline-offset: 2px;
+  }
 }
 
 ::selection {
