@@ -59,6 +59,7 @@ Tout le reste en dépend. F-02, puis F-03, sont les deux seules tâches vraiment
 - [ ] **F-01** · Qui : A · Dép. : aucune
   Comptes et clés côté back : projet Supabase, point d'accès QuickNode sur Arc testnet, projet Railway, compte sandbox Gemini (`exchange.sandbox.gemini.com`), clés relayer et oracle générées, premiers USDC du faucet sur le relayer.
   Fini quand : chaque secret est dans le gestionnaire de secrets de Railway et de Vercel, `.env.example` liste toutes les variables sans valeur.
+  État au 18 nov. : aucun compte n'existe encore. La marche à suivre, étape par étape avec la commande qui prouve chacune, est dans `docs/deploy.md` ; `pnpm env:check <engine|web>` dit si un environnement est complet.
 - [ ] **F-02** · Qui : A · Dép. : aucune · Hypothèse 8
   Demander une allocation d'USDC testnet à l'équipe Circle/Arc sur place (besoin : environ 15 000).
   Fini quand : réponse obtenue et notée ici (oui avec montant, ou non → jeton de test, C-03).
@@ -245,6 +246,7 @@ Lots parallèles : (H-03 → H-04 → H-05, H-06), (R-01 → R-02), (A-05, A-06,
 - [ ] **A-06** · Qui : Agent `coder`, relu par A · Dép. : S-04, X-02 · HE-1
   `POST /api/webhooks/quicknode` : signature vérifiée, écriture dans `chain_events`.
   Fini quand : la livraison enregistrée en S-04 est acceptée, une signature fausse est refusée, un doublon est ignoré.
+  État au 18 nov. : la route est écrite et testée contre le format documenté par QuickNode (signature fausse refusée, doublon ignoré, trois sources pour une seule ligne sur chaîne locale). Reste la preuve de S-04 : une vraie livraison, à enregistrer avec `pnpm quicknode:record` une fois le Stream créé (`docs/quicknode.md`). Rien n'a été vérifié contre le service réel.
 - [x] **A-07** · Qui : Agent `coder-high`, relu par A · Dép. : M-02, R-01, J-03 · MDB-4
   Mode démo derrière la clé admin : carnet piloté pour un instrument, résultat forcé, vente rejouée ; le drapeau « démo » remonte dans toutes les réponses concernées.
   Fini quand : les trois actions marchent sur le testnet et font apparaître le bandeau.
