@@ -194,6 +194,31 @@ remplacée, son paiement annulé) ; `400` hors 0,50 $–999 999,99 $ ou si le bu
 999 999,99 $. Le budget du détail change quand le moteur l'a versé. Stripe n'est jamais appelé
 pendant que la ligne de la campagne est verrouillée : une recharge lente ne retient pas ses ventes.
 
+Stripe rend le même PaymentIntent à un `requestId` pendant environ 24 h, quoi qu'il soit devenu :
+une demande dont le paiement a été créé puis retiré (annulé) ne peut plus jamais être payée, et
+son `requestId` est fini. Chaque `409` de la route, avec son message (à montrer tel quel), et si le
+même `requestId` peut aboutir plus tard :
+
+| Message du `409`                                                                                  | Même `requestId` plus tard ?                                |
+| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `This promo is not live yet`                                                                      | oui, une fois la promo en ligne (rien n'a été créé)         |
+| `A top-up of this promo is on its way; try again once it is credited`                            | oui, une fois cette recharge versée (rien n'a été créé)     |
+| `A top-up of this promo is being paid; try again once it is credited`                             | oui, une fois ce paiement fini (rien n'a été créé)          |
+| `This promo cannot be topped up now`                                                              | garde défensive, qu'aucun statut actuel n'atteint           |
+| `This promo is already settled` ; `sales_closed` : `Sales are closed for this promo: …`           | non : plus aucune recharge possible sur cette promo         |
+| `This top-up request is over; make a new request to top up again`                                | non : nouvelle demande                                      |
+| `This request was already used for another top-up; make a new request to top up`                  | non : ce `requestId` sert à une autre recharge              |
+| `A top-up of this promo is on its way; once it is credited, make a new request to top up again`   | non : son paiement, déjà créé, est retiré                   |
+| `A top-up of this promo is being paid; once it is credited, make a new request to top up again`   | non : son paiement, déjà créé, est retiré                   |
+| `Another top-up of this promo was just requested; make a new request to top up again`             | non : d'autres demandes ont pris la place, paiement retiré  |
+
+De même, après un `502` (Stripe en panne) ou un `400` de plafond survenus une fois le paiement
+créé, le même `requestId` répond ensuite `This top-up request is over…`. Avant d'enregistrer un
+paiement, la route relit son état chez Stripe (une lecture par demande, verrou relâché) : un
+paiement déjà annulé finit la demande (`409`, jamais un `clientSecret` impayable). Une recharge
+dont une demande plus récente a annulé le paiement finit `failed` aussitôt, même si cette demande
+est ensuite refusée : sa répétition répond `409`, et la place de la campagne est libre.
+
 ### Le parcours d'achat, côté front
 
 1. `POST /api/checkout` avec `{ slug, qty }`. Si la promo ne vend pas, `409` avec `sales_paused`

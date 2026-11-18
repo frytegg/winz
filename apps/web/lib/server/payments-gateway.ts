@@ -100,7 +100,9 @@ export type UnpaidCancellation =
 export interface TopUpPaymentGateway {
   /**
    * The merchant's top-up payment, captured automatically once the card is confirmed, like the
-   * first budget. One intent per `requestId`, even if the call is retried.
+   * first budget. One intent per `requestId`, even if the call is retried: Stripe replays the
+   * first answer to the key for about a day, whatever became of the intent since, so the answer
+   * may name an intent cancelled meanwhile. The caller reads its status before recording it.
    */
   createBudgetTopUpPayment(input: BudgetTopUpPaymentInput): Promise<CreatedPaymentIntent>;
   /** The client secret of an intent, to answer a repeated request; null when Stripe has none. */
