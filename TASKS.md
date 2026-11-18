@@ -270,7 +270,7 @@ Fin de vague : **porte G2**, boucle complète en mode démo sur le testnet, issu
 
 ## Vague 4 : preuves, durcissement, rendu (jeudi et vendredi)
 
-- [ ] **Q-01** · Qui : Agent `coder-high`, relu par A · Dép. : G2 · Section 15
+- [x] **Q-01** · Qui : Agent `coder-high`, relu par A · Dép. : G2 · Section 15
   Test d'intégration de bout en bout sur Anvil avec Gemini et Stripe simulés, chemin nominal et chemin « pause → autorisation annulée ».
 - [ ] **Q-02** · Qui : Agent `coder`, relu par T · Dép. : G2 · Section 15
   Playwright sur viewport iPhone 15 : onboarding M0 à M8, achat C1 à C3 par carte de test, résultats YES et NO en mode démo.
