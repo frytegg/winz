@@ -8,6 +8,7 @@ import {
   launchCampaign,
   signUpMerchant,
   waitTicketed,
+  waitTicketPhase,
   type Purchase,
 } from "./support/flows";
 import { MICRO } from "./support/gemini";
@@ -184,8 +185,7 @@ describe("the nominal loop", () => {
 
       for (const purchase of purchases) {
         const token = await waitTicketed(w, purchase.pi);
-        const shown = await api.ticket(token);
-        expect(shown.phase).toBe("refunded");
+        const shown = await waitTicketPhase(w, token, "refunded");
         expect(shown.refundedAt).not.toBeNull();
       }
       const detail = await api.campaign(merchant.headers, campaign.id);

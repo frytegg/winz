@@ -8,6 +8,8 @@ import type {
   CheckoutStatusResponse,
   MerchantCategory,
   PublicCampaign,
+  Ticket,
+  TicketPhase,
 } from "@winz/shared";
 
 import { randomWallet } from "@/lib/server/testing/fixtures";
@@ -245,6 +247,30 @@ export async function waitTicketed(world: World, pi: string): Promise<string> {
   const status = await waitCheckout(world, pi, "ticketed");
   if (status.ticketToken === null) throw new Error(`checkout ${pi} ticketed without a token`);
   return status.ticketToken;
+}
+
+/**
+ * The ticket page showing `phase`. A refund is paid on-chain a moment before its event is
+ * projected into the ticket, so a scenario that has seen the money arrive waits for the page
+ * instead of reading it once.
+ */
+export async function waitTicketPhase(
+  world: World,
+  token: string,
+  phase: TicketPhase,
+): Promise<Ticket> {
+  let shown: Ticket | null = null;
+  await world.waitFor(
+    `the ticket to show ${phase}`,
+    async () => {
+      shown = await api.ticket(token);
+      return { ok: shown.phase === phase, seen: { phase: shown.phase } };
+    },
+    15_000,
+  );
+  const answered = shown as Ticket | null;
+  if (answered === null) throw new Error("unreachable: no ticket");
+  return answered;
 }
 
 /** A fresh customer e-mail. */
