@@ -77,14 +77,17 @@ export const API_ROUTES = {
     auth: "merchant",
     request: schemas.createCampaignRequestSchema,
     response: schemas.createCampaignResponseSchema,
-    examples: { default: examples.createCampaignExample },
+    examples: { default: examples.createCampaignExample, ...examples.createCampaignExamples },
   },
   campaigns: {
     method: "GET",
     path: "/api/campaigns",
     auth: "merchant",
     response: schemas.campaignsResponseSchema,
-    examples: { default: examples.campaignsExample },
+    examples: {
+      default: examples.campaignsExample,
+      withFunding: examples.campaignsWithFundingExample,
+    },
   },
   campaignDetail: {
     method: "GET",

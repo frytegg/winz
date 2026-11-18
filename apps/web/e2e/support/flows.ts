@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 
 import { expect } from "vitest";
 import { getAddress, type Address } from "viem";
@@ -119,9 +119,11 @@ export async function launchCampaign(
     });
   }
 
+  // One requestId per "Fund" tap, as the front sends it: the creation is idempotent on it.
   const created = await api.createCampaign(merchant.headers, {
     ...wireTerms(symbol, terms),
     product: options.product ?? "Large pizza",
+    requestId: randomUUID(),
   });
   expect(created.status).toBe("funding");
   expect(created.budgetPayment.amount).toBe(terms.budget.toString());

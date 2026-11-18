@@ -1,4 +1,5 @@
 import type {
+  InstrumentType,
   MerchantCategory,
   Outcome,
   PublicCampaign,
@@ -8,10 +9,19 @@ import type {
   TicketsResponse,
 } from "@winz/shared";
 
+import { conditionWords } from "./condition";
 import type { Db } from "./db";
 import { serverLogger } from "./logger";
 import { ApiRouteError } from "./route";
-import { digits, effectiveSaleState, isoDate, liveProbabilityBps, safeUrl } from "./wire";
+import {
+  digits,
+  effectiveSaleState,
+  isoDate,
+  liveProbabilityBps,
+  safeUrl,
+  toCampaignEvent,
+  type EventTeamsRow,
+} from "./wire";
 
 /**
  * Customer-facing reads (A-04): the public campaign page, a ticket by its secret link, and the
@@ -49,7 +59,7 @@ export function ticketPhase(input: PhaseInput): TicketPhase {
 // Tickets
 // ---------------------------------------------------------------------------------------------
 
-export interface TicketRow {
+export interface TicketRow extends EventTeamsRow {
   campaign_id: string;
   access_token: string;
   status: "issued" | "refunded" | "refund_failed";
@@ -63,6 +73,8 @@ export interface TicketRow {
   promise: string;
   condition_label: string;
   instrument: string;
+  /** `instruments.type`: how `condition_label` is read (`condition.ts`). */
+  instrument_type: InstrumentType;
   outcome: Outcome | null;
   demo: boolean;
   merchant_name: string;
@@ -103,6 +115,7 @@ export function toTicket(row: TicketRow, now: Date): Ticket {
           observed_at: row.live_observed_at,
         };
   const settled = row.outcome !== null || phase === "refunded";
+  const words = conditionWords(row.instrument_type, row.condition_label, row.outcome);
   return {
     token: row.access_token,
     campaignSlug: row.slug,
@@ -112,8 +125,11 @@ export function toTicket(row: TicketRow, now: Date): Ticket {
     paid: digits(row.paid),
     refundable: digits(row.refundable),
     promise: row.promise,
-    conditionLabel: row.condition_label,
+    conditionLabel: words.conditionLabel,
+    subjectName: words.subjectName,
+    resultLabel: words.resultLabel,
     eventTitle: row.event_title,
+    event: toCampaignEvent(row),
     phase,
     probabilityBps: liveProbabilityBps(live, settled, now),
     startsAt: isoDate(row.starts_at),
@@ -134,11 +150,15 @@ async function selectTickets(
     select
       t.campaign_id, t.access_token, t.status, t.qty, t.paid, t.refundable, t.purchased_at, t.refunded_at,
       c.slug, c.product, c.promise, c.condition_label, c.instrument, c.outcome, c.demo,
+      i.type as instrument_type,
       m.name as merchant_name, m.logo_url as merchant_logo_url,
-      e.title as event_title, e.starts_at,
+      e.title as event_title, e.starts_at, e.sport as event_sport, e.league as event_league,
+      e.home_name, e.home_abbreviation, e.home_logo_url,
+      e.away_name, e.away_abbreviation, e.away_logo_url,
       l.mid_bps as live_mid_bps, l.stale as live_stale, l.observed_at as live_observed_at
     from tickets t
     join campaigns c on c.id = t.campaign_id
+    join instruments i on i.symbol = c.instrument
     join merchants m on m.id = c.merchant_id
     join events e on e.ticker = c.event_ticker
     left join live_instruments l on l.symbol = c.instrument
@@ -190,7 +210,7 @@ export async function myTickets(
 // Public campaign page
 // ---------------------------------------------------------------------------------------------
 
-export interface PublicCampaignRow {
+export interface PublicCampaignRow extends EventTeamsRow {
   slug: string;
   product: string;
   unit_price: bigint;
@@ -198,6 +218,8 @@ export interface PublicCampaignRow {
   promise: string;
   condition_label: string;
   instrument: string;
+  /** `instruments.type`: how `condition_label` is read (`condition.ts`). */
+  instrument_type: InstrumentType;
   sale_state: SaleState;
   sales_close: Date;
   outcome: Outcome | null;
@@ -222,6 +244,7 @@ export function toPublicCampaign(row: PublicCampaignRow, now: Date): PublicCampa
           stale: row.live_stale ?? true,
           observed_at: row.live_observed_at,
         };
+  const words = conditionWords(row.instrument_type, row.condition_label, row.outcome);
   return {
     slug: row.slug,
     merchant: {
@@ -233,8 +256,11 @@ export function toPublicCampaign(row: PublicCampaignRow, now: Date): PublicCampa
     unitPrice: digits(row.unit_price),
     refundBps: row.refund_bps,
     promise: row.promise,
-    conditionLabel: row.condition_label,
+    conditionLabel: words.conditionLabel,
+    subjectName: words.subjectName,
+    resultLabel: words.resultLabel,
     eventTitle: row.event_title,
+    event: toCampaignEvent(row),
     probabilityBps: liveProbabilityBps(live, row.outcome !== null, now),
     saleState: effectiveSaleState(row.sale_state, row.sales_close, now),
     startsAt: isoDate(row.starts_at),
@@ -259,11 +285,14 @@ export async function publicCampaign(db: Db, slug: string, now: Date): Promise<P
   const [row] = await db<PublicCampaignRow[]>`
     select
       c.slug, c.product, c.unit_price, c.refund_bps, c.promise, c.condition_label, c.instrument,
-      c.sale_state, c.sales_close, c.outcome, c.demo,
+      c.sale_state, c.sales_close, c.outcome, c.demo, i.type as instrument_type,
       m.name as merchant_name, m.logo_url as merchant_logo_url, m.category as merchant_category,
-      e.title as event_title, e.starts_at,
+      e.title as event_title, e.starts_at, e.sport as event_sport, e.league as event_league,
+      e.home_name, e.home_abbreviation, e.home_logo_url,
+      e.away_name, e.away_abbreviation, e.away_logo_url,
       l.mid_bps as live_mid_bps, l.stale as live_stale, l.observed_at as live_observed_at
     from campaigns c
+    join instruments i on i.symbol = c.instrument
     join merchants m on m.id = c.merchant_id
     join events e on e.ticker = c.event_ticker
     left join live_instruments l on l.symbol = c.instrument

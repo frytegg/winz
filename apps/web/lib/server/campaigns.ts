@@ -6,11 +6,13 @@ import {
   type CampaignStatus,
   type CampaignSummary,
   type CampaignsResponse,
+  type InstrumentType,
   type Outcome,
   type SaleState,
 } from "@winz/shared";
 
 import { readCachedBook, readLiveQuote, unhedgedExposure } from "./books";
+import { conditionWords } from "./condition";
 import type { Db } from "./db";
 import type { ServerConfig } from "./deps";
 import { splitMoney } from "./me";
@@ -22,13 +24,15 @@ import {
   liveProbabilityBps,
   ratioBps,
   ratioBpsUp,
+  toCampaignEvent,
+  type EventTeamsRow,
   type LiveQuoteRow,
 } from "./wire";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** One campaign with the totals of its tickets. */
-export interface CampaignRow {
+/** One campaign with its game, its instrument's type and the totals of its tickets. */
+export interface CampaignRow extends EventTeamsRow {
   id: string;
   slug: string | null;
   product: string;
@@ -38,6 +42,8 @@ export interface CampaignRow {
   sales_close: Date;
   condition_label: string;
   instrument: string;
+  /** `instruments.type`: how `condition_label` is read (`condition.ts`). */
+  instrument_type: InstrumentType;
   unit_price: bigint;
   refund_bps: number;
   usual_margin_bps: number;
@@ -49,6 +55,9 @@ export interface CampaignRow {
   demo: boolean;
   event_title: string;
   starts_at: Date;
+  created_at: Date;
+  /** Set by the engine when it projects the campaign's creation on-chain; null until then. */
+  live_at: Date | null;
   /** Units sold: sum of `tickets.qty`. */
   units: bigint;
   /** Sum of `tickets.paid`. */
@@ -87,10 +96,13 @@ export function toCampaignSummary(row: CampaignRow, now: Date): CampaignSummary 
     status: row.status,
     saleState: effectiveSaleState(row.sale_state, row.sales_close, now),
     eventTitle: row.event_title,
+    event: toCampaignEvent(row),
     startsAt: isoDate(row.starts_at),
     salesCloseAt: isoDate(row.sales_close),
     sales: Number(row.units),
     revenue: digits(row.revenue),
+    createdAt: isoDate(row.created_at),
+    liveAt: row.live_at === null ? null : isoDate(row.live_at),
   };
 }
 
@@ -158,9 +170,12 @@ export function toCampaignDetail(
   const used = extras.lots.spent + extras.lots.reserved;
   const available = row.budget > used ? row.budget - used : 0n;
   const money = campaignMoney(row);
+  const words = conditionWords(row.instrument_type, row.condition_label, row.outcome);
   return {
     ...toCampaignSummary(row, now),
-    conditionLabel: row.condition_label,
+    conditionLabel: words.conditionLabel,
+    subjectName: words.subjectName,
+    resultLabel: words.resultLabel,
     instrumentSymbol: row.instrument,
     unitPrice: digits(row.unit_price),
     refundBps: row.refund_bps,
@@ -195,13 +210,17 @@ async function selectCampaigns(
       c.id, c.slug, c.product, c.promise, c.status, c.sale_state, c.sales_close,
       c.condition_label, c.instrument, c.unit_price, c.refund_bps, c.usual_margin_bps,
       c.min_margin_bps, c.pause_threshold_bps, c.budget, c.outcome, c.onchain_id, c.demo,
-      e.title as event_title, e.starts_at,
+      c.created_at, c.live_at, i.type as instrument_type,
+      e.title as event_title, e.starts_at, e.sport as event_sport, e.league as event_league,
+      e.home_name, e.home_abbreviation, e.home_logo_url,
+      e.away_name, e.away_abbreviation, e.away_logo_url,
       coalesce(t.units, 0)::bigint as units,
       coalesce(t.revenue, 0)::bigint as revenue,
       coalesce(t.exposure, 0)::bigint as exposure,
       coalesce(t.refunds_paid, 0)::bigint as refunds_paid
     from campaigns c
     join events e on e.ticker = c.event_ticker
+    join instruments i on i.symbol = c.instrument
     left join lateral (
       select
         sum(qty) as units,
@@ -213,11 +232,21 @@ async function selectCampaigns(
     ) t on true
     where c.merchant_id = ${merchantId}
       and (${campaignId}::uuid is null or c.id = ${campaignId}::uuid)
+      -- A creation request whose payment is not recorded yet (being created, or the provider
+      -- failed) is not a campaign yet: its id was never answered.
+      and not (c.status = 'funding' and c.budget_pi is null)
     order by c.created_at desc, c.id
   `;
 }
 
-/** GET /api/campaigns: the merchant's own campaigns, newest first. */
+/**
+ * GET /api/campaigns: the merchant's own campaigns, newest first (`createdAt`), each with its
+ * game (`event`) and the time it went live (`liveAt`, null until then).
+ *
+ * A campaign whose budget was never paid (the merchant closed the payment sheet) is listed as it
+ * is: `funding`, `liveAt` null. The back end never expires it, nor its PaymentIntent: the same
+ * request (`requestId`) can still pay it later. The front hides the old ones from `createdAt`.
+ */
 export async function listCampaigns(
   db: Db,
   merchantId: string,

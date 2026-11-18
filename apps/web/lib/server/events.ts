@@ -1,14 +1,29 @@
-import { promoTemplates, type PromoTemplateData, type TemplateInstrument } from "@winz/pricing";
+import {
+  isBookStale,
+  midBps,
+  promoTemplates,
+  type PromoTemplateData,
+  type TemplateInstrument,
+} from "@winz/pricing";
 import type {
   Book,
   EventSummary,
+  EventTeam,
   EventsQuery,
   EventsResponse,
   InstrumentType,
   PromoTemplate,
   Sport,
+  TeamSide,
 } from "@winz/shared";
 
+import {
+  conditionSubject,
+  conditionTeam,
+  conditionText,
+  parseCondition,
+  type InstrumentSide,
+} from "./condition";
 import type { Db } from "./db";
 import { isoDate, percentLabel, safeUrl } from "./wire";
 
@@ -38,6 +53,8 @@ export const NOMINAL_LEVEL_QTY = 1_000_000n;
 
 export interface CatalogueInstrument extends TemplateInstrument {
   label: string;
+  /** `instruments.side`: the team the contract pays on, "tie", or null when unknown. */
+  side: InstrumentSide | null;
 }
 
 interface EventRow {
@@ -60,6 +77,7 @@ export interface CatalogueInstrumentRow {
   event_ticker: string;
   label: string;
   type: InstrumentType;
+  side: InstrumentSide | null;
   best_bid_bps: number | null;
   best_ask_bps: number | null;
   synced_at: Date | null;
@@ -90,15 +108,21 @@ export function templateHeadline(refundBps: bigint | number, conditionLabel: str
   return `${percentLabel(refund)}% back if ${conditionLabel}`;
 }
 
-/** One template of `promoTemplates` on the wire (`promoTemplateSchema`). */
+/**
+ * One template of `promoTemplates` on the wire (`promoTemplateSchema`). The condition label, its
+ * team's name and its side all come from one reading of the instrument's label (`condition.ts`).
+ */
 export function toPromoTemplate(template: PromoTemplateData<CatalogueInstrument>): PromoTemplate {
-  const label = template.instrument.label;
+  const condition = parseCondition(template.type, template.instrument.label);
+  const label = conditionText(condition);
   return {
     id: template.id,
     instrumentSymbol: template.instrumentSymbol,
     type: template.type,
     conditionLabel: label,
     headline: templateHeadline(template.refundBps, label),
+    subjectName: conditionSubject(condition),
+    team: conditionTeam(condition, template.instrument.side),
     refundBps: Number(template.refundBps),
     probabilityBps: template.probabilityBps === null ? null : Number(template.probabilityBps),
     costBps: template.costBps === null ? null : Number(template.costBps),
@@ -129,6 +153,7 @@ export function eventTemplates(
     symbol: row.symbol,
     type: row.type,
     label: row.label,
+    side: row.side,
     book: catalogueBook(row),
   }));
   return promoTemplates(candidates, {
@@ -143,7 +168,40 @@ export function containsPattern(search: string): string {
   return `%${search.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
 }
 
-function toEventSummary(row: EventRow, templates: PromoTemplate[]): EventSummary {
+/**
+ * A team's chance of winning (`eventTeamSchema.winProbabilityBps`): the mid of the game's moneyline
+ * contract on that team (`instruments.side`), from the same catalogue quote and with the same
+ * freshness rule as the templates (`CATALOGUE_STALE_AFTER_MS`), computed by the pricing library's
+ * `midBps` like a template's `probabilityBps`. Null without such a contract, without a two-sided
+ * quote, with a stale one, or when two moneyline contracts claim the same team (it cannot tell
+ * which one is the game's). Unlike the templates, a contract under 5 % still gives its chance.
+ * The home and away chances come from two separate books: they need not add up to 100 %.
+ */
+export function teamWinProbabilityBps(
+  instruments: readonly CatalogueInstrumentRow[],
+  team: TeamSide,
+  now: Date,
+): number | null {
+  const contracts = instruments.filter((row) => row.type === "moneyline" && row.side === team);
+  const [contract] = contracts;
+  if (contract === undefined || contracts.length > 1) return null;
+  const book = catalogueBook(contract);
+  if (book === null || isBookStale(book, now.getTime(), CATALOGUE_STALE_AFTER_MS)) return null;
+  const mid = midBps(book);
+  return mid === null ? null : Number(mid);
+}
+
+function toEventSummary(
+  row: EventRow,
+  instruments: readonly CatalogueInstrumentRow[],
+  now: Date,
+): EventSummary {
+  const team = (side: TeamSide): EventTeam => ({
+    name: side === "home" ? row.home_name : row.away_name,
+    abbreviation: side === "home" ? row.home_abbreviation : row.away_abbreviation,
+    logoUrl: safeUrl(side === "home" ? row.home_logo_url : row.away_logo_url),
+    winProbabilityBps: teamWinProbabilityBps(instruments, side, now),
+  });
   return {
     ticker: row.ticker,
     title: row.title,
@@ -151,17 +209,9 @@ function toEventSummary(row: EventRow, templates: PromoTemplate[]): EventSummary
     league: row.league,
     startsAt: isoDate(row.starts_at),
     salesCloseAt: isoDate(row.sales_close_at),
-    home: {
-      name: row.home_name,
-      abbreviation: row.home_abbreviation,
-      logoUrl: safeUrl(row.home_logo_url),
-    },
-    away: {
-      name: row.away_name,
-      abbreviation: row.away_abbreviation,
-      logoUrl: safeUrl(row.away_logo_url),
-    },
-    templates,
+    home: team("home"),
+    away: team("away"),
+    templates: eventTemplates(instruments, now),
   };
 }
 
@@ -198,7 +248,7 @@ export async function listEvents(db: Db, query: EventsQuery, now: Date): Promise
   if (events.length === 0) return { events: [] };
 
   const instruments = await db<CatalogueInstrumentRow[]>`
-    select symbol, event_ticker, label, type, best_bid_bps, best_ask_bps, synced_at
+    select symbol, event_ticker, label, type, side, best_bid_bps, best_ask_bps, synced_at
     from instruments
     where event_ticker in ${db(events.map((event) => event.ticker))}
       and active
@@ -213,8 +263,6 @@ export async function listEvents(db: Db, query: EventsQuery, now: Date): Promise
   }
 
   return {
-    events: events.map((event) =>
-      toEventSummary(event, eventTemplates(byEvent.get(event.ticker) ?? [], now)),
-    ),
+    events: events.map((event) => toEventSummary(event, byEvent.get(event.ticker) ?? [], now)),
   };
 }

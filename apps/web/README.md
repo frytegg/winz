@@ -58,8 +58,8 @@ réponse.
 | `POST /api/merchants`            | `default`                                                                  |
 | `GET /api/events`                | `default`                                                                  |
 | `POST /api/campaigns/preview`    | `default`, `open`, `aboveThreshold`, `noBook`                              |
-| `POST /api/campaigns`            | `default`                                                                  |
-| `GET /api/campaigns`             | `default`                                                                  |
+| `POST /api/campaigns`            | `default`, `created`, `repeated`, `repeatedLive`                           |
+| `GET /api/campaigns`             | `default`, `withFunding`                                                   |
 | `GET /api/campaigns/:id`         | `default`, `live`, `paused`, `settledYes`, `settledNo`                     |
 | `POST /api/campaigns/:id/pause`  | `default`                                                                  |
 | `POST /api/campaigns/:id/resume` | `default`                                                                  |
@@ -90,6 +90,37 @@ Quel exemple sert `default` :
 
 Le contenu des exemples est dans `packages/shared/src/api/examples.ts`, et le type de chaque
 réponse dans `packages/shared/src/api/schemas.ts`.
+
+### Ajouté avant le gel des formes (F-05)
+
+Tout est additif : rien n'a été renommé ni retiré, et chaque scénario simulé porte déjà ces champs.
+
+- `POST /api/campaigns` prend `requestId` (un `uuid` tiré une fois par appui sur « Fund » et
+  renvoyé tel quel à chaque nouvelle tentative). Le même `requestId` rend la même campagne et le
+  même paiement, sans rien créer ; avec d'autres réglages, `409`. Optionnel jusqu'au gel, puis
+  obligatoire : sans lui, un double appui crée deux campagnes et deux paiements. Détail plus bas,
+  « Créer une campagne (M7) ».
+- `event: { sport, league, home, away }` (le match, équipes comme dans `GET /api/events`) sur
+  `GET /api/campaigns`, `GET /api/campaigns/:id`, `GET /api/c/:slug`, `GET /api/t/:token` et
+  `GET /api/tickets`. `eventTitle` reste.
+- `subjectName` (`"Texas"`, ou `null`) : l'équipe dont parle la condition, écrite comme dans
+  `conditionLabel`. Sur les modèles de `GET /api/events`, le détail, la page publique et le ticket.
+  `null` pour un total de points (`Over 45.5 points`) et pour un nul (`Draw`).
+- `resultLabel` : la condition au passé une fois le match réglé, `"Texas won by 14+"` sur OUI,
+  `"Texas did not win by 14+"` sur NON ; `null` avant et pour un match annulé. Sur le détail, la
+  page publique et le ticket. Total : `The game went over 45.5 points` ; nul : `The game ended in a
+  draw` (et leurs négations en `did not`).
+- `team: "home" | "away" | null` sur chaque modèle de `GET /api/events` : quelle équipe est
+  `subjectName` (`null` quand la condition ne parle pas d'une équipe, et, rarement, quand le
+  catalogue ne sait pas de quel côté est le contrat : `subjectName` reste alors rempli).
+- `home.winProbabilityBps` et `away.winProbabilityBps` sur `GET /api/events` seulement : le milieu
+  (meilleure offre + meilleure demande, divisé par 2) du contrat « vainqueur » de cette équipe, à la
+  même cote fraîche que les modèles. `null` sans ce contrat ou sans cote fraîche des deux côtés. Deux
+  carnets distincts : les deux chances n'ont pas à faire 100 %.
+- `createdAt` et `liveAt` sur `GET /api/campaigns` (donc le détail aussi) : la création, et la
+  mise en ligne on-chain (`null` jusque-là). Une campagne dont le budget n'a jamais été payé (feuille
+  de paiement fermée) reste `funding` : le back ne l'expire jamais, au front de masquer les vieilles
+  à partir de `createdAt` (scénario `withFunding`).
 
 ### Les refus de vente
 
@@ -193,6 +224,24 @@ closes répond `409 sales_closed`, une condition indisponible `404`.
 La réponse donne `budgetPayment.clientSecret` : le front le passe au Payment Element de Stripe pour
 payer le budget. La campagne reste `funding` jusqu'à ce que le moteur l'ait créée on-chain, puis
 passe `live` avec son `slug` : relire `GET /api/campaigns/:id` jusqu'à voir `live`.
+
+Le front tire un `requestId` (`crypto.randomUUID()`) à chaque appui sur « Fund » et le renvoie à
+chaque nouvelle tentative de ce même appui (réseau coupé, `502`). Deux appels du même `requestId`,
+même au même instant, font une campagne et un paiement. Ce que rend une répétition, selon où en
+est la campagne :
+
+| La campagne                                   | La réponse                                                                                  |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| attend le paiement                            | `status: "funding"`, même `campaignId`, même `clientSecret` : rouvrir la feuille de paiement |
+| payée, en route vers la chaîne                | `status: "funding"`, même paiement : Stripe dira qu'il est déjà payé, suivre le détail       |
+| en ligne, en pause, close, réglée             | son `status` du moment (`live`…), même paiement : rien à payer, ouvrir la campagne           |
+| mêmes `requestId`, autres réglages            | `409 conflict`, `This request was already used for another promo; make a new request to create one` |
+
+Un `requestId` qui n'est pas un `uuid` répond `400`. Si Stripe est en panne (`502`), le même
+`requestId` réessayé plus tard retrouve le paiement éventuellement créé, sans en créer un second.
+Sans `requestId`, la route crée comme avant une campagne et un paiement à chaque appel (et le dit
+dans les logs). Une campagne `funding` dont le budget n'est jamais payé n'est jamais expirée par le
+back : elle reste dans `GET /api/campaigns`, avec `liveAt: null`.
 
 ### Pause, reprise, clôture
 

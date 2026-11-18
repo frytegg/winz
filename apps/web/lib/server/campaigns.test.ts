@@ -66,6 +66,7 @@ beforeAll(async () => {
     slug: "joes-texas",
     onchainId: 7n,
     createdAt: new Date(now.getTime() - 3_600_000),
+    liveAt: new Date(now.getTime() - 3_500_000),
   });
   othersCampaign = await insertCampaign(db, {
     merchantId: other,
@@ -164,10 +165,18 @@ describe("GET /api/campaigns", () => {
       status: "live",
       saleState: "open",
       eventTitle: "Arkansas vs Texas",
+      event: {
+        sport: "football",
+        league: "NCAAF",
+        home: { name: "Texas Longhorns", abbreviation: "TEX", logoUrl: null },
+        away: { name: "Arkansas Razorbacks", abbreviation: "ARK", logoUrl: null },
+      },
       startsAt: startsAt.toISOString(),
       salesCloseAt: salesClose.toISOString(),
       sales: 3,
       revenue: "60000000",
+      createdAt: new Date(now.getTime() - 3_600_000).toISOString(),
+      liveAt: new Date(now.getTime() - 3_500_000).toISOString(),
     });
     const others = await listCampaigns(database.db, other, now);
     expect(others.campaigns.map((campaign) => campaign.id)).toEqual([othersCampaign]);
@@ -187,6 +196,8 @@ describe("GET /api/campaigns/:id", () => {
     expect(detail).toMatchObject({
       id: live,
       conditionLabel: "Texas wins by 14+",
+      subjectName: "Texas",
+      resultLabel: null,
       instrumentSymbol: SYMBOL,
       unitPrice: "20000000",
       refundBps: 10_000,
@@ -226,6 +237,7 @@ describe("GET /api/campaigns/:id", () => {
       received: "20000000",
       pending: "0",
       outcome: "yes",
+      resultLabel: "Texas won by 14+",
       hedgedBps: 10_000,
       report: {
         sales: 1,
@@ -320,6 +332,7 @@ describe("campaignReport", () => {
     sales_close: salesClose,
     condition_label: "Texas wins by 14+",
     instrument: SYMBOL,
+    instrument_type: "spread",
     unit_price: 20_000_000n,
     refund_bps: 10_000,
     usual_margin_bps: 6500,
@@ -331,6 +344,16 @@ describe("campaignReport", () => {
     demo: false,
     event_title: "Arkansas vs Texas",
     starts_at: startsAt,
+    created_at: now,
+    live_at: now,
+    event_sport: "football",
+    event_league: "NCAAF",
+    home_name: "Texas Longhorns",
+    home_abbreviation: "TEX",
+    home_logo_url: null,
+    away_name: "Arkansas Razorbacks",
+    away_abbreviation: "ARK",
+    away_logo_url: null,
     units: 3n,
     revenue: 60_000_000n,
     exposure: 60_000_000n,

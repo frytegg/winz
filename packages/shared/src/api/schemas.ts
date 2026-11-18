@@ -128,6 +128,35 @@ export const teamSchema = z.object({
   logoUrl: z.url().nullable(),
 });
 
+/** Which team of the game a condition is about. */
+export const TEAM_SIDES = ["home", "away"] as const;
+export const teamSideSchema = z.enum(TEAM_SIDES);
+
+/**
+ * A team on the events list (screen M3): `teamSchema` plus its chance of winning. Only the events
+ * list carries the chance; every other answer uses `teamSchema`.
+ */
+export const eventTeamSchema = teamSchema.extend({
+  /**
+   * The team's chance of winning: the mid ((best bid + best ask) / 2, rounded down) of its own
+   * moneyline contract, from the same catalogue quote as the templates' `probabilityBps`. Null
+   * when the game has no moneyline contract for this team or no fresh two-sided quote for it.
+   * The home and away chances are two separate markets: they need not add up to 100 %.
+   */
+  winProbabilityBps: bpsSchema.nullable(),
+});
+
+/**
+ * The game a campaign or a ticket is about, from the event's row: what screens C1, C3 and the
+ * merchant's detail need for the teams, their abbreviations and the sport's illustration.
+ */
+export const campaignEventSchema = z.object({
+  sport: sportSchema,
+  league: z.string(),
+  home: teamSchema,
+  away: teamSchema,
+});
+
 /** One ready-made promo for a game (screen M4). */
 export const promoTemplateSchema = z.object({
   id: z.string(),
@@ -137,6 +166,17 @@ export const promoTemplateSchema = z.object({
   conditionLabel: z.string(),
   /** The card title: "Free if Texas wins by 14+". */
   headline: z.string(),
+  /**
+   * The team the condition is about, as the label writes it: "Texas" for "Texas wins by 14+".
+   * Null when the condition is not about one team: a game total ("Over 45.5 points") or a draw.
+   */
+  subjectName: z.string().nullable(),
+  /**
+   * Which team of the game `subjectName` is: null when the condition is not about one team, and
+   * also, rarely, when the catalogue could not tell which side a contract is on (some spread
+   * contracts come without one): then `subjectName` is still set. Never guessed from the names.
+   */
+  team: teamSideSchema.nullable(),
   refundBps: bpsSchema,
   /** Market probability of the condition (mid price). Null when the book has no two-sided quote. */
   probabilityBps: bpsSchema.nullable(),
@@ -155,8 +195,8 @@ export const eventSummarySchema = z.object({
   startsAt: isoDateSchema,
   /** Five minutes before the start. */
   salesCloseAt: isoDateSchema,
-  home: teamSchema,
-  away: teamSchema,
+  home: eventTeamSchema,
+  away: eventTeamSchema,
   templates: z.array(promoTemplateSchema),
 });
 
@@ -204,9 +244,21 @@ export const campaignPreviewResponseSchema = z.object({
   bookAsOf: isoDateSchema.nullable(),
 });
 
-/** POST /api/campaigns: creates the draft and the payment of its budget (screen M7). */
+/**
+ * POST /api/campaigns: creates the draft and the payment of its budget (screen M7). With a
+ * `requestId`, the request is idempotent: sent again by the same merchant, it answers the same
+ * campaign and the same payment and creates nothing.
+ */
 export const createCampaignRequestSchema = campaignTermsSchema.extend({
   product: z.string().min(1).max(80),
+  /**
+   * Chosen by the front once per "Fund" tap (a uuid) and kept for every retry of that request.
+   * Every client must send it: a request without it is still accepted, but it is not protected
+   * (a double tap or a retry after a network cut creates a second campaign and a second payment).
+   * Optional only until the shapes are frozen, then required. The same `requestId` with other
+   * terms answers 409.
+   */
+  requestId: z.uuid().optional(),
 });
 export const createCampaignResponseSchema = z.object({
   campaignId: z.string(),
@@ -228,12 +280,21 @@ export const campaignSummarySchema = z.object({
   status: campaignStatusSchema,
   saleState: saleStateSchema,
   eventTitle: z.string(),
+  /** The game: sport, league and both teams. */
+  event: campaignEventSchema,
   startsAt: isoDateSchema,
   salesCloseAt: isoDateSchema,
   /** Units sold. */
   sales: z.number().int().min(0),
   /** Total paid by customers. */
   revenue: microUsdcSchema,
+  /** When the merchant created it (POST /api/campaigns). */
+  createdAt: isoDateSchema,
+  /**
+   * When it went live on-chain; null until then. A campaign whose budget was never paid stays
+   * `funding` with `liveAt` null: the back end never expires it.
+   */
+  liveAt: isoDateSchema.nullable(),
 });
 
 export const campaignReportSchema = z.object({
@@ -250,6 +311,13 @@ export const campaignReportSchema = z.object({
 
 export const campaignDetailSchema = campaignSummarySchema.extend({
   conditionLabel: z.string(),
+  /** The team the condition is about, as `conditionLabel` writes it ("Texas"); null otherwise. */
+  subjectName: z.string().nullable(),
+  /**
+   * The condition in the past tense once settled: "Texas won by 14+" on YES, "Texas did not win
+   * by 14+" on NO. Null before the result and for a void game.
+   */
+  resultLabel: z.string().nullable(),
   instrumentSymbol: z.string(),
   unitPrice: microUsdcSchema,
   refundBps: bpsSchema,
@@ -341,7 +409,13 @@ export const publicCampaignSchema = z.object({
   refundBps: bpsSchema,
   promise: z.string(),
   conditionLabel: z.string(),
+  /** The team the condition is about, as `conditionLabel` writes it ("Texas"); null otherwise. */
+  subjectName: z.string().nullable(),
+  /** The condition in the past tense once settled ("Texas won by 14+"); null before and on void. */
+  resultLabel: z.string().nullable(),
   eventTitle: z.string(),
+  /** The game: sport, league and both teams. */
+  event: campaignEventSchema,
   /** "12 % chance it's free". Null when no fresh quote exists. */
   probabilityBps: bpsSchema.nullable(),
   saleState: saleStateSchema,
@@ -396,7 +470,13 @@ export const ticketSchema = z.object({
   refundable: microUsdcSchema,
   promise: z.string(),
   conditionLabel: z.string(),
+  /** The team the condition is about, as `conditionLabel` writes it ("Texas"); null otherwise. */
+  subjectName: z.string().nullable(),
+  /** The condition in the past tense once settled ("Texas won by 14+"); null before and on void. */
+  resultLabel: z.string().nullable(),
   eventTitle: z.string(),
+  /** The game: sport, league and both teams. */
+  event: campaignEventSchema,
   phase: ticketPhaseSchema,
   /** Live chance; null once the game is settled or when no fresh quote exists. */
   probabilityBps: bpsSchema.nullable(),
@@ -583,6 +663,9 @@ export type Merchant = z.infer<typeof merchantSchema>;
 export type MeResponse = z.infer<typeof meResponseSchema>;
 export type CreateMerchantRequest = z.infer<typeof createMerchantRequestSchema>;
 export type Team = z.infer<typeof teamSchema>;
+export type TeamSide = z.infer<typeof teamSideSchema>;
+export type EventTeam = z.infer<typeof eventTeamSchema>;
+export type CampaignEvent = z.infer<typeof campaignEventSchema>;
 export type PromoTemplate = z.infer<typeof promoTemplateSchema>;
 export type EventSummary = z.infer<typeof eventSummarySchema>;
 export type EventsQuery = z.infer<typeof eventsQuerySchema>;

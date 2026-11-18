@@ -117,6 +117,16 @@ describe("GET /api/t/:token", () => {
     expect(ticketSchema.parse(ticket)).toEqual(ticket);
     expect(ticket.phase).toBe(phase);
     expect(ticket.probabilityBps).toBe(probabilityBps);
+    // The result in words follows the campaign's outcome: none before it, none on a void game.
+    const results: Record<string, string | null> = {
+      preGame: null,
+      inGame: null,
+      refunded: "Texas won by 14+",
+      notThisTime: "Texas did not win by 14+",
+      cancelled: null,
+    };
+    expect(ticket.resultLabel).toBe(results[name]);
+    expect(ticket.subjectName).toBe("Texas");
     expect(cryptoWordsIn(ticket)).toEqual([]);
   });
 
@@ -132,7 +142,15 @@ describe("GET /api/t/:token", () => {
       refundable: "20000000",
       promise: "100% back if Texas wins by 14+",
       conditionLabel: "Texas wins by 14+",
+      subjectName: "Texas",
+      resultLabel: "Texas won by 14+",
       eventTitle: "Arkansas vs Texas",
+      event: {
+        sport: "football",
+        league: "NCAAF",
+        home: { name: "Texas Longhorns", abbreviation: "TEX", logoUrl: null },
+        away: { name: "Arkansas Razorbacks", abbreviation: "ARK", logoUrl: null },
+      },
       phase: "refunded",
       probabilityBps: null,
       startsAt: PAST_START.toISOString(),
@@ -225,7 +243,15 @@ describe("GET /api/c/:slug", () => {
       refundBps: 10_000,
       promise: "100% back if Texas wins by 14+",
       conditionLabel: "Texas wins by 14+",
+      subjectName: "Texas",
+      resultLabel: null,
       eventTitle: "Arkansas vs Texas",
+      event: {
+        sport: "football",
+        league: "NCAAF",
+        home: { name: "Texas Longhorns", abbreviation: "TEX", logoUrl: null },
+        away: { name: "Arkansas Razorbacks", abbreviation: "ARK", logoUrl: null },
+      },
       probabilityBps: 1400,
       saleState: "open",
       startsAt: FUTURE_START.toISOString(),
@@ -239,7 +265,12 @@ describe("GET /api/c/:slug", () => {
 
   it("shows a settled campaign closed and without odds", async () => {
     const page = await publicCampaign(database.db, "joes-notthistime", now);
-    expect(page).toMatchObject({ saleState: "closed", outcome: "no", probabilityBps: null });
+    expect(page).toMatchObject({
+      saleState: "closed",
+      outcome: "no",
+      probabilityBps: null,
+      resultLabel: "Texas did not win by 14+",
+    });
     expect(cryptoWordsIn(page)).toEqual([]);
   });
 

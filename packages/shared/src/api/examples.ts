@@ -1,5 +1,6 @@
 import type {
   CampaignActionResponse,
+  CampaignEvent,
   CampaignDetail,
   CampaignPreviewResponse,
   CampaignsResponse,
@@ -32,6 +33,25 @@ const SALES_CLOSE_AT = "2026-11-21T20:25:00.000Z";
 const EVENT_TITLE = "Arkansas vs Texas";
 const CONDITION = "Texas wins by 14+";
 const PROMISE = "100% back if Texas wins by 14+";
+/** The team the condition is about, as the label writes it. */
+const SUBJECT = "Texas";
+/** The condition in the past tense, on YES and on NO. */
+const RESULT_YES = "Texas won by 14+";
+const RESULT_NO = "Texas did not win by 14+";
+
+const TEXAS = { name: "Texas Longhorns", abbreviation: "TEX", logoUrl: null };
+const ARKANSAS = { name: "Arkansas Razorbacks", abbreviation: "ARK", logoUrl: null };
+const PITT = { name: "Pittsburgh Panthers", abbreviation: "PITT", logoUrl: null };
+const VILLANOVA = { name: "Villanova Wildcats", abbreviation: "VILL", logoUrl: null };
+
+/** The game of the running example, as campaigns and tickets carry it. */
+const GAME: CampaignEvent = { sport: "football", league: "NCAAF", home: TEXAS, away: ARKANSAS };
+const PITT_GAME: CampaignEvent = {
+  sport: "basketball",
+  league: "NCAAM",
+  home: PITT,
+  away: VILLANOVA,
+};
 
 export const merchantExample: Merchant = {
   id: "mer_joes",
@@ -73,8 +93,9 @@ export const eventsExample: EventsResponse = {
       league: "NCAAF",
       startsAt: STARTS_AT,
       salesCloseAt: SALES_CLOSE_AT,
-      home: { name: "Texas Longhorns", abbreviation: "TEX", logoUrl: null },
-      away: { name: "Arkansas Razorbacks", abbreviation: "ARK", logoUrl: null },
+      // Each team's chance is the mid of its own moneyline contract (the two templates below).
+      home: { ...TEXAS, winProbabilityBps: 9100 },
+      away: { ...ARKANSAS, winProbabilityBps: 900 },
       templates: [
         {
           id: "tpl_tex13_full",
@@ -82,6 +103,8 @@ export const eventsExample: EventsResponse = {
           type: "spread",
           conditionLabel: CONDITION,
           headline: "Free if Texas wins by 14+",
+          subjectName: SUBJECT,
+          team: "home",
           refundBps: 10_000,
           probabilityBps: 1200,
           costBps: 1274,
@@ -94,6 +117,8 @@ export const eventsExample: EventsResponse = {
           type: "moneyline",
           conditionLabel: "Texas wins",
           headline: "Half back if Texas wins",
+          subjectName: "Texas",
+          team: "home",
           refundBps: 5000,
           probabilityBps: 9100,
           costBps: 4626,
@@ -106,6 +131,8 @@ export const eventsExample: EventsResponse = {
           type: "moneyline",
           conditionLabel: "Arkansas wins",
           headline: "Free if Arkansas pulls the upset",
+          subjectName: "Arkansas",
+          team: "away",
           refundBps: 10_000,
           probabilityBps: 900,
           costBps: 1063,
@@ -118,6 +145,8 @@ export const eventsExample: EventsResponse = {
           type: "spread",
           conditionLabel: "Texas wins by 21+",
           headline: "Free if Texas wins by 21+",
+          subjectName: "Texas",
+          team: "home",
           refundBps: 10_000,
           probabilityBps: null,
           costBps: null,
@@ -133,8 +162,9 @@ export const eventsExample: EventsResponse = {
       league: "NCAAM",
       startsAt: "2026-11-18T00:00:00.000Z",
       salesCloseAt: "2026-11-17T23:55:00.000Z",
-      home: { name: "Pittsburgh Panthers", abbreviation: "PITT", logoUrl: null },
-      away: { name: "Villanova Wildcats", abbreviation: "VILL", logoUrl: null },
+      // No Villanova moneyline is listed: no chance for that team.
+      home: { ...PITT, winProbabilityBps: 4650 },
+      away: { ...VILLANOVA, winProbabilityBps: null },
       templates: [
         {
           id: "tpl_pitt_ml_half",
@@ -142,6 +172,8 @@ export const eventsExample: EventsResponse = {
           type: "moneyline",
           conditionLabel: "Pittsburgh wins",
           headline: "Half back if Pitt wins",
+          subjectName: "Pittsburgh",
+          team: "home",
           refundBps: 5000,
           probabilityBps: 4650,
           costBps: 2438,
@@ -199,6 +231,18 @@ export const createCampaignExample: CreateCampaignResponse = {
   },
 };
 
+/**
+ * POST /api/campaigns. `repeated` is the answer to the same `requestId` sent again before the
+ * budget is paid: the same campaign and the same payment. `repeatedLive` is the answer to it once
+ * the campaign is live: the same campaign and payment, with its status of the moment (nothing more
+ * to pay: open the campaign instead of the payment sheet).
+ */
+export const createCampaignExamples = {
+  created: createCampaignExample,
+  repeated: createCampaignExample,
+  repeatedLive: { ...createCampaignExample, status: "live" },
+} satisfies Record<string, CreateCampaignResponse>;
+
 const summaryLive: CampaignSummary = {
   id: "cmp_joes_texas",
   slug: "joes-texas",
@@ -207,15 +251,20 @@ const summaryLive: CampaignSummary = {
   status: "live",
   saleState: "open",
   eventTitle: EVENT_TITLE,
+  event: GAME,
   startsAt: STARTS_AT,
   salesCloseAt: SALES_CLOSE_AT,
   sales: 12,
   revenue: "240000000",
+  createdAt: "2026-11-20T22:41:00.000Z",
+  liveAt: "2026-11-20T22:42:10.000Z",
 };
 
 const detailLive: CampaignDetail = {
   ...summaryLive,
   conditionLabel: CONDITION,
+  subjectName: SUBJECT,
+  resultLabel: null,
   instrumentSymbol: SYMBOL,
   unitPrice: "20000000",
   refundBps: 10_000,
@@ -266,6 +315,7 @@ export const campaignDetailExamples = {
     received: "240000000",
     pending: "0",
     outcome: "yes",
+    resultLabel: RESULT_YES,
     report: {
       sales: 12,
       newCustomers: 9,
@@ -289,6 +339,7 @@ export const campaignDetailExamples = {
     received: "240000000",
     pending: "0",
     outcome: "no",
+    resultLabel: RESULT_NO,
     report: {
       sales: 12,
       newCustomers: 9,
@@ -312,11 +363,36 @@ export const campaignsExample: CampaignsResponse = {
       status: "settled_no",
       saleState: "closed",
       eventTitle: "Villanova vs Pittsburgh",
+      event: PITT_GAME,
       startsAt: "2026-11-18T00:00:00.000Z",
       salesCloseAt: "2026-11-17T23:55:00.000Z",
       sales: 31,
       revenue: "620000000",
+      createdAt: "2026-11-17T21:02:00.000Z",
+      liveAt: "2026-11-17T21:03:05.000Z",
     },
+  ],
+};
+
+/**
+ * GET /api/campaigns with a promo whose budget was never paid (the merchant closed the payment
+ * sheet): it stays `funding`, `liveAt` null, and the back end never expires it. The front hides
+ * such a promo once `createdAt` is old enough.
+ */
+export const campaignsWithFundingExample: CampaignsResponse = {
+  campaigns: [
+    {
+      ...summaryLive,
+      id: "cmp_joes_texas_unpaid",
+      slug: null,
+      status: "funding",
+      saleState: "closed",
+      sales: 0,
+      revenue: "0",
+      createdAt: "2026-11-20T21:58:00.000Z",
+      liveAt: null,
+    },
+    ...campaignsExample.campaigns,
   ],
 };
 
@@ -334,7 +410,10 @@ const publicLive: PublicCampaign = {
   refundBps: 10_000,
   promise: PROMISE,
   conditionLabel: CONDITION,
+  subjectName: SUBJECT,
+  resultLabel: null,
   eventTitle: EVENT_TITLE,
+  event: GAME,
   probabilityBps: 1200,
   saleState: "open",
   startsAt: STARTS_AT,
@@ -348,8 +427,20 @@ export const publicCampaignExamples = {
   live: publicLive,
   paused: { ...publicLive, saleState: "paused_price", probabilityBps: 2300 },
   salesClosed: { ...publicLive, saleState: "closed" },
-  settledYes: { ...publicLive, saleState: "closed", probabilityBps: null, outcome: "yes" },
-  settledNo: { ...publicLive, saleState: "closed", probabilityBps: null, outcome: "no" },
+  settledYes: {
+    ...publicLive,
+    saleState: "closed",
+    probabilityBps: null,
+    outcome: "yes",
+    resultLabel: RESULT_YES,
+  },
+  settledNo: {
+    ...publicLive,
+    saleState: "closed",
+    probabilityBps: null,
+    outcome: "no",
+    resultLabel: RESULT_NO,
+  },
 } satisfies Record<string, PublicCampaign>;
 
 export const checkoutExample: CheckoutResponse = {
@@ -383,7 +474,10 @@ const ticketPreGame: Ticket = {
   refundable: "20000000",
   promise: PROMISE,
   conditionLabel: CONDITION,
+  subjectName: SUBJECT,
+  resultLabel: null,
   eventTitle: EVENT_TITLE,
+  event: GAME,
   phase: "pre_game",
   probabilityBps: 1400,
   startsAt: STARTS_AT,
@@ -400,9 +494,16 @@ export const ticketExamples = {
     ...ticketPreGame,
     phase: "refunded",
     probabilityBps: null,
+    resultLabel: RESULT_YES,
     refundedAt: "2026-11-22T00:05:08.000Z",
   },
-  notThisTime: { ...ticketPreGame, phase: "not_this_time", probabilityBps: null },
+  notThisTime: {
+    ...ticketPreGame,
+    phase: "not_this_time",
+    probabilityBps: null,
+    resultLabel: RESULT_NO,
+  },
+  // A void game has no result in words: the ticket says the game was cancelled.
   cancelled: { ...ticketPreGame, phase: "cancelled", probabilityBps: null },
 } satisfies Record<string, Ticket>;
 
@@ -415,7 +516,10 @@ export const ticketsExample: TicketsResponse = {
       campaignSlug: "joes-pitt",
       promise: "50% back if Pitt wins",
       conditionLabel: "Pittsburgh wins",
+      subjectName: "Pittsburgh",
+      resultLabel: "Pittsburgh won",
       eventTitle: "Villanova vs Pittsburgh",
+      event: PITT_GAME,
       refundable: "10000000",
       phase: "refunded",
       probabilityBps: null,
