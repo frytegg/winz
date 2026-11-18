@@ -293,6 +293,44 @@ export class PolicyRunner {
     await this.requestCycle();
   }
 
+  /**
+   * Campaigns of the instrument settled: the venue paid out the `releasedQty` contracts that were
+   * allocated to their lots, so H stops counting them (never below zero), and E becomes
+   * `exposure` (their lots left it in the same projection). Both change in one step, before any
+   * cycle sees either: a cycle never sees E lowered with H not (a reconciliation would sell the
+   * difference), nor H lowered with E not (it would buy it). Nothing is placed, sold or cancelled
+   * for it, and orders are left as they are: an order resting at that instant keeps adding each
+   * of its fills to H exactly once.
+   */
+  async onSettled(releasedQty: MicroContracts, exposure: MicroContracts): Promise<void> {
+    if (typeof releasedQty !== "bigint" || releasedQty < 0n) {
+      throw new PolicyInputError(
+        `released quantity must be a bigint >= 0, got ${String(releasedQty)}`,
+      );
+    }
+    if (typeof exposure !== "bigint" || exposure < 0n) {
+      throw new PolicyInputError(`exposure must be a bigint >= 0, got ${String(exposure)}`);
+    }
+    const before = this.held;
+    this.held = before > releasedQty ? before - releasedQty : 0n;
+    this.exposure = exposure;
+    if (releasedQty > before) {
+      this.logger.error(
+        { held: before.toString(), released: releasedQty.toString() },
+        "settled contracts exceed the position: clamped to zero",
+      );
+    }
+    this.logger.info(
+      {
+        released: releasedQty.toString(),
+        held: this.held.toString(),
+        exposure: exposure.toString(),
+      },
+      "settled campaigns' contracts no longer held",
+    );
+    await this.requestCycle();
+  }
+
   /** Clock tick: TTLs, staleness and the breaker's timers advance. */
   async onTick(): Promise<void> {
     await this.requestCycle();

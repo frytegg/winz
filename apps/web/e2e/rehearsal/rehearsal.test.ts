@@ -365,6 +365,8 @@ describe("refusals: nothing is sent", () => {
 
 describe("the whole loop in real time", () => {
   let shared: { escrow: TestEscrow; database: TestDatabase } | null = null;
+  /** The game and contract of the YES run, which the NO run plays again. */
+  let firstGame: { ticker: string; symbol: string } | null = null;
   afterAll(async () => {
     await shared?.database.drop();
   });
@@ -381,6 +383,9 @@ describe("the whole loop in real time", () => {
       const receipt = await runRehearsal(options);
       expectPassed(receipt);
       expectMined(receipt);
+      if (receipt.game !== null && receipt.instrument !== null) {
+        firstGame = { ticker: receipt.game.ticker, symbol: receipt.instrument.symbol };
+      }
       const counts = kinds(receipt);
       expect(counts.get("createCampaignFor")).toBe(1);
       expect(counts.get("buyFor")).toBe(6);
@@ -422,15 +427,21 @@ describe("the whole loop in real time", () => {
   );
 
   it(
-    "NO, a second run on the same database and escrow: no refund, the merchant keeps the rest",
+    "NO, a second run on the same database and escrow, on the same game and contract: no refund, the merchant keeps the rest",
     { timeout: RUN_TIMEOUT_MS },
     async () => {
       if (shared === null) throw new Error("the YES run did not set up the chain");
+      if (firstGame === null) throw new Error("the YES run chose no game");
       const s = await setup(shared);
       const options = optionsFor(s, { purchases: 6, buyers: 3, outcome: "no" });
       const receipt = await runRehearsal(options);
       expectPassed(receipt);
       expectMined(receipt);
+      // The demo replayed on the instrument of the YES run, whose campaign settled on a forced
+      // result: its contracts no longer count as held, so this run's sales are hedged and charged.
+      expect(receipt.game?.ticker).toBe(firstGame.ticker);
+      expect(receipt.instrument?.symbol).toBe(firstGame.symbol);
+      expect(receipt.hedging?.charges).toBe(6);
       const counts = kinds(receipt);
       expect(counts.get("buyFor")).toBe(6);
       expect(counts.get("settle")).toBe(1);
