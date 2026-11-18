@@ -42,7 +42,7 @@ import {
 import { DemoPaymentGateway, RoutingPaymentGateway } from "../../../engine/src/payments";
 import { ApiCallError, api, bearer, type AuthHeaders } from "../support/api";
 import { WorldClock } from "../support/clock";
-import { SilentTransport, SimulatedGemini, newGame } from "../support/gemini";
+import { SilentTransport, SimulatedGemini, newGame, type Game } from "../support/gemini";
 import { SimulatedStripe } from "../support/stripe";
 import { WaitTimeoutError, within } from "../support/wait";
 import {
@@ -680,7 +680,7 @@ async function startEngineStep(run: Run, identity: FakeIdentity): Promise<void> 
     });
   } else {
     const clock = new WorldClock();
-    const gemini = new SimulatedGemini(clock, newGame(Date.now(), SIMULATED_LEAD_MS));
+    const gemini = new SimulatedGemini(clock, await simulatedGame(db, Date.now()));
     run.gemini = gemini;
     catalogClient = gemini.client();
     // Production settings of the feed; only the transports are simulated.
@@ -774,6 +774,34 @@ function startDeskSampler(run: Run): { stop: () => Promise<void> } {
   };
 }
 
+/**
+ * The game the simulated Gemini lists for this run: the one an earlier run on this database
+ * listed, while it has no result and still starts at least `MIN_LEAD_MS` from now, so that a
+ * second run replays the demo on the same game and contract, as an operator does before a jury;
+ * otherwise a new game starting `SIMULATED_LEAD_MS` from now.
+ */
+async function simulatedGame(db: Db, nowMs: number): Promise<Game> {
+  const rows = await db<{ ticker: string; starts_at: Date }[]>`
+    select e.ticker, e.starts_at
+    from events e
+    where e.ticker like 'NCAAF-%-ARK-TEX-M'
+      and e.starts_at >= ${new Date(nowMs + MIN_LEAD_MS)}
+      and e.status in ('upcoming', 'active')
+      and not exists (
+        select 1 from instruments i where i.event_ticker = e.ticker and i.outcome is not null
+      )
+    order by e.starts_at, e.ticker
+    limit 1
+  `;
+  const listed = rows[0];
+  if (listed !== undefined) {
+    // `newGame` names a game after its start: the same start gives back the same game.
+    const game = newGame(listed.starts_at.getTime() - SIMULATED_LEAD_MS, SIMULATED_LEAD_MS);
+    if (game.ticker === listed.ticker) return game;
+  }
+  return newGame(nowMs, SIMULATED_LEAD_MS);
+}
+
 async function chooseGameStep(run: Run, identity: FakeIdentity): Promise<{ symbol: string }> {
   const handle = run.runId;
   const token = `rehearsal-${handle}`;
@@ -797,8 +825,8 @@ async function chooseGameStep(run: Run, identity: FakeIdentity): Promise<{ symbo
   await waitUntil(
     run,
     simulated === null
-      ? "a listed game starting in 45 minutes or more with a two-outcome moneyline on a contract the hedging holds nothing of"
-      : `the simulated game ${simulated.ticker} to be listed with a contract the hedging holds nothing of`,
+      ? "a listed game starting in 45 minutes or more with a two-outcome moneyline"
+      : `the simulated game ${simulated.ticker} to be listed`,
     async () => {
       const db = run.db;
       if (db === null) throw new Error("no database");
@@ -819,13 +847,6 @@ async function chooseGameStep(run: Run, identity: FakeIdentity): Promise<{ symbo
         from events e
         join instruments i on i.event_ticker = e.ticker
         where i.type = 'moneyline' and i.active and i.outcome is null
-          -- Never an instrument the hedging already holds or owes on: a campaign settled on a
-          -- forced demo result leaves its contracts held on the instrument, and the engine then
-          -- counts them against a new campaign's exposure, never hedging nor charging its tickets.
-          and not exists (
-            select 1 from positions p
-            where p.instrument = i.symbol and (p.held > 0 or p.exposure > 0 or p.working > 0)
-          )
           and e.starts_at >= ${earliest}
           and e.status in ('upcoming', 'active')
           and (${simulated?.ticker ?? null}::text is null or e.ticker = ${simulated?.ticker ?? null})

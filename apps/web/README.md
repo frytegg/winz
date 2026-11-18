@@ -450,11 +450,10 @@ payable par carte (au moins 0,50 $ en centimes entiers). La mesure du critère 6
 demande donc au moins 150 USDC avancés (plus 150 de dû sur OUI à 100 %) : hors de portée des
 quelque 90 USDC de la trésorerie actuelle, la répétition refuse de la lancer.
 
-Une campagne réglée sur un résultat forcé laisse ses contrats détenus sur l'instrument, et le
-moteur les compte contre l'exposition d'une nouvelle campagne sur le même instrument, qu'il ne
-couvre ni ne facture jamais. La répétition choisit donc un contrat sur lequel la couverture ne
-détient rien : deux répétitions sur le même match prennent ses deux issues, une troisième attend un
-autre match.
+Les contrats qui couvraient une campagne réglée, sur un résultat forcé comme sur un vrai, ne sont
+plus comptés comme détenus : une nouvelle campagne sur le même contrat est couverte et facturée
+normalement. Une seconde répétition sur la même base rejoue donc la démo sur le même match et le
+même contrat, comme un opérateur devant un jury.
 
 Deux ventes d'un même nouvel acheteur traitées en même temps par le moteur peuvent échouer
 (`IdentityConflictError` à la création de sa ligne `users`, la vente finit « failed ») : la
