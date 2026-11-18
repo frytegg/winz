@@ -14,6 +14,7 @@ import {
   createPublicClient,
   custom,
   type Address,
+  type PublicClient,
 } from "viem";
 
 import { winzEscrowAbi } from "@winz/shared";
@@ -25,6 +26,7 @@ import {
   BlockClock,
   escrowHolds,
   logSpans,
+  snapshot,
   stageOf,
   walletsLeftBehind,
   type OnchainCampaignState,
@@ -216,6 +218,59 @@ describe("the bounded retry of a read", () => {
     ).catch((error: unknown) => error);
     expect(refused).toBeInstanceOf(ApiCallError);
     expect(calls).toBe(1);
+  });
+
+  it("reads each balance of a snapshot with its own retry: a refusal repeats one request and keeps the rest", async () => {
+    const policy = { attempts: 4, baseDelayMs: 1, maxDelayMs: 2 };
+    const parties = ["treasury", "oracle", "escrow", "merchant", "buyer 1"].map((role, index) => ({
+      role,
+      address: `0x${(index + 1).toString(16).padStart(40, "0")}` as Address,
+    }));
+    // A node that refuses every other request. Two requests per party: read in one piece, a
+    // snapshot always meets a refusal, whatever the number of attempts.
+    const node = (): { client: PublicClient; answered: string[] } => {
+      const answered: string[] = [];
+      let requests = 0;
+      const client: PublicClient = createPublicClient({
+        transport: custom(
+          {
+            request: ({
+              method,
+              params,
+            }: {
+              method: string;
+              params?: unknown;
+            }): Promise<string> => {
+              requests += 1;
+              if (requests % 2 === 1) return Promise.reject(rateLimitAnswer(method));
+              answered.push(String((params as [string])[0]).toLowerCase());
+              return Promise.resolve("0x7");
+            },
+          },
+          { retryCount: 0 },
+        ),
+      });
+      return { client, answered };
+    };
+    const token = `0x${"9".repeat(40)}` as Address;
+
+    const whole = node();
+    const inOnePiece = await withRetry(
+      "the balances",
+      () => snapshot(whole.client, "native-usdc", token, parties),
+      { policy },
+    ).catch((error: unknown) => error);
+    expect(inOnePiece).toBeInstanceOf(ReadFailedError);
+
+    const each = node();
+    let retries = 0;
+    const rows = await snapshot(each.client, "native-usdc", token, parties, (what, body) =>
+      withRetry(what, body, { policy, onRetry: () => (retries += 1) }),
+    );
+    expect(rows).toEqual(parties.map((party) => ({ ...party, moneyWei: 7n, nativeWei: 7n })));
+    // Each balance answered exactly once: nothing already read was asked again.
+    expect(each.answered).toEqual(parties.flatMap((party) => [party.address, party.address]));
+    expect(retries).toBe(parties.length * 2);
   });
 });
 

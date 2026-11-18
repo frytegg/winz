@@ -510,6 +510,29 @@ async function readOrNote<T>(run: Run, what: string, body: () => Promise<T>): Pr
   }
 }
 
+/**
+ * Every party's balances, each request retried on its own (`snapshot`): one refused request
+ * never discards the balances already read. `signal` as for `read`.
+ */
+function balances(
+  run: Run,
+  signal: AbortSignal | undefined = signalOf(run),
+): Promise<BalanceRow[]> {
+  return snapshot(run.client, run.moneyMode, run.token, parties(run), (what, body) =>
+    read(run, what, body, signal),
+  );
+}
+
+/** `balances` once the run is over: null with a line in `unread` when a balance could not be read. */
+async function balancesOrNote(run: Run, what: string): Promise<BalanceRow[] | null> {
+  try {
+    return await balances(run, undefined);
+  } catch (error: unknown) {
+    run.unread.push(run.redact(`${what}: ${describeFailure(error)}`));
+    return null;
+  }
+}
+
 async function step<T>(
   run: Run,
   name: RehearsalStep,
@@ -927,9 +950,7 @@ async function startEngineStep(run: Run, identity: FakeIdentity): Promise<void> 
       ? `fresh database: the engine reads the escrow's events from block ${engineStartBlock.toString()} (the head ${head.toString()} minus ${ENGINE_START_MARGIN_BLOCKS.toString()}), not from its deploy block ${options.escrowDeployBlock.toString()}`
       : `the engine reads the escrow's events from block ${engineStartBlock.toString()} on an empty database (it resumes from its cursor otherwise)`,
   );
-  run.receipt.balances.before = await read(run, "the balances before the run", () =>
-    snapshot(run.client, run.moneyMode, run.token, parties(run)),
-  );
+  run.receipt.balances.before = await balances(run);
 
   const controller = new AbortController();
   run.engineController = controller;
@@ -2429,18 +2450,14 @@ async function finish(run: Run): Promise<void> {
 
   if (receipt.balances.before.length > 0) {
     receipt.balances.afterSettlement =
-      (await readOrNote(run, "the balances after settlement", () =>
-        snapshot(run.client, run.moneyMode, run.token, parties(run)),
-      )) ?? [];
+      (await balancesOrNote(run, "the balances after settlement")) ?? [];
   }
 
   // The sweep is attempted whatever failed, unless the engine never ran.
   if (run.db !== null) {
     const failure = await sweepAll(run, receipt.leftBehind);
     receipt.failure ??= failure;
-    const afterSweep = await readOrNote(run, "the balances after the sweep", () =>
-      snapshot(run.client, run.moneyMode, run.token, parties(run)),
-    );
+    const afterSweep = await balancesOrNote(run, "the balances after the sweep");
     receipt.balances.afterSweep = afterSweep ?? [];
     receipt.leftBehind.push(
       ...walletsLeftBehind(receipt.sweep, afterSweep, [run.merchant, ...run.buyers]),
@@ -2934,10 +2951,7 @@ async function recover(input: RecoveryOptions): Promise<RecoveryReceipt> {
   }
 
   const actions = receipt.actions;
-  receipt.balances.before =
-    (await readOrNote(run, "the balances before the recovery", () =>
-      snapshot(run.client, run.moneyMode, run.token, parties(run)),
-    )) ?? [];
+  receipt.balances.before = (await balancesOrNote(run, "the balances before the recovery")) ?? [];
   if (receipt.stateBefore?.released === true) {
     actions.push("the campaign was already released: nothing to finish, only the sweep");
     out("the campaign is already released: only the demo wallets are swept");
@@ -2983,9 +2997,7 @@ async function recover(input: RecoveryOptions): Promise<RecoveryReceipt> {
       ? "nothing left in the demo wallets to sweep"
       : `${swept.length.toString()} demo wallet(s) swept back to the treasury`,
   );
-  const after = await readOrNote(run, "the balances after the recovery", () =>
-    snapshot(run.client, run.moneyMode, run.token, parties(run)),
-  );
+  const after = await balancesOrNote(run, "the balances after the recovery");
   receipt.balances.after = after ?? [];
   receipt.leftBehind.push(...walletsLeftBehind(work.sweep, after, [merchant, ...buyers]));
   receipt.stateAfter = await readOrNote(run, "the campaign's state after the recovery", () =>
