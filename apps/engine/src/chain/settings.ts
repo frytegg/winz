@@ -28,7 +28,15 @@ export interface TxSenderSettings {
   retryMaxMs: number;
   waitPollMs: number;
   defaultWaitTimeoutMs: number;
+  maxInFlight: number;
+  resendCheckMs: number;
+  feeSuggestionMaxAgeMs: number;
 }
+
+/** Default of `maxInFlight` (`ARC_TX_MAX_IN_FLIGHT`): see the sender's section of the README. */
+export const DEFAULT_MAX_IN_FLIGHT = 8;
+/** Highest `maxInFlight` accepted. */
+export const MAX_IN_FLIGHT_LIMIT = 64;
 
 function positiveInteger(name: string, value: number): number {
   if (!Number.isInteger(value) || value <= 0) {
@@ -65,6 +73,12 @@ export function resolveTxSenderSettings(config: TxSenderConfig): TxSenderSetting
   if (retryMaxMs < retryBaseMs) {
     throw new TxSenderConfigError("retryMaxMs must not be below retryBaseMs");
   }
+  const maxInFlight = positiveInteger("maxInFlight", config.maxInFlight ?? DEFAULT_MAX_IN_FLIGHT);
+  if (maxInFlight > MAX_IN_FLIGHT_LIMIT) {
+    throw new TxSenderConfigError(
+      `maxInFlight must be at most ${MAX_IN_FLIGHT_LIMIT.toString()}, got ${maxInFlight.toString()}`,
+    );
+  }
   return {
     chainId: positiveInteger("chainId", config.chainId),
     escrowAddress: config.escrowAddress.toLowerCase() as Address,
@@ -86,6 +100,12 @@ export function resolveTxSenderSettings(config: TxSenderConfig): TxSenderSetting
     defaultWaitTimeoutMs: positiveInteger(
       "defaultWaitTimeoutMs",
       config.defaultWaitTimeoutMs ?? 60_000,
+    ),
+    maxInFlight,
+    resendCheckMs: positiveInteger("resendCheckMs", config.resendCheckMs ?? 3_000),
+    feeSuggestionMaxAgeMs: nonNegativeInteger(
+      "feeSuggestionMaxAgeMs",
+      config.feeSuggestionMaxAgeMs ?? 1_000,
     ),
   };
 }

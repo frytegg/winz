@@ -179,11 +179,12 @@ export class ChainTxStore {
   }
 
   /**
-   * The transaction of a signer role that the configured key signed on this chain and that is
-   * not final. At most one exists. A `sent` row of another key or chain is never returned: it
-   * is `foreignSent`'s, and the sender refuses to start while one exists.
+   * The transactions of a signer role that the configured key signed on this chain and that are
+   * not final, lowest nonce first: at most the sender's window of them. A `sent` row of another
+   * key or chain is never returned: it is `foreignSent`'s, and the sender refuses to start while
+   * one exists.
    */
-  async oldestSent(key: SigningKey): Promise<ChainTx | undefined> {
+  async sentRows(key: SigningKey): Promise<ChainTx[]> {
     const rows = await this.db<ChainTxRow[]>`
       select * from chain_txs
       where signer = ${key.signer}
@@ -191,9 +192,8 @@ export class ChainTxStore {
         and chain_id = ${key.chainId}
         and status = 'sent'
       order by nonce asc
-      limit 1
     `;
-    return rows[0] ? toChainTx(rows[0]) : undefined;
+    return rows.map(toChainTx);
   }
 
   /**

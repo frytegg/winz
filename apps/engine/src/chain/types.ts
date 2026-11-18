@@ -225,4 +225,25 @@ export interface TxSenderConfig {
   waitPollMs?: number;
   /** Timeout of `sendAndWait` when the caller gives none. Default 60 000. */
   defaultWaitTimeoutMs?: number;
+  /**
+   * Most transactions of one signer broadcast and not mined yet at the same time
+   * (`ARC_TX_MAX_IN_FLIGHT`). Only the kinds of `INDEPENDENT_TX_KINDS` travel together; any other
+   * kind always goes alone. 1 sends strictly one transaction at a time. Default 8, at most 64.
+   */
+  maxInFlight?: number;
+  /**
+   * With more than one transaction in flight, the earliest unmined one of a signer without a
+   * receipt for this long makes the sender ask the node its pending count: transactions the node
+   * no longer knows are broadcast again from their stored bytes (never signed again), which does
+   * not restart `replaceAfterMs`. Asked again every this long; while every re-sent transaction
+   * comes back "already known" (the count is wrong, not the pool), the interval doubles up to
+   * `replaceAfterMs`. Never asked with `maxInFlight = 1`. Default 3 000.
+   */
+  resendCheckMs?: number;
+  /**
+   * A fee suggestion younger than this is reused for the next transactions instead of being read
+   * again (a burst reads it once). Replacements always read a fresh one, and so does every
+   * transaction with `maxInFlight = 1`. Default 1 000.
+   */
+  feeSuggestionMaxAgeMs?: number;
 }

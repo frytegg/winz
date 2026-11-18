@@ -29,6 +29,9 @@ describe("resolveTxSenderSettings", () => {
       retryMaxMs: 10_000,
       waitPollMs: 250,
       defaultWaitTimeoutMs: 60_000,
+      maxInFlight: 8,
+      resendCheckMs: 3_000,
+      feeSuggestionMaxAgeMs: 1_000,
     });
     expect(settings.feePolicy.floorWei).toBe(ARC_MIN_MAX_FEE_PER_GAS_WEI);
   });
@@ -37,6 +40,11 @@ describe("resolveTxSenderSettings", () => {
     const settings = resolveTxSenderSettings({ ...base, receiptPollMs: 50, maxFeeBumps: 0 });
     expect(settings.receiptPollMs).toBe(50);
     expect(settings.maxFeeBumps).toBe(0);
+  });
+
+  it("accepts a window of 1 (strictly one at a time) and of 64", () => {
+    expect(resolveTxSenderSettings({ ...base, maxInFlight: 1 }).maxInFlight).toBe(1);
+    expect(resolveTxSenderSettings({ ...base, maxInFlight: 64 }).maxInFlight).toBe(64);
   });
 
   it.each<[string, Partial<TxSenderConfig>]>([
@@ -49,6 +57,11 @@ describe("resolveTxSenderSettings", () => {
     ["a fee floor below Arc's", { minMaxFeePerGasWei: 1n }],
     ["zero prepare attempts", { maxPrepareAttempts: 0 }],
     ["a negative prepare budget", { maxPrepareMs: -1 }],
+    ["an empty window", { maxInFlight: 0 }],
+    ["a window above 64", { maxInFlight: 65 }],
+    ["a fractional window", { maxInFlight: 1.5 }],
+    ["a zero resend check", { resendCheckMs: 0 }],
+    ["a negative fee suggestion age", { feeSuggestionMaxAgeMs: -1 }],
   ])("rejects %s", (_label, override) => {
     expect(() => resolveTxSenderSettings({ ...base, ...override })).toThrow(TxSenderConfigError);
   });

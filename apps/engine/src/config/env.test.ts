@@ -113,6 +113,18 @@ describe("loadEngineEnv", () => {
     expect(set.ARC_RPC_HEAVY_METHODS).toEqual(["eth_getLogs", "eth_estimateGas"]);
   });
 
+  it("leaves the sender's window unset unless given, and reads it when it is", () => {
+    expect(loadEngineEnv(valid).ARC_TX_MAX_IN_FLIGHT).toBeUndefined();
+    expect(loadEngineEnv({ ...valid, ARC_TX_MAX_IN_FLIGHT: "1" }).ARC_TX_MAX_IN_FLIGHT).toBe(1);
+    expect(loadEngineEnv({ ...valid, ARC_TX_MAX_IN_FLIGHT: "12" }).ARC_TX_MAX_IN_FLIGHT).toBe(12);
+  });
+
+  it.each(["0", "65", "2.5", "many"])("refuses a sender window of %s", (value) => {
+    expect(issuesOf(() => loadEngineEnv({ ...valid, ARC_TX_MAX_IN_FLIGHT: value }))).toContain(
+      "ARC_TX_MAX_IN_FLIGHT",
+    );
+  });
+
   it("refuses RPC limits that cannot work", () => {
     expect(
       issuesOf(() => loadEngineEnv({ ...valid, ARC_RPC_MAX_REQUESTS_PER_SECOND: "0" })),
