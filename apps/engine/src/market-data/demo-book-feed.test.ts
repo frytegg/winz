@@ -20,7 +20,13 @@ import {
   type FakeSocketFactory,
   type RecordingLogger,
 } from "./book-test-support";
-import { PgDemoBookStore, parseDemoBook, DemoBookError } from "./demo-book-store";
+import {
+  PgDemoBookStore,
+  parseDemoBook,
+  DemoBookError,
+  type DemoBookRow,
+  type DemoBookStore,
+} from "./demo-book-store";
 import { GeminiRestClient } from "./gemini-rest-client";
 import { TokenBucket } from "./rate-limiter";
 import { RestBookPoller } from "./rest-book-poller";
@@ -53,6 +59,37 @@ interface Harness {
   events: BookFeedEvent[];
 }
 
+/**
+ * The Postgres demo store, with reads or release writes made to fail on demand, as when the
+ * connection drops or the table cannot be read.
+ */
+class FlakyDemoBookStore implements DemoBookStore {
+  /** listDemoBooks rejects while true. */
+  failReads = false;
+  /** The next N releaseDemoBook calls reject. */
+  failReleases = 0;
+  reads = 0;
+  readonly releases: { symbol: string; demoObservedAtMs: number; restored: boolean }[] = [];
+
+  constructor(private readonly inner: PgDemoBookStore) {}
+
+  async listDemoBooks(): Promise<DemoBookRow[]> {
+    this.reads += 1;
+    if (this.failReads) throw new Error('relation "demo_overrides" does not exist');
+    return this.inner.listDemoBooks();
+  }
+
+  async releaseDemoBook(...args: Parameters<DemoBookStore["releaseDemoBook"]>): Promise<void> {
+    const [symbol, demoObservedAtMs, live] = args;
+    this.releases.push({ symbol, demoObservedAtMs, restored: live !== null });
+    if (this.failReleases > 0) {
+      this.failReleases -= 1;
+      throw new Error("connection terminated unexpectedly");
+    }
+    await this.inner.releaseDemoBook(...args);
+  }
+}
+
 let database: TestDatabase | null = null;
 let harness: Harness | null = null;
 
@@ -68,7 +105,12 @@ afterEach(async () => {
 });
 
 async function setup(
-  options: { campaigns?: [string, string][]; demo?: boolean } = {},
+  options: {
+    campaigns?: [string, string][];
+    demo?: boolean;
+    /** Wraps the Postgres demo store, e.g. to make it fail. */
+    demoStore?: (store: PgDemoBookStore) => DemoBookStore;
+  } = {},
 ): Promise<Harness> {
   database = await createTestDatabase();
   const { db } = database;
@@ -115,7 +157,12 @@ async function setup(
     rest,
     logger: log.logger,
     scheduler,
-    demo: options.demo === false ? null : new PgDemoBookStore(db),
+    demo:
+      options.demo === false
+        ? null
+        : (options.demoStore ?? ((store: PgDemoBookStore): DemoBookStore => store))(
+            new PgDemoBookStore(db),
+          ),
   });
   const events: BookFeedEvent[] = [];
   feed.subscribe((event) => events.push(event));
@@ -428,6 +475,150 @@ describe("BookFeed with demo books", () => {
       expect((await bookCacheRow(h.db, NYK))?.source).not.toBe("demo");
     });
     expect(h.feed.getBook(NYK)?.bids[0]?.priceBps).not.toBe(3_000n);
+  });
+
+  it("keeps running while demo_overrides cannot be read, lets the demo book turn stale, and serves it again once readable", async () => {
+    let flaky: FlakyDemoBookStore | null = null;
+    const h = await setup({
+      campaigns: [
+        [NYK, "live"],
+        [MURR, "live"],
+      ],
+      demoStore: (store) => (flaky = new FlakyDemoBookStore(store)),
+    });
+    if (flaky === null) throw new Error("the feed was built without the demo store");
+    const store: FlakyDemoBookStore = flaky;
+    await waitTracked(h, [MURR, NYK]);
+    await setOverride(h.db, NYK, DEMO_BOOK);
+    await vi.waitFor(async () => {
+      await advance(h, 250);
+      expect((await bookCacheRow(h.db, NYK))?.source).toBe("demo");
+    });
+    await advance(h, 1_000);
+
+    store.failReads = true;
+    const readsBefore = store.reads;
+    // Let the pass in flight end: from now on no pass re-stamps the demo book.
+    await advance(h, 1_250);
+    const stampMs = h.feed.getBook(NYK)?.observedAtMs ?? 0;
+    // The rest of the feed keeps working: another instrument's Gemini book is served and written.
+    h.sockets.latest().receive(snapshot(MURR, 1, [["0.2100", "1.00"]], [["0.2300", "1.00"]]));
+    await vi.waitFor(async () => {
+      expect((await bookCacheRow(h.db, MURR))?.source).toBe("ws");
+    });
+
+    // Not stale before 10 s...
+    await advance(h, stampMs + 9_500 - h.scheduler.now());
+    expect(h.feed.isStale(NYK)).toBe(false);
+    // ...stale after: the demo book was not re-stamped while the table could not be read.
+    await advance(h, 1_500);
+    expect(h.feed.isStale(NYK)).toBe(true);
+    expect(h.feed.getBook(NYK)?.observedAtMs).toBe(stampMs);
+    expect(h.feed.getBook(NYK)?.bids[0]?.priceBps).toBe(3_000n);
+    await vi.waitFor(async () => {
+      expect((await liveInstrumentRow(h.db, NYK))?.stale).toBe(true);
+    });
+    expect(
+      h.log.lines.filter((line) => line.msg === "instrument stale" && line.symbol === NYK),
+    ).toHaveLength(1);
+    // Every pass kept trying, the failure was logged once, and an unreadable table is not a
+    // removed override: nothing was released.
+    expect(store.reads - readsBefore).toBeGreaterThanOrEqual(10);
+    expect(
+      h.log.lines.filter(
+        (line) => line.msg === "demo overrides could not be read, demo books not refreshed",
+      ),
+    ).toHaveLength(1);
+    expect(store.releases).toEqual([]);
+    expect(h.feed.trackedSymbols()).toEqual([MURR, NYK].sort());
+    expect(h.feed.isStale(MURR)).toBe(false);
+
+    // Readable again: the demo book is fresh again from the next pass.
+    store.failReads = false;
+    const backAtMs = h.scheduler.now();
+    await vi.waitFor(async () => {
+      await advance(h, 250);
+      expect(h.feed.isStale(NYK)).toBe(false);
+    });
+    expect(h.scheduler.now() - backAtMs).toBeLessThanOrEqual(1_250);
+    expect(h.log.messages().filter((msg) => msg === "demo overrides readable again")).toHaveLength(
+      1,
+    );
+    expect(h.feed.getBook(NYK)?.observedAtMs).toBeGreaterThan(stampMs + 10_000);
+    await vi.waitFor(async () => {
+      const live = await liveInstrumentRow(h.db, NYK);
+      expect(live).toMatchObject({ bid_bps: 3_000, ask_bps: 3_400, stale: false });
+      expect(live?.observed_at.getTime()).toBeGreaterThan(stampMs + 10_000);
+    });
+    const cached = await bookCacheRow(h.db, NYK);
+    expect(cached?.source).toBe("demo");
+    expect(cached?.observed_at.getTime()).toBeGreaterThan(stampMs + 10_000);
+  });
+
+  it("retries a release whose write failed on the next pass, and ends with the Gemini book", async () => {
+    let flaky: FlakyDemoBookStore | null = null;
+    const h = await setup({ demoStore: (store) => (flaky = new FlakyDemoBookStore(store)) });
+    if (flaky === null) throw new Error("the feed was built without the demo store");
+    const store: FlakyDemoBookStore = flaky;
+    await waitTracked(h, [NYK]);
+    await setOverride(h.db, NYK, DEMO_BOOK);
+    await vi.waitFor(async () => {
+      await advance(h, 250);
+      expect((await bookCacheRow(h.db, NYK))?.source).toBe("demo");
+    });
+    await advance(h, 2_000);
+    h.sockets.latest().receive(snapshot(NYK, 7, [["0.4400", "3.00"]], [["0.4600", "2.00"]]));
+    await advance(h, 250);
+
+    store.failReleases = 1;
+    await removeOverride(h.db, NYK);
+    await vi.waitFor(async () => {
+      await advance(h, 250);
+      expect(h.feed.getBook(NYK)?.bids[0]?.priceBps).toBe(4_400n);
+    });
+    await vi.waitFor(() => {
+      expect(h.log.messages()).toContain("demo book release failed");
+    });
+    const failedAtMs = h.scheduler.now();
+    // The failed write left the demo book in Postgres...
+    const left = await bookCacheRow(h.db, NYK);
+    expect(left?.source).toBe("demo");
+    expect((await liveInstrumentRow(h.db, NYK))?.bid_bps).toBe(3_000);
+
+    // ...and the next pass removes it, without waiting for a newer Gemini book.
+    await vi.waitFor(async () => {
+      await advance(h, 250);
+      expect(await bookCacheRow(h.db, NYK)).toBeNull();
+    });
+    expect(h.scheduler.now() - failedAtMs).toBeLessThanOrEqual(1_250);
+    expect(await liveInstrumentRow(h.db, NYK)).toMatchObject({ bid_bps: 3_000, stale: true });
+    expect(store.releases).toHaveLength(2);
+    expect(store.releases[1]).toEqual({
+      symbol: NYK,
+      demoObservedAtMs: store.releases[0]?.demoObservedAtMs,
+      restored: false,
+    });
+    expect(h.log.messages().filter((msg) => msg === "demo book release failed")).toHaveLength(1);
+    // Nothing is retried once the release went through.
+    await advance(h, 1_000);
+    expect(store.releases).toHaveLength(2);
+    expect(h.feed.getBook(NYK)?.bids[0]?.priceBps).toBe(4_400n);
+
+    // The next Gemini book is written as usual: Postgres ends with Gemini's book, fresh.
+    h.sockets.latest().receive(snapshot(NYK, 8, [["0.4500", "3.00"]], [["0.4700", "2.00"]]));
+    const liveAtMs = h.scheduler.now();
+    await advance(h, 500);
+    await vi.waitFor(async () => {
+      const row = await bookCacheRow(h.db, NYK);
+      expect(row?.source).toBe("ws");
+      expect(row?.observed_at.getTime()).toBe(liveAtMs);
+    });
+    expect(await liveInstrumentRow(h.db, NYK)).toMatchObject({
+      bid_bps: 4_500,
+      ask_bps: 4_700,
+      stale: false,
+    });
+    expect(h.feed.getBook(NYK)?.bids[0]?.priceBps).toBe(4_500n);
   });
 
   it("changes nothing when demo_overrides is empty", async () => {
