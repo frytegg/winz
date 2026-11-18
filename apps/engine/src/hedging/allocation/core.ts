@@ -11,10 +11,21 @@
  * resold at reconciliation) take from the front of that queue; their proceeds belong to the
  * platform, never to a lot.
  *
- * Rounding. A fill costs `ceil(price × qty / 10 000) + fee` micro-USDC (`fillCost`). Taking `q`
- * of its `Q` contracts costs `ceil(fillCost × q / Q)`, capped by what the fill still has, except
- * that the take which exhausts the fill gets exactly what is left. So the takes of one fill sum
- * to its cost exactly: nothing is created or lost by rounding.
+ * Rounding. A fill costs `ceil(price × qty / 10 000) + fee` micro-USDC (`fillCost`).
+ *
+ * - A lot taking `q` of its `Q` contracts pays `ceil(fillCost × q / Q)`, capped by what the fill
+ *   still has, except that the take which exhausts the fill gets exactly what is left
+ *   (`takeFromPiece`). Each lot's take is recorded (`lot_fills`).
+ * - Resales are not recorded take by take, only as the quantity sold, so their cost is a function
+ *   of that quantity alone: the first `s` contracts sold from a fill cost `soldCost(s) =
+ *   ceil(fillCost × s / Q)`, and a resale of `q` after `s` were sold costs `soldCost(s + q) −
+ *   soldCost(s)` (`sellFromPiece`), however many resales came before. Capped, and exhausting, as
+ *   a lot's take is.
+ *
+ * What is left of a fill therefore always costs `max(0, fillCost − (its lots' takes) −
+ * soldCost(sold from it))`, whatever the order of the takes, which is how `rebuildInventory`
+ * finds it from the tables: so the takes of one fill (lots, every resale on its own, the rest)
+ * sum to its cost exactly, and nothing is created or lost by rounding.
  */
 import { takerFeeBps } from "@winz/pricing";
 import { BPS, mulDivDown, mulDivUp } from "@winz/shared";
@@ -59,6 +70,8 @@ export interface InventoryPiece {
   remainingQty: MicroContracts;
   /** Cost of `remainingQty`: the fill's cost minus every take so far. */
   remainingCost: MicroUsdc;
+  /** Contracts of the fill resold so far (`sellFromPiece`); absent when none was. */
+  soldQty?: MicroContracts;
 }
 
 /** Part of a fill that covered part of a lot. */
@@ -102,7 +115,8 @@ export interface SellResult {
   costBasis: MicroUsdc;
   /**
    * proceeds − costBasis: the platform's result on the resale. With a `shortQty`, the cost of the
-   * contracts sold beyond the inventory is not in it: the buys that replace them carry it.
+   * contracts sold beyond the inventory is not in it yet: the buys that replace them carry it, and
+   * the store returns it with them (`replacedShort`) to be booked on the resales.
    */
   result: bigint;
   /** Contracts sold beyond the inventory (only with `allowShort`); 0 otherwise. */
@@ -168,6 +182,11 @@ function validatePiece(piece: InventoryPiece): void {
   if (piece.remainingQty > piece.fillQty || piece.remainingCost > piece.fillCost) {
     throw new AllocationInputError(`piece ${piece.fillId} has more left than the whole fill`);
   }
+  const sold = piece.soldQty ?? 0n;
+  assertNonNegative(`piece ${piece.fillId} soldQty`, sold);
+  if (sold + piece.remainingQty > piece.fillQty) {
+    throw new AllocationInputError(`piece ${piece.fillId} has sold more than the fill gave`);
+  }
 }
 
 /** Notional of a fill rounded up, plus its fee: what the fill really cost, micro-USDC. */
@@ -192,8 +211,24 @@ export function inventoryPiece(fill: BuyFillInput): InventoryPiece {
 }
 
 /**
- * Takes `qty` contracts from a piece. The take that exhausts the piece gets its whole remaining
- * cost; any other take costs its share of the whole fill rounded up, capped by what is left.
+ * What the first `sold` contracts resold from a fill of `fillQty` cost: their share of `fillCost`,
+ * rounded up, and the whole cost from `fillQty` on. Never decreasing in `sold`.
+ */
+export function soldCost(
+  fillCost: MicroUsdc,
+  fillQty: MicroContracts,
+  sold: MicroContracts,
+): MicroUsdc {
+  assertNonNegative("fill cost", fillCost);
+  assertNonNegative("sold qty", sold);
+  if (sold >= fillQty) return fillCost;
+  return mulDivUp(fillCost, sold, fillQty);
+}
+
+/**
+ * A lot takes `qty` contracts from a piece. The take that exhausts the piece gets its whole
+ * remaining cost; any other take costs its share of the whole fill rounded up, capped by what is
+ * left.
  */
 export function takeFromPiece(
   piece: InventoryPiece,
@@ -215,6 +250,42 @@ export function takeFromPiece(
       ...piece,
       remainingQty: piece.remainingQty - qty,
       remainingCost: piece.remainingCost - cost,
+    },
+  };
+}
+
+/**
+ * A resale takes `qty` contracts from a piece: `soldCost` of everything sold from the fill once it
+ * is done, minus that of what was sold before (`piece.soldQty`), so that a fill's resales cost
+ * the same in all however many there were. The take that exhausts the piece gets its whole
+ * remaining cost; any other take is capped by it.
+ */
+export function sellFromPiece(
+  piece: InventoryPiece,
+  qty: MicroContracts,
+): { cost: MicroUsdc; piece: InventoryPiece } {
+  validatePiece(piece);
+  if (qty <= 0n || qty > piece.remainingQty) {
+    throw new AllocationInputError(
+      `cannot sell ${qty.toString()} from fill ${piece.fillId}, which has ${piece.remainingQty.toString()} left`,
+    );
+  }
+  const before = piece.soldQty ?? 0n;
+  const cost =
+    qty === piece.remainingQty
+      ? piece.remainingCost
+      : minBig(
+          soldCost(piece.fillCost, piece.fillQty, before + qty) -
+            soldCost(piece.fillCost, piece.fillQty, before),
+          piece.remainingCost,
+        );
+  return {
+    cost,
+    piece: {
+      ...piece,
+      remainingQty: piece.remainingQty - qty,
+      remainingCost: piece.remainingCost - cost,
+      soldQty: before + qty,
     },
   };
 }
@@ -250,8 +321,12 @@ export interface RebuiltInventory {
  * Lots and sales both take from the front of the same queue, and new buy fills join at its end,
  * so whatever was consumed is a prefix of the queue: the parts lots took are in `lot_fills`, and
  * the parts sales took are the first `soldQty` contracts of what lots left. The suffix that
- * remains is therefore known exactly in quantity. Its cost is each fill's cost minus what its
- * takes cost, so the sum over lots, sales and inventory is always the sum of the fill costs.
+ * remains is therefore known exactly in quantity, and so is what was sold from each fill. Its
+ * cost is each fill's cost minus what its lots took (`lot_fills`) minus `soldCost` of what was
+ * sold from it, never below zero: exactly what the resales left, however many there were and in
+ * whatever order they and the lots took (see the module comment). So the costs allocated to lots,
+ * the cost bases the resales returned and the inventory's cost always add up to the fills' cost,
+ * to the micro-USDC.
  *
  * When more was sold than lots left (a real over-sale on the venue), the whole queue is consumed
  * and the excess comes back as `shortQty`: buy fills recorded later are taken by it first, which
@@ -263,7 +338,7 @@ export function rebuildInventory(
   soldQty: MicroContracts,
 ): RebuiltInventory {
   assertNonNegative("sold qty", soldQty);
-  const pieces: InventoryPiece[] = [];
+  const unallocated: { fill: HeldFill; remainingQty: MicroContracts }[] = [];
   for (const fill of fills) {
     const remainingQty = fill.fillQty - fill.allocatedQty;
     const remainingCost = fill.fillCost - fill.allocatedCost;
@@ -280,32 +355,31 @@ export function rebuildInventory(
       }
       continue;
     }
+    unallocated.push({ fill, remainingQty });
+  }
+  const available = unallocated.reduce((total, item) => total + item.remainingQty, 0n);
+  if (soldQty >= available) return { pieces: [], shortQty: soldQty - available };
+  const pieces: InventoryPiece[] = [];
+  let toSell = soldQty;
+  for (const { fill, remainingQty: unallocatedQty } of unallocated) {
+    const sold = minBig(toSell, unallocatedQty);
+    toSell -= sold;
+    const remainingQty = unallocatedQty - sold;
+    if (remainingQty === 0n) continue;
+    const remainingCost =
+      fill.fillCost - fill.allocatedCost - soldCost(fill.fillCost, fill.fillQty, sold);
     const piece: InventoryPiece = {
       fillId: fill.fillId,
       fillQty: fill.fillQty,
       fillCost: fill.fillCost,
       remainingQty,
-      remainingCost,
+      remainingCost: remainingCost > 0n ? remainingCost : 0n,
+      ...(sold > 0n ? { soldQty: sold } : {}),
     };
     validatePiece(piece);
     pieces.push(piece);
   }
-  const available = pieces.reduce((total, piece) => total + piece.remainingQty, 0n);
-  if (soldQty >= available) return { pieces: [], shortQty: soldQty - available };
-  let toSell = soldQty;
-  let index = 0;
-  while (toSell > 0n) {
-    const piece = pieces[index];
-    if (piece === undefined) break;
-    const qty = minBig(toSell, piece.remainingQty);
-    pieces[index] = takeFromPiece(piece, qty).piece;
-    toSell -= qty;
-    if (qty === piece.remainingQty) index += 1;
-  }
-  return {
-    pieces: pieces.slice(index).filter((piece) => piece.remainingQty > 0n),
-    shortQty: 0n,
-  };
+  return { pieces, shortQty: 0n };
 }
 
 /**
@@ -492,7 +566,7 @@ export function sellFromInventory(
     const piece = pieces[index];
     if (piece === undefined) throw new InventoryUnderflowError(instrument, fill.qty, available);
     const qty = minBig(toSell, piece.remainingQty);
-    const taken = takeFromPiece(piece, qty);
+    const taken = sellFromPiece(piece, qty);
     pieces[index] = taken.piece;
     consumed.push({ fillId: piece.fillId, qty, cost: taken.cost });
     costBasis += taken.cost;

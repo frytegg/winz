@@ -96,8 +96,10 @@ const TERMINAL_ORDER_STATUSES = ["filled", "cancelled", "rejected"] as const;
  *   rebuild a position without that fill.
  * - A fill goes through the allocation store's `recordFill` in a transaction that also moves
  *   `positions.held` by the quantity the runner counted and adds a resale's result to
- *   `engine_pnl.resale_result`. `recordFill` is idempotent on (order, venue fill id): a fill
- *   recorded twice changes nothing, and nothing else is written the second time.
+ *   `engine_pnl.resale_result` (and, for a buy that replaced an over-sale, minus that buy's cost
+ *   of the replaced contracts: the rest of the over-sale's cost basis). `recordFill` is
+ *   idempotent on (order, venue fill id): a fill recorded twice changes nothing, and nothing else
+ *   is written the second time.
  */
 export class PgPolicySink implements PolicyEventSink {
   private readonly db: Db;
@@ -368,10 +370,13 @@ export class PgPolicySink implements PolicyEventSink {
         ) recorded
         where o.id = ${order.id}
       `;
-      if (result.sale !== null && result.sale.result !== 0n) {
+      // A resale's result, or the cost of a buy that replaced an over-sale (the rest of that
+      // over-sale's cost basis): together, what the resales really brought in.
+      const resaleResult = (result.sale?.result ?? 0n) - (result.replacedShort?.cost ?? 0n);
+      if (resaleResult !== 0n) {
         await tx`
           insert into engine_pnl (event_ticker, resale_result)
-          values (${order.eventTicker}, ${result.sale.result.toString()}::bigint)
+          values (${order.eventTicker}, ${resaleResult.toString()}::bigint)
           on conflict (event_ticker) do update
             set resale_result = engine_pnl.resale_result + excluded.resale_result
         `;
@@ -394,6 +399,8 @@ export class PgPolicySink implements PolicyEventSink {
         qty: fill.qty.toString(),
         coveredLots: done.result.coveredLots.length,
         resaleResult: done.result.sale?.result.toString() ?? null,
+        replacedShortQty: done.result.replacedShort?.qty.toString() ?? null,
+        replacedShortCost: done.result.replacedShort?.cost.toString() ?? null,
       },
       "fill recorded and allocated",
     );
