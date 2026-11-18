@@ -1,12 +1,16 @@
-import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
 import { Card } from "../ui/card";
 import { FitText } from "../ui/fit-text";
+import type { IconComponent } from "../ui/icons";
 
-/** A figure with its label (Sales, Gross sales, Coverage…). The value is a `Money` or a number. */
+/**
+ * A figure with its label (Sales, Gross sales, Coverage…). The value is a `Money` or a number.
+ * As in the mockups: a 15px white outline icon, 10px before a light-weight white label, 20px of
+ * side padding. Pass `ReceiptIcon` for a count of orders or a coverage share, `CashIcon` for an amount.
+ */
 export function StatTile({
   label,
   icon: Icon,
@@ -14,15 +18,15 @@ export function StatTile({
   className,
 }: {
   label: string;
-  icon?: LucideIcon;
+  icon?: IconComponent;
   children: ReactNode;
   className?: string;
 }): React.JSX.Element {
   return (
-    <Card tone="raised" diagonals className={cn("p-4", className)}>
-      <p className="flex items-center gap-2 text-body text-text">
+    <Card tone="raised" diagonals className={cn("px-5 py-4", className)}>
+      <p className="flex items-center gap-2.5 text-body font-light text-text">
         {Icon === undefined ? null : (
-          <Icon className="size-4 text-muted" strokeWidth={1.5} aria-hidden="true" />
+          <Icon className="size-[15px] shrink-0" strokeWidth={1.25} aria-hidden="true" />
         )}
         {label}
       </p>

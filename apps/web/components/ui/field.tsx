@@ -64,8 +64,8 @@ export function Field({
         aria-describedby={message === undefined ? undefined : messageId}
         className={cn(
           "h-12 w-full rounded-full border bg-transparent px-5 text-text placeholder:text-muted",
-          "outline-none transition-colors duration-150 ease-out",
-          "focus-visible:border-lime focus-visible:ring-1 focus-visible:ring-lime",
+          "outline-0 transition-colors duration-150 ease-out",
+          "focus-visible:border-lime focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-lime",
           "disabled:opacity-50",
           error === undefined ? "border-stroke" : "border-danger",
         )}
