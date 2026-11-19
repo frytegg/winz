@@ -4,12 +4,39 @@
  */
 
 let demo = false;
+/** Screens that hold the band up whatever the last answer said (the admin panel). */
+let pins = 0;
 const listeners = new Set<() => void>();
+
+function notify(): void {
+  for (const listener of listeners) listener();
+}
 
 export function setDemoMode(next: boolean): void {
   if (demo === next) return;
+  const before = getDemoMode();
   demo = next;
-  for (const listener of listeners) listener();
+  if (getDemoMode() !== before) notify();
+}
+
+/**
+ * Holds the DEMO MODE band up until the returned function is called. The admin pages are the demo
+ * panel itself: the band stays on them for as long as they are open, even when an answer says
+ * `demo: false` (the hedge desk read on the same page, with no override in force yet). The pins
+ * count, so two screens that pin do not release each other.
+ */
+export function pinDemoMode(): () => void {
+  const before = getDemoMode();
+  pins += 1;
+  if (getDemoMode() !== before) notify();
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const wasOn = getDemoMode();
+    pins -= 1;
+    if (getDemoMode() !== wasOn) notify();
+  };
 }
 
 export function subscribeDemoMode(listener: () => void): () => void {
@@ -20,7 +47,7 @@ export function subscribeDemoMode(listener: () => void): () => void {
 }
 
 export function getDemoMode(): boolean {
-  return demo;
+  return demo || pins > 0;
 }
 
 /**
