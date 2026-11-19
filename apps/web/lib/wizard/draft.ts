@@ -147,12 +147,4 @@ export function nextStep(step: WizardStep): WizardStep | null {
   return WIZARD_STEPS[WIZARD_STEPS.indexOf(step) + 1] ?? null;
 }
 
-/** "Arkansas vs Texas" → ["Arkansas", "Texas"]. The API has no teams on a campaign (see DEMANDES). */
-export function splitEventTitle(title: string): [string, string] | null {
-  const match = /^(.+?)\s+vs\.?\s+(.+)$/i.exec(title.trim());
-  const away = match?.[1];
-  const home = match?.[2];
-  return away === undefined || home === undefined ? null : [away, home];
-}
-
 export type { EventSummary };

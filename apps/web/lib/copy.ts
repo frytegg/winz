@@ -1,5 +1,10 @@
 import type { CampaignStatus, MerchantCategory, SaleState, Sport, TicketPhase } from "@winz/shared";
 
+/** "Texas" → "Texas'", "Pitt" → "Pitt's": a name that ends in s takes the apostrophe alone. */
+export function possessive(name: string): string {
+  return /s$/i.test(name) ? `${name}'` : `${name}'s`;
+}
+
 /**
  * Product copy, US English. Every user-facing string lives here (SPEC section 14), grouped by
  * screen (winz-front-kit/SCREENS.md). No crypto word in anything a fan reads: wallet, USDC,
@@ -216,10 +221,11 @@ export const copy = {
     capacity: (sales: number): string => `Up to ${sales.toLocaleString("en-US")} sales`,
     limitedByDepth: "Limited by what the market can cover right now.",
     limitedByBudget: "Limited by your budget.",
+    /** `subject` is the team the promo is about ("Texas"); `null` for a total or a draw. */
     pauses: (subject: string | null, percent: number): string =>
       subject === null
         ? `Your promo pauses if the chances go above ${percent.toString()}%.`
-        : `Your promo pauses if ${subject}' chances go above ${percent.toString()}%.`,
+        : `Your promo pauses if ${possessive(subject)} chances go above ${percent.toString()}%.`,
     currentChance: "Chance right now",
     pausedPrice:
       "At today's odds this promo would be paused. Lower your minimum margin or pick another promo.",
@@ -246,7 +252,9 @@ export const copy = {
     simulatePayment: "Simulate payment",
     simulatePaymentOf: (amount: string): string => `Simulate payment · ${amount}`,
     paying: "Paying…",
-    cardSoon: "Card payment arrives with the live version.",
+    fundWithCard: (amount: string): string => `Fund ${amount} with card`,
+    fundAmount: (amount: string): string => `Pay ${amount}`,
+    cardTitle: "Pay with card",
   },
 
   /** M8 */
@@ -388,12 +396,14 @@ export const copy = {
     cannotResume:
       "This pause is automatic. Sales come back by themselves when the market is ready.",
     promiseLocked: "Your refund promise can't change.",
-    saleState: (state: SaleState, pausePercent: number): string => {
+    saleState: (state: SaleState, pausePercent: number, subject: string | null): string => {
       switch (state) {
         case "open":
           return "Selling";
         case "paused_price":
-          return `Paused: the chances are above ${pausePercent.toString()}%`;
+          return subject === null
+            ? `Paused: the chances are above ${pausePercent.toString()}%`
+            : `Paused: ${possessive(subject)} chances are above ${pausePercent.toString()}%`;
         case "paused_budget":
           return "Paused: budget used up";
         case "paused_depth":
@@ -482,7 +492,7 @@ export const copy = {
     paused: "Paused for now. Check back in a few minutes.",
     closed: "Sales are closed for this game",
     won: "Everyone got their money back",
-    wonBody: (conditionLabel: string): string => `The promo hit: ${conditionLabel}.`,
+    wonBody: (resultLabel: string): string => `${resultLabel}.`,
     lost: "Not this time",
     lostBody: (merchant: string): string => `Thanks for playing with ${merchant}.`,
     voided: "This game didn't go ahead",
@@ -510,7 +520,9 @@ export const copy = {
     total: "Total",
     chargedWhenReady: "You're only charged once your ticket is ready.",
     backToPromo: "Back to the promo",
-    cardSoon: "Card payment arrives with the live version.",
+    payAmount: (amount: string): string => `Pay ${amount}`,
+    noWallet: "Apple Pay isn't available here. Pay with your card instead.",
+    unavailable: "Payment isn't available right now. Try again in a moment.",
     closeSheet: "Close checkout",
     ticketPrinting: "Your ticket is being printed",
   },
@@ -530,7 +542,6 @@ export const copy = {
     gameOnBody: "The odds move with the game. Your promise stands.",
     refunded: "Refunded",
     refundedLine: (merchant: string): string => `Your order was on ${merchant}.`,
-    refundedHit: (conditionLabel: string): string => `Your promo hit: ${conditionLabel}.`,
     refundedOn: "Refunded",
     shareWin: "Share the win",
     shareWinText: (merchant: string, amount: string): string =>
@@ -576,15 +587,133 @@ export const copy = {
   /** Jury and demo */
   hedgeDesk: {
     title: "Hedge desk",
-    totals: {
-      makerSavings: "Maker savings",
-      guaranteeLosses: "Guarantee losses",
-      crossingGains: "Crossing gains",
+    lead: "What the engine does with the risk of every promo. Public, read-only, live.",
+    live: "Live",
+    venue: {
+      title: "Execution venue",
+      unavailable: "The venue is shown as soon as the desk answers.",
     },
-    unhedged: "Unhedged",
-    armed: "Armed",
+    updatedAt: (time: string): string => `Updated ${time}`,
+    waiting: "Waiting for the first reading",
+    offline: "Offline",
+    lastReading: (time: string): string => `Last reading ${time}, retrying`,
+    noReading: "No reading yet",
+    loadFailedTitle: "The Hedge desk did not load",
+    reconnecting: "Connection lost. Showing the last reading, trying again.",
+    totals: {
+      title: "Engine totals",
+      makerSavings: "Maker savings",
+      makerSavingsHint: "Saved against filling everything as taker",
+      guaranteeLosses: "Guarantee losses",
+      guaranteeLossesHint: "Paid by Winz when a fill came in above a quote's guarantee",
+      crossingGains: "Crossing gains",
+      crossingGainsHint: "Kept when two opposite exposures cancel out, with no order placed",
+    },
+    params: {
+      title: "Risk limits",
+      uMax: "Max unhedged",
+      uMaxHint: "per instrument",
+      makerTtl: "Maker order lifetime",
+      makerTtlValue: (seconds: number): string => `${seconds.toString()} s`,
+      askMove: "Abandon maker after ask moves",
+      askMoveValue: (ticks: number): string =>
+        ticks === 1 ? "1 tick" : `${ticks.toString()} ticks`,
+      tolerance: "Guarantee tolerance",
+      toleranceValue: (ticks: number): string =>
+        ticks === 1 ? "1 tick" : `${ticks.toString()} ticks`,
+      forceTaker: "Taker only",
+      forceTakerValue: (minutes: number): string =>
+        `last ${minutes.toString()} min before the start`,
+    },
+    instruments: {
+      title: "Instruments",
+      count: (n: number): string =>
+        n === 1 ? "1 instrument covered" : `${n.toString()} instruments covered`,
+      emptyTitle: "No instrument is covered yet",
+      emptyBody: "The engine covers an instrument as soon as a promo sells on it.",
+      starts: (when: string): string => `Starts ${when}`,
+      bid: "Bid",
+      ask: "Ask",
+      noBook: "No book",
+      bookAsOf: (time: string): string => `Book as of ${time}`,
+      noBookTime: "No book reading yet",
+      stale: "Stale book",
+      fresh: "Fresh book",
+      exposure: "Exposure",
+      exposureCode: "E",
+      exposureHint: "Contracts owed if YES",
+      held: "Held",
+      heldCode: "H",
+      heldHint: "Contracts bought",
+      working: "Working",
+      workingCode: "W",
+      workingHint: "Resting maker orders",
+      open: "Uncovered",
+      barLabel: "Exposure, held and working contracts",
+      hedgedLabel: "hedged",
+      hedged: (percent: number): string => `${percent.toString()}% hedged`,
+      noExposure: "No exposure",
+      overCovered: "Held + working is above the exposure",
+      unhedged: "Unhedged",
+      unhedgedOf: (limit: string): string => `of ${limit} limit`,
+      unhedgedHint: "(E − H) × price",
+      unhedgedLabel: "Unhedged notional against the limit",
+      nearLimit: "Near the limit",
+      overLimit: "Over the limit",
+      makerSavings: "Maker savings",
+      makerSavingsHint: "vs 100% taker",
+    },
+    breaker: {
+      title: "Circuit breaker",
+      armed: "Armed",
+      armedHint: "Selling is on",
+      tripped: "Tripped",
+      reasons: {
+        venue_down: "Venue down",
+        stale_book: "Stale book",
+        unhedged_limit: "Unhedged limit",
+      },
+    },
+    orders: {
+      title: "Orders",
+      empty: "No order yet",
+      time: "Time",
+      type: "Type",
+      price: "Price",
+      filled: "Filled",
+      status: "Status",
+      kind: { maker: "Maker", taker: "Taker" },
+      side: { buy: "Buy", sell: "Sell" },
+      statuses: {
+        working: "Working",
+        filled: "Filled",
+        partially_filled: "Partial",
+        cancelled: "Cancelled",
+        rejected: "Rejected",
+      },
+    },
+    fills: {
+      title: "Fills",
+      empty: "No fill yet",
+      time: "Time",
+      type: "Type",
+      price: "Price",
+      qty: "Qty",
+      fee: "Fee",
+    },
+    showAll: (n: number): string => `Show all ${n.toString()}`,
+    showLess: "Show fewer",
     proof: "Real-order proof",
+    proofLead: "Real orders placed on the Gemini sandbox, to prove the order adapter works.",
+    proofRanAt: (when: string): string => `Last check ${when}`,
     notRun: "Not run yet",
+    proofSteps: {
+      placed_maker: "Maker order placed",
+      cancelled: "Order cancelled",
+      filled: "Order filled",
+    },
+    proofNotYet: "Not yet",
+    proofOrderId: "Sandbox order",
   },
   admin: {
     title: "Demo panel",

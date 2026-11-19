@@ -1,6 +1,5 @@
 "use client";
 
-import type { CreateCampaignResponse } from "@winz/shared";
 import { useRef, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,13 @@ import { useAuth } from "@/lib/auth";
 import { copy } from "@/lib/copy";
 import { bpsToWholePercent, centsToMicro } from "@/lib/format";
 import { journeyProgress } from "@/lib/journey";
-import { saveLaunched } from "@/lib/wizard/launched";
+import {
+  RequestIds,
+  isRequestSpent,
+  planFromCreate,
+  retryWhileCreating,
+  type FundingPlan,
+} from "@/lib/merchant/funding";
 import { buildTerms, promiseText, resolveOffer, selectedTemplate } from "@/lib/wizard/draft";
 
 import { pausedExplanation, usePreview } from "./use-preview";
@@ -51,7 +56,7 @@ export function StepReview({
   const offer = merchant == null ? null : resolveOffer(draft, merchant);
   const terms = offer === null || template === null ? null : buildTerms(offer, template);
   const preview = usePreview(terms, 0);
-  const created = useRef<{ key: string; response: CreateCampaignResponse } | null>(null);
+  const requestIds = useRef(new RequestIds());
 
   if (merchant == null || offer === null || terms === null || template === null || event === null) {
     return null;
@@ -61,20 +66,26 @@ export function StepReview({
   const explanation = result === null ? null : pausedExplanation(result.saleState);
   const canFund = result !== null && explanation === null && !preview.loading;
 
-  async function createCampaign(): Promise<CreateCampaignResponse> {
+  /**
+   * One `requestId` per request: the same terms keep it, so a second tap, a retry after a dropped
+   * connection or after a card refused at Stripe asks for the same campaign and the same payment
+   * (the back end then answers the campaign's state of the moment, or a new campaign and a new
+   * payment when Stripe cancelled the first: the last answer is the one to pay). The answer is never
+   * kept here for that reason. A 503 ("still being created") is sent again with the same id.
+   */
+  async function prepare(): Promise<FundingPlan> {
     if (offer === null || terms === null) throw new RangeError("Nothing to create");
     const product = offer.product.trim();
-    const key = JSON.stringify({ terms, product });
-    if (created.current?.key === key) return created.current.response;
-    const response = await apiFetch("createCampaign", { body: { ...terms, product } });
-    created.current = { key, response };
-    return response;
-  }
-
-  function funded(campaignId: string): void {
-    // M8 shows the teams, which the campaign itself does not carry yet (DEMANDES-ALEXANDRE, item 1).
-    if (event !== null) saveLaunched({ campaignId, event, merchantName: merchant?.name ?? "" });
-    onLaunched(campaignId);
+    const requestId = requestIds.current.idFor(JSON.stringify({ terms, product }));
+    try {
+      const response = await retryWhileCreating(() =>
+        apiFetch("createCampaign", { body: { ...terms, product, requestId } }),
+      );
+      return planFromCreate(response);
+    } catch (error: unknown) {
+      if (isRequestSpent(error)) requestIds.current.renew();
+      throw error;
+    }
   }
 
   return (
@@ -87,8 +98,8 @@ export function StepReview({
       footer={
         <FundBudget
           amountCents={offer.budgetCents}
-          createCampaign={createCampaign}
-          onFunded={funded}
+          prepare={prepare}
+          onFunded={onLaunched}
           disabled={!canFund}
         />
       }

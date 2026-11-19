@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { CRYPTO_WORDS } from "./crypto-words";
-import { copy } from "./copy";
+import { copy, possessive } from "./copy";
 
 /**
  * No crypto word on a fan screen (BRIEF section 4). The merchant space may say "coverage", and
@@ -67,5 +67,29 @@ describe("fan copy", () => {
     }
     expect(CRYPTO_WORDS.test("Chain reaction")).toBe(true);
     expect(CRYPTO_WORDS.test("Gasoline, tokens")).toBe(false);
+  });
+});
+
+describe("the team a promo is about", () => {
+  it("puts the apostrophe after the s of a name that ends in s, and 's after any other", () => {
+    expect(possessive("Texas")).toBe("Texas'");
+    expect(possessive("Pitt")).toBe("Pitt's");
+    expect(possessive("Pittsburgh")).toBe("Pittsburgh's");
+  });
+
+  it("is named in the pause sentence when the promo is about a team, and not for a total", () => {
+    expect(copy.margin.pauses("Texas", 18)).toBe(
+      "Your promo pauses if Texas' chances go above 18%.",
+    );
+    expect(copy.margin.pauses("Pitt", 18)).toBe(
+      "Your promo pauses if Pitt's chances go above 18%.",
+    );
+    expect(copy.margin.pauses(null, 18)).toBe("Your promo pauses if the chances go above 18%.");
+    expect(copy.campaignDetail.saleState("paused_price", 18, "Texas")).toBe(
+      "Paused: Texas' chances are above 18%",
+    );
+    expect(copy.campaignDetail.saleState("paused_price", 18, null)).toBe(
+      "Paused: the chances are above 18%",
+    );
   });
 });

@@ -8,15 +8,18 @@ import { bpsToWholePercent } from "@/lib/format";
 export function ChanceMeter({
   currentBps,
   thresholdBps,
+  subject,
 }: {
   /** `null` without a fresh quote: the fill is hidden. */
   currentBps: number | null;
   thresholdBps: number;
+  /** The team the promo is about ("Texas"); `null` for a total or a draw. */
+  subject: string | null;
 }): React.JSX.Element {
   const clamp = (bps: number): number => Math.min(100, Math.max(0, bps / 100));
   const summary =
     currentBps === null
-      ? copy.margin.pauses(null, bpsToWholePercent(thresholdBps))
+      ? copy.margin.pauses(subject, bpsToWholePercent(thresholdBps))
       : `${copy.margin.currentChance} ${bpsToWholePercent(currentBps).toString()}%. ${copy.margin.pausesAt(bpsToWholePercent(thresholdBps))}`;
   return (
     <div className="flex flex-col gap-2">

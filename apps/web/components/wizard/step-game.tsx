@@ -149,6 +149,8 @@ export function StepGame(): React.JSX.Element {
                     away={event.away}
                     home={event.home}
                     startsAt={event.startsAt}
+                    awayChanceBps={event.away.winProbabilityBps}
+                    homeChanceBps={event.home.winProbabilityBps}
                     selected={picked === event.ticker}
                     disabled={closed}
                     disabledLabel={copy.pickGame.oddsNotOpen}
