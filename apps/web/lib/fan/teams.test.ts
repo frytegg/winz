@@ -1,30 +1,45 @@
+import type { CampaignEvent } from "@winz/shared";
 import { describe, expect, it } from "vitest";
 
 import { totalMicro } from "./amount";
-import { abbreviate, teamsFromTitle } from "./teams";
+import { gameFromEvent } from "./teams";
 
-describe("teamsFromTitle", () => {
-  it("cuts the title on vs", () => {
-    const teams = teamsFromTitle("Arkansas vs Texas");
-    expect(teams?.away.name).toBe("Arkansas");
-    expect(teams?.away.abbreviation).toBe("ARK");
-    expect(teams?.home.name).toBe("Texas");
-    expect(teams?.home.abbreviation).toBe("TEX");
-    expect(teams?.away.art).not.toBe(teams?.home.art);
+const GAME: CampaignEvent = {
+  sport: "football",
+  league: "NCAAF",
+  home: { name: "Texas Longhorns", abbreviation: "TEX", logoUrl: null },
+  away: { name: "Arkansas Razorbacks", abbreviation: "ARK", logoUrl: null },
+};
+
+describe("gameFromEvent", () => {
+  it("takes the names, the abbreviations and the sport from the event, away on the left", () => {
+    const game = gameFromEvent(GAME);
+    expect(game.sport).toBe("football");
+    expect(game.away.name).toBe("Arkansas Razorbacks");
+    expect(game.away.abbreviation).toBe("ARK");
+    expect(game.home.name).toBe("Texas Longhorns");
+    expect(game.home.abbreviation).toBe("TEX");
+    expect(game.away.art).not.toBeNull();
+    expect(game.away.art).not.toBe(game.home.art);
   });
 
-  it("is null when there is no vs, and the screen shows the title", () => {
-    expect(teamsFromTitle("Monday night football")).toBeNull();
+  it("draws the art of the sport of the game, not always football", () => {
+    const game = gameFromEvent({ ...GAME, sport: "basketball", league: "NCAAM" });
+    expect(game.away.art).toContain("basketball");
+    expect(game.home.art).toContain("basketball");
   });
 
-  it("keeps letters only in an abbreviation", () => {
-    expect(abbreviate("Texas A&M")).toBe("TEX");
-    expect(abbreviate("49ers")).toBe("ERS");
+  it("keeps a team's own logo over the illustration", () => {
+    const logo = "https://example.com/tex.png";
+    const game = gameFromEvent({ ...GAME, home: { ...GAME.home, logoUrl: logo } });
+    expect(game.home.art).toBe(logo);
+    expect(game.away.art).toContain("football");
   });
 
-  it("keeps the first letters of a name with no Latin letter, not an empty badge", () => {
-    expect(abbreviate("東京ドーム")).toBe("東京ド");
-    expect(abbreviate("Ελλάδα")).toBe("ΕΛΛ");
+  it("falls back to a monogram (no art) for a sport without illustrations", () => {
+    const game = gameFromEvent({ ...GAME, sport: "hockey", league: "NHL" });
+    expect(game.away.art).toBeNull();
+    expect(game.home.art).toBeNull();
   });
 });
 

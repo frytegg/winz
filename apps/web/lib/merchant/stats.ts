@@ -15,9 +15,6 @@ function startOfDay(date: Date): Date {
 /**
  * Whether `iso` falls in the period, in the viewer's time zone: today, the current week (Sunday to
  * Saturday, as in the US) or the current calendar month.
- *
- * The campaign has no creation date (DEMANDES-ALEXANDRE, item 6), so callers pass the game's start:
- * a promo opened today for a game next week then counts next week. A fallback, not the real thing.
  */
 export function inPeriod(iso: string, period: Period, now: Date): boolean {
   const date = new Date(iso);
@@ -35,6 +32,15 @@ export function inPeriod(iso: string, period: Period, now: Date): boolean {
   );
   const weekEnd = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 7);
   return day.getTime() >= weekStart.getTime() && day.getTime() < weekEnd.getTime();
+}
+
+/**
+ * When a promo started selling, which is the date its period is judged on: the moment it went live,
+ * or its creation date for one that is not live yet. Not the game's start: a promo opened today for a
+ * game next week belongs to today's figures.
+ */
+export function launchedAt(campaign: CampaignSummary): string {
+  return campaign.liveAt ?? campaign.createdAt;
 }
 
 export interface Totals {
@@ -63,7 +69,7 @@ export function totalsFor(
   period: Period,
   now: Date,
 ): Totals {
-  return sum(campaigns, (campaign) => inPeriod(campaign.startsAt, period, now));
+  return sum(campaigns, (campaign) => inPeriod(launchedAt(campaign), period, now));
 }
 
 /** Every campaign that sold, whatever the date: the figures of the Stats screen. */

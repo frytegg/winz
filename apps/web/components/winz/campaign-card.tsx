@@ -2,7 +2,7 @@ import type { CampaignSummary } from "@winz/shared";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
-import { teamsFromTitle } from "@/lib/fan/teams";
+import { gameFromEvent } from "@/lib/fan/teams";
 import { copy } from "@/lib/copy";
 import { formatMoney } from "@/lib/format";
 import { isPulsing, statusBadge } from "@/lib/merchant/status";
@@ -16,11 +16,11 @@ import { TeamBadge } from "./team-badge";
 
 /**
  * A promo of the list (MC): its status, the promise in capitals, the two teams, and what it sold.
- * The whole card is the link to the detail. The teams are cut out of the title because the list has
- * no sport and no abbreviations (DEMANDES-ALEXANDRE, item 1): football art unless the title is odd.
+ * The whole card is the link to the detail. The teams, their abbreviations and the sport's art come
+ * from the campaign's `event`.
  */
 export function CampaignCard({ campaign }: { campaign: CampaignSummary }): React.JSX.Element {
-  const teams = teamsFromTitle(campaign.eventTitle);
+  const teams = gameFromEvent(campaign.event);
   const live = campaign.status === "live";
   return (
     <Link
@@ -54,40 +54,36 @@ export function CampaignCard({ campaign }: { campaign: CampaignSummary }): React
         </h2>
 
         <div className="mt-5 flex items-end justify-between gap-3">
-          {teams === null ? (
-            <p className="min-w-0 truncate text-body text-muted">{campaign.eventTitle}</p>
-          ) : (
-            <div
-              role="img"
-              aria-label={copy.campaigns.versus(teams.away.name, teams.home.name)}
-              className="flex shrink-0 items-center gap-1"
-            >
-              <div className="flex w-12 flex-col items-center gap-0.5">
-                <TeamBadge
-                  abbreviation={teams.away.abbreviation}
-                  src={teams.away.art}
-                  side="a"
-                  size={36}
-                />
-                <span className="text-micro text-muted">{teams.away.abbreviation}</span>
-              </div>
-              <span
-                aria-hidden="true"
-                className="mb-4 grid size-6 place-items-center rounded-full bg-lime text-micro font-semibold text-ink"
-              >
-                {copy.pickGame.vs}
-              </span>
-              <div className="flex w-12 flex-col items-center gap-0.5">
-                <TeamBadge
-                  abbreviation={teams.home.abbreviation}
-                  src={teams.home.art}
-                  side="b"
-                  size={36}
-                />
-                <span className="text-micro text-muted">{teams.home.abbreviation}</span>
-              </div>
+          <div
+            role="img"
+            aria-label={copy.campaigns.versus(teams.away.name, teams.home.name)}
+            className="flex shrink-0 items-center gap-1"
+          >
+            <div className="flex w-12 flex-col items-center gap-0.5">
+              <TeamBadge
+                abbreviation={teams.away.abbreviation}
+                src={teams.away.art}
+                side="a"
+                size={36}
+              />
+              <span className="text-micro text-muted">{teams.away.abbreviation}</span>
             </div>
-          )}
+            <span
+              aria-hidden="true"
+              className="mb-4 grid size-6 place-items-center rounded-full bg-lime text-micro font-semibold text-ink"
+            >
+              {copy.pickGame.vs}
+            </span>
+            <div className="flex w-12 flex-col items-center gap-0.5">
+              <TeamBadge
+                abbreviation={teams.home.abbreviation}
+                src={teams.home.art}
+                side="b"
+                size={36}
+              />
+              <span className="text-micro text-muted">{teams.home.abbreviation}</span>
+            </div>
+          </div>
           <p className="figures shrink-0 text-right text-body">
             <span className="block">{formatMoney(campaign.revenue)}</span>
             <span className="block text-caption text-muted">

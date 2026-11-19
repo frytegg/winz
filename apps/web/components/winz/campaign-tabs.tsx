@@ -253,7 +253,7 @@ export function ControlsTab({
               campaign.saleState === "open" ? "animate-pulse-dot bg-lime" : "bg-muted",
             )}
           />
-          {t.saleState(campaign.saleState, pausePercent)}
+          {t.saleState(campaign.saleState, pausePercent, campaign.subjectName)}
         </p>
         {automaticPause ? <p className="mt-3 text-caption text-muted">{t.cannotResume}</p> : null}
       </Card>

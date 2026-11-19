@@ -2,9 +2,15 @@ import type { CampaignSummary } from "@winz/shared";
 import { describe, expect, it } from "vitest";
 
 import { budgetUsedTenths, formatBpsOneDecimal, formatTenths } from "./budget";
-import { listTab, orderForTab, sportFromSymbol } from "./campaigns";
+import {
+  FUNDING_GRACE_MS,
+  isStaleFunding,
+  listTab,
+  orderForTab,
+  visibleCampaigns,
+} from "./campaigns";
 import { appendPoint, axisMaxPercent, MIN_GAP_MS } from "./odds-history";
-import { allTimeTotals, averageSale, inPeriod, shareBps, totalsFor } from "./stats";
+import { allTimeTotals, averageSale, inPeriod, launchedAt, shareBps, totalsFor } from "./stats";
 
 function summary(overrides: Partial<CampaignSummary>): CampaignSummary {
   return {
@@ -56,13 +62,39 @@ describe("the promo list", () => {
     expect(orderForTab(input, "closed").map((c) => c.id)).toEqual(["old", "older"]);
     expect(input.map((c) => c.id)).toEqual(before);
   });
+});
 
-  it("reads the sport from the league of the symbol, football by default", () => {
-    expect(sportFromSymbol("GEMI-NCAAF-2611212030-ARK-TEX-S-TEX13")).toBe("football");
-    expect(sportFromSymbol("GEMI-NBA-2611212030-LAL-BOS-M")).toBe("basketball");
-    expect(sportFromSymbol("GEMI-NHL-X")).toBe("hockey");
-    expect(sportFromSymbol("GEMI-UNKNOWN-X")).toBe("football");
-    expect(sportFromSymbol(null)).toBe("football");
+describe("a promo that was never paid", () => {
+  const now = new Date("2026-11-20T22:00:00.000Z");
+  const minutesAgo = (minutes: number): string =>
+    new Date(now.getTime() - minutes * 60_000).toISOString();
+
+  it("is hidden once its creation is older than the grace period, and only if it is funding", () => {
+    expect(FUNDING_GRACE_MS).toBe(15 * 60_000);
+    const fresh = summary({ status: "funding", liveAt: null, createdAt: minutesAgo(3) });
+    const stale = summary({ status: "funding", liveAt: null, createdAt: minutesAgo(16) });
+    const justInside = summary({ status: "funding", liveAt: null, createdAt: minutesAgo(15) });
+    expect(isStaleFunding(fresh, now)).toBe(false);
+    expect(isStaleFunding(justInside, now)).toBe(false);
+    expect(isStaleFunding(stale, now)).toBe(true);
+    // Old, but live: never hidden, whatever its age.
+    expect(isStaleFunding(summary({ status: "live", createdAt: minutesAgo(5000) }), now)).toBe(
+      false,
+    );
+  });
+
+  it("is kept when its creation date is not readable", () => {
+    expect(isStaleFunding(summary({ status: "funding", createdAt: "soon" }), now)).toBe(false);
+  });
+
+  it("is dropped from the list and everything else stays, in order", () => {
+    const list = [
+      summary({ id: "a", status: "funding", liveAt: null, createdAt: minutesAgo(40) }),
+      summary({ id: "b", status: "funding", liveAt: null, createdAt: minutesAgo(2) }),
+      summary({ id: "c", status: "live" }),
+    ];
+    expect(visibleCampaigns(list, now).map((campaign) => campaign.id)).toEqual(["b", "c"]);
+    expect(list).toHaveLength(3);
   });
 });
 
@@ -82,31 +114,29 @@ describe("the statistics", () => {
     expect(inPeriod("not a date", "month", now)).toBe(false);
   });
 
+  it("dates a promo by when it went live, else by its creation, never by the game", () => {
+    expect(launchedAt(summary({ createdAt: "2026-11-18T10:00:00.000Z", liveAt: null }))).toBe(
+      "2026-11-18T10:00:00.000Z",
+    );
+    expect(
+      launchedAt(
+        summary({ createdAt: "2026-11-18T10:00:00.000Z", liveAt: "2026-11-18T10:01:00.000Z" }),
+      ),
+    ).toBe("2026-11-18T10:01:00.000Z");
+  });
+
   it("sums revenue and sales of the campaigns that sold, in the period", () => {
+    // The first one is live since the 17th for a game on the 28th: only the 17th counts.
+    const game = new Date(2026, 10, 28, 12).toISOString();
+    const at = (day: number): { createdAt: string; liveAt: string } => ({
+      createdAt: new Date(2026, 10, day, 11, 59).toISOString(),
+      liveAt: new Date(2026, 10, day, 12).toISOString(),
+    });
     const campaigns = [
-      summary({
-        startsAt: new Date(2026, 10, 20, 12).toISOString(),
-        revenue: "240000000",
-        sales: 12,
-      }),
-      summary({
-        status: "settled_no",
-        startsAt: new Date(2026, 10, 2, 12).toISOString(),
-        revenue: "620000000",
-        sales: 31,
-      }),
-      summary({
-        status: "funding",
-        startsAt: new Date(2026, 10, 20, 12).toISOString(),
-        revenue: "5000000",
-        sales: 1,
-      }),
-      summary({
-        status: "void",
-        startsAt: new Date(2026, 10, 20, 12).toISOString(),
-        revenue: "9000000",
-        sales: 2,
-      }),
+      summary({ startsAt: game, ...at(17), revenue: "240000000", sales: 12 }),
+      summary({ status: "settled_no", startsAt: game, ...at(2), revenue: "620000000", sales: 31 }),
+      summary({ status: "funding", startsAt: game, ...at(17), revenue: "5000000", sales: 1 }),
+      summary({ status: "void", startsAt: game, ...at(17), revenue: "9000000", sales: 2 }),
     ];
     const week = totalsFor(campaigns, "week", now);
     expect(week).toEqual({ grossSales: 240_000_000n, sales: 12, campaigns: 1 });

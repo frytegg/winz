@@ -1,4 +1,4 @@
-import type { CampaignStatus, CampaignSummary, Sport } from "@winz/shared";
+import type { CampaignStatus, CampaignSummary } from "@winz/shared";
 
 /** The two tabs of the promo list (SCREENS, MC). */
 export type ListTab = "inProgress" | "closed";
@@ -37,32 +37,26 @@ export function orderForTab(
   );
 }
 
-const SPORT_BY_LEAGUE: Record<string, Sport> = {
-  NFL: "football",
-  NCAAF: "football",
-  NBA: "basketball",
-  WNBA: "basketball",
-  NCAAB: "basketball",
-  NHL: "hockey",
-  MLB: "baseball",
-  MLS: "soccer",
-  EPL: "soccer",
-  UCL: "soccer",
-  LALIGA: "soccer",
-};
-
 /**
- * The sport of a campaign, read from the league in its instrument symbol ("GEMI-NCAAF-…" → football).
- * The campaign carries no `sport` (DEMANDES-ALEXANDRE, item 1), so this is a fallback: an unknown
- * league, or no symbol (the list has none), is football, the sport of the first release.
+ * How long an unpaid promo stays on the list. M7 creates the campaign (`funding`) before the
+ * budget is paid; if the merchant closes the screen it stays `funding` for good, because the back end
+ * never expires it. After this long it is a promo nobody is going to pay, not one going live.
  */
-export function sportFromSymbol(symbol: string | null): Sport {
-  if (symbol === null) return "football";
-  for (const part of symbol.split("-")) {
-    const sport = SPORT_BY_LEAGUE[part.toUpperCase()];
-    if (sport !== undefined) return sport;
-  }
-  return "football";
+export const FUNDING_GRACE_MS = 15 * 60 * 1000;
+
+/** A `funding` promo created longer ago than the grace period: its budget was never paid. */
+export function isStaleFunding(campaign: CampaignSummary, now: Date): boolean {
+  if (campaign.status !== "funding") return false;
+  const createdAt = new Date(campaign.createdAt).getTime();
+  return !Number.isNaN(createdAt) && now.getTime() - createdAt > FUNDING_GRACE_MS;
+}
+
+/** The promos worth showing: every one but the unpaid ones that are past the grace period. */
+export function visibleCampaigns(
+  campaigns: readonly CampaignSummary[],
+  now: Date,
+): CampaignSummary[] {
+  return campaigns.filter((campaign) => !isStaleFunding(campaign, now));
 }
 
 /** The statuses whose countdown still means something: after the whistle, "Sales close in" is over. */
