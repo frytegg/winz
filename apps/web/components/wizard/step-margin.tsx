@@ -70,9 +70,12 @@ function Figure({ label, children }: { label: string; children: ReactNode }): Re
 function Results({
   preview,
   stale,
+  subject,
 }: {
   preview: CampaignPreviewResponse;
   stale: boolean;
+  /** The team the promo is about, for "Your promo pauses if Texas' chances go above 18%". */
+  subject: string | null;
 }): React.JSX.Element {
   const limited =
     preview.capacity.limitedBy === "depth"
@@ -105,11 +108,12 @@ function Results({
       </div>
       <div className="flex flex-col gap-3">
         <p className="text-body">
-          {copy.margin.pauses(null, bpsToWholePercent(preview.pauseThresholdBps))}
+          {copy.margin.pauses(subject, bpsToWholePercent(preview.pauseThresholdBps))}
         </p>
         <ChanceMeter
           currentBps={preview.currentProbabilityBps}
           thresholdBps={preview.pauseThresholdBps}
+          subject={subject}
         />
       </div>
     </div>
@@ -231,7 +235,11 @@ export function StepMargin(): React.JSX.Element | null {
                 {explanation}
               </p>
             )}
-            <Results preview={result} stale={preview.loading} />
+            <Results
+              preview={result}
+              stale={preview.loading}
+              subject={template?.subjectName ?? null}
+            />
             {failed ? (
               <p role="alert" className="text-caption text-danger">
                 {errorMessage(preview.error, copy.common.genericError)}

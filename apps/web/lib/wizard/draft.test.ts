@@ -13,7 +13,6 @@ import {
   resolveOffer,
   resolveStep,
   selectedTemplate,
-  splitEventTitle,
   type WizardDraft,
 } from "./draft";
 
@@ -118,13 +117,5 @@ describe("the draft", () => {
     expect(parseDraft(null)).toEqual(EMPTY_DRAFT);
     expect(parseDraft("{not json")).toEqual(EMPTY_DRAFT);
     expect(parseDraft(JSON.stringify({ event: "nope" }))).toEqual(EMPTY_DRAFT);
-  });
-});
-
-describe("splitEventTitle", () => {
-  it("splits 'Away vs Home'", () => {
-    expect(splitEventTitle("Arkansas vs Texas")).toEqual(["Arkansas", "Texas"]);
-    expect(splitEventTitle("Texas A&M vs. Ole Miss")).toEqual(["Texas A&M", "Ole Miss"]);
-    expect(splitEventTitle("Playoffs")).toBeNull();
   });
 });
