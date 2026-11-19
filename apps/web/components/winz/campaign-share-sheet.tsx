@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Download, Share } from "lucide-react";
+import { Copy, Download, Printer, Share } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,12 @@ export function CampaignShareSheet({
   merchantName: string;
 }): React.JSX.Element {
   const [qrOpen, setQrOpen] = useState(false);
-  const { copyLink, share, downloadQr } = usePromoShare({ url, slug, promise, merchantName });
+  const { copyLink, share, downloadQr, downloadPoster, posterBusy } = usePromoShare({
+    url,
+    slug,
+    promise,
+    merchantName,
+  });
   const shortUrl = url.replace(/^https?:\/\//, "");
 
   return (
@@ -65,6 +70,15 @@ export function CampaignShareSheet({
               {copy.live.downloadQr}
             </Button>
           </div>
+          <Button
+            size="md"
+            variant="dark"
+            icon={Printer}
+            loading={posterBusy}
+            onClick={() => void downloadPoster()}
+          >
+            {copy.live.downloadPoster}
+          </Button>
         </div>
       </Sheet>
       <QrFullscreen open={qrOpen} onClose={() => setQrOpen(false)} value={url} />
