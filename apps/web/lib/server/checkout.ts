@@ -22,6 +22,7 @@ import {
   paymentKindOf,
   type CreatedPaymentIntent,
   type PaymentGateway,
+  type PaymentIntentView,
 } from "./payments-gateway";
 import { ApiRouteError } from "./route";
 import { digits } from "./wire";
@@ -154,7 +155,7 @@ export async function startCheckout(
 }
 
 // ---------------------------------------------------------------------------------------------
-// The authorized purchase: one function for the client confirmation and the webhook (CO-3)
+// The authorized purchase: one path for the confirmation, the webhook and the status read (CO-3)
 // ---------------------------------------------------------------------------------------------
 
 /** What `processAuthorizedPurchase` did. */
@@ -185,29 +186,15 @@ interface PaymentRow {
 }
 
 /**
- * Given a PaymentIntent id, never trusting whoever sent it: reads the intent from Stripe, and when
- * it is one of our purchases, matching its payments row, authorized and awaiting capture
- * (`requires_capture`), then in one transaction stores the payer's normalised e-mail, sets the
- * payment `processing` and enqueues the purchase job (key `jobIdempotencyKey.purchase(id)`).
- * Called by the client confirmation and by the webhook, any number of times, in any order and
- * concurrently: one job.
- *
- * A payment marked `failed` by a declined attempt is taken again when a later attempt on the same
- * intent is authorized, unless its purchase job already exists (then the engine owns the outcome).
+ * Stripe's intent when it is the purchase of this payments row (kind, campaign, quantity, amount,
+ * currency all match), else null, logged: an unknown intent or one that pays for something else
+ * is never acted on. Throws `PaymentGatewayError` when Stripe cannot be read.
  */
-export async function processAuthorizedPurchase(
-  db: Db,
+async function readMatchingIntent(
   payments: PaymentGateway,
-  paymentIntentId: string,
-): Promise<PurchaseProcessing> {
-  const log = serverLogger("checkout");
-  const [payment] = await db<PaymentRow[]>`
-    select stripe_pi, campaign_id, qty, amount, status from payments
-    where stripe_pi = ${paymentIntentId}
-  `;
-  if (!payment) return { outcome: "unknown_payment", created: false };
-
-  const intent = await payments.retrievePaymentIntent(paymentIntentId);
+  payment: PaymentRow,
+): Promise<PaymentIntentView | null> {
+  const intent = await payments.retrievePaymentIntent(payment.stripe_pi);
   const matches =
     intent !== null &&
     paymentKindOf(intent) === STRIPE_PAYMENT_KINDS.purchase &&
@@ -216,18 +203,37 @@ export async function processAuthorizedPurchase(
     intent.amount === payment.amount &&
     intent.currency === "usd";
   if (!intent || !matches) {
-    log.error(
-      { paymentIntentId, campaignId: payment.campaign_id, known: intent !== null },
+    serverLogger("checkout").error(
+      {
+        paymentIntentId: payment.stripe_pi,
+        campaignId: payment.campaign_id,
+        known: intent !== null,
+      },
       "PaymentIntent does not match its payment row: left untouched",
     );
-    return { outcome: "mismatch", created: false };
+    return null;
   }
+  return intent;
+}
+
+/**
+ * The second half of `processAuthorizedPurchase`, once Stripe's intent has been read and matched
+ * to its row: when it is authorized and awaiting capture (`requires_capture`), in one transaction,
+ * stores the payer's normalised e-mail, sets the payment `processing` and enqueues the purchase
+ * job (key `jobIdempotencyKey.purchase(id)`). Every caller goes through here, so the idempotency
+ * is the same whoever calls: the row lock plus the job's unique key, one job.
+ */
+async function takeAuthorizedIntent(
+  db: Db,
+  paymentIntentId: string,
+  intent: PaymentIntentView,
+): Promise<PurchaseProcessing> {
   if (intent.status !== "requires_capture") return { outcome: "not_authorized", created: false };
 
   const email = intent.payerEmail === null ? null : normalizeEmail(intent.payerEmail);
   if (email === null) {
     // The payment sheet requires the e-mail; the purchase job decides what to do without it.
-    log.warn({ paymentIntentId }, "authorized payment without a payer e-mail");
+    serverLogger("checkout").warn({ paymentIntentId }, "authorized payment without a payer e-mail");
   }
   const key = jobIdempotencyKey.purchase(paymentIntentId);
 
@@ -255,6 +261,34 @@ export async function processAuthorizedPurchase(
   });
 }
 
+/**
+ * Given a PaymentIntent id, never trusting whoever sent it: reads the intent from Stripe, and when
+ * it is one of our purchases, matching its payments row, authorized and awaiting capture
+ * (`requires_capture`), then in one transaction stores the payer's normalised e-mail, sets the
+ * payment `processing` and enqueues the purchase job (key `jobIdempotencyKey.purchase(id)`).
+ * Called by the client confirmation, by the webhook and by the status read of a payment left
+ * `requires_payment` (`pollCheckoutStatus`), any number of times, in any order and concurrently:
+ * one job.
+ *
+ * A payment marked `failed` by a declined attempt is taken again when a later attempt on the same
+ * intent is authorized, unless its purchase job already exists (then the engine owns the outcome).
+ */
+export async function processAuthorizedPurchase(
+  db: Db,
+  payments: PaymentGateway,
+  paymentIntentId: string,
+): Promise<PurchaseProcessing> {
+  const [payment] = await db<PaymentRow[]>`
+    select stripe_pi, campaign_id, qty, amount, status from payments
+    where stripe_pi = ${paymentIntentId}
+  `;
+  if (!payment) return { outcome: "unknown_payment", created: false };
+
+  const intent = await readMatchingIntent(payments, payment);
+  if (intent === null) return { outcome: "mismatch", created: false };
+  return takeAuthorizedIntent(db, paymentIntentId, intent);
+}
+
 // ---------------------------------------------------------------------------------------------
 // Status: GET /api/checkout/:pi and POST /api/checkout/:pi/confirm
 // ---------------------------------------------------------------------------------------------
@@ -266,7 +300,8 @@ interface StatusRow {
 }
 
 /**
- * GET /api/checkout/:pi: the payment's state from its row. `ticketToken` once ticketed (open
+ * The payment's state from its row, as GET /api/checkout/:pi answers it (after its heal, see
+ * `pollCheckoutStatus`) and as the confirmation answers it. `ticketToken` once ticketed (open
  * `/t/<ticketToken>`), the stored message (or a default) on `cancelled_paused` and `failed`. A
  * payment marked ticketed whose ticket row is not readable yet is reported `processing`, so the
  * front keeps polling instead of opening a broken link. 404 for an unknown id.
@@ -310,6 +345,107 @@ export async function checkoutStatus(
     case "processing":
       return { status: row.status, ticketToken: null, message: null };
   }
+}
+
+/**
+ * How long a payment stays `requires_payment` before a status read asks Stripe about it, and the
+ * shortest time between two such reads of one payment, in seconds. Both are measured on the
+ * row's `updated_at` by the database's clock: the row is created `requires_payment`, nothing
+ * touches it until the confirmation or the webhook moves it on, and each read stamps it.
+ *
+ * The ordinary case is left alone: the front polls only once its confirmation has answered, and
+ * a confirmation that worked has moved the payment to `processing`, which no poll reads Stripe
+ * for. The delay keeps a payment just created, or a poll from another tab racing a confirmation
+ * in flight, from costing a Stripe read; once the confirmation failed, the fan's next poll after
+ * the delay hands the purchase over, five seconds late at most.
+ */
+export const CHECKOUT_HEAL_AFTER_SECONDS = 5;
+
+/**
+ * Claims the right to read Stripe for a payment still `requires_payment`, with one conditional
+ * statement: it stamps `updated_at` only when the row is `requires_payment` and its `updated_at`
+ * is at least `CHECKOUT_HEAL_AFTER_SECONDS` old, and returns the row when it did. Concurrent
+ * callers (any number of pollers, on any number of server instances) queue on the row: the first
+ * stamps it, the others re-check the stamped row and match nothing. No lock is held afterwards:
+ * the statement commits on its own, before Stripe is called.
+ */
+async function claimHealRead(db: Db, paymentIntentId: string): Promise<PaymentRow | undefined> {
+  const [claimed] = await db<PaymentRow[]>`
+    update payments set updated_at = now()
+    where stripe_pi = ${paymentIntentId}
+      and status = 'requires_payment'
+      and updated_at <= now() - make_interval(secs => ${CHECKOUT_HEAL_AFTER_SECONDS})
+    returning stripe_pi, campaign_id, qty, amount, status
+  `;
+  return claimed;
+}
+
+/**
+ * A payment the confirmation never moved on: asks Stripe once (under the claim of
+ * `claimHealRead`) and applies what the confirmation or the webhook would have applied.
+ *
+ * - authorized (`requires_capture`): `takeAuthorizedIntent`, the very path of the confirmation
+ *   and of the webhook, so one purchase job whoever gets there first;
+ * - cancelled (`canceled`, final at Stripe): `markPurchaseFailed` with the message the webhook
+ *   writes for a cancellation; it is safe to call twice and never fails a payment whose purchase
+ *   job exists;
+ * - anything else, `requires_payment_method` included: nothing. Stripe shows that status both
+ *   before the fan has paid and after a declined attempt, and only the webhook's event type tells
+ *   them apart, so failing the payment from it could tell a fan still paying "you were not
+ *   charged, your payment did not go through".
+ *
+ * Stripe failing is logged (once per claim, so once per window) and swallowed: the caller answers
+ * the row as it is.
+ */
+async function healUnconfirmedPurchase(
+  db: Db,
+  payments: PaymentGateway,
+  paymentIntentId: string,
+): Promise<void> {
+  const claimed = await claimHealRead(db, paymentIntentId);
+  if (!claimed) return;
+  const log = serverLogger("checkout");
+  let intent: PaymentIntentView | null;
+  try {
+    intent = await readMatchingIntent(payments, claimed);
+  } catch (error: unknown) {
+    if (error instanceof PaymentGatewayError) {
+      log.error(
+        { err: error, paymentIntentId },
+        "status read could not ask Stripe about an unconfirmed payment: answered from its row",
+      );
+      return;
+    }
+    throw error;
+  }
+  if (intent === null) return;
+  if (intent.status === "requires_capture") {
+    const result = await takeAuthorizedIntent(db, paymentIntentId, intent);
+    log.info(
+      { paymentIntentId, ...result },
+      "unconfirmed payment found authorized by a status read",
+    );
+  } else if (intent.status === "canceled") {
+    const changed = await markPurchaseFailed(db, paymentIntentId, CUSTOMER_MESSAGES.cancelled);
+    log.info({ paymentIntentId, changed }, "unconfirmed payment found cancelled by a status read");
+  }
+}
+
+/**
+ * GET /api/checkout/:pi: `checkoutStatus`, after healing a payment that is still
+ * `requires_payment` `CHECKOUT_HEAL_AFTER_SECONDS` after it was created or last looked at (see
+ * `healUnconfirmedPurchase`): the confirmation may have been lost and the webhook may never come,
+ * and the fan polls this route until the end. Stripe is read at most once per payment per window,
+ * whoever polls, and never for a payment that is `processing` or already ended. A Stripe failure
+ * never fails the poll: it answers the row's state with its usual 200.
+ */
+export async function pollCheckoutStatus(
+  db: Db,
+  payments: PaymentGateway,
+  paymentIntentId: string,
+): Promise<CheckoutStatusResponse> {
+  await healUnconfirmedPurchase(db, payments, paymentIntentId);
+  return checkoutStatus(db, paymentIntentId);
 }
 
 /**

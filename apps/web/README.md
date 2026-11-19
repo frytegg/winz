@@ -173,7 +173,7 @@ apparaît donc quelques secondes après la réponse de la route, quand le moteur
 
 | Route                                                  | Ce qu'elle fait                                                                                     |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| `GET /api/me`, `POST /api/merchants`                   | Profil, rôles, création du commerce                                                                 |
+| `GET /api/me`, `POST /api/merchants`                   | Profil, rôles, création du commerce ; la même création répétée répond le commerce créé, une autre `409` |
 | `GET /api/events`                                      | Catalogue et modèles calculés                                                                       |
 | `POST /api/campaigns/preview`                          | Chiffres de l'écran M6                                                                              |
 | `POST /api/campaigns`                                  | Crée la campagne (`funding`) et le paiement du budget (écran M7)                                    |
@@ -306,7 +306,10 @@ est ensuite refusée : sa répétition répond `409`, et la place de la campagne
    carte est seulement autorisée, pas débitée.
 3. Dès que la confirmation Stripe a réussi, appeler `POST /api/checkout/:pi/confirm` (corps vide).
    Le webhook Stripe déclenche le même traitement : appeler les deux ne crée qu'un achat.
-4. Interroger `GET /api/checkout/:pi` toutes les secondes environ, jusqu'à `ticketed` ou un échec :
+4. Interroger `GET /api/checkout/:pi` toutes les secondes environ, jusqu'à `ticketed` ou un échec.
+   Confirmation échouée (réseau, `502`) : ne pas la rappeler, interroger suffit. Un paiement resté
+   `requires_payment` 5 s, la route relit l'intent chez Stripe (une fois par 5 s au plus) et, carte
+   autorisée, lance le même achat que la confirmation ; Stripe injoignable, elle répond la ligne.
    - `requires_payment` ou `processing` : continuer d'attendre ;
    - `ticketed` : ouvrir `/t/<ticketToken>` ;
    - `cancelled_paused` ou `failed` : afficher `message` tel quel (« Promo just paused, you were
