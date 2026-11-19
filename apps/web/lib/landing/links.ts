@@ -1,0 +1,66 @@
+/**
+ * The landing page's links: their shape, and what makes a value usable. Pure, and with no `@/` import,
+ * so that `scripts/landing-check.mjs` (run by tsx, outside Next) can load it.
+ *
+ * A link is either `null` (not decided yet) or a string the page may put in an `href`. The rule of the
+ * page (00-CONTEXTE.md): a `null` is never rendered as a dead link, `#`, `[placeholder]` or a note to
+ * self: the button is hidden or shown inactive with an honest label.
+ */
+
+export interface TeamLink {
+  /** As it is written in the footer. */
+  readonly name: string;
+  readonly url: string | null;
+}
+
+export interface LandingLinks {
+  /** The entry of the app, where a merchant who discovers it arrives: "Try the live demo" (three places). */
+  readonly liveDemoUrl: string | null;
+  /** The demo video, for the player of the Demo section and the footer. */
+  readonly videoUrl: string | null;
+  /** The code, for "View the code" and the footer. */
+  readonly githubUrl: string | null;
+  readonly devpostUrl: string | null;
+  /** The footer's people, one entry each. */
+  readonly teamLinks: readonly TeamLink[];
+  /** What the "Add to Home Screen" entry of the footer opens (09-install-flow.md). */
+  readonly appInstallUrl: string | null;
+}
+
+/**
+ * An absolute https URL, or a path of this site (`/`, `/start`). Not `#`, not an empty string, not a
+ * protocol-relative `//host`, not `http:` or `javascript:`.
+ */
+const USABLE = /^(https:\/\/[^\s/]\S*|\/(?!\/)\S*)$/;
+
+export function isUsableLink(value: unknown): value is string {
+  return typeof value === "string" && USABLE.test(value.trim());
+}
+
+/** The link to render, or `null` when there is nothing to render. Never a placeholder. */
+export function linkOrNull(value: string | null | undefined): string | null {
+  return isUsableLink(value) ? value.trim() : null;
+}
+
+export interface MissingLink {
+  /** `liveDemoUrl`, or `teamLinks.Alexandre`. */
+  readonly key: string;
+  /** Why it counts as missing: not set, or set to something a page cannot use. */
+  readonly reason: "not set" | "not a usable link";
+}
+
+/** Every value of `links` that the page cannot use yet, in the file's order. */
+export function missingLinks(links: LandingLinks): MissingLink[] {
+  const out: MissingLink[] = [];
+  const check = (key: string, value: string | null): void => {
+    if (value === null) out.push({ key, reason: "not set" });
+    else if (!isUsableLink(value)) out.push({ key, reason: "not a usable link" });
+  };
+  check("liveDemoUrl", links.liveDemoUrl);
+  check("videoUrl", links.videoUrl);
+  check("githubUrl", links.githubUrl);
+  check("devpostUrl", links.devpostUrl);
+  for (const person of links.teamLinks) check(`teamLinks.${person.name}`, person.url);
+  check("appInstallUrl", links.appInstallUrl);
+  return out;
+}
