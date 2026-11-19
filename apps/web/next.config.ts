@@ -24,6 +24,7 @@ const nextConfig: NextConfig = {
   // them: the fonts would silently fall back to the renderer's default and the wordmark would vanish.
   outputFileTracingIncludes: {
     "/c/*/opengraph-image*": ["./lib/og/fonts/*", "./public/brand/logo-winz-lime.svg"],
+    "/poster/*": ["./lib/og/fonts/*", "./public/brand/logo-winz-lime.svg"],
   },
 };
 
