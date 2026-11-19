@@ -723,13 +723,155 @@ export const copy = {
     proofNotYet: "Not yet",
     proofOrderId: "Sandbox order",
   },
+  /**
+   * The demo panel (U-07), for the team running a demo. Every success line says only what the
+   * server's answer proves: "saved" for a write, never "applied" or "settled" before the engine
+   * has done it.
+   */
   admin: {
     title: "Demo panel",
+    lead: "Drive the engine during a demo: set the odds, force a result, replay a sale.",
     keyLabel: "Admin key",
     driveOdds: "Drive the odds",
     forceResult: "Force the result",
     replaySale: "Replay a sale",
     reset: "Reset demo",
+    lock: "Lock",
+    venueTitle: "Execution venue",
+    venueUnknown: "Shown once the desk answers",
+    openDesk: "Open the hedge desk",
+    gate: {
+      lead: "Enter the admin key to drive the demo.",
+      keyHint: "Kept in this tab only. Forgotten when you lock the panel or close the tab.",
+      unlock: "Unlock",
+      checking: "Checking the key…",
+      rejected: "That key was not accepted. Check it and try again.",
+      sessionEnded: "The server no longer accepts this key. Enter it again to continue.",
+      mockNote: "The API is simulated here and accepts any key, so this check proves nothing.",
+      memoryOnly:
+        "This browser blocks session storage: the key is kept in memory and is lost on reload.",
+      insecure:
+        "This page is not served over HTTPS: the key would travel unencrypted. Use the panel on localhost or an HTTPS address only.",
+      empty: "Enter the key.",
+    },
+    instrument: {
+      title: "Instrument",
+      lead: "The market the next two panels act on.",
+      fromDesk: "From the hedge desk",
+      symbolLabel: "Symbol",
+      symbolHint: "Pick one above, or type any symbol.",
+      symbolPlaceholder: "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX13",
+      noBook: "no book",
+      deskEmpty: "The desk lists no instrument yet. Type a symbol below.",
+      deskFailed: "The desk's instruments can't be read right now. You can still type a symbol.",
+      deskLoading: "Reading the desk…",
+      bidAsk: (bid: string, ask: string): string => `bid ${bid} · ask ${ask}`,
+      choose: "Choose an instrument",
+    },
+    drive: {
+      title: "Drive the odds",
+      lead: "Replace the exchange book of the instrument with one you set. The engine follows it for 60 minutes. The chance a fan sees is the middle of bid and ask.",
+      bidLabel: "Bid (%)",
+      askLabel: "Ask (%)",
+      depthLabel: "Depth (contracts)",
+      depthHint: "Steps of 0.01.",
+      presetsLabel: "Presets",
+      presetsHint: "A preset puts bid and ask one point either side of it.",
+      presets: { low: "12%", pause: "18% (pause)", high: "25%" },
+      pauseHint: "18% pauses a promo whose limit is 18% or lower.",
+      submit: "Set the book",
+      sending: "Sending…",
+      onDesk: "On the desk now",
+      onDeskWaiting: "Waiting for the engine to read the new book…",
+      errors: {
+        symbol: "Choose or type an instrument.",
+        price: "Whole percent from 1 to 99.",
+        crossed: "The ask must be above the bid.",
+        depth: "A positive number of contracts, two decimals at most.",
+      },
+      saved: (bid: string, ask: string, depth: string): string =>
+        `Book saved: bid ${bid} · ask ${ask} · ${depth} contracts. The engine reads it on its next pass; the line below shows what it sees.`,
+    },
+    result: {
+      title: "Force the result",
+      lead: "Settle the instrument without waiting for the real result. The engine acts once sales are closed.",
+      options: { yes: "Yes", no: "No", void: "Void" },
+      hints: {
+        yes: "The condition is met: tickets are refunded.",
+        no: "Not met: tickets are not refunded.",
+        void: "Game cancelled: purchases stand.",
+      },
+      confirmTitle: (outcome: string): string => `Force ${outcome}?`,
+      confirmBody:
+        "This settles every promo on the instrument. Once the engine has done it, a reset does not undo it.",
+      confirm: (outcome: string): string => `Force ${outcome}`,
+      cancel: "Cancel",
+      sending: "Sending…",
+      needInstrument: "Choose an instrument first.",
+      saved: (outcome: string): string =>
+        `Result saved as ${outcome}. The engine settles the promos once their sales are closed.`,
+    },
+    sale: {
+      title: "Replay a sale",
+      lead: "Buy as a fan without a card. Each send is a new sale.",
+      slugLabel: "Promo slug",
+      slugHint: "The end of the promo link, after /c/.",
+      slugPlaceholder: "joes-texas",
+      qtyLabel: "Quantity",
+      emailLabel: "Fan e-mail",
+      emailHint: "The ticket is attached to this address.",
+      submit: "Replay the sale",
+      sending: "Sending…",
+      waiting: "The server waits up to 8 seconds for the ticket.",
+      following: (id: string): string =>
+        `Payment ${id} sent, ticket not issued yet. Reading it until it ends. Do not send the sale again: each send is a new sale.`,
+      ticketed: "Ticket issued.",
+      openTicket: "Open the ticket",
+      cancelledPaused: "The promo paused before the ticket was issued. Nothing was sold.",
+      failed: "The sale failed. No ticket was issued.",
+      timeout: (id: string): string =>
+        `Still no ticket after 90 seconds. Payment ${id} may yet go through: check before sending another sale.`,
+      lost: (message: string): string =>
+        `The payment can't be read any more (${message}). Its state is unknown: check before sending another sale.`,
+      mayExist:
+        " The sale may still have been created: check the tickets before sending another one.",
+      errors: {
+        slug: "Letters, digits and hyphens, from the promo link.",
+        email: "Enter a valid e-mail address.",
+      },
+    },
+    resetPanel: {
+      title: "Reset demo",
+      lead: "Removes every driven book and every forced result. Promos already touched stay marked as demo.",
+      button: "Reset demo",
+      confirmTitle: "Remove every override?",
+      confirm: "Reset",
+      cancel: "Cancel",
+      sending: "Sending…",
+      saved:
+        "Overrides removed. Promos already touched stay marked as demo, and a result the engine already settled stays settled.",
+    },
+    log: {
+      title: "Action log",
+      lead: "Every action and what the server answered. This list is not saved: it clears when the page reloads.",
+      empty: "Nothing sent yet. Each action will be listed here with its answer.",
+      actions: {
+        book: "Drive the odds",
+        result: "Force the result",
+        sale: "Replay a sale",
+        reset: "Reset demo",
+      },
+      status: {
+        sending: "Sending",
+        following: "Waiting for the ticket",
+        done: "Done",
+        error: "Failed",
+      },
+      noAnswer: "No answer yet",
+    },
+    errors: {
+      keyRejected: "The server did not accept the admin key. Nothing was changed.",
+    },
   },
 
   /** Words used for the sale state on a fan screen */
