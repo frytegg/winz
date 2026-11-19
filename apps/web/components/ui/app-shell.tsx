@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 /** Screens built for a laptop (the jury's) use the full width; the rest is a 430px column. */
-const FULL_WIDTH_PREFIXES = ["/hedge-desk", "/admin"];
+const FULL_WIDTH_PREFIXES = ["/hedge-desk", "/admin", "/landing"];
 
 export function AppShell({ children }: { children: ReactNode }): React.JSX.Element {
   const pathname = usePathname();
