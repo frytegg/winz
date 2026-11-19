@@ -18,6 +18,7 @@ import { useAsync } from "@/lib/api/use-async";
 import { useAuth, useRouteGuard } from "@/lib/auth";
 import { HOME_PATH } from "@/lib/auth/route-guard";
 import { copy } from "@/lib/copy";
+import { LIVE_SLOW_AFTER_MS } from "@/lib/merchant/launch-wait";
 import { gameFromEvent } from "@/lib/fan/teams";
 import { renderQrPng } from "@/lib/qr";
 
@@ -70,8 +71,23 @@ function isAbort(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
 
-/** The waiting state: the W drawn in lime, "Putting your promo live…". */
-function PuttingLive({ error }: { error?: string }): React.JSX.Element {
+/**
+ * The waiting state: the W drawn in lime, "Putting your promo live…". After a minute it says that this
+ * is taking longer than usual, without ever saying the promo is live, and offers to check again.
+ */
+function PuttingLive({
+  error,
+  slow = false,
+  checking = false,
+  onCheckAgain,
+}: {
+  error?: string;
+  /** The wait has gone past what is usual: say so. */
+  slow?: boolean;
+  /** A check the merchant asked for is in flight. */
+  checking?: boolean;
+  onCheckAgain?: () => void;
+}): React.JSX.Element {
   return (
     <div className="relative grid min-h-dvh place-items-center overflow-hidden bg-ink px-6">
       <img
@@ -83,8 +99,25 @@ function PuttingLive({ error }: { error?: string }): React.JSX.Element {
       />
       <div role="status" className="relative flex flex-col items-center gap-6 text-center">
         <Logo variant="glyph" className="h-16 animate-draw" />
-        <p className="text-title">{copy.live.puttingLive}</p>
+        {slow ? (
+          <>
+            <h1 className="text-title">{copy.live.slowTitle}</h1>
+            <p className="text-body text-muted">{copy.live.slowBody}</p>
+          </>
+        ) : (
+          <p className="text-title">{copy.live.puttingLive}</p>
+        )}
         {error === undefined ? null : <p className="text-body text-muted">{error}</p>}
+        {slow ? (
+          <div className="flex w-full max-w-xs flex-col gap-3 pt-2">
+            <Button variant="white" loading={checking} onClick={onCheckAgain}>
+              {copy.live.checkAgain}
+            </Button>
+            <Button href={HOME_PATH} variant="dark" arrow={false}>
+              {copy.live.dashboard}
+            </Button>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -132,6 +165,18 @@ export function LiveScreen({ campaignId }: { campaignId: string }): React.JSX.El
     campaign.url !== null &&
     waited;
 
+  // A promo that is still not live after a minute: say so (the polling goes on, and the screen opens
+  // by itself if it does go live). Leaving the screen cancels the timer.
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!guarded || live || failed) {
+      setSlow(false);
+      return;
+    }
+    const timer = setTimeout(() => setSlow(true), LIVE_SLOW_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, [guarded, live, failed]);
+
   // Decide once, when the screen first becomes live, whether to play the opening.
   useEffect(() => {
     if (live && celebrate === null) {
@@ -158,6 +203,9 @@ export function LiveScreen({ campaignId }: { campaignId: string }): React.JSX.El
   if (!live || campaign === null || campaign.url === null) {
     return (
       <PuttingLive
+        slow={slow}
+        checking={detail.loading}
+        onCheckAgain={detail.reload}
         error={
           detail.error !== null && campaign === null
             ? errorMessage(detail.error, copy.common.networkError)
