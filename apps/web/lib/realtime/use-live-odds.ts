@@ -19,6 +19,27 @@ interface LiveOdds {
   connected: boolean;
 }
 
+/** A quote the feed pushed: the chance (`null` is a pushed "no quote") and when it arrived. */
+interface Pushed {
+  bps: number | null;
+  at: number;
+}
+
+/**
+ * The newest of the API's last answer and the last pushed quote. With `apiReadAt` (when that answer
+ * arrived), a push older than the answer gives way to it even when the answer's figure did not
+ * change (review section 3: before, a pushed figure stayed until the API's value changed).
+ */
+export function newestOdds(
+  apiBps: number | null,
+  apiReadAt: number | null,
+  pushed: Pushed | null,
+): number | null {
+  if (pushed === null) return apiBps;
+  if (apiReadAt !== null && apiReadAt >= pushed.at) return apiBps;
+  return pushed.bps;
+}
+
 function supabaseConfig(): { url: string; key: string } | null {
   const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
   const key = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
@@ -26,7 +47,9 @@ function supabaseConfig(): { url: string; key: string } | null {
 }
 
 /**
- * The live odds of a promo, for C1 and C3. `apiBps` is what the last API answer said.
+ * The live odds of a promo, for C1 and C3. `apiBps` is what the last API answer said, and
+ * `apiReadAt` when it arrived (`stampingReads`, lib/fan/fresh-read.ts): every answer replaces an
+ * older pushed quote.
  *
  * - Simulated mode (`NEXT_PUBLIC_APP_API_MOCK=true`): no market, so the figure wobbles a little
  *   around `apiBps` every two seconds. Only there.
@@ -39,11 +62,12 @@ export function useLiveOdds(
   symbol: string | null,
   apiBps: number | null,
   enabled = true,
+  apiReadAt: number | null = null,
 ): LiveOdds {
   const mock = isMockApi();
   const [step, setStep] = useState(0);
   // `null` means nothing was pushed since the last API answer; `{ bps: null }` is a pushed "no quote".
-  const [pushed, setPushed] = useState<{ bps: number | null } | null>(null);
+  const [pushed, setPushed] = useState<Pushed | null>(null);
   const [subscribed, setSubscribed] = useState(false);
   // When the last row arrived, and a clock that moves while the feed is subscribed, so a feed that
   // goes quiet is noticed.
@@ -85,7 +109,7 @@ export function useLiveOdds(
           (payload) => {
             if (closed) return;
             const now = Date.now();
-            setPushed({ bps: oddsFromRow(payload.new, now) });
+            setPushed({ bps: oddsFromRow(payload.new, now), at: now });
             setLastPushAt(now);
             setClock(now);
           },
@@ -116,5 +140,5 @@ export function useLiveOdds(
   if (mock) {
     return { bps: apiBps === null || step === 0 ? apiBps : wobble(apiBps, step), connected: false };
   }
-  return { bps: pushed === null ? apiBps : pushed.bps, connected };
+  return { bps: newestOdds(apiBps, apiReadAt, pushed), connected };
 }

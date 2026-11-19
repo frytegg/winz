@@ -13,6 +13,8 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 interface GaugeProps {
   /** The chance in basis points, or `null` when there is no fresh quote. */
   bps: number | null;
+  /** The words under the figure, inside the ring; `null` for none (the screen says it below). */
+  caption?: string | null;
   className?: string;
 }
 
@@ -20,7 +22,11 @@ interface GaugeProps {
  * The ticket's ring: a lime arc proportional to the chance it is free, the figure in the middle.
  * The arc glides in 600ms when the odds move.
  */
-export function Gauge({ bps, className }: GaugeProps): React.JSX.Element {
+export function Gauge({
+  bps,
+  caption = copy.ticket.chanceUnit,
+  className,
+}: GaugeProps): React.JSX.Element {
   const fraction = bps === null ? 0 : Math.min(1, Math.max(0, bps / 10_000));
   const percent = bps === null ? null : bpsToWholePercent(bps);
   const label = percent === null ? copy.pickPromo.staleBook : copy.ticket.chanceTitle(percent);
@@ -63,9 +69,11 @@ export function Gauge({ bps, className }: GaugeProps): React.JSX.Element {
             <AnimatedNumber value={percent} format={(n) => `${n.toString()}%`} />
           )}
         </span>
-        <span className="mt-2 max-w-[8.5rem] text-micro uppercase leading-tight text-muted">
-          {copy.ticket.chanceUnit}
-        </span>
+        {caption === null ? null : (
+          <span className="mt-2 max-w-[8.5rem] text-micro uppercase leading-tight text-muted">
+            {caption}
+          </span>
+        )}
       </div>
     </div>
   );

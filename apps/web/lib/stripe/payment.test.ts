@@ -94,3 +94,108 @@ describe("confirmIntent", () => {
     expect(isAuthorizedStatus("canceled")).toBe(false);
   });
 });
+
+/**
+ * A Stripe whose reads of the PaymentIntent answer `reads` in turn (the last one repeats; an
+ * `Error` is a read that fails on the network), and whose confirmation answers `confirmed`, or
+ * throws it when it is an `Error`.
+ */
+function scriptedStripe(
+  reads: readonly (string | Error)[],
+  confirmed: ConfirmResult | Error,
+): { stripe: StripeLike; confirm: ReturnType<typeof vi.fn>; retrieve: ReturnType<typeof vi.fn> } {
+  let index = 0;
+  const retrieve = vi.fn().mockImplementation(() => {
+    const read = reads[Math.min(index, reads.length - 1)];
+    index += 1;
+    if (read instanceof Error) return Promise.reject(read);
+    return Promise.resolve(read === undefined ? {} : { paymentIntent: { status: read } });
+  });
+  const confirm = vi
+    .fn()
+    .mockImplementation(() =>
+      confirmed instanceof Error ? Promise.reject(confirmed) : Promise.resolve(confirmed),
+    );
+  const stripe: StripeLike = {
+    retrievePaymentIntent: retrieve as StripeLike["retrievePaymentIntent"],
+    confirmPayment: confirm as StripeLike["confirmPayment"],
+  };
+  return { stripe, confirm, retrieve };
+}
+
+describe("confirmIntent, when the confirmation answers an error (review 1.3)", () => {
+  it("reads the payment once more and goes on when the card was authorized all the same", async () => {
+    for (const status of ["requires_capture", "succeeded", "processing"]) {
+      const { stripe, confirm, retrieve } = scriptedStripe(["requires_payment_method", status], {
+        error: { message: "We could not reach the server." },
+      });
+      expect(await confirmIntent({ stripe, ...BASE }), status).toEqual({ ok: true });
+      expect(confirm).toHaveBeenCalledTimes(1);
+      expect(retrieve).toHaveBeenCalledTimes(2);
+    }
+  });
+
+  it("goes on too when the confirmation throws and the card was authorized", async () => {
+    const { stripe } = scriptedStripe(
+      ["requires_payment_method", "requires_capture"],
+      new Error("Failed to fetch"),
+    );
+    expect(await confirmIntent({ stripe, ...BASE })).toEqual({ ok: true });
+  });
+
+  it("keeps a real decline a decline: Stripe's words, and the payment can still be paid", async () => {
+    const { stripe, retrieve } = scriptedStripe(["requires_payment_method"], {
+      error: { message: "Your card was declined." },
+    });
+    const result = await confirmIntent({ stripe, ...BASE });
+    expect(result).toEqual({ ok: false, message: "Your card was declined." });
+    expect(retrieve).toHaveBeenCalledTimes(2);
+  });
+
+  it("says the payment ended when the second read finds it cancelled", async () => {
+    const { stripe } = scriptedStripe(["requires_payment_method", "canceled"], {
+      error: { message: "This PaymentIntent was canceled." },
+    });
+    expect(await confirmIntent({ stripe, ...BASE })).toEqual({
+      ok: false,
+      message: "Your payment didn't go through.",
+      ended: true,
+    });
+  });
+
+  it("gives the confirmation's message when the second read fails too", async () => {
+    const { stripe } = scriptedStripe(["requires_payment_method", new Error("offline")], {
+      error: { message: "We could not reach the server." },
+    });
+    expect(await confirmIntent({ stripe, ...BASE })).toEqual({
+      ok: false,
+      message: "We could not reach the server.",
+    });
+  });
+
+  it("gives the generic message when the confirmation throws and nothing was authorized", async () => {
+    const { stripe } = scriptedStripe(["requires_payment_method"], new Error("Failed to fetch"));
+    expect(await confirmIntent({ stripe, ...BASE })).toEqual({
+      ok: false,
+      message: "Your payment didn't go through.",
+    });
+  });
+
+  it("still confirms when the first read fails on the network", async () => {
+    const { stripe, confirm } = scriptedStripe([new Error("offline"), "requires_capture"], {
+      paymentIntent: { status: "requires_capture" },
+    });
+    expect(await confirmIntent({ stripe, ...BASE })).toEqual({ ok: true });
+    expect(confirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("says a payment cancelled before the tap ended, so the next attempt can start another", async () => {
+    const { stripe, confirm } = scriptedStripe(["canceled"], {});
+    expect(await confirmIntent({ stripe, ...BASE })).toEqual({
+      ok: false,
+      message: "Your payment didn't go through.",
+      ended: true,
+    });
+    expect(confirm).not.toHaveBeenCalled();
+  });
+});

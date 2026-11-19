@@ -17,7 +17,9 @@ import { isMockApi } from "@/lib/api/mock-scenario";
 import { useAsync } from "@/lib/api/use-async";
 import { copy } from "@/lib/copy";
 import { setDemoMode } from "@/lib/demo/store";
-import { formatMoney } from "@/lib/format";
+import { shownOdds, stampingReads, useReadClock } from "@/lib/fan/fresh-read";
+import { bpsToWholePercent, formatMoney } from "@/lib/format";
+import { useNow } from "@/lib/hooks";
 import { shareOrCopy } from "@/lib/share";
 import { FALLBACK_POLL_MS, useLiveOdds } from "@/lib/realtime/use-live-odds";
 import { cn } from "@/lib/utils";
@@ -69,20 +71,26 @@ function Header({ tone }: { tone: "ink" | "lime" }): React.JSX.Element {
   );
 }
 
-/** The venue's logo, or its initial: also when the link the venue gave is dead. */
-function MerchantAvatar({
+/** The venue's logo, or its initial: also when the link the venue gave is dead. Also on C1. */
+export function MerchantAvatar({
   name,
   logoUrl,
+  className,
 }: {
   name: string;
   logoUrl: string | null;
+  /** Another size than the ticket's (`size-12`). */
+  className?: string;
 }): React.JSX.Element {
   const [failed, setFailed] = useState(false);
   if (logoUrl === null || failed) {
     return (
       <span
         aria-hidden="true"
-        className="grid size-12 shrink-0 place-items-center rounded-full bg-card-raised text-lead"
+        className={cn(
+          "grid size-12 shrink-0 place-items-center rounded-full bg-card-raised text-lead",
+          className,
+        )}
       >
         {[...name.trim()][0]?.toUpperCase() ?? ""}
       </span>
@@ -96,7 +104,7 @@ function MerchantAvatar({
       height={48}
       referrerPolicy="no-referrer"
       onError={() => setFailed(true)}
-      className="size-12 shrink-0 rounded-full object-cover"
+      className={cn("size-12 shrink-0 rounded-full object-cover", className)}
     />
   );
 }
@@ -164,7 +172,19 @@ function LivePhase({ ticket, bps }: { ticket: Ticket; bps: number | null }): Rea
     <div className="flex flex-col items-center gap-5">
       <MatchLine ticket={ticket} />
       <Condition ticket={ticket} />
-      <Gauge bps={bps} />
+      {inGame ? (
+        <Gauge bps={bps} />
+      ) : (
+        <>
+          {/* SPEC 5.4, before the game: « 14 % chance this is free », in words under the ring. */}
+          <Gauge bps={bps} caption={null} />
+          <p className="-mt-2 text-center text-lead">
+            {bps === null
+              ? copy.pickPromo.staleBook
+              : copy.ticket.chanceTitle(bpsToWholePercent(bps))}
+          </p>
+        </>
+      )}
       <p
         className={cn(
           "flex items-center gap-2 rounded-full bg-card-raised px-4 py-2 text-label uppercase",
@@ -307,8 +327,10 @@ function RefundedScreen({ ticket }: { ticket: Ticket }): React.JSX.Element {
  */
 export function TicketScreen({ token }: { token: string }): React.JSX.Element {
   const [fastPoll, setFastPoll] = useState(!isMockApi());
+  // A failed re-read, or a last read older than the API's own 10 s bound: the chance is unknown.
+  const { readAt, stamp } = useReadClock(false);
   const live = useAsync(
-    (signal) => apiFetch("ticketByToken", { params: { token }, signal }),
+    stampingReads((signal) => apiFetch("ticketByToken", { params: { token }, signal }), stamp),
     [token],
     {
       pollMs: fastPoll ? FALLBACK_POLL_MS : POLL_MS,
@@ -316,12 +338,19 @@ export function TicketScreen({ token }: { token: string }): React.JSX.Element {
     },
   );
   const ticket = live.data;
+  const now = useNow();
 
   const odds = useLiveOdds(
     ticket?.instrumentSymbol ?? null,
     ticket?.probabilityBps ?? null,
     ticket !== null && isLive(ticket.phase),
+    readAt,
   );
+  const bps = shownOdds(odds.bps, {
+    failing: live.error !== null,
+    lastReadAtMs: readAt,
+    nowMs: now,
+  });
   useEffect(() => {
     setFastPoll(!odds.connected && !isMockApi());
   }, [odds.connected]);
@@ -373,7 +402,7 @@ export function TicketScreen({ token }: { token: string }): React.JSX.Element {
           <>
             <TicketShell
               top={<TicketTop ticket={ticket} tone="card" />}
-              bottom={<LivePhase ticket={ticket} bps={odds.bps} />}
+              bottom={<LivePhase ticket={ticket} bps={bps} />}
             />
             <AddToHome />
           </>

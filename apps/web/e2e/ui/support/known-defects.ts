@@ -6,14 +6,10 @@ import { test } from "@playwright/test";
  * so the mark can then be removed. The front's files are not this suite's to change. Listed in the
  * receipts' README too.
  */
-export const KNOWN_DEFECTS = {
-  ticketChanceWording: {
-    reason:
-      "C3 before the game shows « 14% · CHANCE IT'S FREE », not SPEC 5.4's « 14 % chance this is free »: " +
-      "that sentence (copy.ticket.chanceTitle) is only the gauge's aria-label (components/ui/gauge.tsx:26, " +
-      "visible text gauge.tsx:67)",
-  },
-} as const satisfies Record<string, { reason: string }>;
+// Empty since 19 Nov 2026: the three defects the suite found (the fan link's dead end, M8's
+// missing poster, C3's chance sentence) are fixed, and their expectations are ordinary ones. The
+// type stays wide so that the next defect found is one entry away.
+export const KNOWN_DEFECTS: Readonly<Record<string, { readonly reason: string }>> = {};
 
 export type KnownDefect = keyof typeof KNOWN_DEFECTS;
 
@@ -25,5 +21,5 @@ export type KnownDefect = keyof typeof KNOWN_DEFECTS;
  * inverted, not the whole test, so a broken sign-in can no longer pass for the known defect.
  */
 export function knownDefectFromHere(defect: KnownDefect): void {
-  test.fail(true, KNOWN_DEFECTS[defect].reason);
+  test.fail(true, KNOWN_DEFECTS[defect]?.reason ?? defect);
 }

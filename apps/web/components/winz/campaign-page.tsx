@@ -1,7 +1,7 @@
 "use client";
 
 import type { PublicCampaign } from "@winz/shared";
-import { CreditCard, MapPin } from "lucide-react";
+import { CreditCard, MapPin, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -21,15 +21,18 @@ import { useAsync } from "@/lib/api/use-async";
 import { setDemoMode } from "@/lib/demo/store";
 import { copy } from "@/lib/copy";
 import { totalMicro } from "@/lib/fan/amount";
+import { expressPayOf, type ExpressPay } from "@/lib/fan/express-pay";
+import { isReadFresh, shownOdds, stampingReads, useReadClock } from "@/lib/fan/fresh-read";
 import { gameFromEvent, type FanTeam } from "@/lib/fan/teams";
 import { bpsToWholePercent } from "@/lib/format";
-import { useHydrated } from "@/lib/hooks";
+import { useHydrated, useNow } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 import { FALLBACK_POLL_MS, useLiveOdds } from "@/lib/realtime/use-live-odds";
 
 import { CheckoutSheet, type PayMethod } from "./checkout-sheet";
 import { Money } from "./money";
 import { TeamBadge } from "./team-badge";
+import { MerchantAvatar } from "./ticket-screen";
 
 const MIN_QTY = 1;
 const MAX_QTY = 20;
@@ -132,8 +135,12 @@ export function CampaignPage({
   const [canGoBack, setCanGoBack] = useState(false);
   const [fastPoll, setFastPoll] = useState(!isMockApi());
 
+  // The page's last successful read (the answer it was served with counts from the mount): too old,
+  // and the chance shows as unknown and nothing sells (review 2.4, the API's own 10 s bound). Each
+  // read stamps it as it arrives, whatever object it hands back.
+  const { readAt, stamp } = useReadClock(initial !== null);
   const live = useAsync(
-    (signal) => apiFetch("publicCampaign", { params: { slug }, signal }),
+    stampingReads((signal) => apiFetch("publicCampaign", { params: { slug }, signal }), stamp),
     [slug],
     {
       pollMs: fastPoll ? FALLBACK_POLL_MS : SLOW_POLL_MS,
@@ -146,7 +153,14 @@ export function CampaignPage({
   const trustInitial = !hydrated || getMockScenario() === initialScenario;
   const campaign = live.data ?? (trustInitial ? initial : null);
 
-  const odds = useLiveOdds(campaign?.instrumentSymbol ?? null, campaign?.probabilityBps ?? null);
+  const now = useNow();
+  const fresh = isReadFresh(readAt, now);
+  const odds = useLiveOdds(
+    campaign?.instrumentSymbol ?? null,
+    campaign?.probabilityBps ?? null,
+    true,
+    readAt,
+  );
   useEffect(() => {
     setFastPoll(!odds.connected && !isMockApi());
   }, [odds.connected]);
@@ -192,8 +206,18 @@ export function CampaignPage({
   const settled = campaign.outcome !== null;
   const closed = campaign.saleState === "closed" && !settled;
   const paused = isPaused(campaign.saleState) && !settled;
-  const canBuy = campaign.saleState === "open" && !settled;
-  const percent = odds.bps === null ? null : bpsToWholePercent(odds.bps);
+  const selling = campaign.saleState === "open" && !settled;
+  const canBuy = selling && fresh;
+  const bps = shownOdds(odds.bps, {
+    failing: live.error !== null,
+    lastReadAtMs: readAt,
+    nowMs: now,
+  });
+  const percent = bps === null ? null : bpsToWholePercent(bps);
+  // What the main button names: a guess from the browser once hydrated (Apple Pay until then).
+  const express: ExpressPay = hydrated
+    ? expressPayOf(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)
+    : "apple";
 
   function openSheet(next: PayMethod): void {
     setMethod(next);
@@ -215,6 +239,11 @@ export function CampaignPage({
             <LimePercent text={campaign.promise} />
           </h1>
           <p className="-mt-1 flex items-center gap-1.5 text-body">
+            <MerchantAvatar
+              name={campaign.merchant.name}
+              logoUrl={campaign.merchant.logoUrl}
+              className="size-8"
+            />
             <MapPin className="size-4 text-lime" strokeWidth={1.5} aria-hidden="true" />
             {campaign.merchant.name}
           </p>
@@ -266,6 +295,10 @@ export function CampaignPage({
                   <p role="status" className="rounded-card-sm bg-card-raised px-4 py-3 text-body">
                     {copy.campaign.paused}
                   </p>
+                ) : selling && !fresh ? (
+                  <p role="status" className="rounded-card-sm bg-card-raised px-4 py-3 text-body">
+                    {copy.campaign.reconnecting}
+                  </p>
                 ) : null}
                 <Card tone="raised" className="rounded-card-sm p-4 text-left">
                   <p className="truncate text-promise">{campaign.product}</p>
@@ -285,10 +318,20 @@ export function CampaignPage({
                   variant="white"
                   arrow={false}
                   disabled={!canBuy}
-                  leading={<AppleMark className="size-5" />}
-                  onClick={() => openSheet("apple-pay")}
+                  leading={
+                    express === "apple" ? (
+                      <AppleMark className="size-5" />
+                    ) : express === "google" ? (
+                      <Wallet className="size-5" strokeWidth={1.5} aria-hidden="true" />
+                    ) : undefined
+                  }
+                  onClick={() => openSheet(express === null ? "card" : "apple-pay")}
                 >
-                  {copy.campaign.buyApplePay}
+                  {express === "apple"
+                    ? copy.campaign.buyApplePay
+                    : express === "google"
+                      ? copy.campaign.buyGooglePay
+                      : copy.campaign.buyNow}
                 </Button>
                 <Button
                   variant="dark"
@@ -317,6 +360,14 @@ export function CampaignPage({
         qty={qty}
         method={method}
         canPay={canBuy}
+        lockedMessage={
+          settled || closed
+            ? copy.campaign.closed
+            : paused
+              ? copy.campaign.paused
+              : copy.campaign.reconnecting
+        }
+        express={express}
       />
     </div>
   );
