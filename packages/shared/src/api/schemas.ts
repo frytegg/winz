@@ -40,6 +40,13 @@ export const microContractsSchema = z
   .regex(/^\d+$/, "micro-contracts as a string of digits");
 export const bpsSchema = z.number().int().min(0).max(10_000);
 export const isoDateSchema = z.iso.datetime();
+/**
+ * A `timestamptz` as Postgres writes it in a row pushed by Supabase Realtime: with an offset and
+ * microseconds ("2026-11-21T20:00:00.123456+00:00"), never the "Z" of `toISOString()` that the
+ * API's own answers end with. `isoDateSchema` refuses that form, so a row checked with it was
+ * dropped on every push. Both forms pass here.
+ */
+export const pgTimestampSchema = z.iso.datetime({ offset: true });
 export const addressSchema = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
 export const slugSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/);
 export const emailSchema = z.email();
@@ -643,7 +650,7 @@ export const liveInstrumentRowSchema = z.object({
   bid_bps: z.number().int().nullable(),
   ask_bps: z.number().int().nullable(),
   mid_bps: z.number().int().nullable(),
-  observed_at: isoDateSchema,
+  observed_at: pgTimestampSchema,
   stale: z.boolean(),
 });
 
@@ -654,7 +661,7 @@ export const liveCampaignRowSchema = z.object({
   exposure: microUsdcSchema,
   hedged_bps: z.number().int(),
   outcome: outcomeSchema.nullable(),
-  updated_at: isoDateSchema,
+  updated_at: pgTimestampSchema,
 });
 
 // ---------------------------------------------------------------------------------------------
