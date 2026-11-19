@@ -7,7 +7,6 @@ import { formatMoney } from "../../lib/format";
 
 import { CRITERIA, meetsLimit } from "./support/criteria";
 import { expect, test } from "./support/fixtures";
-import { knownDefectFromHere } from "./support/known-defects";
 import { recordMeasure, seconds } from "./support/measures";
 import type { ReceiptName } from "./support/receipts";
 import { TapCounter } from "./support/taps";
@@ -396,10 +395,413 @@ test.describe("C3, the ticket in each of its five phases (SPEC 5.4)", () => {
     ).toBeVisible();
     await expect(page.getByRole("img", { name: /chance this is free$/ })).toBeVisible();
 
-    knownDefectFromHere("ticketChanceWording");
     // Visible text, not the accessible name: what the fan reads.
     await expect(page.locator("body")).toContainText(/\d+ ?% chance this is free/i, {
       timeout: 5_000,
     });
+  });
+});
+
+/** The payment the simulated API creates, and the ticket its status opens. */
+const CHECKOUT = apiExamples.checkoutExample;
+const TICKET_URL = new RegExp(`/t/${CHECKOUT_STATUS.ticketed.ticketToken}$`);
+/** Where C2 keeps the purchase it started (lib/fan/pending-purchase.ts). */
+const KEPT_PURCHASE = `winz.purchase.${SLUG}`;
+const PIXEL_7 =
+  "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+
+/** Counts the payments the page asks the API to create (`POST /api/checkout`). */
+function countCheckouts(page: Page): { readonly count: number } {
+  const counter = { count: 0 };
+  page.on("request", (request) => {
+    if (request.method() === "POST" && new URL(request.url()).pathname === "/api/checkout") {
+      counter.count += 1;
+    }
+  });
+  return counter;
+}
+
+function keptPurchase(page: Page): Promise<string | null> {
+  return page.evaluate((key) => window.localStorage.getItem(key), KEPT_PURCHASE);
+}
+
+/** What `navigator.onLine` says, without touching the network. */
+async function setOnline(page: Page, online: boolean): Promise<void> {
+  await page.evaluate((value) => {
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, get: () => value });
+  }, online);
+}
+
+/** A purchase this browser kept for the promo before the page opens, as a lost page leaves it. */
+async function keepPurchaseBeforeOpening(
+  page: Page,
+  purchase: { paymentIntentId: string; authorized: boolean },
+): Promise<void> {
+  await page.addInitScript(
+    ([key, value]) => {
+      try {
+        // Once: the page itself changes it afterwards.
+        if (window.sessionStorage.getItem("seeded") !== null) return;
+        window.sessionStorage.setItem("seeded", "1");
+        window.localStorage.setItem(key, value);
+      } catch {
+        // about:blank has no storage.
+      }
+    },
+    [KEPT_PURCHASE, JSON.stringify(purchase)] as const,
+  );
+}
+
+/** The status read of the payment answers `answer()` while it is not null, the API otherwise. */
+async function answerStatus(
+  page: Page,
+  answer: () => { status: string; ticketToken: string | null; message: string | null } | null,
+): Promise<void> {
+  await page.route(`**/api/checkout/${CHECKOUT.paymentIntentId}`, (route) => {
+    const body = route.request().method() === "GET" ? answer() : null;
+    return body === null
+      ? route.fallback()
+      : route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+  });
+}
+
+/** The next status read of the simulated payment. */
+function nextStatusRead(page: Page): Promise<unknown> {
+  return page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname === `/api/checkout/${CHECKOUT.paymentIntentId}`,
+  );
+}
+
+const NOT_PAID_YET = { status: "requires_payment", ticketToken: null, message: null };
+
+/** Every read of the promo (C1) or of the ticket (C3) fails, as when the API is unreachable. */
+async function failReads(page: Page, pattern: string): Promise<void> {
+  await page.route(pattern, (route) =>
+    route.request().method() === "GET"
+      ? route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ error: { code: "internal", message: "Service unavailable" } }),
+        })
+      : route.fallback(),
+  );
+}
+
+test.describe("C2 and C3, the fan's money path (review of 19 November)", () => {
+  test("an answer lost after the tap: the next tap pays the same payment, and one ticket", async ({
+    page,
+  }) => {
+    const checkouts = countCheckouts(page);
+    await page.route("**/api/checkout", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      const response = await route.fetch();
+      // The payment exists; the card's answer is then lost: the simulated authorization (0.5 s)
+      // fails when the browser says it is offline, as Stripe would. Only `navigator.onLine` is
+      // changed, so no other request of the page fails meanwhile.
+      await setOnline(page, false);
+      await route.fulfill({ response });
+    });
+    await page.goto(`/c/${SLUG}`);
+    await page.getByRole("button", { name: copy.campaign.buyApplePay }).tap();
+    await payButton(page).tap();
+    const sheet = page.getByRole("dialog", { name: copy.checkout.title });
+    await expect(sheet.getByRole("alert"), "the lost answer is shown in the sheet").toHaveText(
+      copy.common.networkError,
+    );
+    await setOnline(page, true);
+    expect(await keptPurchase(page), "the purchase is kept from the API's answer").toContain(
+      CHECKOUT.paymentIntentId,
+    );
+
+    await payButton(page).tap();
+    await expect(page, "the second tap ends on the ticket").toHaveURL(TICKET_URL);
+    expect(checkouts.count, "one payment created for the two taps").toBe(1);
+    expect(await keptPurchase(page), "the purchase is forgotten once ticketed").toBeNull();
+  });
+
+  test("a page lost during « Securing your promo… »: reopening the promo opens the ticket", async ({
+    page,
+  }) => {
+    // `processing`: the payment never ends while the first page is open.
+    await page.goto(`/c/${SLUG}?scenario=processing`);
+    await page.getByRole("button", { name: copy.campaign.buyApplePay }).tap();
+    await payButton(page).tap();
+    await expect(page.getByRole("heading", { name: copy.checkout.securing })).toBeVisible();
+    const kept = await keptPurchase(page);
+    expect(kept, "the purchase is kept for this promo").toContain(CHECKOUT.paymentIntentId);
+    expect(kept, "and its card is known authorized").toContain('"authorized":true');
+
+    // The page is lost; the fan opens the promo again, and the payment has ended on its ticket.
+    const checkouts = countCheckouts(page);
+    await page.goto(`/c/${SLUG}?scenario=ticketed`);
+    await expect(page, "the promo's page opens the ticket by itself").toHaveURL(TICKET_URL);
+    expect(checkouts.count, "nothing is bought again").toBe(0);
+    expect(await keptPurchase(page), "the purchase is forgotten once ticketed").toBeNull();
+  });
+
+  test("a payment that ended without a ticket is forgotten, and the promo is not taken over", async ({
+    page,
+  }) => {
+    await page.goto(`/c/${SLUG}?scenario=failed`);
+    await page.getByRole("button", { name: copy.campaign.buyApplePay }).tap();
+    await payButton(page).tap();
+    await expect(page.getByRole("heading", { name: CHECKOUT_STATUS.failed.message })).toBeVisible();
+    expect(await keptPurchase(page), "a payment over without a ticket is forgotten").toBeNull();
+    await page.goto(`/c/${SLUG}`);
+    await expect(page.getByRole("button", { name: copy.campaign.buyApplePay })).toBeEnabled();
+    await expect(page).toHaveURL(new RegExp(`/c/${SLUG}$`));
+  });
+
+  test("back from a payment redirect (3-D Secure): the promo's page follows that payment to its ticket", async ({
+    page,
+  }) => {
+    // What Stripe adds to the return address (`return_url` is the promo's page), in a browser that
+    // kept nothing: the address alone is enough.
+    await page.goto(
+      `/c/${SLUG}?payment_intent=${CHECKOUT.paymentIntentId}&payment_intent_client_secret=${CHECKOUT.clientSecret}&redirect_status=succeeded`,
+    );
+    await expect(page, "the redirect ends on the ticket").toHaveURL(TICKET_URL);
+  });
+
+  test("the wait has an end: past a minute, the fan is told what is true and what to do", async ({
+    page,
+  }) => {
+    await page.clock.install();
+    await page.goto(`/c/${SLUG}?scenario=processing`);
+    await page.getByRole("button", { name: copy.campaign.buyApplePay }).tap();
+    // The wait's clock starts once the confirmation has answered: the first status read proves it.
+    const polling = page.waitForResponse(
+      (response) =>
+        response.request().method() === "GET" &&
+        new URL(response.url()).pathname === `/api/checkout/${CHECKOUT.paymentIntentId}`,
+    );
+    await payButton(page).tap();
+    await expect(page.getByRole("heading", { name: copy.checkout.securing })).toBeVisible();
+    await polling;
+    // Past WAIT_LIMIT_SECONDS (60 s, lib/fan/checkout-flow.ts).
+    await page.clock.fastForward(120_000);
+    await expect(
+      page.getByRole("heading", { name: copy.checkout.unresolvedTitle }),
+      "the wait stops and says so",
+    ).toBeVisible();
+    await expect(page.getByText(copy.checkout.unresolvedBody)).toBeVisible();
+    expect(await keptPurchase(page), "the purchase stays kept for the next visit").toContain(
+      CHECKOUT.paymentIntentId,
+    );
+    await expectNoCryptoWord(page, "C2 unresolved");
+    await expect(page.getByRole("button", { name: copy.checkout.checkAgain })).toBeVisible();
+    await page.getByRole("button", { name: copy.checkout.backToPromo }).tap();
+    await expect(page.getByRole("button", { name: copy.campaign.buyApplePay })).toBeVisible();
+  });
+
+  test("a purchase picked up after a reload, still on its way: a new tap follows it, never pays again", async ({
+    page,
+  }) => {
+    const checkouts = countCheckouts(page);
+    await page.clock.install();
+    await page.goto(`/c/${SLUG}?scenario=processing`);
+    await page.getByRole("button", { name: copy.campaign.buyApplePay }).tap();
+    await payButton(page).tap();
+    await expect(page.getByRole("heading", { name: copy.checkout.securing })).toBeVisible();
+    expect(checkouts.count).toBe(1);
+
+    // The page is lost and reopened, as the screen tells the fan to do; the wait reaches its bound.
+    const polling = nextStatusRead(page);
+    await page.goto(`/c/${SLUG}?scenario=processing`);
+    await expect(page.getByRole("heading", { name: copy.checkout.securing })).toBeVisible();
+    await polling;
+    await page.clock.fastForward(120_000);
+    await expect(page.getByRole("heading", { name: copy.checkout.unresolvedTitle })).toBeVisible();
+
+    await page.getByRole("button", { name: copy.checkout.backToPromo }).tap();
+    await page.getByRole("button", { name: copy.campaign.buyApplePay }).tap();
+    const sheet = page.getByRole("dialog", { name: copy.checkout.title });
+    await expect(
+      sheet.getByText(copy.checkout.stillOnItsWay),
+      "the sheet says a purchase is still on its way",
+    ).toBeVisible();
+    const followed = nextStatusRead(page);
+    await payButton(page).tap();
+    await expect(
+      page.getByRole("heading", { name: copy.checkout.securing }),
+      "the tap follows the purchase on its way",
+    ).toBeVisible();
+    await followed;
+    expect(checkouts.count, "one payment created for one intended purchase").toBe(1);
+  });
+
+  test("a tap during the quiet pick-up of an unseen payment waits for it: no second payment", async ({
+    page,
+  }) => {
+    // A page lost before Stripe's answer: the card was in fact authorized, which the status read
+    // finds out after a few seconds (it asks Stripe once the row has waited 5 s).
+    await keepPurchaseBeforeOpening(page, {
+      paymentIntentId: CHECKOUT.paymentIntentId,
+      authorized: false,
+    });
+    let reads = 0;
+    await answerStatus(page, () => {
+      reads += 1;
+      return reads <= 4 ? NOT_PAID_YET : null;
+    });
+    const checkouts = countCheckouts(page);
+    const firstRead = nextStatusRead(page);
+    await page.goto(`/c/${SLUG}`);
+    await firstRead;
+    await page.getByRole("button", { name: copy.campaign.buyApplePay }).tap();
+    await payButton(page).tap();
+    await expect(page, "the payment picked up ends on its ticket").toHaveURL(TICKET_URL);
+    expect(checkouts.count, "the tap did not create a second payment").toBe(0);
+    expect(await keptPurchase(page), "the purchase is forgotten once ticketed").toBeNull();
+  });
+
+  test("an unseen payment that was never authorized is let go, and the waiting tap then pays once", async ({
+    page,
+  }) => {
+    await keepPurchaseBeforeOpening(page, {
+      paymentIntentId: CHECKOUT.paymentIntentId,
+      authorized: false,
+    });
+    const checkouts = countCheckouts(page);
+    // Unpaid for as long as no new payment was asked for.
+    await answerStatus(page, () => (checkouts.count === 0 ? NOT_PAID_YET : null));
+    await page.clock.install();
+    const firstRead = nextStatusRead(page);
+    await page.goto(`/c/${SLUG}`);
+    await firstRead;
+    await page.getByRole("button", { name: copy.campaign.buyApplePay }).tap();
+    const another = nextStatusRead(page);
+    await payButton(page).tap();
+    await another;
+    expect(checkouts.count, "the tap waits for the purchase picked up").toBe(0);
+    // Past RESUME_UNSEEN_LIMIT_SECONDS (15 s, lib/fan/checkout-flow.ts): the record is let go.
+    await page.clock.fastForward(20_000);
+    await expect.poll(() => checkouts.count, { message: "then pays, once" }).toBe(1);
+    await expect(page, "and ends on the ticket").toHaveURL(TICKET_URL);
+    expect(checkouts.count).toBe(1);
+  });
+
+  test("the sheet closed while paying: a refusal reopens it with its message", async ({
+    page,
+    screens,
+  }) => {
+    screens.allowStatus(/\/api\/checkout$/, 409);
+    await page.route("**/api/checkout", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      // Time for the fan to close the sheet before the refusal comes back.
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await route.fallback({
+        headers: { ...route.request().headers(), [MOCK_SCENARIO_HEADER]: "salesPaused" },
+      });
+    });
+    await page.goto(`/c/${SLUG}`);
+    await page.getByRole("button", { name: copy.campaign.buyApplePay }).tap();
+    await payButton(page).tap();
+    const sheet = page.getByRole("dialog", { name: copy.checkout.title });
+    await sheet.getByRole("button", { name: copy.common.close }).tap();
+    await expect(sheet, "the sheet closes while the payment is on its way").toBeHidden();
+    await expect(sheet, "the refusal brings the sheet back").toBeVisible();
+    await expect(sheet.getByRole("alert")).toContainText(/paused/i);
+  });
+
+  test("a promo whose sales close while the sheet is open says so, not « Paused for now »", async ({
+    page,
+  }) => {
+    await page.goto(`/c/${SLUG}`);
+    await page.getByRole("button", { name: copy.campaign.buyApplePay }).tap();
+    const sheet = page.getByRole("dialog", { name: copy.checkout.title });
+    await expect(payButton(page)).toBeEnabled();
+    await page.route("**/api/c/**", (route) =>
+      route.request().method() === "GET"
+        ? route.fallback({
+            headers: { ...route.request().headers(), [MOCK_SCENARIO_HEADER]: "salesClosed" },
+          })
+        : route.fallback(),
+    );
+    await expect(sheet.getByText(copy.campaign.closed), "the sheet says sales closed").toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(sheet.getByText(copy.campaign.paused)).toHaveCount(0);
+    await expect(payButton(page)).toBeDisabled();
+  });
+});
+
+test.describe("C1 and C3 when the API cannot be read (review 2.4)", () => {
+  test("C1: the chance turns unknown, and buying stops while the last read is too old", async ({
+    page,
+    screens,
+  }) => {
+    screens.allowStatus(/\/api\/c\//, 503);
+    await page.goto(`/c/${SLUG}`);
+    const buy = page.getByRole("button", { name: copy.campaign.buyApplePay });
+    await expect(page.getByText(copy.campaign.chanceSuffix)).toBeVisible();
+    await expect(buy).toBeEnabled();
+
+    await failReads(page, "**/api/c/**");
+    await expect(
+      page.getByText(copy.campaign.chanceUpdating),
+      "a failed read shows the chance as unknown",
+    ).toBeVisible();
+    await expect(page.getByText(copy.campaign.chanceSuffix)).toHaveCount(0);
+    await expect(buy, "no sale on a read older than 10 s").toBeDisabled({ timeout: 20_000 });
+    await expect(page.getByRole("main").getByText(copy.campaign.reconnecting)).toBeVisible();
+    await expectNoCryptoWord(page, "C1 reconnecting");
+
+    await page.unroute("**/api/c/**");
+    await expect(buy, "buying is back with the next read").toBeEnabled();
+    await expect(page.getByText(copy.campaign.chanceSuffix)).toBeVisible();
+  });
+
+  test("C3: the gauge turns unknown when the ticket cannot be re-read", async ({
+    page,
+    screens,
+  }) => {
+    screens.allowStatus(/\/api\/t\//, 503);
+    await page.goto("/t/tkt_example_joes_texas?scenario=preGame");
+    await expect(page.getByRole("img", { name: /^\d+% chance this is free$/ })).toBeVisible();
+    await failReads(page, "**/api/t/**");
+    await expect(
+      page.getByRole("img", { name: copy.pickPromo.staleBook }),
+      "a failed read shows the chance as unknown",
+    ).toBeVisible();
+    await expect(page.getByText(/\d+ ?% chance this is free/i)).toHaveCount(0);
+  });
+});
+
+test.describe("C1 shows the venue (review 2.11)", () => {
+  test("the merchant's logo when it has one", async ({ page, baseURL }) => {
+    const logo = `${baseURL ?? ""}/brand/icon-winz-lime.svg`;
+    await page.route("**/api/c/**", async (route) => {
+      if (route.request().method() !== "GET") return route.fallback();
+      const response = await route.fetch();
+      const json = (await response.json()) as { merchant: { logoUrl: string | null } };
+      json.merchant.logoUrl = logo;
+      await route.fulfill({ response, json });
+    });
+    await page.goto(`/c/${SLUG}`);
+    await expect(page.getByRole("main").locator(`img[src="${logo}"]`)).toBeVisible();
+  });
+
+  test("its initial when it has none, as on the ticket", async ({ page }) => {
+    await page.goto(`/c/${SLUG}`);
+    const initial = CAMPAIGN.merchant.name.slice(0, 1).toUpperCase();
+    await expect(
+      page
+        .getByRole("main")
+        .locator("span[aria-hidden='true']")
+        .filter({ hasText: new RegExp(`^${initial}$`) }),
+    ).toBeVisible();
+  });
+});
+
+test.describe("C1 on Android (review section 3)", () => {
+  test.use({ userAgent: PIXEL_7 });
+
+  test("the main button names Google Pay, never Apple Pay", async ({ page }) => {
+    await page.goto(`/c/${SLUG}`);
+    await expect(page.getByRole("button", { name: copy.campaign.buyGooglePay })).toBeEnabled();
+    await expect(page.getByRole("button", { name: copy.campaign.buyApplePay })).toHaveCount(0);
   });
 });

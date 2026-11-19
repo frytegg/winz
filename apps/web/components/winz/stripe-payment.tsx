@@ -148,7 +148,7 @@ export function WalletButton({
   onPay,
   onUnavailable,
 }: {
-  /** The wallet asks for the e-mail (`emailRequired`): the fan's ticket link is sent there. */
+  /** The wallet asks for the e-mail (`emailRequired`): the fan's tickets are kept under it. */
   askEmail: boolean;
   /** The promo cannot take payments now: the button is shown but does nothing. */
   locked: boolean;

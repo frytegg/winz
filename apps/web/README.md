@@ -378,6 +378,41 @@ la même demande a enregistré la recharge entre-temps : l'appel répond alors c
 5. Un `pi` inconnu répond `404`. Ces réponses ne contiennent jamais l'e-mail, l'adresse de
    l'acheteur ni aucun terme on-chain.
 
+Ce que fait l'écran (`components/winz/checkout-sheet.tsx`, décisions dans `lib/fan/checkout-flow.ts`
+et `lib/fan/pending-purchase.ts`, testées à côté) :
+
+- **Un seul paiement, quel que soit le nombre de taps.** La réponse de `POST /api/checkout` est
+  gardée par la feuille, pour cette promo et cette quantité, et l'essai suivant paie ce même
+  PaymentIntent au lieu d'en créer un autre. Elle n'est oubliée que quand ce paiement est fini : un
+  ticket, une fin sans ticket après la confirmation (`cancelled_paused`, `failed`), un intent
+  `canceled` chez Stripe (annulé par le moteur, ou autorisation expirée : l'essai en crée alors un
+  nouveau, une seule fois), ou une autre quantité. Une carte refusée ne finit pas le paiement :
+  l'intent repasse `requires_payment_method` et le tap suivant le paie avec une autre carte.
+  La règle tient au-delà de la page : un tap sur « Pay » alors que le navigateur garde pour cette
+  promo un achat dont la carte a été vue autorisée, ou un achat repris après un rechargement ou une
+  redirection (la feuille n'en a plus le `clientSecret`), suit d'abord cet achat jusqu'à sa fin
+  (`beforePaying`, `lib/fan/pending-purchase.ts`) ; il ne crée un nouveau paiement que si celui-là
+  s'avère fini sans ticket. Tant qu'un achat autorisé est en route, la feuille le dit
+  (`copy.checkout.stillOnItsWay`), quelle que soit la quantité choisie.
+- **Une erreur de Stripe n'est pas forcément un échec.** Quand `confirmPayment` répond une erreur
+  ou lève, l'intent est relu une fois (`retrievePaymentIntent`) : `requires_capture` (ou déjà
+  `processing`, `succeeded`) continue comme un succès (`lib/stripe/payment.ts`).
+- **Une page perdue retrouve son ticket.** Dès que `POST /api/checkout` répond, le navigateur garde
+  `{ paymentIntentId, authorized }` pour la promo (`localStorage`, clé `winz.purchase.<slug>`). À la
+  visite suivante de la même promo, la page reprend le suivi (`GET /api/checkout/:pi`) et ouvre le
+  ticket ; un paiement fini sans ticket est oublié. Le retour d'une redirection de paiement
+  (3-D Secure, `?payment_intent=…&redirect_status=…` sur la page de la promo) est suivi de la même
+  façon, même dans un navigateur qui n'a rien gardé. Aucun e-mail n'est envoyé : l'e-mail sert à
+  retrouver ses tickets dans « My tickets ».
+- **L'attente a une fin.** Le suivi ne rappelle jamais la confirmation (la lecture du statut
+  complète seule un paiement autorisé) et s'arrête après 60 s (`WAIT_LIMIT_SECONDS`) : la carte est
+  seulement autorisée, pas débitée, et rouvrir la promo sur ce téléphone reprend le suivi.
+- **Une cote n'est jamais affichée comme fraîche quand elle ne l'est pas.** Sur C1 et le ticket,
+  une relecture qui échoue affiche la chance comme inconnue (« Odds updating… »), et C1 ne vend
+  plus tant que la dernière lecture réussie a plus de 10 s (`BOOK_STALE_AFTER_MS`, la règle de
+  `liveProbabilityBps` côté serveur ; `lib/fan/fresh-read.ts`). L'heure de la dernière lecture est
+  posée par la lecture elle-même (`stampingReads`), pas déduite d'un changement d'objet.
+
 ### Stripe en mode test
 
 Seules les clés de test sont acceptées (`sk_test_...`) : une clé live est refusée au démarrage de

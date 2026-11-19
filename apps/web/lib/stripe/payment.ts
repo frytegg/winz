@@ -9,7 +9,18 @@ import { copy } from "@/lib/copy";
  * then asks the back end for the PaymentIntent, and `confirmIntent` pays or authorizes it.
  */
 
-export type PaymentResult = { ok: true } | { ok: false; message: string };
+export type PaymentResult =
+  | { ok: true }
+  | {
+      ok: false;
+      message: string;
+      /**
+       * The PaymentIntent is cancelled at Stripe (`canceled`: the engine cancelled the authorization,
+       * or it expired). That is final: no attempt can pay it any more, a new one has to be created.
+       * Absent for every other failure (a declined card leaves the intent payable with another one).
+       */
+      ended?: true;
+    };
 
 interface StripeError {
   message?: string;
@@ -67,10 +78,29 @@ export interface ConfirmInput {
   returnUrl: string;
 }
 
+/** The intent's status, or `undefined` when Stripe cannot be read (offline, an error). */
+async function readStatus(stripe: StripeLike, clientSecret: string): Promise<string | undefined> {
+  try {
+    const { paymentIntent } = await stripe.retrievePaymentIntent(clientSecret);
+    return paymentIntent?.status;
+  } catch {
+    return undefined;
+  }
+}
+
+const ENDED: PaymentResult = { ok: false, message: copy.checkout.failed, ended: true };
+
 /**
  * Authorizes (fan) or pays (merchant budget) the PaymentIntent. A PaymentIntent that is already
  * authorized or paid (the same request sent again) counts as done and is not confirmed twice; one
- * that was cancelled is not payable. `redirect: "if_required"`: a card never leaves the page.
+ * that was cancelled is not payable (`ended`). `redirect: "if_required"`: a card never leaves the
+ * page.
+ *
+ * When the confirmation answers an error or throws, the card may have been authorized all the same
+ * (the answer lost on its way back, a second confirmation of an intent the first already
+ * authorized): the intent is read once more, and an authorized one (`requires_capture`) or one
+ * already beyond (`processing`, `succeeded`) is a success (review 1.3). Anything else stays the
+ * failure Stripe gave, with Stripe's words.
  */
 export async function confirmIntent({
   stripe,
@@ -79,23 +109,38 @@ export async function confirmIntent({
   email,
   returnUrl,
 }: ConfirmInput): Promise<PaymentResult> {
-  const known = await stripe.retrievePaymentIntent(clientSecret);
-  const knownStatus = known.paymentIntent?.status;
+  const knownStatus = await readStatus(stripe, clientSecret);
   if (knownStatus !== undefined) {
     if (isAuthorizedStatus(knownStatus)) return { ok: true };
-    if (knownStatus === "canceled") return { ok: false, message: copy.checkout.failed };
+    if (knownStatus === "canceled") return ENDED;
   }
 
-  const { error, paymentIntent } = await stripe.confirmPayment({
-    elements: elements as never,
-    clientSecret,
-    confirmParams: {
-      return_url: returnUrl,
-      ...(email === undefined ? {} : { payment_method_data: { billing_details: { email } } }),
-    },
-    redirect: "if_required",
-  });
-  if (error !== undefined) return { ok: false, message: error.message ?? copy.checkout.failed };
-  if (paymentIntent !== undefined && isAuthorizedStatus(paymentIntent.status)) return { ok: true };
-  return { ok: false, message: copy.checkout.failed };
+  let message: string = copy.checkout.failed;
+  try {
+    const { error, paymentIntent } = await stripe.confirmPayment({
+      elements: elements as never,
+      clientSecret,
+      confirmParams: {
+        return_url: returnUrl,
+        ...(email === undefined ? {} : { payment_method_data: { billing_details: { email } } }),
+      },
+      redirect: "if_required",
+    });
+    if (error === undefined) {
+      if (paymentIntent !== undefined && isAuthorizedStatus(paymentIntent.status)) {
+        return { ok: true };
+      }
+      return { ok: false, message: copy.checkout.failed };
+    }
+    message = error.message ?? copy.checkout.failed;
+  } catch {
+    // Stripe.js itself failed (the network dropped mid-request): read the intent below.
+  }
+
+  const afterStatus = await readStatus(stripe, clientSecret);
+  if (afterStatus !== undefined) {
+    if (isAuthorizedStatus(afterStatus)) return { ok: true };
+    if (afterStatus === "canceled") return ENDED;
+  }
+  return { ok: false, message };
 }
