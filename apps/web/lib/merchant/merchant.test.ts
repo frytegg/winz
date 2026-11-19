@@ -10,7 +10,15 @@ import {
   visibleCampaigns,
 } from "./campaigns";
 import { appendPoint, axisMaxPercent, MIN_GAP_MS } from "./odds-history";
-import { allTimeTotals, averageSale, inPeriod, launchedAt, shareBps, totalsFor } from "./stats";
+import {
+  allTimeTotals,
+  averageSale,
+  countsInStats,
+  inPeriod,
+  launchedAt,
+  shareBps,
+  totalsFor,
+} from "./stats";
 
 function summary(overrides: Partial<CampaignSummary>): CampaignSummary {
   return {
@@ -99,6 +107,22 @@ describe("a promo that was never paid", () => {
 });
 
 describe("the statistics", () => {
+  it("count every promo that went on sale, a cancelled game's included, never one that did not", () => {
+    expect(countsInStats("draft")).toBe(false);
+    expect(countsInStats("funding")).toBe(false);
+    for (const status of [
+      "live",
+      "paused",
+      "sales_closed",
+      "settled_yes",
+      "settled_no",
+      "void",
+      "closed",
+    ] as const) {
+      expect(countsInStats(status), status).toBe(true);
+    }
+  });
+
   // Wednesday 18 November 2026, local time.
   const now = new Date(2026, 10, 18, 15, 0, 0);
 
@@ -125,7 +149,7 @@ describe("the statistics", () => {
     ).toBe("2026-11-18T10:01:00.000Z");
   });
 
-  it("sums revenue and sales of the campaigns that sold, in the period", () => {
+  it("sums revenue and sales of the campaigns that sold, in the period, a cancelled game's included", () => {
     // The first one is live since the 17th for a game on the 28th: only the 17th counts.
     const game = new Date(2026, 10, 28, 12).toISOString();
     const at = (day: number): { createdAt: string; liveAt: string } => ({
@@ -136,13 +160,15 @@ describe("the statistics", () => {
       summary({ startsAt: game, ...at(17), revenue: "240000000", sales: 12 }),
       summary({ status: "settled_no", startsAt: game, ...at(2), revenue: "620000000", sales: 31 }),
       summary({ status: "funding", startsAt: game, ...at(17), revenue: "5000000", sales: 1 }),
+      // A cancelled game (VOID) is settled like NO for the escrow: the merchant keeps its sales
+      // (SPEC ST-4, WinzEscrow), so they count.
       summary({ status: "void", startsAt: game, ...at(17), revenue: "9000000", sales: 2 }),
     ];
     const week = totalsFor(campaigns, "week", now);
-    expect(week).toEqual({ grossSales: 240_000_000n, sales: 12, campaigns: 1 });
+    expect(week).toEqual({ grossSales: 249_000_000n, sales: 14, campaigns: 2 });
     const month = totalsFor(campaigns, "month", now);
-    expect(month).toEqual({ grossSales: 860_000_000n, sales: 43, campaigns: 2 });
-    expect(allTimeTotals(campaigns).sales).toBe(43);
+    expect(month).toEqual({ grossSales: 869_000_000n, sales: 45, campaigns: 3 });
+    expect(allTimeTotals(campaigns).sales).toBe(45);
     expect(totalsFor(campaigns, "today", now).campaigns).toBe(0);
   });
 

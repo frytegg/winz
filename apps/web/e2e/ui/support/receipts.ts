@@ -64,6 +64,16 @@ export const RECEIPTS = {
     "Détail d'une promo réglée sur OUI, avec le bilan (scénario `settledYes`).",
   "md-detail-settled-no":
     "Détail d'une promo réglée sur NON, avec le bilan (scénario `settledNo`).",
+  "md-detail-cancelled":
+    "Détail d'une promo dont le match est annulé, avec son bilan (scénario `cancelled`) : « Cancelled », jamais « Lost ».",
+  "md-detail-polled-sale":
+    "Détail d'une promo en ligne : une vente apparue par la seule relecture de l'API, Realtime absent.",
+  "md-detail-stale":
+    "Détail d'une promo en ligne quand les relectures échouent : « reconnecting », cote « updating ».",
+  "md-home-with-cancelled":
+    "L'accueil avec une promo au match annulé (scénario `withCancelled`) : ses ventes comptent.",
+  "md-stats-with-cancelled":
+    "Les statistiques avec une promo au match annulé (scénario `withCancelled`) : ses ventes comptent.",
   "md-settings": "Les réglages : profil, solde, informations techniques repliées, déconnexion.",
   // Hedge desk
   "hd-desk": "Le Hedge desk public : lieu d'exécution en tête, totaux, limites, instruments.",

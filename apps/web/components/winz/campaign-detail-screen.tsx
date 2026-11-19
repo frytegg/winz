@@ -12,6 +12,7 @@ import { isApiError } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth";
 import { copy } from "@/lib/copy";
 import { isRunning, showsCountdown } from "@/lib/merchant/campaigns";
+import { shownChance } from "@/lib/merchant/live-detail";
 import { isPulsing, statusBadge } from "@/lib/merchant/status";
 import { useCampaignDetail } from "@/lib/merchant/use-campaign-detail";
 import { useOddsHistory } from "@/lib/merchant/use-odds-history";
@@ -49,8 +50,10 @@ function DetailSkeleton(): React.JSX.Element {
 
 /**
  * MD: one campaign, live. The status and the countdown, the game, then the Stats, Budget and
- * Controls tabs. The campaign is read again every 3 seconds; the live chance moves with the live feed
- * (or a small wobble in simulated mode) and builds the chart. A tab change keeps its place on screen.
+ * Controls tabs. The campaign follows its public row pushed by Supabase Realtime and is read again
+ * every 2 to 3 seconds (`useCampaignDetail`); the live chance moves with the live feed (or a small
+ * wobble in simulated mode) and builds the chart. When a read fails, the last figures stay under a
+ * « reconnecting » line and the chance shows as updating. A tab change keeps its place on screen.
  */
 export function CampaignDetailScreen({ campaignId }: { campaignId: string }): React.JSX.Element {
   const { me } = useAuth();
@@ -69,7 +72,9 @@ export function CampaignDetailScreen({ campaignId }: { campaignId: string }): Re
     campaign?.probabilityBps ?? null,
     tracking,
   );
-  const points = useOddsHistory(campaignId, tracking ? odds.bps : null, tracking);
+  // A failed re-read hides the chance rather than leave an old one that looks current.
+  const liveBps = shownChance(odds.bps, tracking, detail.stale);
+  const points = useOddsHistory(campaignId, liveBps, tracking);
 
   const notFound = isApiError(detail.error) && detail.error.status === 404;
   const merchantName = me?.merchant?.name ?? "";
@@ -114,6 +119,15 @@ export function CampaignDetailScreen({ campaignId }: { campaignId: string }): Re
               closesAt={showsCountdown(campaign.status) ? campaign.salesCloseAt : undefined}
             />
             <CampaignMatch event={campaign.event} startsAt={campaign.startsAt} />
+            {detail.stale ? (
+              <p
+                role="status"
+                className="flex items-center gap-2.5 rounded-full bg-card px-4 py-2 text-caption text-muted"
+              >
+                <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-danger" />
+                {copy.campaignDetail.reconnecting}
+              </p>
+            ) : null}
             <Segmented
               semantics="tabs"
               label={copy.campaignDetail.tabsLabel}
@@ -123,11 +137,7 @@ export function CampaignDetailScreen({ campaignId }: { campaignId: string }): Re
             />
             <div role="tabpanel" aria-label={copy.campaignDetail.tabs[tab]}>
               {tab === "stats" ? (
-                <StatsTab
-                  campaign={campaign}
-                  points={points}
-                  liveBps={tracking ? odds.bps : null}
-                />
+                <StatsTab campaign={campaign} points={points} liveBps={liveBps} />
               ) : tab === "budget" ? (
                 <BudgetTab campaign={campaign} onAddBudget={() => setTopUpOpen(true)} />
               ) : (

@@ -87,6 +87,7 @@ export const API_ROUTES = {
     examples: {
       default: examples.campaignsExample,
       withFunding: examples.campaignsWithFundingExample,
+      withCancelled: examples.campaignsWithCancelledExample,
     },
   },
   campaignDetail: {
