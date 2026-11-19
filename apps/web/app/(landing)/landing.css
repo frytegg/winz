@@ -52,3 +52,8 @@ html:has(.landing) {
     animation: none;
   }
 }
+
+/* The menu is a modal dialog: the page behind it must not scroll under a thumb. */
+html:has(.landing-menu[open]) {
+  overflow: hidden;
+}
