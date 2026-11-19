@@ -5,13 +5,11 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
-import { useToast } from "@/components/ui/toast";
 import { copy } from "@/lib/copy";
-import { renderQrPng } from "@/lib/qr";
-import { copyText, shareOrCopy } from "@/lib/share";
 
 import { QrCode } from "./qr-code";
 import { QrFullscreen } from "./qr-fullscreen";
+import { usePromoShare } from "./use-promo-share";
 
 /**
  * "Share this promo" (MD, share button): the QR code, the link with a copy button, Share and
@@ -32,41 +30,9 @@ export function CampaignShareSheet({
   promise: string;
   merchantName: string;
 }): React.JSX.Element {
-  const toast = useToast();
   const [qrOpen, setQrOpen] = useState(false);
+  const { copyLink, share, downloadQr } = usePromoShare({ url, slug, promise, merchantName });
   const shortUrl = url.replace(/^https?:\/\//, "");
-
-  async function copyLink(): Promise<void> {
-    if (await copyText(url)) toast.show(copy.common.copied);
-    else toast.show(copy.common.genericError, "error");
-  }
-
-  async function share(): Promise<void> {
-    const result = await shareOrCopy({
-      title: copy.live.shareTitle(merchantName),
-      text: copy.live.shareText(promise, merchantName),
-      url,
-    });
-    if (result === "copied") toast.show(copy.live.shareFailed);
-    if (result === "failed") toast.show(copy.common.genericError, "error");
-  }
-
-  async function downloadQr(): Promise<void> {
-    try {
-      const blob = await renderQrPng(url);
-      const href = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = href;
-      link.download = `winz-${slug ?? "promo"}-qr.png`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(href), 1000);
-      toast.show(copy.live.qrDownloaded);
-    } catch {
-      toast.show(copy.live.qrFailed, "error");
-    }
-  }
 
   return (
     <>

@@ -10,7 +10,6 @@ import { Countdown } from "@/components/ui/countdown";
 import { Diagonals } from "@/components/ui/diagonals";
 import { Logo } from "@/components/ui/logo";
 import { Splash } from "@/components/ui/splash";
-import { useToast } from "@/components/ui/toast";
 import { useWizard } from "@/components/wizard/wizard-context";
 import { apiFetch, errorMessage } from "@/lib/api/client";
 import { isMockApi } from "@/lib/api/mock-scenario";
@@ -20,12 +19,12 @@ import { HOME_PATH } from "@/lib/auth/route-guard";
 import { copy } from "@/lib/copy";
 import { LIVE_SLOW_AFTER_MS } from "@/lib/merchant/launch-wait";
 import { gameFromEvent } from "@/lib/fan/teams";
-import { renderQrPng } from "@/lib/qr";
 
 import { Celebration } from "./celebration";
 import { QrCode } from "./qr-code";
 import { QrFullscreen } from "./qr-fullscreen";
 import { TeamBadge } from "./team-badge";
+import { usePromoShare } from "./use-promo-share";
 
 const POLL_MS = 1500;
 /** In simulated mode the campaign is live at once: hold the waiting state this long so it can be seen. */
@@ -46,29 +45,6 @@ function markCelebrated(id: string): void {
   } catch {
     // Storage can be blocked: the celebration may then play again on a reload.
   }
-}
-
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    // Older browsers and insecure origins: fall back to a hidden field and the copy command.
-    const field = document.createElement("textarea");
-    field.value = text;
-    field.setAttribute("readonly", "");
-    field.style.position = "fixed";
-    field.style.opacity = "0";
-    document.body.appendChild(field);
-    field.select();
-    const copied = document.execCommand("copy");
-    field.remove();
-    return copied;
-  }
-}
-
-function isAbort(error: unknown): boolean {
-  return error instanceof DOMException && error.name === "AbortError";
 }
 
 /**
@@ -132,7 +108,6 @@ export function LiveScreen({ campaignId }: { campaignId: string }): React.JSX.El
   const guarded = useRouteGuard("merchant");
   const { me } = useAuth();
   const { reset } = useWizard();
-  const toast = useToast();
 
   const [waited, setWaited] = useState(!isMockApi());
   const [qrOpen, setQrOpen] = useState(false);
@@ -155,6 +130,12 @@ export function LiveScreen({ campaignId }: { campaignId: string }): React.JSX.El
     { enabled: guarded, pollMs: POLL_MS, shouldPoll: (data) => data.status === "funding" },
   );
   const campaign = detail.data;
+  const { copyLink, share, downloadQr } = usePromoShare({
+    url: campaign?.url ?? null,
+    slug: campaign?.slug ?? null,
+    promise: campaign?.promise ?? "",
+    merchantName: me?.merchant?.name ?? "",
+  });
 
   const failed = campaign !== null && (campaign.status === "void" || campaign.status === "draft");
   const live =
@@ -219,45 +200,6 @@ export function LiveScreen({ campaignId }: { campaignId: string }): React.JSX.El
   const shortUrl = url.replace(/^https?:\/\//, "");
   const merchantName = me?.merchant?.name ?? "";
   const teams = gameFromEvent(campaign.event);
-
-  async function copyLink(): Promise<void> {
-    toast.show((await copyText(url)) ? copy.common.copied : copy.common.genericError);
-  }
-
-  async function share(): Promise<void> {
-    if (typeof navigator.share !== "function") {
-      await copyLink();
-      return;
-    }
-    try {
-      await navigator.share({
-        title: copy.live.shareTitle(merchantName),
-        text: copy.live.shareText(campaign?.promise ?? "", merchantName),
-        url,
-      });
-    } catch (error: unknown) {
-      if (isAbort(error)) return;
-      if (await copyText(url)) toast.show(copy.live.shareFailed);
-      else toast.show(copy.common.genericError, "error");
-    }
-  }
-
-  async function downloadQr(): Promise<void> {
-    try {
-      const blob = await renderQrPng(url);
-      const href = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = href;
-      link.download = `winz-${campaign?.slug ?? "promo"}-qr.png`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(href), 1000);
-      toast.show(copy.live.qrDownloaded);
-    } catch {
-      toast.show(copy.live.qrFailed, "error");
-    }
-  }
 
   return (
     <div className="relative flex min-h-dvh flex-col overflow-hidden bg-ink px-5 pb-[calc(var(--safe-bottom)+1.5rem)] pt-[calc(var(--safe-top)+1.25rem)]">

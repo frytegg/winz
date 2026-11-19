@@ -281,9 +281,9 @@ export const copy = {
     closeQr: "Close",
     copyLink: "Copy the link",
     enlargeQr: "Enlarge the QR code",
-    shareTitle: (merchant: string): string => `${merchant} on Winz`,
+    shareTitle: (merchant: string): string => (merchant === "" ? "Winz" : `${merchant} on Winz`),
     shareText: (promise: string, merchant: string): string =>
-      `${promise}. Get yours at ${merchant}.`,
+      merchant === "" ? `${promise}.` : `${promise}. Get yours at ${merchant}.`,
     failedTitle: "We couldn't put your promo live",
     failedBody: "Nothing was charged. Go back and try again.",
     qrDownloaded: "QR code saved",
