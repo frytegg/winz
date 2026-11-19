@@ -37,6 +37,10 @@ describe("isSignInFreePath", () => {
     expect(isSignInFreePath("/t/abc123")).toBe(true);
   });
 
+  it("is true for the public Hedge desk", () => {
+    expect(isSignInFreePath("/hedge-desk")).toBe(true);
+  });
+
   it("is false for everything that signs someone in or needs them signed in", () => {
     for (const path of ["/", "/start", "/business", "/new", "/home", "/tickets", "/campaigns/1"]) {
       expect(isSignInFreePath(path)).toBe(false);
