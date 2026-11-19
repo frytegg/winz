@@ -25,7 +25,7 @@ function subscribeTick(listener: () => void): () => void {
     tickTimer = setInterval(() => {
       tickNow = Date.now();
       for (const notify of tickListeners) notify();
-    }, 1000);
+    }, TICK_MS);
   }
   return () => {
     tickListeners.delete(listener);
@@ -36,8 +36,22 @@ function subscribeTick(listener: () => void): () => void {
   };
 }
 
+/** How often the shared timer ticks, and how fresh a read is without it. */
+export const TICK_MS = 1000;
+
+/**
+ * What a read of the clock returns. While the timer runs, the value it last set. Without it (the
+ * first render reads before it subscribes), the current time, but renewed at the tick's own pace
+ * only: React reads a snapshot twice in a render and compares, and two reads a millisecond apart
+ * must be equal ("The result of getSnapshot should be cached").
+ */
+export function readTick(previous: number, now: number, timerRunning: boolean): number {
+  if (timerRunning) return previous;
+  return now - previous >= TICK_MS ? now : previous;
+}
+
 function getTickNow(): number {
-  if (tickTimer === null) tickNow = Date.now();
+  tickNow = readTick(tickNow, Date.now(), tickTimer !== null);
   return tickNow;
 }
 
