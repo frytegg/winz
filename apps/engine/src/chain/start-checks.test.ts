@@ -123,6 +123,27 @@ describe("checkEscrowRoles on a local chain", () => {
     expectNoKey(error.message);
   });
 
+  it("refuses a foreign key as the oracle alone, naming the escrow's oracle and the configured one", async () => {
+    const { relayer, merchant, oracle } = harness.escrow.accounts;
+    const error = await rejection(check({ relayer, oracle: merchant }));
+
+    expect(error).toBeInstanceOf(EscrowRolesMismatchError);
+    const mismatch = error as EscrowRolesMismatchError;
+    expect(mismatch.swapped).toBe(false);
+    expect(mismatch.mismatches).toEqual([
+      {
+        role: "oracle",
+        escrow: getAddress(oracle.address),
+        configured: getAddress(merchant.address),
+      },
+    ]);
+    expect(error.message).toContain("ARC_ORACLE_PRIVATE_KEY is the key");
+    expect(error.message).toContain(getAddress(oracle.address));
+    expect(error.message).toContain(getAddress(merchant.address));
+    expect(error.message).not.toContain("ARC_RELAYER_PRIVATE_KEY is the key");
+    expectNoKey(error.message);
+  });
+
   it("refuses an escrow address with no contract code", async () => {
     const { relayer, oracle, merchant } = harness.escrow.accounts;
     const error = await rejection(

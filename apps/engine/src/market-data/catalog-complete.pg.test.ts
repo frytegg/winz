@@ -7,9 +7,17 @@ import { createTestDatabase, type TestDatabase } from "../testing/postgres";
 
 import { GeminiRestClient } from "./gemini-rest-client";
 import { PgCatalogStore } from "./pg-catalog-store";
+import { normalizeCatalog } from "./normalize";
 import { eventsResponseSchema, type RawEvent } from "./schemas";
 import { loadSportsCatalog, storeCatalog } from "./sync";
-import { fakeFetch, fakeTime, fixtureJson, jsonResponse, silentLogger } from "./test-support";
+import {
+  fakeFetch,
+  fakeTime,
+  fixtureEvents,
+  fixtureJson,
+  jsonResponse,
+  silentLogger,
+} from "./test-support";
 
 const SEED_SQL = fileURLToPath(new URL("../../../../supabase/seed.sql", import.meta.url));
 const ARK_TEX = "NCAAF-2611212030-ARK-TEX-M";
@@ -37,14 +45,26 @@ function filler(count: number): RawEvent[] {
   }));
 }
 
-/** A Gemini whose NCAAF listing is `ncaaf` (reporting `total`), every other league empty. */
-function clientWith(ncaaf: readonly RawEvent[], total = ncaaf.length): GeminiRestClient {
+/** The NHL game of the 17 Nov recording (Edmonton at Florida), with its markets. */
+function nhlGame(): RawEvent[] {
+  return fixtureEvents("events-active-sports").filter((event) => event.ticker.startsWith("NHL-"));
+}
+
+/**
+ * A Gemini whose NCAAF listing is `ncaaf` (reporting `total`), whose other leagues are
+ * `others[league]`, empty when absent.
+ */
+function clientWith(
+  ncaaf: readonly RawEvent[],
+  total = ncaaf.length,
+  others: Record<string, readonly RawEvent[]> = {},
+): GeminiRestClient {
   const http = fakeFetch((raw) => {
     const url = new URL(raw);
     const limit = Number(url.searchParams.get("limit"));
     const offset = Number(url.searchParams.get("offset"));
     const search = url.searchParams.get("search");
-    const listing = search === "NCAAF" ? ncaaf : [];
+    const listing = search === "NCAAF" ? ncaaf : (others[search ?? ""] ?? []);
     return jsonResponse({
       data: listing.slice(offset, offset + limit),
       pagination: { limit, offset, total: search === "NCAAF" ? total : listing.length },
@@ -104,9 +124,36 @@ describe("the seed's demo game against the first catalogue sync (Postgres)", () 
   });
 
   it("keeps them active when the NCAAF listing is cut at the cap without the game (what deactivated them before)", async () => {
-    const delisted = await syncWith(clientWith(filler(1003), 1003));
-    expect(delisted).toBe(0);
-    expect((await seeded()).every((row) => row.active)).toBe(true);
+    // A stale NHL instrument, which the complete NHL read below no longer lists.
+    const [nhl] = normalizeCatalog(nhlGame()).events;
+    if (!nhl) throw new Error("the NHL fixture has no game");
+    const stale = normalizeCatalog(nhlGame()).instruments.filter(
+      (instrument) => instrument.eventTicker === nhl.ticker,
+    )[0];
+    if (!stale) throw new Error("the NHL fixture has no instrument");
+    await store.upsertEvents([nhl]);
+    await store.upsertInstruments([{ ...stale, symbol: `${stale.symbol}-GONE` }]);
+
+    // NCAAF cut at the cap (none of its games deactivated), NHL read whole with real instruments:
+    // the catalogue is not empty, so `markDelisted` runs, for every league but NCAAF.
+    const catalog = await loadSportsCatalog(
+      clientWith(filler(1003), 1003, { NHL: nhlGame() }),
+      silentLogger,
+    );
+    expect(catalog.completeLeagues).not.toContain("NCAAF");
+    expect(catalog.completeLeagues).toContain("NHL");
+    expect(catalog.instruments.length).toBeGreaterThan(0);
+    const delisted = (await storeCatalog(catalog, store)).delisted;
+
+    // It ran: the stale NHL instrument is deactivated, and only it.
+    expect(delisted).toBe(1);
+    const [gone] = await database.db<{ active: boolean }[]>`
+      select active from instruments where symbol = ${`${stale.symbol}-GONE`}
+    `;
+    expect(gone?.active).toBe(false);
+    const rows = await seeded();
+    expect(rows).toHaveLength(SEEDED.length);
+    expect(rows.every((row) => row.active)).toBe(true);
   });
 
   it("deactivates them when a complete NCAAF read no longer lists the game (positive control)", async () => {
@@ -124,6 +171,70 @@ describe("the seed's demo game against the first catalogue sync (Postgres)", () 
     const delisted = await syncWith(clientWith([...filler(20), ...other]));
     expect(delisted).toBe(SEEDED.length);
     expect((await seeded()).every((row) => !row.active)).toBe(true);
+  });
+});
+
+describe("PgCatalogStore.markDelisted only touches the leagues it is given", () => {
+  let database: TestDatabase;
+  let store: PgCatalogStore;
+
+  beforeAll(async () => {
+    database = await createTestDatabase();
+  });
+  afterAll(async () => {
+    await database.drop();
+  });
+  beforeEach(async () => {
+    await database.db`truncate table events, users cascade`;
+    await database.db.unsafe(readFileSync(SEED_SQL, "utf8"));
+    store = new PgCatalogStore(database.db);
+    // An NHL game beside the seed's NCAAF one.
+    const catalog = normalizeCatalog(nhlGame());
+    await store.upsertEvents(catalog.events);
+    await store.upsertInstruments(catalog.instruments);
+  });
+
+  async function activeByLeague(): Promise<Record<string, { active: number; inactive: number }>> {
+    const rows = await database.db<{ league: string; active: boolean; n: number }[]>`
+      select e.league, i.active, count(*)::int as n
+      from instruments i join events e on e.ticker = i.event_ticker
+      group by e.league, i.active
+    `;
+    const result: Record<string, { active: number; inactive: number }> = {};
+    for (const row of rows) {
+      const entry = (result[row.league] ??= { active: 0, inactive: 0 });
+      if (row.active) entry.active += row.n;
+      else entry.inactive += row.n;
+    }
+    return result;
+  }
+
+  it("a complete league other than the seeded one: the seeded rows are untouched", async () => {
+    const nhl = (await activeByLeague()).NHL?.active ?? 0;
+    expect(nhl).toBeGreaterThan(0);
+    expect(await store.markDelisted([], ["NHL"])).toBe(nhl);
+    expect(await activeByLeague()).toEqual({
+      NCAAF: { active: SEEDED.length, inactive: 0 },
+      NHL: { active: 0, inactive: nhl },
+    });
+  });
+
+  it("the seeded league: the seeded rows are deactivated, the other league's kept", async () => {
+    const nhl = (await activeByLeague()).NHL?.active ?? 0;
+    expect(await store.markDelisted([], ["NCAAF"])).toBe(SEEDED.length);
+    expect(await activeByLeague()).toEqual({
+      NCAAF: { active: 0, inactive: SEEDED.length },
+      NHL: { active: nhl, inactive: 0 },
+    });
+  });
+
+  it("the seeded league, one of its rows listed: only the others are deactivated", async () => {
+    const listed = "GEMI-NCAAF-2611212030-ARK-TEX-M-TEX";
+    expect(await store.markDelisted([listed], ["NCAAF"])).toBe(SEEDED.length - 1);
+    const [kept] = await database.db<{ active: boolean }[]>`
+      select active from instruments where symbol = ${listed}
+    `;
+    expect(kept?.active).toBe(true);
   });
 });
 

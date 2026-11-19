@@ -286,9 +286,13 @@ describe("BookFeed", () => {
     expect((await liveInstrumentRow(h.db, NYK))?.bid_bps).toBe(5000);
 
     await h.scheduler.advance(100);
+    // The counter moves when the feed's write call returns, which can be just after the row is
+    // visible to another connection: both are waited for, and the count must end at exactly 2.
     await vi.waitFor(async () => {
       expect((await liveInstrumentRow(h.db, NYK))?.bid_bps).toBe(5500);
+      expect(h.feed.stats().written.ws).toBe(2);
     });
+    expect(h.feed.stats().accepted.ws).toBe(5);
     expect(h.feed.stats().written.ws).toBe(2);
   });
 

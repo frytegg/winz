@@ -110,6 +110,8 @@ async function setup(
     demo?: boolean;
     /** Wraps the Postgres demo store, e.g. to make it fail. */
     demoStore?: (store: PgDemoBookStore) => DemoBookStore;
+    /** The feed's `wsGapMs` (default 3 s): how long the socket may be silent before REST fills. */
+    wsGapMs?: number;
   } = {},
 ): Promise<Harness> {
   database = await createTestDatabase();
@@ -157,6 +159,7 @@ async function setup(
     rest,
     logger: log.logger,
     scheduler,
+    wsGapMs: options.wsGapMs,
     demo:
       options.demo === false
         ? null
@@ -567,7 +570,13 @@ describe("BookFeed with demo books", () => {
 
   it("retries a release whose write failed on the next pass, and ends with the Gemini book", async () => {
     let flaky: FlakyDemoBookStore | null = null;
-    const h = await setup({ demoStore: (store) => (flaky = new FlakyDemoBookStore(store)) });
+    // The REST gap-fill is not this test's subject: with the default 3 s, a loaded machine (more
+    // `vi.waitFor` rounds, each 250 ms of the fake clock) let REST replace the socket's 0.44 book
+    // with its 0.52 one before the last checks. The socket is treated as never silent here.
+    const h = await setup({
+      demoStore: (store) => (flaky = new FlakyDemoBookStore(store)),
+      wsGapMs: 3_600_000,
+    });
     if (flaky === null) throw new Error("the feed was built without the demo store");
     const store: FlakyDemoBookStore = flaky;
     await waitTracked(h, [NYK]);

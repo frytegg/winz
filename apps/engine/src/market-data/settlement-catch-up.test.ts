@@ -2,7 +2,7 @@ import pino, { type Logger } from "pino";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InMemoryCatalogStore } from "./catalog-store";
-import { GeminiRestClient } from "./gemini-rest-client";
+import { GeminiRestClient, type FetchLike } from "./gemini-rest-client";
 import type { NormalizedInstrument } from "./normalize";
 import { rawEventSchema, type RawEvent } from "./schemas";
 import { SETTLED_OVERLAP_MS, readAwaitedResults, startCatalogSync, syncSettlements } from "./sync";
@@ -97,17 +97,26 @@ class FakeGemini {
   readonly http: FakeFetch;
   readonly client: GeminiRestClient;
 
-  constructor() {
+  /**
+   * `client` overrides the client's options: a test of the stop gives it the client's defaults
+   * and a fetch of its own (`wrap` of this fake's).
+   */
+  constructor(client: { defaults?: boolean; wrap?: (inner: FakeFetch) => FetchLike } = {}) {
     this.http = fakeFetch((raw) => this.respond(new URL(raw)));
     const time = fakeTime();
-    this.client = new GeminiRestClient({
-      baseUrl: "https://gemini.test",
-      logger: silentLogger,
-      fetch: this.http.fetch,
-      now: time.now,
-      sleep: time.sleep,
-      maxAttempts: 1,
-    });
+    const fetch = client.wrap ? client.wrap(this.http) : this.http.fetch;
+    this.client = new GeminiRestClient(
+      client.defaults === true
+        ? { baseUrl: "https://gemini.test", logger: silentLogger, fetch }
+        : {
+            baseUrl: "https://gemini.test",
+            logger: silentLogger,
+            fetch,
+            now: time.now,
+            sleep: time.sleep,
+            maxAttempts: 1,
+          },
+    );
   }
 
   /** Adds results, newest first among themselves, ahead of everything already listed. */
@@ -516,6 +525,90 @@ describe("startCatalogSync: results are never missed", () => {
     controller.abort();
   });
 
+  /** `sinceMs` of each settled-list read, as the run logged it. */
+  function sinceOfRuns(lines: readonly LogLine[]): (number | null)[] {
+    return lines
+      .filter((line) => "sinceMs" in line && "settledEvents" in line)
+      .map((line) => line.sinceMs as number | null);
+  }
+
+  it("does not move the cursor after a run stopped at its bound: the next run reads back to the last complete one", async () => {
+    const gemini = new FakeGemini();
+    const store = new InMemoryCatalogStore();
+    gemini.settle(
+      ...Array.from({ length: 10 }, (_, index) =>
+        settledCombo(index, START - 30 * 60_000 - index * 1_000),
+      ),
+    );
+    const { logger, lines } = recordingLogger();
+    const controller = new AbortController();
+    startCatalogSync({
+      client: gemini.client,
+      store,
+      logger,
+      signal: controller.signal,
+      settlementMaxPages: 2,
+    });
+    await flush();
+    // Run 1 (START): the whole list, complete. Its cursor: its start minus the overlap.
+    expect(sinceOfRuns(lines)).toEqual([null]);
+
+    // Before run 2, 150 results in the last minute: more than its bound of 2 pages.
+    gemini.settle(
+      ...Array.from({ length: 150 }, (_, index) =>
+        settledCombo(100 + index, START + 1_000 + index),
+      ),
+    );
+    await vi.advanceTimersByTimeAsync(INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(INTERVAL_MS);
+    // Run 2 stopped at its bound (not complete); run 3 still reads back to run 1's cursor.
+    const lastComplete = START - SETTLED_OVERLAP_MS;
+    expect(sinceOfRuns(lines)).toEqual([null, lastComplete, lastComplete]);
+    expect(
+      lines.filter((line) => line.msg.includes("stopped at its bound")).map((line) => line.sinceMs),
+    ).toEqual([lastComplete, lastComplete]);
+    expect(gemini.settledOffsets()).toEqual([0, 0, 50, 0, 50]);
+    controller.abort();
+  });
+
+  it("applies a result listed after the last run but resolved five minutes before its start (the overlap)", async () => {
+    const gemini = new FakeGemini();
+    const store = new InMemoryCatalogStore();
+    const game = "NCAAF-2611212030-ARK-TEX-M";
+    await store.upsertInstruments(moneylines(game));
+    gemini.settle(
+      ...Array.from({ length: 10 }, (_, index) =>
+        settledCombo(index, START - 30 * 60_000 - index * 1_000),
+      ),
+    );
+    const controller = new AbortController();
+    startCatalogSync({
+      client: gemini.client,
+      store,
+      logger: silentLogger,
+      signal: controller.signal,
+    });
+    await flush();
+    expect(gemini.settledOffsets()).toEqual([0]);
+
+    // Listed only now: the game, resolved 5 min before run 1 started, behind 50 results of the
+    // last minute and 50 of the two minutes before run 1.
+    gemini.settle(
+      settledGame(game, START - 5 * 60_000),
+      ...Array.from({ length: 50 }, (_, index) => settledCombo(100 + index, START + 1_000 + index)),
+      ...Array.from({ length: 50 }, (_, index) =>
+        settledCombo(200 + index, START - 2 * 60_000 + index * 1_000),
+      ),
+    );
+    await vi.advanceTimersByTimeAsync(INTERVAL_MS);
+
+    expect(store.getInstrument(`GEMI-${game}-HOME`)?.outcome).toBe("yes");
+    expect(store.getInstrument(`GEMI-${game}-AWAY`)?.outcome).toBe("no");
+    // Read back to page 3, where the game sits, past the results of the minute before run 1.
+    expect(gemini.settledOffsets()).toEqual([0, 0, 50, 100]);
+    controller.abort();
+  });
+
   it("asks a waiting game directly every run until its result is in", async () => {
     const gemini = new FakeGemini();
     const store = new InMemoryCatalogStore();
@@ -543,4 +636,66 @@ describe("startCatalogSync: results are never missed", () => {
     expect(gemini.directReads()).toHaveLength(3);
     controller.abort();
   });
+});
+
+describe("startCatalogSync: a stop during a results download", () => {
+  /** A Gemini whose settled list (or a game's own page) holds its body until the stop. */
+  function hangingOn(path: (url: URL) => boolean, onHang: () => void): FakeGemini {
+    const wrap =
+      (inner: FakeFetch): FetchLike =>
+      (raw, init) => {
+        const url = new URL(raw);
+        if (!path(url)) return inner.fetch(raw, init);
+        inner.urls.push(raw);
+        onHang();
+        return Promise.resolve({
+          status: 200,
+          headers: { get: () => null },
+          text: () =>
+            new Promise<string>((_resolve, reject) => {
+              init.signal.addEventListener(
+                "abort",
+                () => {
+                  reject(
+                    init.signal.reason instanceof Error ? init.signal.reason : new Error("aborted"),
+                  );
+                },
+                { once: true },
+              );
+            }),
+        });
+      };
+    // The client's defaults: four attempts, its timeouts, its real rate limiter.
+    return new FakeGemini({ defaults: true, wrap });
+  }
+
+  for (const [what, path] of [
+    ["the settled list", (url: URL): boolean => url.pathname === SETTLED_PATH],
+    ["a game's own page", (url: URL): boolean => url.pathname === `${EVENT_PATH}${NBA_GAME}`],
+  ] as const) {
+    it(`ends the run at once during ${what}: no retry, no WARN or ERROR line`, async () => {
+      const controller = new AbortController();
+      const gemini = hangingOn(path, () => {
+        setTimeout(() => {
+          controller.abort();
+        }, 20);
+      });
+      const store = new InMemoryCatalogStore();
+      await store.upsertInstruments(moneylines(NBA_GAME));
+      store.setAwaited([{ eventTicker: NBA_GAME, symbols: [`GEMI-${NBA_GAME}-HOME`] }]);
+      const { logger, lines } = recordingLogger();
+      const startedAt = performance.now();
+      const service = startCatalogSync({
+        client: gemini.client,
+        store,
+        logger,
+        signal: controller.signal,
+      });
+      await service.stopped;
+
+      expect(performance.now() - startedAt).toBeLessThan(1_000);
+      expect(gemini.http.urls.filter((raw) => path(new URL(raw)))).toHaveLength(1);
+      expect(lines.filter((line) => line.level >= 40)).toEqual([]);
+    });
+  }
 });

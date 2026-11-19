@@ -80,7 +80,8 @@ export interface LoadSportsCatalogOptions {
  *
  * Cost, measured on 19 Nov 2026 at 07:23 UTC (the README has the numbers): one request per 90
  * events of each league (pages of 100 overlapping by 10) plus one per sport, 26 in all, 21 s;
- * 27 and 43 s at 12:31 UTC. The time is the download (a page of 100 NCAAF events is about 7 MB).
+ * 27 and 43 s at 12:31 UTC. The time is the download (a page of 100 NCAAF events is about 7 MB),
+ * which is why a listing page gets `LISTING_TIMEOUT_MS` per attempt and not the 10 s of a book.
  */
 export async function loadSportsCatalog(
   client: GeminiRestClient,
@@ -171,6 +172,9 @@ export async function loadSportsCatalog(
 
   if (options.signal?.aborted) throw new SyncAbortedError();
   requests += await checkSportCoverage(client, logger, reads, options.signal);
+  // A stop during the coverage check ends the load like any other: nothing is returned, so
+  // nothing is written by a run that was told to stop (the lease may be another engine's now).
+  if (options.signal?.aborted) throw new SyncAbortedError();
 
   const catalog = normalizeCatalog(rawEvents);
   for (const item of catalog.skipped) {
@@ -220,9 +224,12 @@ async function checkSportCoverage(
         sport,
         limit: 1,
         offset: 0,
+        signal,
       });
       sportTotal = page.pagination.total;
     } catch (error: unknown) {
+      // The stop, once every league is read: the check ends there, as between two requests.
+      if (error instanceof SyncAbortedError) break;
       logger.warn(
         { sport, err: describeError(error) },
         "gemini sport listing could not be read: league coverage not checked this time",
@@ -314,7 +321,10 @@ export interface SyncSettlementsOptions {
   /** Default 50. */
   pageSize?: number;
   now?: Clock;
-  /** Checked before each page: once aborted, what was read is recorded, the read not complete. */
+  /**
+   * The stop, checked before each page and passed to the request in flight: once aborted, what
+   * was read is recorded, the read not complete, and nothing is logged as a failure.
+   */
   signal?: AbortSignal;
 }
 
@@ -371,9 +381,12 @@ export async function syncSettlements(
         category: SPORTS_CATEGORY,
         limit: pageSize,
         offset: pages * pageSize,
+        signal: options.signal,
       });
       page = result.events;
     } catch (error: unknown) {
+      // The stop: what was read is recorded, the read is not complete, nothing failed.
+      if (error instanceof SyncAbortedError) break;
       failure = error;
       break;
     }
@@ -415,7 +428,9 @@ export async function syncSettlements(
     logger.warn(summary, "gemini settled list read failed part-way: what was read is recorded");
     throw failure;
   }
-  if (!complete) {
+  if (!complete && options.signal?.aborted === true) {
+    logger.info(summary, "gemini settled list read stopped by the stop: what was read is recorded");
+  } else if (!complete) {
     logger.warn(
       { ...summary, maxPages },
       "gemini settled list catch-up stopped at its bound: older results are left to the direct " +
@@ -490,7 +505,7 @@ export interface ReadAwaitedResultsOptions {
    */
   lastReadAt?: Map<string, number>;
   now?: Clock;
-  /** Checked before each read: once aborted, no further game is asked. */
+  /** The stop, checked before each read and passed to the one in flight: no further game is asked. */
   signal?: AbortSignal;
 }
 
@@ -548,8 +563,9 @@ export async function readAwaitedResults(
     lastReadAt.set(target.eventTicker, now());
     let event: RawEvent;
     try {
-      event = await client.getEvent(target.eventTicker);
+      event = await client.getEvent(target.eventTicker, { signal: options.signal });
     } catch (error: unknown) {
+      if (error instanceof SyncAbortedError) break;
       failed += 1;
       logger.warn(
         { event: target.eventTicker, err: describeError(error) },
@@ -652,9 +668,12 @@ export interface CatalogSyncService {
  * the current one started, or at once when it took longer than that. A failed step is logged
  * and the service carries on; the result steps run even when the catalogue step failed.
  *
- * A stop (the signal) ends a run between two requests: a run sends up to about 30 requests and
- * lasts 20 to 45 s (measured, README), longer than the engine's 15 s stop grace and the lease's
- * 5 s fence margin. A catalogue stopped part-way is not written; results read so far are.
+ * A stop (the signal) ends a run at once: the request in flight is aborted with it (its download
+ * included), a retry wait is abandoned, and no further request is sent. A run sends up to about
+ * 30 requests and lasts 20 to 45 s (measured, README), longer than the engine's 15 s stop grace
+ * and the lease's 5 s fence margin, so it is never waited for: what is left after a stop is the
+ * database write of the results read so far (milliseconds). A catalogue stopped part-way is not
+ * written; results read so far are. An aborted request is neither retried nor logged as failed.
  */
 export function startCatalogSync(options: CatalogSyncServiceOptions): CatalogSyncService {
   const { client, store, logger, signal, cache } = options;
