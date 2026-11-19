@@ -19,11 +19,6 @@ export const KNOWN_DEFECTS = {
       "that sentence (copy.ticket.chanceTitle) is only the gauge's aria-label (components/ui/gauge.tsx:26, " +
       "visible text gauge.tsx:67)",
   },
-  posterDownload: {
-    reason:
-      "M8 has no « Download poster » (SPEC M8 « Télécharger l'affiche (PNG) »; copy.live.downloadPoster " +
-      "is unused): only « Download QR » (components/winz/live-screen.tsx:291). The poster is ◇ in U-08",
-  },
 } as const satisfies Record<string, { reason: string }>;
 
 export type KnownDefect = keyof typeof KNOWN_DEFECTS;

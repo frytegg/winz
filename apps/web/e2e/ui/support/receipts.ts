@@ -67,6 +67,18 @@ export const RECEIPTS = {
   "md-settings": "Les réglages : profil, solde, informations techniques repliées, déconnexion.",
   // Hedge desk
   "hd-desk": "Le Hedge desk public : lieu d'exécution en tête, totaux, limites, instruments.",
+  "hd-desk-tripped":
+    "Le Hedge desk, réponse servie par le test : coupe-circuit déclenché (carnet périmé), non couvert au-dessus de la limite.",
+  // Demo panel (U-07)
+  "admin-key": "Le panneau démo, l'écran de la clé, bandeau « DEMO MODE » déjà affiché.",
+  "admin-key-refused":
+    "L'écran de la clé après une mauvaise clé (401 de l'API simulée) : redemandée.",
+  "admin-result-confirm":
+    "« Force the result » : la confirmation qui nomme le choix et l'instrument, rien d'envoyé encore.",
+  "admin-panel":
+    "Le panneau après les quatre actions (carnet piloté, résultat forcé, deux ventes rejouées, remise à zéro) et leur journal.",
+  "admin-refusals":
+    "Le panneau après un 400 (carnet), un 404 (résultat) et un 409 (vente) : les mots de l'API.",
 } as const;
 
 export type ReceiptName = keyof typeof RECEIPTS;

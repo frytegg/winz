@@ -60,18 +60,18 @@ réponse.
 | `POST /api/campaigns/preview`    | `default`, `open`, `aboveThreshold`, `noBook`                              |
 | `POST /api/campaigns`            | `default`, `created`, `repeated`, `repeatedLive`                           |
 | `GET /api/campaigns`             | `default`, `withFunding`                                                   |
-| `GET /api/campaigns/:id`         | `default`, `live`, `paused`, `settledYes`, `settledNo`                     |
+| `GET /api/campaigns/:id`         | `default`, `live`, `paused`, `settledYes`, `settledNo`, `demo`             |
 | `POST /api/campaigns/:id/pause`  | `default`                                                                  |
 | `POST /api/campaigns/:id/resume` | `default`                                                                  |
 | `POST /api/campaigns/:id/close`  | `default`                                                                  |
 | `POST /api/campaigns/:id/top-up` | `default`, `created`, `repeated`, `credited`                               |
-| `GET /api/c/:slug`               | `default`, `live`, `paused`, `salesClosed`, `settledYes`, `settledNo`      |
+| `GET /api/c/:slug`               | `default`, `live`, `paused`, `salesClosed`, `settledYes`, `settledNo`, `demo` |
 | `POST /api/checkout`             | `default`, `salesPaused`, `salesClosed`                                    |
 | `POST /api/checkout/:pi/confirm` | `default`, `processing`, `ticketed`, `cancelledPaused`, `failed`           |
 | `GET /api/checkout/:pi`          | `default`, `processing`, `ticketed`, `cancelledPaused`, `failed`           |
-| `GET /api/t/:token`              | `default`, `preGame`, `inGame`, `refunded`, `notThisTime`, `cancelled`     |
+| `GET /api/t/:token`              | `default`, `preGame`, `inGame`, `refunded`, `notThisTime`, `cancelled`, `demo` |
 | `GET /api/tickets`               | `default`                                                                  |
-| `GET /api/hedge-desk`            | `default`                                                                  |
+| `GET /api/hedge-desk`            | `default`, `demo`                                                          |
 | `POST /api/admin/demo/book`      | `default`                                                                  |
 | `POST /api/admin/demo/result`    | `default`                                                                  |
 | `POST /api/admin/demo/sale`      | `default`, `processing`                                                    |
@@ -87,6 +87,9 @@ Quel exemple sert `default` :
 - `POST /api/checkout/:pi/confirm` : `processing`
 - `GET /api/checkout/:pi` : `ticketed`
 - `GET /api/t/:token` : `preGame`
+
+`demo`, sur la page publique, le ticket, le détail et le Hedge desk, est l'exemple par défaut avec
+`demo: true` (une campagne touchée par une action démo) : il fait apparaître le bandeau « DEMO MODE ».
 
 Le contenu des exemples est dans `packages/shared/src/api/examples.ts`, et le type de chaque
 réponse dans `packages/shared/src/api/schemas.ts`.
@@ -140,6 +143,17 @@ Toute réponse d'erreur a la même forme, en mode simulé comme en vrai :
 
 `message` est en anglais et peut être montré tel quel au client. La liste des codes est
 `API_ERROR_CODES` dans `@winz/shared`.
+
+Les routes du mode démo ont aussi leurs refus simulés, avec les mots des vraies routes ; aucun n'est
+dans le sélecteur de scénarios du front (`lib/api/mock-scenario.ts`), la suite du navigateur les
+demande elle-même par l'en-tête :
+
+| Route                         | Scénario            | Réponse                                     |
+| ----------------------------- | ------------------- | ------------------------------------------- |
+| les quatre `/api/admin/demo/*` | `wrongKey`          | `401`, `error.code` vaut `unauthenticated`  |
+| `POST /api/admin/demo/book`   | `offTick`           | `400`, `error.code` vaut `invalid_request`  |
+| `POST /api/admin/demo/result` | `unknownInstrument` | `404`, `error.code` vaut `not_found`        |
+| `POST /api/admin/demo/sale`   | `salesPaused`       | `409`, `error.code` vaut `sales_paused`     |
 
 ### Les requêtes sont quand même vérifiées
 
@@ -538,6 +552,15 @@ pnpm e2e:ui            # depuis la racine ; ou pnpm --filter @winz/web e2e:ui
 - **Ce qu'aucun scénario n'offre** n'est pas testé : une page de campagne C1 introuvable (l'API
   simulée ignore le slug, et C1 la lit côté serveur, hors d'atteinte du navigateur). Il faudrait un
   refus simulé `notFound` sur `publicCampaign` (`MOCK_REFUSALS`, `lib/server/route.ts`).
+- **Le panneau démo** (`e2e/ui/demo-admin.spec.ts`, U-07) : la mauvaise clé refusée et redemandée,
+  les quatre actions avec le corps de « Le mode démo » ci-dessus, les bornes du carnet saisies au
+  doigt, la confirmation avant un résultat forcé, un 400, un 404 et un 409 dits avec les mots de
+  l'API, la clé en `sessionStorage` et dans le seul en-tête `x-admin-key`, aucun lien public vers
+  `/admin` et `noindex`, puis le bandeau « DEMO MODE » sur C1, C3, le détail, le Hedge desk et le
+  panneau (scénarios `demo`). L'API simulée ne vérifie aucune clé : c'est la spec qui joue le
+  contrôle et demande le refus `wrongKey`. La vraie clé est prouvée par `lib/server/auth.test.ts`,
+  les vraies routes par `lib/server/demo.test.ts`, et le moteur qui obéit au carnet et au résultat
+  par `e2e/demo.test.ts` (scénario D) et la répétition sur Arc testnet (A-07).
 - vitest ignore `e2e/ui/` (`vitest.config.ts`) et Playwright ne lit que `e2e/ui/**/*.spec.ts`.
 
 Pas encore dans la CI : le runner devrait installer Chromium à chaque passage (`pnpm --filter

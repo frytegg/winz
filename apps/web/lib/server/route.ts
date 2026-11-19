@@ -110,6 +110,31 @@ export const MOCK_REFUSALS: Partial<Record<ApiRouteName, Record<string, MockRefu
       message: "Sales are closed for this promo, you were not charged",
     },
   },
+  // The demo panel's refusals, each with the real route's own words (lib/server/auth.ts and
+  // lib/server/demo.ts): the browser suite drives them in e2e/ui/demo-admin.spec.ts.
+  demoBook: {
+    wrongKey: { status: 401, code: "unauthenticated", message: "Missing or invalid admin key" },
+    offTick: {
+      status: 400,
+      code: "invalid_request",
+      message: "Invalid body.bidBps: must be a multiple of 100 between 100 and 9900",
+    },
+  },
+  demoResult: {
+    wrongKey: { status: 401, code: "unauthenticated", message: "Missing or invalid admin key" },
+    unknownInstrument: { status: 404, code: "not_found", message: "Instrument not found" },
+  },
+  demoSale: {
+    wrongKey: { status: 401, code: "unauthenticated", message: "Missing or invalid admin key" },
+    salesPaused: {
+      status: 409,
+      code: "sales_paused",
+      message: "This promo is paused right now, you were not charged",
+    },
+  },
+  demoReset: {
+    wrongKey: { status: 401, code: "unauthenticated", message: "Missing or invalid admin key" },
+  },
 };
 
 /** Every scenario name the mock API accepts for a route, `default` first. */

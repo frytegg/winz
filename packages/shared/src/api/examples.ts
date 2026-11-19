@@ -633,6 +633,18 @@ export const hedgeDeskExample: HedgeDeskResponse = {
   demo: false,
 };
 
+/**
+ * Scenario `demo` of the four screens that show the DEMO MODE band (apps/web/README.md, « Le
+ * bandeau DEMO MODE »): the running example of each, on a campaign a demo action has touched, so
+ * `demo` is `true`. Nothing else differs from the default.
+ */
+export const demoFlagExamples = {
+  publicCampaign: { ...publicLive, demo: true } satisfies PublicCampaign,
+  ticket: { ...ticketPreGame, demo: true } satisfies Ticket,
+  campaignDetail: { ...detailLive, demo: true } satisfies CampaignDetail,
+  hedgeDesk: { ...hedgeDeskExample, demo: true } satisfies HedgeDeskResponse,
+};
+
 export const demoExamples = {
   ok: { ok: true, demo: true, ticketToken: null, paymentIntentId: null },
   sale: {
