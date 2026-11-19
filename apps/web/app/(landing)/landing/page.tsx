@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { LandingHero } from "@/components/landing/landing-hero";
+import { LandingNav } from "@/components/landing/landing-nav";
 import { landingCopy } from "@/lib/landing/copy";
 
 import { landingLinks } from "../landing.config";
@@ -26,6 +27,7 @@ export const metadata: Metadata = {
 export default function LandingPage(): React.JSX.Element {
   return (
     <div className="@container relative [--u:calc(min(100cqw,1728px)/1728)]">
+      <LandingNav liveDemoUrl={landingLinks.liveDemoUrl} />
       <main id="top">
         <LandingHero liveDemoUrl={landingLinks.liveDemoUrl} />
       </main>
