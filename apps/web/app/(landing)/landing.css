@@ -12,3 +12,43 @@ html:has(.landing) {
   scroll-behavior: smooth;
   scroll-padding-top: 5rem;
 }
+
+/*
+ * The hero's entrance (01-nav-hero.md): the eyebrow, the title, the subtitle and the button rise 12 px
+ * while they fade in, 60 ms after one another (--rise-step). The phones rise 40 px from the edge of the
+ * hero (which clips them) and DO NOT fade: they are the page's LCP, and Chrome does not report an image
+ * that starts at opacity 0 as the LCP (measured: with the fade the phones were not the LCP at all, with
+ * it removed they are, at ~90 ms). The brief asks for both a fade and "no fade that delays the image";
+ * the second is the one a score measures, so the fade goes. Only opacity and transform move. Whoever
+ * asks for less motion gets the final state at once, and the global reduced-motion rule (globals.css)
+ * is not trusted to do that: it shortens an animation to 1 ms, it does not remove it.
+ */
+@keyframes landing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@keyframes landing-rise-phones {
+  from {
+    transform: translateY(40px);
+  }
+}
+
+.landing-rise {
+  animation: landing-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--rise-step, 0) * 60ms);
+}
+
+.landing-rise-phones {
+  animation: landing-rise-phones 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 150ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-rise,
+  .landing-rise-phones {
+    animation: none;
+  }
+}
