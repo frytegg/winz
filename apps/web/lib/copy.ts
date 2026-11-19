@@ -264,6 +264,10 @@ export const copy = {
   /** M8 */
   live: {
     puttingLive: "Putting your promo live…",
+    slowTitle: "This is taking longer than usual",
+    slowBody:
+      "Your promo isn't live yet. Keep this page open: it opens by itself as soon as it is, or check again.",
+    checkAgain: "Check again",
     badge: "Live campaign",
     title: "Your promo is live!",
     days: "Days",
