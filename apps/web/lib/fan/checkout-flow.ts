@@ -47,6 +47,12 @@ export const WAIT_LIMIT_SECONDS = 60;
  * Stripe once every 5 s) before it lets the record go.
  */
 export const RESUME_UNSEEN_LIMIT_SECONDS = 15;
+/**
+ * Past RESUME_UNSEEN_LIMIT_SECONDS, how often the pick-up asks the confirmation (which reads Stripe
+ * on every call) whether an unseen card is really unpaid: about nine reads at most before the
+ * minute's bound.
+ */
+export const RESUME_VERIFY_EVERY_SECONDS = 5;
 
 /**
  * What the payment step answers: the card is authorized, or it is not (with a message to show).
@@ -341,11 +347,12 @@ export interface ResumeInput {
  *   - `ticketed`: the ticket opens;
  *   - `processing`, or `requires_payment` for a card this page saw authorized: the wait is shown
  *     (`onSecuring`) and followed as after a tap, up to WAIT_LIMIT_SECONDS (`unresolved`);
- *   - `requires_payment` for a card never seen authorized: followed quietly until an answer comes
- *     at or past RESUME_UNSEEN_LIMIT_SECONDS that still says `requires_payment` (the status read
- *     asks Stripe after 5 s), then `gone` (the card was not authorized: the record is let go). Reads
- *     that fail never let it go: without an answer by WAIT_LIMIT_SECONDS, `unresolved`, and the
- *     record stays;
+ *   - `requires_payment` for a card never seen authorized: followed quietly; past
+ *     RESUME_UNSEEN_LIMIT_SECONDS the confirmation is asked, which reads Stripe itself, and only
+ *     its `requires_payment` (Stripe said « not authorized ») lets the record go (`gone`). The
+ *     status read's own `requires_payment` is not enough: it answers the row when it could not
+ *     read Stripe. Reads that fail never let it go: without that answer by WAIT_LIMIT_SECONDS,
+ *     `unresolved`, and the record stays;
  *   - `cancelled_paused` or `failed`: the ending, when the wait was shown or the card was seen
  *     authorized; otherwise `gone` (a card declined, then the page left);
  *   - a payment the API does not know (404): `gone`.
@@ -367,6 +374,7 @@ export async function resumeCheckout({
     onSecuring?.();
   };
   if (authorized) show();
+  let nextVerifyAt = RESUME_UNSEEN_LIMIT_SECONDS;
 
   for (let first = true; ; first = false) {
     if (!first) await deps.sleep(STATUS_POLL_MS, signal);
@@ -390,12 +398,30 @@ export async function resumeCheckout({
     if (shown) {
       if (seconds >= WAIT_LIMIT_SECONDS) return { kind: "unresolved" };
       onWaiting?.(seconds);
-    } else if (response?.status === "requires_payment" && seconds >= RESUME_UNSEEN_LIMIT_SECONDS) {
-      // Only an answer lets an unseen card go: the API said, past the bound, that it is still
-      // unpaid (its status read asks Stripe once a row has waited 5 s). A read that failed proves
-      // nothing: the card may be authorized, and letting the record go would let the next tap pay
-      // a second time.
-      return { kind: "gone" };
+    } else if (
+      response?.status === "requires_payment" &&
+      seconds >= RESUME_UNSEEN_LIMIT_SECONDS &&
+      seconds >= nextVerifyAt
+    ) {
+      // Only Stripe's own word lets an unseen card go. The status read cannot give it: when its
+      // own read of Stripe fails, it answers the row, `requires_payment`, for a card that may be
+      // authorized. The confirmation reads the payment at Stripe on every call and answers 502
+      // when it cannot: its `requires_payment` means Stripe said « not authorized ». Asked at
+      // most once per RESUME_VERIFY_EVERY_SECONDS; a failure proves nothing and the record stays.
+      nextVerifyAt = seconds + RESUME_VERIFY_EVERY_SECONDS;
+      let verified: CheckoutStatusResponse | null = null;
+      try {
+        verified = await deps.confirm(paymentIntentId, signal);
+      } catch (error: unknown) {
+        if (isAbortError(error)) throw error;
+        if (isApiError(error) && error.status === 404) return { kind: "gone" };
+      }
+      if (verified !== null) {
+        const outcome = outcomeOf(verified);
+        if (outcome !== null) return outcome.kind === "ticketed" ? outcome : { kind: "gone" };
+        if (verified.status === "requires_payment") return { kind: "gone" };
+        show();
+      }
     } else if (seconds >= WAIT_LIMIT_SECONDS) {
       // A minute without an answer that settles it: the record stays, and the next tap follows it
       // instead of paying again.

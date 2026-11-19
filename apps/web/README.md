@@ -400,12 +400,18 @@ et `lib/fan/pending-purchase.ts`, testées à côté) :
 - **Une page perdue retrouve son ticket.** Dès que `POST /api/checkout` répond, le navigateur garde
   `{ paymentIntentId, authorized }` pour la promo (`localStorage`, clé `winz.purchase.<slug>`). À la
   visite suivante de la même promo, la page reprend le suivi (`GET /api/checkout/:pi`) et ouvre le
-  ticket ; un paiement fini sans ticket est oublié. Le retour d'une redirection de paiement
+  ticket ; un paiement fini sans ticket est oublié. Un paiement dont la carte n'a pas été vue
+  autorisée n'est oublié qu'après 15 s, et seulement si la confirmation (`POST /api/checkout/:pi/confirm`,
+  qui relit Stripe à chaque appel et répond 502 quand elle ne peut pas) répond encore
+  `requires_payment` : le `requires_payment` de la lecture du statut ne suffit pas, puisqu'elle
+  répond la ligne quand Stripe ne répond pas. Sans cette réponse, le paiement reste gardé et le tap
+  suivant le suit au lieu de payer. Le retour d'une redirection de paiement
   (3-D Secure, `?payment_intent=…&redirect_status=…` sur la page de la promo) est suivi de la même
   façon, même dans un navigateur qui n'a rien gardé. Aucun e-mail n'est envoyé : l'e-mail sert à
   retrouver ses tickets dans « My tickets ».
-- **L'attente a une fin.** Le suivi ne rappelle jamais la confirmation (la lecture du statut
-  complète seule un paiement autorisé) et s'arrête après 60 s (`WAIT_LIMIT_SECONDS`) : la carte est
+- **L'attente a une fin.** Le suivi d'un achat en cours ne rappelle jamais la confirmation (la
+  lecture du statut complète seule un paiement autorisé ; seule la reprise d'un paiement jamais vu
+  autorisé la demande, voir plus haut) et s'arrête après 60 s (`WAIT_LIMIT_SECONDS`) : la carte est
   seulement autorisée, pas débitée, et rouvrir la promo sur ce téléphone reprend le suivi.
 - **Une cote n'est jamais affichée comme fraîche quand elle ne l'est pas.** Sur C1 et le ticket,
   une relecture qui échoue affiche la chance comme inconnue (« Odds updating… »), et C1 ne vend

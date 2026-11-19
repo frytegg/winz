@@ -5,6 +5,7 @@ import { ApiError } from "@/lib/api/client";
 
 import {
   RESUME_UNSEEN_LIMIT_SECONDS,
+  RESUME_VERIFY_EVERY_SECONDS,
   WAIT_LIMIT_SECONDS,
   resumeCheckout,
   type CheckoutDeps,
@@ -112,13 +113,28 @@ const failed: CheckoutStatusResponse = {
   message: "Something went wrong, you were not charged",
 };
 
-/** Deps whose clock moves with each sleep, and whose status answers `answers` in turn. */
+/** Answers `answers` in turn, repeating the last one. */
+function inTurn(
+  answers: (CheckoutStatusResponse | Error)[],
+): () => Promise<CheckoutStatusResponse> {
+  let index = 0;
+  return () => {
+    const answer = answers[Math.min(index, answers.length - 1)];
+    index += 1;
+    return answer instanceof Error ? Promise.reject(answer) : Promise.resolve(answer!);
+  };
+}
+
+/**
+ * Deps whose clock moves with each sleep, and whose status answers `answers` in turn. The
+ * confirmation (which reads Stripe itself) answers « still unpaid » unless a test says otherwise.
+ */
 function resumeDeps(...answers: (CheckoutStatusResponse | Error)[]): CheckoutDeps {
   let clock = 0;
   let index = 0;
   return {
     create: vi.fn(),
-    confirm: vi.fn(),
+    confirm: vi.fn().mockImplementation(() => Promise.resolve(unpaid)),
     status: vi.fn().mockImplementation(() => {
       const answer = answers[Math.min(index, answers.length - 1)];
       index += 1;
@@ -232,6 +248,50 @@ describe("resumeCheckout: the page picks up a purchase it lost", () => {
     expect(
       await resume(resumeDeps(unpaid, new ApiError(503, "internal", "Try again in a moment"))).run,
     ).toEqual({ kind: "unresolved" });
+  });
+
+  it("does not take the status read's « unpaid » for Stripe's: it asks the confirmation", async () => {
+    // The verifier's case: the server could not read Stripe, so its status read answers the row,
+    // `requires_payment`, for a card that may be authorized. The confirmation reads Stripe itself
+    // and answers 502 when it cannot: the record must stay.
+    const deps = resumeDeps(unpaid);
+    deps.confirm = vi
+      .fn()
+      .mockImplementation(inTurn([new ApiError(502, "internal", "Stripe is unreachable")]));
+    const { run } = resume(deps);
+    expect(await run).toEqual({ kind: "unresolved" });
+    const asked = (deps.confirm as ReturnType<typeof vi.fn>).mock.calls.length;
+    expect(asked).toBeGreaterThan(0);
+    // At most once per RESUME_VERIFY_EVERY_SECONDS between the bound and the minute.
+    expect(asked).toBeLessThanOrEqual(
+      Math.ceil((WAIT_LIMIT_SECONDS - RESUME_UNSEEN_LIMIT_SECONDS) / RESUME_VERIFY_EVERY_SECONDS) +
+        1,
+    );
+    expect(deps.create).not.toHaveBeenCalled();
+  });
+
+  it("follows the purchase when the confirmation finds the card authorized", async () => {
+    const deps = resumeDeps(unpaid, unpaid, ticketed);
+    // Stripe says authorized: the confirmation starts the purchase and answers `processing`.
+    deps.confirm = vi.fn().mockImplementation(inTurn([processing]));
+    const statuses = inTurn([
+      ...Array.from({ length: RESUME_UNSEEN_LIMIT_SECONDS + 1 }, () => unpaid),
+      processing,
+      ticketed,
+    ]);
+    deps.status = vi.fn().mockImplementation(statuses);
+    const { run, onSecuring } = resume(deps);
+    expect(await run).toEqual({ kind: "ticketed", token: "tkt_1" });
+    expect(onSecuring).toHaveBeenCalledTimes(1);
+    expect(deps.confirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets go a payment the confirmation does not know", async () => {
+    const deps = resumeDeps(unpaid);
+    deps.confirm = vi
+      .fn()
+      .mockImplementation(inTurn([new ApiError(404, "not_found", "Payment not found")]));
+    expect(await resume(deps).run).toEqual({ kind: "gone" });
   });
 
   it("waits no longer than the purchase's own bound", () => {

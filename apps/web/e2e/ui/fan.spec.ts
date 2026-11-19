@@ -476,6 +476,34 @@ function nextStatusRead(page: Page): Promise<unknown> {
 
 const NOT_PAID_YET = { status: "requires_payment", ticketToken: null, message: null };
 
+/**
+ * Answers the confirmation of the simulated payment (`POST /api/checkout/:pi/confirm`, which reads
+ * Stripe itself): a body with 200, or a status alone (502: Stripe could not be read).
+ */
+async function answerConfirm(
+  page: Page,
+  answer: { status: string; ticketToken: string | null; message: string | null } | number,
+): Promise<void> {
+  await page.route(`**/api/checkout/${CHECKOUT.paymentIntentId}/confirm`, (route) =>
+    typeof answer === "number"
+      ? route.fulfill({
+          status: answer,
+          contentType: "application/json",
+          body: JSON.stringify({
+            error: {
+              code: "internal",
+              message: "The payment service is unavailable right now, please try again in a moment",
+            },
+          }),
+        })
+      : route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(answer),
+        }),
+  );
+}
+
 /** Every read of the promo (C1) or of the ticket (C3) fails, as when the API is unreachable. */
 async function failReads(page: Page, pattern: string): Promise<void> {
   await page.route(pattern, (route) =>
@@ -665,8 +693,10 @@ test.describe("C2 and C3, the fan's money path (review of 19 November)", () => {
       authorized: false,
     });
     const checkouts = countCheckouts(page);
-    // Unpaid for as long as no new payment was asked for.
+    // Unpaid for as long as no new payment was asked for, and Stripe itself says so: the
+    // confirmation, which reads Stripe, answers « still unpaid ».
     await answerStatus(page, () => (checkouts.count === 0 ? NOT_PAID_YET : null));
+    await answerConfirm(page, NOT_PAID_YET);
     await page.clock.install();
     const firstRead = nextStatusRead(page);
     await page.goto(`/c/${SLUG}`);
@@ -681,6 +711,38 @@ test.describe("C2 and C3, the fan's money path (review of 19 November)", () => {
     await expect.poll(() => checkouts.count, { message: "then pays, once" }).toBe(1);
     await expect(page, "and ends on the ticket").toHaveURL(TICKET_URL);
     expect(checkouts.count).toBe(1);
+  });
+
+  test("an unseen payment whose card Stripe cannot be asked about stays kept: no second payment", async ({
+    page,
+    screens,
+  }) => {
+    // The server's status read answers the row (`requires_payment`) when it could not read
+    // Stripe, for a card that may well be authorized; the confirmation, which reads Stripe itself,
+    // answers 502. Nothing proves the card unpaid: the record stays and a tap pays nothing.
+    screens.allowStatus(/\/api\/checkout\/[^/]+\/confirm$/, 502);
+    await keepPurchaseBeforeOpening(page, {
+      paymentIntentId: CHECKOUT.paymentIntentId,
+      authorized: false,
+    });
+    const checkouts = countCheckouts(page);
+    await answerStatus(page, () => NOT_PAID_YET);
+    await answerConfirm(page, 502);
+    await page.clock.install();
+    const firstRead = nextStatusRead(page);
+    await page.goto(`/c/${SLUG}`);
+    await firstRead;
+    // Past the quiet bound and the minute's: the pick-up ends « still on its way », kept.
+    await page.clock.fastForward(70_000);
+    await expect(page.getByRole("heading", { name: copy.checkout.unresolvedTitle })).toBeVisible();
+    expect(await keptPurchase(page), "the purchase is still kept").not.toBeNull();
+
+    await page.getByRole("button", { name: copy.checkout.backToPromo }).tap();
+    await page.getByRole("button", { name: copy.campaign.buyApplePay }).tap();
+    const followed = nextStatusRead(page);
+    await payButton(page).tap();
+    await followed;
+    expect(checkouts.count, "no second payment while the first card may be authorized").toBe(0);
   });
 
   test("the sheet closed while paying: a refusal reopens it with its message", async ({
