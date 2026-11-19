@@ -1,0 +1,14 @@
+/*
+ * Rules that belong to the page and not to a component. Scoped with :has(.landing): Next keeps a
+ * layout's CSS loaded after a client-side navigation away from the page, and the app must not
+ * inherit any of this.
+ */
+
+/* The app is dark only (`color-scheme: dark` on :root); the landing is mostly white. */
+html:has(.landing) {
+  color-scheme: light;
+  background: var(--color-white-pill);
+  /* Smooth anchors, below the navigation. The global reduced-motion rule turns the smoothness off. */
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}

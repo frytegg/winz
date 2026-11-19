@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useSyncExternalStore } from "react";
 
 import {
@@ -23,7 +24,10 @@ export function MockScenarioPicker(): React.JSX.Element | null {
     () => true,
     () => false,
   );
-  if (!isMockApi() || !mounted) return null;
+  const pathname = usePathname();
+  // The landing page calls no API, so a scenario means nothing there, and the picker would float
+  // over a page a visitor sees.
+  if (!isMockApi() || !mounted || pathname.startsWith("/landing")) return null;
   const current = getMockScenario() ?? "";
   return (
     <label className="fixed bottom-[calc(7.5rem+var(--safe-bottom))] left-2 z-[70] flex items-center gap-1.5 rounded-full bg-card-raised/95 py-1 pl-3 pr-1 text-caption text-muted">
