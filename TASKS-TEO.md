@@ -7,7 +7,8 @@
 > de toucher à ces écrans, ou dis à Alexandre que tu les prends :**
 >
 > - l'assistant de création et le budget : `components/wizard`, `lib/wizard`, `lib/merchant/funding.ts`,
->   `fund-budget.tsx`, `top-up-sheet.tsx`, `live-screen.tsx` (attente de M8), le formulaire du commerce
+>   `fund-budget.tsx`, `top-up-sheet.tsx`, `live-screen.tsx` (attente de M8 seulement : ton affiche et
+>   ton partage des PR 18 et 20 font foi, rien n'y est refait), le formulaire du commerce
 >   (revue 1.1, 1.4, 2.3, 2.8, 2.9, M4 qui grise les promos invendables) ;
 > - le parcours du fan : `checkout-sheet.tsx`, `stripe-payment.tsx`, `campaign-page.tsx`,
 >   `ticket-screen.tsx`, `lib/fan`, `lib/stripe` (revue 1.2, 1.3, 2.1, 2.4, 2.5, 2.11) ;
@@ -20,6 +21,10 @@
 >
 > Ce qui reste libre : U-10 (notifications et e-mails), et tout ce qui n'est pas dans cette liste.
 > Cette note sera retirée quand les corrections seront sur la branche.
+>
+> Chaque fusion dans cette branche relance la CI de vingt minutes depuis zéro, et `main` n'avance
+> que sur une CI verte : regroupe tes fusions si tu peux. Vercel ne déploie que les commits
+> d'Alexandre (offre Hobby) : un aperçu « Error » sur ta fusion est normal.
 
 > **19 novembre, à lire avant de continuer : [`REVUE-FRONT-19-NOV.md`](REVUE-FRONT-19-NOV.md).**
 > Une revue de ta PR n°10 (fusionnée sur `main`) a confirmé trois défauts d'argent, à corriger avant
