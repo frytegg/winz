@@ -45,13 +45,20 @@ export type AfterResponse = (task: () => Promise<void>) => void;
  *
  * Only Vercel freezes the process (its system variable `VERCEL` is "1" at build and run time).
  * `next dev`, `next start` in the end-to-end harness and Vitest never do: their idle timers run,
- * so nothing is scheduled and nothing is waited for there.
+ * so nothing is scheduled and nothing is waited for there. Any other value of `VERCEL` (unset,
+ * empty, "0") means no hook.
+ *
+ * `env` and `schedule` (next's `after` by default) are parameters so that tests can check the
+ * rule without a request scope; the server calls it without arguments.
  */
-function platformAfterResponse(): AfterResponse | null {
-  if (process.env.VERCEL !== "1") return null;
-  return (task) => {
+export function platformAfterResponse(
+  env: Record<string, string | undefined> = process.env,
+  schedule: AfterResponse = (task) => {
     after(task);
-  };
+  },
+): AfterResponse | null {
+  if (env.VERCEL !== "1") return null;
+  return schedule;
 }
 
 let afterResponseOverride: AfterResponse | null | undefined;

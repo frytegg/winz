@@ -10,6 +10,7 @@ import {
 } from "@privy-io/node";
 
 import {
+  AUTH_OUTAGE_LOG_WINDOW_MS,
   AuthUnavailableError,
   InvalidAccessTokenError,
   normalizeEmail,
@@ -18,6 +19,7 @@ import {
   type IdentityDirectory,
   type VerifiedToken,
 } from "./auth";
+import { serverLogger } from "./logger";
 
 // ---------------------------------------------------------------------------------------------
 // NOT YET EXERCISED AGAINST THE LIVE PRIVY SERVICE.
@@ -80,6 +82,84 @@ export class PrivyKeysUnavailableError extends Error {
   }
 }
 
+/**
+ * The answers by which Privy says that the request for the key set is itself wrong, so that asking
+ * again cannot help: 400, 401, 403 and 404, which the SDK maps to `BadRequestError`,
+ * `AuthenticationError`, `PermissionDeniedError` and `NotFoundError` and never retries
+ * (@privy-io/node 0.40.0, core/error.js `APIError.generate`, client.js `shouldRetry`). The key set
+ * is a public GET of `/v1/apps/<app id>/jwks.json`, with no body and no credentials: the only part
+ * of the request this server chooses is the app id, so such an answer means that
+ * `NEXT_PUBLIC_PRIVY_APP_ID` is not the id of a Privy app (an unknown id answers 404). 408 and
+ * 429 (the SDK retries them), a 5xx, a timeout or a network failure are an outage instead.
+ */
+export const PRIVY_KEYS_REFUSED_STATUSES: ReadonlySet<number> = new Set([400, 401, 403, 404]);
+
+/** The variable that names the app whose key set is fetched; what to check on a refusal. */
+export const PRIVY_APP_ID_VARIABLE = "NEXT_PUBLIC_PRIVY_APP_ID";
+
+/**
+ * Privy refused the request for its key set (`PRIVY_KEYS_REFUSED_STATUSES`): a configuration
+ * error, not an outage. Still a `PrivyKeysUnavailableError`, since the token could not be checked.
+ */
+export class PrivyKeysRefusedError extends PrivyKeysUnavailableError {
+  constructor(readonly status: number) {
+    super(`HTTP ${String(status)}, a request Privy refuses: check ${PRIVY_APP_ID_VARIABLE}`);
+    this.name = "PrivyKeysRefusedError";
+  }
+}
+
+/** Where `ThrottledPrivyConfigurationLog` writes: the server's pino logger, or a fake in tests. */
+export interface PrivyConfigurationSink {
+  error(details: Record<string, unknown>, message: string): void;
+}
+
+/**
+ * Logs at ERROR, once per window (`AUTH_OUTAGE_LOG_WINDOW_MS`, as the outage warning of
+ * auth.ts), that Privy refuses the request for its key set, with the number of refusals held back
+ * since the last line. Names the variable to check and the status; never the app id's value, a
+ * secret or a token.
+ */
+export class ThrottledPrivyConfigurationLog {
+  private lastLoggedAt = Number.NEGATIVE_INFINITY;
+  private heldBack = 0;
+
+  constructor(
+    private readonly sink: PrivyConfigurationSink,
+    private readonly windowMs: number = AUTH_OUTAGE_LOG_WINDOW_MS,
+    private readonly now: () => number = () => Date.now(),
+  ) {}
+
+  report(error: PrivyKeysRefusedError): void {
+    const now = this.now();
+    if (now - this.lastLoggedAt < this.windowMs) {
+      this.heldBack += 1;
+      return;
+    }
+    // A 401 or a 403 can also come from a protection layer in front of Privy (a transient block):
+    // the sentence must stay true in both cases. A 400 or a 404 is the app id.
+    const blockedOrId = error.status === 401 || error.status === 403;
+    this.sink.error(
+      { status: error.status, variable: PRIVY_APP_ID_VARIABLE, heldBack: this.heldBack },
+      `Privy refuses the request for its key set (HTTP ${String(error.status)}): ` +
+        (blockedOrId
+          ? `either ${PRIVY_APP_ID_VARIABLE} is not the id of a Privy app, or the request was ` +
+            "blocked before it reached Privy; if the next attempts are refused the same way, " +
+            "check the variable; "
+          : `check ${PRIVY_APP_ID_VARIABLE}, which is probably not the id of a Privy app; `) +
+        "until it is fixed, every signed-in route answers 503",
+    );
+    this.lastLoggedAt = now;
+    this.heldBack = 0;
+  }
+}
+
+let defaultConfigurationLog: ThrottledPrivyConfigurationLog | undefined;
+
+function configurationLog(): ThrottledPrivyConfigurationLog {
+  defaultConfigurationLog ??= new ThrottledPrivyConfigurationLog(serverLogger("privy"));
+  return defaultConfigurationLog;
+}
+
 /** The key set was fetched and has no key for the token's header. */
 class PrivyKeyNotFoundError extends Error {
   constructor() {
@@ -137,6 +217,9 @@ export class PrivyKeySet {
         timedOut ? `no answer within ${String(timeoutMs)} ms` : "the request failed",
         { cause: error },
       );
+    }
+    if (PRIVY_KEYS_REFUSED_STATUSES.has(response.status)) {
+      throw new PrivyKeysRefusedError(response.status);
     }
     if (response.status !== 200) {
       throw new PrivyKeysUnavailableError(`HTTP ${String(response.status)}`);
@@ -249,7 +332,11 @@ export class PrivyIdentity implements AuthVerifier, IdentityDirectory {
 
   constructor(
     private readonly credentials: () => PrivyCredentials,
-    private readonly options: { keys?: PrivyKeySetOptions } = {},
+    private readonly options: {
+      keys?: PrivyKeySetOptions;
+      /** Where a refused key-set request is logged; the server's logger by default. */
+      configurationLog?: ThrottledPrivyConfigurationLog;
+    } = {},
   ) {}
 
   private privy(): PrivyClient {
@@ -280,7 +367,10 @@ export class PrivyIdentity implements AuthVerifier, IdentityDirectory {
    * not fetch (@privy-io/node 0.40.0, src/lib/auth.ts `mapAndThrowJoseErrors`). The key set says
    * which: when it could not be fetched, the token was not checked at all
    * (`AuthUnavailableError`, answered 503); otherwise the token is refused
-   * (`InvalidAccessTokenError`, answered 401).
+   * (`InvalidAccessTokenError`, answered 401). When Privy refused the key-set request itself
+   * (`PrivyKeysRefusedError`, a wrong app id), the answer is the same 503, and the configuration
+   * error is also logged at ERROR (`ThrottledPrivyConfigurationLog`); a 5xx, a timeout or a network
+   * failure only gets the outage warning of `authenticateRequest`.
    */
   async verify(accessToken: string): Promise<VerifiedToken> {
     const keys = this.keys();
@@ -301,7 +391,15 @@ export class PrivyIdentity implements AuthVerifier, IdentityDirectory {
       });
       return { privyUserId: claims.user_id };
     } catch (error: unknown) {
-      if (unavailable) throw new AuthUnavailableError(unavailable.message, { cause: unavailable });
+      if (unavailable) {
+        if (unavailable instanceof PrivyKeysRefusedError) {
+          (this.options.configurationLog ?? configurationLog()).report(unavailable);
+        }
+        throw new AuthUnavailableError(unavailable.message, {
+          cause: unavailable,
+          configuration: unavailable instanceof PrivyKeysRefusedError,
+        });
+      }
       if (error instanceof InvalidAuthTokenError) throw new InvalidAccessTokenError(error.message);
       throw error;
     }

@@ -11,10 +11,19 @@ import {
   ThrottledOutageLog,
   authenticateRequest,
   type AuthDeps,
+  type AuthVerifier,
   type OutageSink,
 } from "./auth";
 import type { Db } from "./db";
-import { PrivyIdentity, PrivyKeySet, PrivyKeysUnavailableError } from "./privy";
+import {
+  PRIVY_KEYS_REFUSED_STATUSES,
+  PrivyIdentity,
+  PrivyKeySet,
+  PrivyKeysRefusedError,
+  PrivyKeysUnavailableError,
+  ThrottledPrivyConfigurationLog,
+  type PrivyConfigurationSink,
+} from "./privy";
 import { ApiRouteError } from "./route";
 
 // The real @privy-io/node SDK checks the tokens; the key set it needs is served by a local HTTP
@@ -22,7 +31,17 @@ import { ApiRouteError } from "./route";
 // ES256 keys made for the test.
 
 const APP_ID = "privytestappid00000000025";
+/** Made for this run: a log line must never contain it. */
+const APP_SECRET = `test-secret-${randomBytes(16).toString("hex")}`;
 const KID = "test-key-1";
+
+/** Records what `ThrottledPrivyConfigurationLog` writes at ERROR. */
+class RecordingErrorSink implements PrivyConfigurationSink {
+  readonly lines: { details: Record<string, unknown>; message: string }[] = [];
+  error(details: Record<string, unknown>, message: string): void {
+    this.lines.push({ details, message });
+  }
+}
 
 function base64url(value: string | Buffer): string {
   return Buffer.from(value).toString("base64url");
@@ -68,7 +87,7 @@ function token(
   return `${head}.${body}.${base64url(signature)}`;
 }
 
-type Mode = "ok" | "error" | "slow" | "not-json";
+type Mode = "ok" | "error" | "slow" | "not-json" | number;
 
 describe("PrivyIdentity.verify against a stand-in for Privy", () => {
   const signer = newSigner(KID);
@@ -86,6 +105,10 @@ describe("PrivyIdentity.verify against a stand-in for Privy", () => {
       }
       if (mode === "error") {
         response.writeHead(503).end("upstream unavailable");
+        return;
+      }
+      if (typeof mode === "number") {
+        response.writeHead(mode, { "content-type": "application/json" }).end('{"error":"no"}');
         return;
       }
       if (mode === "not-json") {
@@ -112,9 +135,15 @@ describe("PrivyIdentity.verify against a stand-in for Privy", () => {
     requests = 0;
   });
 
-  function identity(url = apiUrl): PrivyIdentity {
-    return new PrivyIdentity(() => ({ appId: APP_ID, appSecret: "dummy-secret", apiUrl: url }), {
+  let errors: RecordingErrorSink;
+  beforeEach(() => {
+    errors = new RecordingErrorSink();
+  });
+
+  function identity(url = apiUrl, appId = APP_ID): PrivyIdentity {
+    return new PrivyIdentity(() => ({ appId, appSecret: APP_SECRET, apiUrl: url }), {
       keys: { timeoutMs: 200 },
+      configurationLog: new ThrottledPrivyConfigurationLog(errors),
     });
   }
 
@@ -171,6 +200,10 @@ describe("PrivyIdentity.verify against a stand-in for Privy", () => {
 
   const outages: [string, Mode | "unreachable"][] = [
     ["Privy answers an error", "error"],
+    ["Privy answers 500", 500],
+    ["Privy answers 502", 502],
+    ["Privy answers 408 (request timeout)", 408],
+    ["Privy answers 429 (rate limited)", 429],
     ["Privy is too slow", "slow"],
     ["Privy answers something that is not a key set", "not-json"],
     ["Privy cannot be reached", "unreachable"],
@@ -193,6 +226,89 @@ describe("PrivyIdentity.verify against a stand-in for Privy", () => {
     expect(error).toBeInstanceOf(AuthUnavailableError);
     expect(error).not.toBeInstanceOf(InvalidAccessTokenError);
     expect((error as AuthUnavailableError).cause).toBeInstanceOf(PrivyKeysUnavailableError);
+    // An outage, not a configuration error: only the warning of authenticateRequest, no ERROR.
+    expect((error as AuthUnavailableError).cause).not.toBeInstanceOf(PrivyKeysRefusedError);
+    expect(errors.lines).toHaveLength(0);
+  });
+
+  it("takes 400, 401, 403 and 404 as the request being wrong, and nothing else", () => {
+    expect([...PRIVY_KEYS_REFUSED_STATUSES].sort()).toEqual([400, 401, 403, 404]);
+  });
+
+  it.each([400, 401, 403, 404])(
+    "says the token could not be checked when Privy refuses the request (HTTP %i), and logs a configuration error",
+    async (status) => {
+      mode = status;
+      const error = await identity()
+        .verify(token(signer))
+        .catch((caught: unknown) => caught);
+      // The client still gets the 503 of a token that could not be checked.
+      expect(error).toBeInstanceOf(AuthUnavailableError);
+      expect(error).not.toBeInstanceOf(InvalidAccessTokenError);
+      const cause = (error as AuthUnavailableError).cause;
+      expect(cause).toBeInstanceOf(PrivyKeysRefusedError);
+      expect(cause).toMatchObject({ status });
+      expect(errors.lines).toHaveLength(1);
+      expect(errors.lines[0]?.details).toMatchObject({
+        status,
+        variable: "NEXT_PUBLIC_PRIVY_APP_ID",
+        heldBack: 0,
+      });
+      expect(errors.lines[0]?.message).toContain("NEXT_PUBLIC_PRIVY_APP_ID");
+      expect(errors.lines[0]?.message).toContain(`HTTP ${String(status)}`);
+    },
+  );
+
+  it("logs a mistyped app id (Privy's 404 for an unknown app) at ERROR, never its secret or the token", async () => {
+    const sent = token(signer);
+    const error = await identity(apiUrl, "mistypedappid000000000025")
+      .verify(sent)
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(AuthUnavailableError);
+    expect((error as AuthUnavailableError).cause).toMatchObject({ status: 404 });
+    expect(requests).toBe(1);
+    expect(errors.lines).toHaveLength(1);
+    const logged = JSON.stringify(errors.lines);
+    expect(logged).toContain("NEXT_PUBLIC_PRIVY_APP_ID");
+    expect(logged).not.toContain(sent);
+    expect(logged).not.toContain(APP_SECRET);
+    expect(logged).not.toContain("mistypedappid");
+  });
+
+  it("logs the configuration error once per window, with the refusals held back", async () => {
+    let clock = 0;
+    const privy = new PrivyIdentity(() => ({ appId: APP_ID, appSecret: APP_SECRET, apiUrl }), {
+      keys: { timeoutMs: 200 },
+      configurationLog: new ThrottledPrivyConfigurationLog(
+        errors,
+        AUTH_OUTAGE_LOG_WINDOW_MS,
+        () => clock,
+      ),
+    });
+    mode = 404;
+    for (let i = 0; i < 5; i += 1) {
+      clock += 1000;
+      await expect(privy.verify(token(signer))).rejects.toBeInstanceOf(AuthUnavailableError);
+    }
+    expect(requests).toBe(5);
+    expect(errors.lines).toHaveLength(1);
+    clock += AUTH_OUTAGE_LOG_WINDOW_MS;
+    await expect(privy.verify(token(signer))).rejects.toBeInstanceOf(AuthUnavailableError);
+    expect(errors.lines).toHaveLength(2);
+    expect(errors.lines[1]?.details).toMatchObject({ status: 404, heldBack: 4 });
+  });
+
+  it("checks a valid token again once Privy accepts the request, without a restart", async () => {
+    const privy = identity();
+    mode = 404;
+    await expect(privy.verify(token(signer))).rejects.toBeInstanceOf(AuthUnavailableError);
+    mode = 403;
+    await expect(privy.verify(token(signer))).rejects.toBeInstanceOf(AuthUnavailableError);
+    mode = "ok";
+    await expect(privy.verify(token(signer))).resolves.toEqual({ privyUserId: "did:privy:joe" });
+    expect(requests).toBe(3);
+    // Within one window: the second refusal was held back, not logged again.
+    expect(errors.lines).toHaveLength(1);
   });
 
   it("checks a valid token again once Privy is back, without a restart", async () => {
@@ -275,7 +391,7 @@ describe("authenticateRequest when the identity provider fails", () => {
     },
   ) as unknown as Db;
 
-  function deps(verify: () => Promise<never>, outageLog: ThrottledOutageLog): AuthDeps {
+  function deps(verify: AuthVerifier["verify"], outageLog: ThrottledOutageLog): AuthDeps {
     const unused = (): never => {
       throw new Error("not reached");
     };
@@ -288,10 +404,30 @@ describe("authenticateRequest when the identity provider fails", () => {
     };
   }
 
-  function request(): Request {
+  function request(accessToken = randomBytes(8).toString("hex")): Request {
     return new Request("http://localhost/api/me", {
-      headers: { authorization: `Bearer ${randomBytes(8).toString("hex")}` },
+      headers: { authorization: `Bearer ${accessToken}` },
     });
+  }
+
+  const signer = newSigner(KID);
+
+  /** A well-formed token of its own each time, so that the real verifier fetches the key set. */
+  function freshToken(): string {
+    return token(signer, { sid: `session-${randomBytes(8).toString("hex")}` });
+  }
+
+  /** The real verifier, with Privy's key set answering `status` (no network: a fetch of its own). */
+  function privyAnswering(status: number, errors: RecordingErrorSink): PrivyIdentity {
+    return new PrivyIdentity(
+      () => ({ appId: APP_ID, appSecret: APP_SECRET, apiUrl: "http://privy.invalid" }),
+      {
+        keys: {
+          fetch: (() => Promise.resolve(new Response("{}", { status }))) as typeof fetch,
+        },
+        configurationLog: new ThrottledPrivyConfigurationLog(errors),
+      },
+    );
   }
 
   class RecordingSink implements OutageSink {
@@ -318,20 +454,18 @@ describe("authenticateRequest when the identity provider fails", () => {
 
   it("answers 503, retryable, when the token could not be checked, and logs it once per window", async () => {
     const sink = new RecordingSink();
+    const errors = new RecordingErrorSink();
     let clock = 0;
     const log = new ThrottledOutageLog(sink, AUTH_OUTAGE_LOG_WINDOW_MS, () => clock);
-    const outage = deps(
-      () =>
-        Promise.reject(
-          new AuthUnavailableError("keys unreachable", {
-            cause: new PrivyKeysUnavailableError("HTTP 503"),
-          }),
-        ),
-      log,
-    );
+    // The real verifier, whose key set answers 503: an outage.
+    const privy = privyAnswering(503, errors);
+    const outage = deps((accessToken) => privy.verify(accessToken), log);
+    const sent: string[] = [];
     for (let i = 0; i < 5; i += 1) {
       clock += 1000;
-      const error = await authenticateRequest(request(), "user", outage).catch(
+      const accessToken = freshToken();
+      sent.push(accessToken);
+      const error = await authenticateRequest(request(accessToken), "user", outage).catch(
         (caught: unknown) => caught,
       );
       expect(error).toBeInstanceOf(ApiRouteError);
@@ -341,14 +475,74 @@ describe("authenticateRequest when the identity provider fails", () => {
     }
     expect(sink.lines).toHaveLength(1);
     expect(sink.lines[0]?.details).toMatchObject({ heldBack: 0 });
+    expect(sink.lines[0]?.details.cause).toMatch(/HTTP 503/);
 
     clock += AUTH_OUTAGE_LOG_WINDOW_MS;
-    await authenticateRequest(request(), "user", outage).catch(() => undefined);
+    const last = freshToken();
+    sent.push(last);
+    await authenticateRequest(request(last), "user", outage).catch(() => undefined);
     expect(sink.lines).toHaveLength(2);
     expect(sink.lines[1]?.details).toMatchObject({ heldBack: 4 });
-    // Never the token in the log line.
-    expect(JSON.stringify(sink.lines)).not.toMatch(/Bearer/);
+    // An outage is a warning only: nothing at ERROR.
+    expect(errors.lines).toHaveLength(0);
+
+    // Never a token, nor the app secret, in a log line: each line serialised as pino would.
+    const logged = [...sink.lines, ...errors.lines].map((line) => JSON.stringify(line));
+    expect(logged).toHaveLength(2);
+    for (const line of logged) {
+      for (const accessToken of sent) {
+        expect(line).not.toContain(accessToken);
+        expect(line).not.toContain(accessToken.split(".")[2] ?? accessToken);
+      }
+      expect(line).not.toContain(APP_SECRET);
+      expect(line).not.toMatch(/Bearer/);
+    }
   });
+
+  it("answers 503 for a wrong app id too, and logs it at ERROR with the variable to check", async () => {
+    const sink = new RecordingSink();
+    const errors = new RecordingErrorSink();
+    const privy = privyAnswering(404, errors);
+    const accessToken = freshToken();
+    const error = await authenticateRequest(
+      request(accessToken),
+      "user",
+      deps((given) => privy.verify(given), new ThrottledOutageLog(sink)),
+    ).catch((caught: unknown) => caught);
+    // The client's answer is unchanged: the token really could not be checked.
+    expect(error).toBeInstanceOf(ApiRouteError);
+    expect(error).toMatchObject({ status: 503, code: "internal" });
+    expect(errors.lines).toHaveLength(1);
+    expect(errors.lines[0]?.message).toContain("NEXT_PUBLIC_PRIVY_APP_ID");
+    expect(errors.lines[0]?.details).toMatchObject({ status: 404 });
+    // One trace, not two: the ERROR line above is it, and the outage warning stays silent.
+    expect(sink.lines).toHaveLength(0);
+    expect(errors.lines[0]?.message).toContain("probably not the id of a Privy app");
+    for (const line of [...sink.lines, ...errors.lines].map((entry) => JSON.stringify(entry))) {
+      expect(line).not.toContain(accessToken);
+      expect(line).not.toContain(APP_SECRET);
+    }
+  });
+
+  it.each([401, 403])(
+    "words an HTTP %i so that it is true for a wrong app id and for a blocked request alike",
+    async (status) => {
+      const sink = new RecordingSink();
+      const errors = new RecordingErrorSink();
+      const privy = privyAnswering(status, errors);
+      const error = await authenticateRequest(
+        request(freshToken()),
+        "user",
+        deps((given) => privy.verify(given), new ThrottledOutageLog(sink)),
+      ).catch((caught: unknown) => caught);
+      expect(error).toMatchObject({ status: 503, code: "internal" });
+      expect(errors.lines).toHaveLength(1);
+      expect(errors.lines[0]?.message).toContain("NEXT_PUBLIC_PRIVY_APP_ID");
+      expect(errors.lines[0]?.message).toContain("blocked before it reached Privy");
+      expect(errors.lines[0]?.message).not.toContain("probably not the id");
+      expect(sink.lines).toHaveLength(0);
+    },
+  );
 
   it("lets any other failure through, answered 500 by the route as before", async () => {
     const sink = new RecordingSink();
