@@ -7,7 +7,6 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 
 import { Button } from "@/components/ui/button";
 import { Diagonals } from "@/components/ui/diagonals";
-import { AppleMark } from "@/components/ui/icons";
 import { Sheet } from "@/components/ui/sheet";
 import { isAbortError } from "@/lib/api/client";
 import { isMockApi } from "@/lib/api/mock-scenario";
@@ -17,6 +16,7 @@ import { runCheckout, type Authorize, type CheckoutOutcome } from "@/lib/fan/che
 import { formatMoney } from "@/lib/format";
 
 import { Money } from "./money";
+import { CardForm, StripeElements, WalletButton, type PayHandle } from "./stripe-payment";
 
 /** In the simulated mode there is no card to authorize: a short pause stands in for it. */
 const SIMULATED_AUTHORIZATION_MS = 500;
@@ -48,49 +48,78 @@ const simulatedAuthorize: Authorize = () =>
   });
 
 /**
- * The payment area of the sheet. Simulated mode: one "Simulate payment" button. The live version
- * (task U-04) replaces this component's body with Stripe's Express Checkout Element (Apple Pay,
- * `emailRequired: true`) and the Payment Element plus an email field for the card, and passes its
- * own `authorize` to `runCheckout`; the sheet, the states and the polling around it do not change.
+ * The payment area of the sheet. Simulated mode: one "Simulate payment" button. Live: Stripe's
+ * Express Checkout Element (Apple Pay, Google Pay, with `emailRequired`) when the first button of
+ * C1 opened the sheet and a wallet exists on this device, otherwise the card form (Payment Element
+ * and the e-mail field). The amount and `captureMethod: "manual"` are those of the PaymentIntent the
+ * back end creates, so the card is authorized, not charged.
  */
 function PaymentArea({
+  amountCents,
   amount,
   method,
   busy,
   locked,
   onPay,
 }: {
+  amountCents: number;
   amount: string;
   method: PayMethod;
   busy: boolean;
   locked: boolean;
-  onPay: () => void;
+  onPay: (handle: PayHandle | null) => void;
 }): React.JSX.Element {
+  const [view, setView] = useState<"express" | "card">(method === "apple-pay" ? "express" : "card");
+  const [noWallet, setNoWallet] = useState(false);
+  const walletUnavailable = useCallback(() => {
+    setNoWallet(true);
+    setView("card");
+  }, []);
+
   if (isMockApi()) {
     return (
-      <Button variant="white" loading={busy} disabled={locked} onClick={onPay}>
+      <Button variant="white" loading={busy} disabled={locked} onClick={() => onPay(null)}>
         {copy.checkout.simulatePaymentOf(amount)}
       </Button>
     );
   }
   return (
-    <div className="flex flex-col gap-3">
-      {method === "apple-pay" ? (
-        <Button variant="white" arrow={false} disabled leading={<AppleMark className="size-5" />}>
-          {copy.campaign.buyApplePay}
-        </Button>
-      ) : (
-        <Button
-          variant="dark"
-          arrow={false}
-          disabled
-          leading={<CreditCard className="size-5" strokeWidth={1.5} aria-hidden="true" />}
-        >
-          {copy.campaign.payWithCard}
-        </Button>
-      )}
-      <p className="px-2 text-center text-caption text-muted">{copy.checkout.cardSoon}</p>
-    </div>
+    <StripeElements amountCents={amountCents} captureMethod="manual">
+      <div className="flex flex-col gap-3">
+        {view === "express" ? (
+          <>
+            <WalletButton
+              askEmail
+              locked={locked || busy}
+              onPay={onPay}
+              onUnavailable={walletUnavailable}
+            />
+            <Button
+              variant="dark"
+              arrow={false}
+              disabled={locked || busy}
+              leading={<CreditCard className="size-5" strokeWidth={1.5} aria-hidden="true" />}
+              onClick={() => setView("card")}
+            >
+              {copy.campaign.payWithCard}
+            </Button>
+          </>
+        ) : (
+          <>
+            {noWallet ? (
+              <p className="text-center text-caption text-muted">{copy.checkout.noWallet}</p>
+            ) : null}
+            <CardForm
+              askEmail
+              payLabel={copy.checkout.payAmount(amount)}
+              busy={busy}
+              locked={locked}
+              onPay={onPay}
+            />
+          </>
+        )}
+      </div>
+    </StripeElements>
   );
 }
 
@@ -180,48 +209,58 @@ export function CheckoutSheet({
   // Leaving the page stops the polling.
   useEffect(() => () => controller.current?.abort(), []);
 
-  const pay = useCallback(async (): Promise<void> => {
-    // Locked from the first tap: a second tap must never start a second purchase.
-    if (inFlight.current || stage.kind !== "review") return;
-    inFlight.current = true;
-    setStage({ kind: "paying" });
-    const abort = new AbortController();
-    controller.current = abort;
-    let secured = false;
-    try {
-      const outcome = await runCheckout({
-        slug: campaign.slug,
-        qty,
-        authorize: simulatedAuthorize,
-        signal: abort.signal,
-        onSecuring: () => {
-          secured = true;
-          onOpenChange(false);
-          setStage({ kind: "securing", slow: false });
-        },
-        onWaiting: (seconds) =>
-          setStage((current) =>
-            current.kind === "securing"
-              ? { kind: "securing", slow: seconds >= SLOW_AFTER_SECONDS }
-              : current,
-          ),
-      });
-      if (outcome.kind === "ticketed") {
-        // Stays locked: the page is about to change.
-        router.push(`/t/${encodeURIComponent(outcome.token)}`);
-        return;
+  const pay = useCallback(
+    async (handle: PayHandle | null): Promise<void> => {
+      // Locked from the first tap: a second tap must never start a second purchase.
+      if (inFlight.current || stage.kind !== "review") return;
+      inFlight.current = true;
+      setStage({ kind: "paying" });
+      const abort = new AbortController();
+      controller.current = abort;
+      let secured = false;
+      try {
+        const outcome = await runCheckout({
+          slug: campaign.slug,
+          qty,
+          validate: handle === null ? undefined : handle.submit,
+          authorize:
+            handle === null
+              ? simulatedAuthorize
+              : (checkout) => handle.confirm(checkout.clientSecret),
+          signal: abort.signal,
+          onSecuring: () => {
+            secured = true;
+            onOpenChange(false);
+            setStage({ kind: "securing", slow: false });
+          },
+          onWaiting: (seconds) =>
+            setStage((current) =>
+              current.kind === "securing"
+                ? { kind: "securing", slow: seconds >= SLOW_AFTER_SECONDS }
+                : current,
+            ),
+        });
+        if (outcome.kind === "ticketed") {
+          // Stays locked: the page is about to change.
+          router.push(`/t/${encodeURIComponent(outcome.token)}`);
+          return;
+        }
+        inFlight.current = false;
+        if (outcome.kind === "refused" || (outcome.kind === "failed" && !secured)) {
+          // A wallet's own sheet may still be open: it shows the failure too.
+          handle?.fail();
+          setStage({ kind: "review", error: outcome.message });
+        } else {
+          setStage({ kind: "ended", outcome });
+        }
+      } catch (error: unknown) {
+        inFlight.current = false;
+        handle?.fail();
+        if (!isAbortError(error)) setStage({ kind: "review", error: copy.common.genericError });
       }
-      inFlight.current = false;
-      if (outcome.kind === "refused" || (outcome.kind === "failed" && !secured)) {
-        setStage({ kind: "review", error: outcome.message });
-      } else {
-        setStage({ kind: "ended", outcome });
-      }
-    } catch (error: unknown) {
-      inFlight.current = false;
-      if (!isAbortError(error)) setStage({ kind: "review", error: copy.common.genericError });
-    }
-  }, [stage.kind, campaign.slug, qty, onOpenChange, router]);
+    },
+    [stage.kind, campaign.slug, qty, onOpenChange, router],
+  );
 
   const backToReview = useCallback((): void => setStage({ kind: "review" }), []);
   const amount = formatMoney(total);
@@ -265,11 +304,12 @@ export function CheckoutSheet({
           ) : null}
 
           <PaymentArea
+            amountCents={Number(total / 10_000n)}
             amount={amount}
             method={method}
             busy={stage.kind === "paying"}
             locked={!canPay}
-            onPay={() => void pay()}
+            onPay={(handle) => void pay(handle)}
           />
           <p className="text-center text-caption text-muted">{copy.checkout.chargedWhenReady}</p>
         </div>

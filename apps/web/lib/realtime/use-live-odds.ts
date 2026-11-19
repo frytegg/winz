@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { isMockApi } from "@/lib/api/mock-scenario";
 
-import { oddsFromRow, wobble } from "./live-odds";
+import { isFeedLive, oddsFromRow, wobble } from "./live-odds";
 
 /** How often the simulated figure moves. */
 const WOBBLE_MS = 2000;
@@ -31,8 +31,9 @@ function supabaseConfig(): { url: string; key: string } | null {
  * - Simulated mode (`NEXT_PUBLIC_APP_API_MOCK=true`): no market, so the figure wobbles a little
  *   around `apiBps` every two seconds. Only there.
  * - Otherwise: a Supabase Realtime subscription to `live_instruments` filtered on the promo's
- *   symbol pushes each new quote. The newest of a pushed quote and an API answer shows. When the
- *   feed is missing or drops, `connected` is false and the caller polls the API every 2 seconds.
+ *   symbol pushes each new quote. The newest of a pushed quote and an API answer shows. `connected`
+ *   means the feed is subscribed AND has pushed a row recently (Supabase says "subscribed" even for a
+ *   table that does not exist); otherwise the caller polls the API every 2 seconds.
  */
 export function useLiveOdds(
   symbol: string | null,
@@ -43,7 +44,11 @@ export function useLiveOdds(
   const [step, setStep] = useState(0);
   // `null` means nothing was pushed since the last API answer; `{ bps: null }` is a pushed "no quote".
   const [pushed, setPushed] = useState<{ bps: number | null } | null>(null);
-  const [connected, setConnected] = useState(false);
+  const [subscribed, setSubscribed] = useState(false);
+  // When the last row arrived, and a clock that moves while the feed is subscribed, so a feed that
+  // goes quiet is noticed.
+  const [lastPushAt, setLastPushAt] = useState<number | null>(null);
+  const [clock, setClock] = useState(() => Date.now());
 
   // An API answer is a quote too: it replaces an older pushed one.
   useEffect(() => {
@@ -79,11 +84,14 @@ export function useLiveOdds(
           },
           (payload) => {
             if (closed) return;
-            setPushed({ bps: oddsFromRow(payload.new, Date.now()) });
+            const now = Date.now();
+            setPushed({ bps: oddsFromRow(payload.new, now) });
+            setLastPushAt(now);
+            setClock(now);
           },
         )
         .subscribe((status) => {
-          if (!closed) setConnected(status === "SUBSCRIBED");
+          if (!closed) setSubscribed(status === "SUBSCRIBED");
         });
       cleanup = () => {
         void client.removeChannel(channel);
@@ -92,11 +100,19 @@ export function useLiveOdds(
 
     return () => {
       closed = true;
-      setConnected(false);
+      setSubscribed(false);
+      setLastPushAt(null);
       cleanup?.();
     };
   }, [mock, enabled, symbol]);
 
+  useEffect(() => {
+    if (!subscribed) return;
+    const timer = setInterval(() => setClock(Date.now()), 3000);
+    return () => clearInterval(timer);
+  }, [subscribed]);
+
+  const connected = isFeedLive(subscribed, lastPushAt, clock);
   if (mock) {
     return { bps: apiBps === null || step === 0 ? apiBps : wobble(apiBps, step), connected: false };
   }

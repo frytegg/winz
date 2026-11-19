@@ -7,13 +7,14 @@ import { copy } from "@/lib/copy";
  * The purchase, from "Pay" to a ticket (SCREENS C2, apps/web/README.md "Le parcours d'achat, côté
  * front"):
  *
+ *   validate()                                  the payment form is checked (Stripe `elements.submit()`)
  *   POST /api/checkout { slug, qty }            409 sales_paused | sales_closed: refused, nothing created
- *   authorize(checkout)                         the card is authorized, not charged (Stripe, task U-04)
+ *   authorize(checkout)                         the card is authorized, not charged (Stripe confirmPayment)
  *   POST /api/checkout/:pi/confirm              hands the purchase to the engine
  *   GET  /api/checkout/:pi, every second        until `ticketed`, `cancelled_paused` or `failed`
  *
- * It is written against `CheckoutDeps` so it can be tested without a network, and against an
- * `authorize` step so that Stripe can be plugged in without touching the rest.
+ * It is written against `CheckoutDeps` so it can be tested without a network, and against a
+ * `validate` and an `authorize` step so that Stripe (or a stand-in) plugs in without touching the rest.
  */
 
 export const STATUS_POLL_MS = 1000;
@@ -85,6 +86,11 @@ export interface RunCheckoutInput {
   slug: string;
   qty: number;
   authorize: Authorize;
+  /**
+   * Runs first, before anything is created: Stripe wants the form validated before any request. A
+   * form that is not valid ends the run as `failed` with Stripe's message, with nothing created.
+   */
+  validate?: () => Promise<AuthorizeResult>;
   signal: AbortSignal;
   /** Called once the card is authorized and the purchase is on its way: the screen can switch. */
   onSecuring?: () => void;
@@ -103,11 +109,16 @@ export async function runCheckout({
   slug,
   qty,
   authorize,
+  validate,
   signal,
   onSecuring,
   onWaiting,
   deps = apiCheckoutDeps,
 }: RunCheckoutInput): Promise<CheckoutOutcome> {
+  if (validate !== undefined) {
+    const valid = await validate();
+    if (!valid.ok) return { kind: "failed", message: valid.message };
+  }
   let checkout: CheckoutResponse;
   try {
     checkout = await deps.create({ slug, qty }, signal);

@@ -1,7 +1,7 @@
 import { BOOK_STALE_AFTER_MS } from "@winz/shared";
 import { describe, expect, it } from "vitest";
 
-import { oddsFromRow, wobble } from "./live-odds";
+import { FEED_SILENT_AFTER_MS, isFeedLive, oddsFromRow, wobble } from "./live-odds";
 
 const NOW = Date.parse("2026-11-21T20:00:00.000Z");
 
@@ -56,5 +56,21 @@ describe("wobble", () => {
   it("moves", () => {
     const values = new Set(Array.from({ length: 20 }, (_, index) => wobble(1200, index + 1)));
     expect(values.size).toBeGreaterThan(5);
+  });
+});
+
+describe("isFeedLive", () => {
+  it("is not live before any row arrived, even when subscribed", () => {
+    expect(isFeedLive(true, null, NOW)).toBe(false);
+  });
+
+  it("is live right after a row, and until the feed has been silent too long", () => {
+    expect(isFeedLive(true, NOW - 1000, NOW)).toBe(true);
+    expect(isFeedLive(true, NOW - FEED_SILENT_AFTER_MS + 1, NOW)).toBe(true);
+    expect(isFeedLive(true, NOW - FEED_SILENT_AFTER_MS, NOW)).toBe(false);
+  });
+
+  it("is never live when not subscribed", () => {
+    expect(isFeedLive(false, NOW - 1000, NOW)).toBe(false);
   });
 });

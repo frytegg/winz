@@ -14,6 +14,7 @@ const FAN_FILES = [
   "app/(fan)",
   "components/winz/campaign-page.tsx",
   "components/winz/checkout-sheet.tsx",
+  "components/winz/stripe-payment.tsx",
   "components/winz/ticket-screen.tsx",
   "components/winz/add-to-home.tsx",
   "components/winz/money.tsx",
@@ -26,6 +27,7 @@ const FAN_FILES = [
   "components/ui/sheet.tsx",
   "components/ui/demo-banner.tsx",
   "lib/fan",
+  "lib/stripe",
   "lib/realtime",
   "lib/share.ts",
 ];

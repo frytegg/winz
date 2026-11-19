@@ -1,5 +1,10 @@
 import type { CampaignStatus, MerchantCategory, SaleState, Sport, TicketPhase } from "@winz/shared";
 
+/** "Texas" → "Texas'", "Pitt" → "Pitt's": a name that ends in s takes the apostrophe alone. */
+export function possessive(name: string): string {
+  return /s$/i.test(name) ? `${name}'` : `${name}'s`;
+}
+
 /**
  * Product copy, US English. Every user-facing string lives here (SPEC section 14), grouped by
  * screen (winz-front-kit/SCREENS.md). No crypto word in anything a fan reads: wallet, USDC,
@@ -216,10 +221,11 @@ export const copy = {
     capacity: (sales: number): string => `Up to ${sales.toLocaleString("en-US")} sales`,
     limitedByDepth: "Limited by what the market can cover right now.",
     limitedByBudget: "Limited by your budget.",
+    /** `subject` is the team the promo is about ("Texas"); `null` for a total or a draw. */
     pauses: (subject: string | null, percent: number): string =>
       subject === null
         ? `Your promo pauses if the chances go above ${percent.toString()}%.`
-        : `Your promo pauses if ${subject}' chances go above ${percent.toString()}%.`,
+        : `Your promo pauses if ${possessive(subject)} chances go above ${percent.toString()}%.`,
     currentChance: "Chance right now",
     pausedPrice:
       "At today's odds this promo would be paused. Lower your minimum margin or pick another promo.",
@@ -246,7 +252,9 @@ export const copy = {
     simulatePayment: "Simulate payment",
     simulatePaymentOf: (amount: string): string => `Simulate payment · ${amount}`,
     paying: "Paying…",
-    cardSoon: "Card payment arrives with the live version.",
+    fundWithCard: (amount: string): string => `Fund ${amount} with card`,
+    fundAmount: (amount: string): string => `Pay ${amount}`,
+    cardTitle: "Pay with card",
   },
 
   /** M8 */
@@ -388,12 +396,14 @@ export const copy = {
     cannotResume:
       "This pause is automatic. Sales come back by themselves when the market is ready.",
     promiseLocked: "Your refund promise can't change.",
-    saleState: (state: SaleState, pausePercent: number): string => {
+    saleState: (state: SaleState, pausePercent: number, subject: string | null): string => {
       switch (state) {
         case "open":
           return "Selling";
         case "paused_price":
-          return `Paused: the chances are above ${pausePercent.toString()}%`;
+          return subject === null
+            ? `Paused: the chances are above ${pausePercent.toString()}%`
+            : `Paused: ${possessive(subject)} chances are above ${pausePercent.toString()}%`;
         case "paused_budget":
           return "Paused: budget used up";
         case "paused_depth":
@@ -482,7 +492,7 @@ export const copy = {
     paused: "Paused for now. Check back in a few minutes.",
     closed: "Sales are closed for this game",
     won: "Everyone got their money back",
-    wonBody: (conditionLabel: string): string => `The promo hit: ${conditionLabel}.`,
+    wonBody: (resultLabel: string): string => `${resultLabel}.`,
     lost: "Not this time",
     lostBody: (merchant: string): string => `Thanks for playing with ${merchant}.`,
     voided: "This game didn't go ahead",
@@ -510,7 +520,9 @@ export const copy = {
     total: "Total",
     chargedWhenReady: "You're only charged once your ticket is ready.",
     backToPromo: "Back to the promo",
-    cardSoon: "Card payment arrives with the live version.",
+    payAmount: (amount: string): string => `Pay ${amount}`,
+    noWallet: "Apple Pay isn't available here. Pay with your card instead.",
+    unavailable: "Payment isn't available right now. Try again in a moment.",
     closeSheet: "Close checkout",
     ticketPrinting: "Your ticket is being printed",
   },
@@ -530,7 +542,6 @@ export const copy = {
     gameOnBody: "The odds move with the game. Your promise stands.",
     refunded: "Refunded",
     refundedLine: (merchant: string): string => `Your order was on ${merchant}.`,
-    refundedHit: (conditionLabel: string): string => `Your promo hit: ${conditionLabel}.`,
     refundedOn: "Refunded",
     shareWin: "Share the win",
     shareWinText: (merchant: string, amount: string): string =>

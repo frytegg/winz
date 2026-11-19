@@ -113,11 +113,7 @@ export function CampaignDetailScreen({ campaignId }: { campaignId: string }): Re
               pulsing={isPulsing(campaign.status)}
               closesAt={showsCountdown(campaign.status) ? campaign.salesCloseAt : undefined}
             />
-            <CampaignMatch
-              eventTitle={campaign.eventTitle}
-              instrumentSymbol={campaign.instrumentSymbol}
-              startsAt={campaign.startsAt}
-            />
+            <CampaignMatch event={campaign.event} startsAt={campaign.startsAt} />
             <Segmented
               semantics="tabs"
               label={copy.campaignDetail.tabsLabel}
@@ -153,7 +149,6 @@ export function CampaignDetailScreen({ campaignId }: { campaignId: string }): Re
               open={topUpOpen}
               onOpenChange={setTopUpOpen}
               campaignId={campaign.id}
-              status={campaign.status}
               onAdded={detail.reload}
             />
           </>
