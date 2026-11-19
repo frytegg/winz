@@ -94,7 +94,11 @@ export const API_ROUTES = {
     path: "/api/campaigns/:id",
     auth: "merchant",
     response: schemas.campaignDetailSchema,
-    examples: { default: examples.campaignDetailExamples.live, ...examples.campaignDetailExamples },
+    examples: {
+      default: examples.campaignDetailExamples.live,
+      ...examples.campaignDetailExamples,
+      demo: examples.demoFlagExamples.campaignDetail,
+    },
   },
   pauseCampaign: {
     method: "POST",
@@ -122,7 +126,11 @@ export const API_ROUTES = {
     path: "/api/c/:slug",
     auth: "public",
     response: schemas.publicCampaignSchema,
-    examples: { default: examples.publicCampaignExamples.live, ...examples.publicCampaignExamples },
+    examples: {
+      default: examples.publicCampaignExamples.live,
+      ...examples.publicCampaignExamples,
+      demo: examples.demoFlagExamples.publicCampaign,
+    },
   },
   checkout: {
     method: "POST",
@@ -157,7 +165,11 @@ export const API_ROUTES = {
     path: "/api/t/:token",
     auth: "public",
     response: schemas.ticketSchema,
-    examples: { default: examples.ticketExamples.preGame, ...examples.ticketExamples },
+    examples: {
+      default: examples.ticketExamples.preGame,
+      ...examples.ticketExamples,
+      demo: examples.demoFlagExamples.ticket,
+    },
   },
   tickets: {
     method: "GET",
@@ -171,7 +183,7 @@ export const API_ROUTES = {
     path: "/api/hedge-desk",
     auth: "public",
     response: schemas.hedgeDeskResponseSchema,
-    examples: { default: examples.hedgeDeskExample },
+    examples: { default: examples.hedgeDeskExample, demo: examples.demoFlagExamples.hedgeDesk },
   },
   demoBook: {
     method: "POST",

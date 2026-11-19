@@ -41,7 +41,6 @@ test("M8 offers the poster download (SPEC M8)", async ({ page }) => {
     "M8 has loaded its promo (the QR code is drawn)",
   ).toBeVisible();
 
-  knownDefectFromHere("posterDownload");
   await expect(page.getByRole("button", { name: copy.live.downloadPoster })).toBeVisible({
     timeout: 5_000,
   });
