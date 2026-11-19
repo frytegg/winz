@@ -20,7 +20,10 @@ export interface VerifiedToken {
 
 /** Checks an access token issued by the identity provider. */
 export interface AuthVerifier {
-  /** Resolves the token's user, or throws `InvalidAccessTokenError` when the token is rejected. */
+  /**
+   * Resolves the token's user. Throws `InvalidAccessTokenError` when the token is rejected, and
+   * `AuthUnavailableError` when it could not be checked at all.
+   */
   verify(accessToken: string): Promise<VerifiedToken>;
 }
 
@@ -48,6 +51,66 @@ export class InvalidAccessTokenError extends Error {
     this.name = "InvalidAccessTokenError";
   }
 }
+
+/**
+ * Thrown by an `AuthVerifier` when it could not check the token at all (the provider's keys could
+ * not be fetched): it says nothing of the token, which may well be valid. Answered 503, never 401,
+ * so that the front does not sign a person out because the provider is slow or unreachable.
+ */
+export class AuthUnavailableError extends Error {
+  constructor(reason: string, options?: { cause?: unknown }) {
+    super(`Access token could not be checked: ${reason}`, options);
+    this.name = "AuthUnavailableError";
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Outages of the identity provider
+// ---------------------------------------------------------------------------------------------
+
+/** An outage of the identity provider is logged at most once in this window, per instance. */
+export const AUTH_OUTAGE_LOG_WINDOW_MS = 60_000;
+
+/** Where `ThrottledOutageLog` writes: the server's pino logger, or a fake in tests. */
+export interface OutageSink {
+  warn(details: Record<string, unknown>, message: string): void;
+}
+
+function causeOf(error: Error): string | undefined {
+  return error.cause instanceof Error ? `${error.cause.name}: ${error.cause.message}` : undefined;
+}
+
+/**
+ * Logs an outage of the identity provider once per window, with the number of requests answered
+ * 503 since the last line (`heldBack`): one line a minute during an outage, not one per request.
+ * Never the token.
+ */
+export class ThrottledOutageLog {
+  private lastLoggedAt = Number.NEGATIVE_INFINITY;
+  private heldBack = 0;
+
+  constructor(
+    private readonly sink: OutageSink,
+    private readonly windowMs: number = AUTH_OUTAGE_LOG_WINDOW_MS,
+    private readonly now: () => number = () => Date.now(),
+  ) {}
+
+  report(error: AuthUnavailableError): void {
+    const now = this.now();
+    if (now - this.lastLoggedAt < this.windowMs) {
+      this.heldBack += 1;
+      return;
+    }
+    this.sink.warn(
+      { reason: error.message, cause: causeOf(error), heldBack: this.heldBack },
+      "access tokens cannot be checked (identity provider unreachable): answering 503",
+    );
+    this.lastLoggedAt = now;
+    this.heldBack = 0;
+  }
+}
+
+const defaultOutageLog = new ThrottledOutageLog(log);
 
 // ---------------------------------------------------------------------------------------------
 // E-mail
@@ -127,6 +190,8 @@ export interface AuthDeps {
   directory: IdentityDirectory;
   /** The demo admin key (`APP_ADMIN_DEMO_KEY`). Read only for `admin` routes. */
   adminKey: () => string;
+  /** Where an outage of the identity provider is logged; one per instance by default. */
+  outageLog?: ThrottledOutageLog;
 }
 
 const BEARER = /^Bearer[ \t]+([A-Za-z0-9\-._~+/]+=*)$/;
@@ -359,7 +424,8 @@ export async function findOrCreateUser(
  *
  * - `public`: nothing to check, the principal is null;
  * - `user`: `Authorization: Bearer <access token>`, verified by the identity provider, then the
- *   `users` row is found or created; 401 when the token is missing, malformed or rejected;
+ *   `users` row is found or created; 401 when the token is missing, malformed or rejected; 503
+ *   (`internal`, "try again") when the provider could not check it (logged once per minute);
  * - `merchant`: as `user`, and the user must own a business (403 otherwise);
  * - `admin`: the `x-admin-key` header must equal `APP_ADMIN_DEMO_KEY` (constant-time comparison);
  * - `signature`: left to the webhook implementations, which need the raw body.
@@ -392,6 +458,15 @@ export async function authenticateRequest(
             401,
             "unauthenticated",
             "Your session has expired, sign in again",
+          );
+        }
+        if (error instanceof AuthUnavailableError) {
+          (deps.outageLog ?? defaultOutageLog).report(error);
+          // `internal`: the shared error codes have no other one for a 5xx (packages/shared).
+          throw new ApiRouteError(
+            503,
+            "internal",
+            "We could not check your sign-in just now, try again in a moment",
           );
         }
         throw error;
