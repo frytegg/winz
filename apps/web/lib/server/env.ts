@@ -55,6 +55,24 @@ export const webEnvSchema = z.object({
 
 export type WebEnv = z.infer<typeof webEnvSchema>;
 
+/**
+ * Variables of the browser's bundle, inlined by Next.js at build time and never read by the
+ * server: `webEnv` does not check them (a server without them still answers), `pnpm env:check web`
+ * does, with the same rules as the code that reads them.
+ */
+export const webBuildEnvSchema = z.object({
+  /**
+   * Stripe's publishable key, for every payment screen. apps/web/lib/stripe/client.ts uses only a
+   * test key (`pk_test_`) and otherwise shows "payment unavailable".
+   */
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z
+    .string()
+    .startsWith(
+      "pk_test_",
+      "only a Stripe test publishable key (pk_test_...) is used by the front",
+    ),
+});
+
 export class EnvValidationError extends Error {
   constructor(public readonly issues: readonly string[]) {
     super(`Invalid environment:\n${issues.map((issue) => `  - ${issue}`).join("\n")}`);

@@ -644,7 +644,30 @@ export const webhookAckSchema = z.object({
 // ---------------------------------------------------------------------------------------------
 // Realtime rows (public Supabase tables, read-only, no personal data)
 // ---------------------------------------------------------------------------------------------
+//
+// A pushed row is not written like an answer of the API. Supabase Realtime builds the record with
+// `realtime.cast`, that is `to_jsonb(value::type)` (supabase/realtime,
+// lib/realtime/tenants/repo/migrations/20260218120000_fix_bytea_double_encoding_in_cast.ex), sends
+// it as JSON, and realtime-js converts each field by its column type (@supabase/realtime-js
+// 2.119.0, src/lib/transformers.ts `convertCell`: int2, int4, int8 and numeric through `toNumber`,
+// which leaves a number as it is; bool through `toBoolean`; text and timestamptz unchanged). Column
+// by column (supabase/migrations/20261117000000_init.sql), checked with to_jsonb on Postgres 16:
+//
+// - text: a JSON string;
+// - integer: a JSON number;
+// - bigint: a JSON number with every digit, which `JSON.parse` rounds beyond 2^53 - 1
+//   (9007199254740993 arrives as 9007199254740992);
+// - boolean: true or false;
+// - timestamptz: "2026-11-21T20:00:00.123456+00:00", an offset and 0 to 6 decimals;
+// - NULL: null.
+//
+// The schemas accept exactly that and hand the screens the types of the API's schemas: money as a
+// string of micro-USDC digits.
 
+/**
+ * `live_instruments`: symbol text, bid_bps / ask_bps / mid_bps integer (nullable), observed_at
+ * timestamptz, stale boolean.
+ */
 export const liveInstrumentRowSchema = z.object({
   symbol: z.string(),
   bid_bps: z.number().int().nullable(),
@@ -654,11 +677,28 @@ export const liveInstrumentRowSchema = z.object({
   stale: z.boolean(),
 });
 
+/**
+ * `live_campaigns`: slug text, sale_state text, sales integer, exposure bigint, hedged_bps integer,
+ * outcome text (nullable), updated_at timestamptz.
+ *
+ * `exposure` arrives as a number and leaves as the API's string of digits; the API's string is
+ * still accepted. A value beyond `Number.MAX_SAFE_INTEGER` micro-USDC (about 9 billion dollars) has
+ * been rounded by `JSON.parse` before any code of ours sees it: the exact amount is gone, so the
+ * row is refused (`.int()` accepts only safe integers) rather than shown with an amount that is
+ * not the database's.
+ */
 export const liveCampaignRowSchema = z.object({
   slug: slugSchema,
   sale_state: saleStateSchema,
   sales: z.number().int(),
-  exposure: microUsdcSchema,
+  exposure: z.union([
+    z
+      .number()
+      .int()
+      .nonnegative()
+      .transform((value) => String(value)),
+    microUsdcSchema,
+  ]),
   hedged_bps: z.number().int(),
   outcome: outcomeSchema.nullable(),
   updated_at: pgTimestampSchema,

@@ -169,6 +169,14 @@ transaction : il écrit des lignes et met des jobs dans la table `jobs`, que le 
 (`apps/engine`) exécute. Un changement on-chain (campagne en ligne, pause écrite, ticket émis)
 apparaît donc quelques secondes après la réponse de la route, quand le moteur l'a fait.
 
+Le client Postgres (`lib/server/db.ts`) exige TLS pour tout hôte qui n'est pas local (chiffré, sans
+vérifier le certificat, comme `sslmode=require` ; un `sslmode=` dans `DB_URL` l'emporte) et ferme
+une connexion inutilisée après 5 s. Sur Vercel, chaque réponse d'une route API garde l'instance
+éveillée (`after`, donc `waitUntil`) jusqu'à ce que ses connexions soient fermées, 6 s au plus :
+une instance gelée ne garde plus de connexion du pooler. Ailleurs (`next dev`, tests), rien
+n'attend. Quand Privy ne peut pas vérifier un jeton (ses clés injoignables), la route répond
+`503 internal` (« try again »), jamais `401` : le front ne déconnecte personne.
+
 ### Routes réelles
 
 | Route                                                  | Ce qu'elle fait                                                                                     |

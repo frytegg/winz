@@ -9,6 +9,7 @@ import { after, before, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  PRIVY_APP_ID_LENGTH,
   checkEnv,
   exampleNames,
   formatList,
@@ -42,7 +43,9 @@ const WEB = {
   STRIPE_SECRET_KEY: "sk_test_dummyvalue",
   STRIPE_WEBHOOK_SECRET: "whsec_dummyvalue",
   PRIVY_APP_SECRET: "privy-dummy-secret",
-  NEXT_PUBLIC_PRIVY_APP_ID: "privy-dummy-app",
+  // 25 characters, the length of a Privy app id.
+  NEXT_PUBLIC_PRIVY_APP_ID: "privydummyappid0000000025",
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_dummyvalue",
   QUICKNODE_STREAMS_TOKEN: "qn-dummy-token",
 };
 
@@ -269,6 +272,92 @@ describe("checkEnv", () => {
   });
 });
 
+describe("the web app's browser variables", () => {
+  test("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is required: without it every payment screen says unavailable", () => {
+    const { NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: _dropped, ...rest } = WEB;
+    const report = check("web", rest);
+    assert.equal(report.ok, false);
+    assert.equal(report.missing, 1);
+    assert.deepEqual(
+      {
+        status: rowOf(report, "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY").status,
+        required: rowOf(report, "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY").required,
+      },
+      { status: "missing", required: true },
+    );
+    // The engine does not need it.
+    assert.equal(check("engine", ENGINE).ok, true);
+  });
+
+  test("a test publishable key passes", () => {
+    const report = check("web", WEB);
+    assert.equal(report.ok, true);
+    assert.equal(rowOf(report, "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY").status, "set");
+  });
+
+  for (const [value, label] of [
+    ["pk_live_dummyvalue", "a live publishable key"],
+    ["sk_test_dummyvalue", "a secret key"],
+    ["sk_live_dummyvalue", "a live secret key"],
+  ]) {
+    test(`${label} under NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY fails and is never printed`, () => {
+      const report = check("web", { ...WEB, NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: value });
+      assert.equal(report.ok, false);
+      const row = rowOf(report, "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY");
+      assert.equal(row.status, "invalid");
+      assert.match(row.message, /pk_test_/);
+      const text = formatReport(report, "test");
+      assert.match(text, /INVALID\s+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY\s+/);
+      assert.ok(!text.includes(value), "value printed");
+      // A secret key is also refused for being shipped to the browser.
+      if (value.startsWith("sk_")) assert.equal(report.exposed, 1);
+    });
+  }
+
+  test("a Privy app id of another length is reported without failing, and never printed", () => {
+    for (const value of ["client-abcdefghij", "privydummyappid00000000250"]) {
+      const report = check("web", { ...WEB, NEXT_PUBLIC_PRIVY_APP_ID: value });
+      assert.equal(report.ok, true, value);
+      assert.deepEqual(
+        report.warnings.map((w) => w.name),
+        ["NEXT_PUBLIC_PRIVY_APP_ID"],
+      );
+      const text = formatReport(report, "test");
+      assert.match(
+        text,
+        new RegExp(
+          `CHECK\\s+NEXT_PUBLIC_PRIVY_APP_ID\\s+${String(value.length)} characters, where a Privy app id has 25`,
+        ),
+      );
+      assert.ok(!text.includes(value), "value printed");
+      assert.match(text, /result: complete for the web/);
+    }
+  });
+
+  test("a Privy app id of the SDK's length gives no warning", () => {
+    assert.equal(WEB.NEXT_PUBLIC_PRIVY_APP_ID.length, PRIVY_APP_ID_LENGTH);
+    const report = check("web", WEB);
+    assert.deepEqual(report.warnings, []);
+    assert.ok(!formatReport(report, "test").includes("CHECK"));
+  });
+
+  test("says in one line that NEXT_PUBLIC_APP_API_MOCK must not be set for production", () => {
+    const unset = formatReport(check("web", WEB), "test");
+    const lines = unset.split("\n").filter((line) => line.includes("NEXT_PUBLIC_APP_API_MOCK"));
+    assert.equal(lines.length, 1);
+    assert.match(lines[0], /must not be set for production.*not set here$/);
+
+    const set = check("web", { ...WEB, NEXT_PUBLIC_APP_API_MOCK: "true" });
+    assert.equal(set.ok, true);
+    assert.match(
+      formatReport(set, "test"),
+      /NEXT_PUBLIC_APP_API_MOCK must not be set for production.*: SET here/,
+    );
+
+    assert.ok(!formatReport(check("engine", ENGINE), "test").includes("NEXT_PUBLIC_APP_API_MOCK"));
+  });
+});
+
 describe("parseDotenv and parseArgs", () => {
   test("reads export, quotes and comments", () => {
     assert.deepEqual(parseDotenv('# c\nexport A=1\nB="two words"\nC=3 # note\n\nD=\n'), {
@@ -320,6 +409,19 @@ describe("the command", () => {
     assert.match(result.stdout, /MISSING\s+STRIPE_SECRET_KEY\s+required/);
     assert.match(result.stdout, /INVALID\s+DB_URL\s+Invalid URL/);
     assert.ok(!result.stdout.includes("not a url"));
+  });
+
+  test("exits 0 on a complete web file, with the note on the simulated mode", () => {
+    const file = envFile(
+      Object.entries(WEB)
+        .map(([k, v]) => `${k}=${v}`)
+        .join("\n"),
+    );
+    const result = cli(["web", "--file", file]);
+    assert.equal(result.status, 0, result.stdout);
+    assert.match(result.stdout, /note: NEXT_PUBLIC_APP_API_MOCK must not be set for production/);
+    assert.match(result.stdout, /result: complete for the web/);
+    for (const value of Object.values(WEB)) assert.ok(!result.stdout.includes(value));
   });
 
   test("exits 2 on a usage error or a missing file", () => {

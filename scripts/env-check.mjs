@@ -5,8 +5,11 @@
 //
 // It runs the SAME zod schemas the two services validate with at start-up (imported, never
 // copied): apps/engine/src/config/env.ts (+ PORT of the health listener) and
-// apps/web/lib/server/env.ts. It never prints a value: a variable is set, missing, left to its
-// default, or malformed (with the zod message, from which the value is removed).
+// apps/web/lib/server/env.ts (+ the browser's build-time variables, `webBuildEnvSchema` there). It
+// never prints a value: a variable is set, missing, left to its default, or malformed (with the
+// zod message, from which the value is removed).
+// It also reports, without failing, what is worth a look but cannot be refused: a Privy app id of
+// another length than Privy's React SDK accepts, and (web) whether NEXT_PUBLIC_APP_API_MOCK is set.
 //
 // Run through tsx (the schemas are TypeScript), which the root package.json script does.
 // Exit codes: 0 = complete, 1 = something required is missing or malformed, or a secret sits where
@@ -31,6 +34,15 @@ const SECRET_NAME = /(PRIVATE_KEY|SECRET|SEED|TOKEN|SERVICE_ROLE|PASSWORD)/;
 const PUBLIC_PREFIX = /^NEXT_PUBLIC_/;
 /** zod's message for a field that is absent: shown as "required" instead. */
 const ABSENT = /received undefined$/;
+
+/**
+ * The length of a Privy app id. Privy's React SDK refuses any other one while rendering its
+ * provider (@privy-io/react-auth 3.52.0, dist/esm/index-CfOzwxvP.mjs:
+ * `if("string"!=typeof e||25!==e.length)throw new be("Cannot initialize the Privy provider with an
+ * invalid Privy app ID")`), so every page that loads Privy would fail. Nothing in the SDKs says
+ * more of its shape (characters, prefix): only the length is checked.
+ */
+export const PRIVY_APP_ID_LENGTH = 25;
 
 /**
  * The shape of a secret pasted under a public name, by the prefix or form of its VALUE. Each one
@@ -93,7 +105,7 @@ export async function loadSchemas(root = ROOT) {
   const webEnv = await import(pathToFileURL(resolve(root, "apps/web/lib/server/env.ts")).href);
   return {
     engine: [engineEnv.engineEnvSchema, health.engineHealthEnvSchema],
-    web: [webEnv.webEnvSchema],
+    web: [webEnv.webEnvSchema, webEnv.webBuildEnvSchema],
   };
 }
 
@@ -250,6 +262,22 @@ export function checkEnv({ target, source, schemas, otherSchemas, example, fromF
     });
   }
 
+  // Worth a look, never a failure.
+  const warnings = [];
+  const appId = cleaned.NEXT_PUBLIC_PRIVY_APP_ID;
+  if (appId !== undefined && appId.trim().length !== PRIVY_APP_ID_LENGTH) {
+    warnings.push({
+      name: "NEXT_PUBLIC_PRIVY_APP_ID",
+      message: `${String(appId.trim().length)} characters, where a Privy app id has ${String(PRIVY_APP_ID_LENGTH)}: Privy's React SDK refuses it and every page that loads Privy fails (the client id or the secret pasted instead?)`,
+    });
+  }
+  const notes = [];
+  if (target === "web") {
+    notes.push(
+      `NEXT_PUBLIC_APP_API_MOCK must not be set for production (the browser would show the simulated data): ${"NEXT_PUBLIC_APP_API_MOCK" in cleaned ? "SET here" : "not set here"}`,
+    );
+  }
+
   const missing = rows.filter((r) => r.status === "missing").length;
   const invalid = rows.filter((r) => r.status === "invalid").length;
   const exposed = extras.filter((e) => e.kind === "exposed").length + publicSecrets.length;
@@ -258,6 +286,8 @@ export function checkEnv({ target, source, schemas, otherSchemas, example, fromF
     rows,
     extras,
     publicSecrets,
+    warnings,
+    notes,
     missing,
     invalid,
     exposed,
@@ -314,6 +344,13 @@ export function formatReport(report, origin) {
       lines.push(`    ${pad("REMOVE", 9)}${pad(secret.name, width)}${secret.message}`);
     }
   }
+  if (report.warnings.length > 0) {
+    lines.push("  to check (does not fail the check)");
+    for (const warning of report.warnings) {
+      lines.push(`    ${pad("CHECK", 9)}${pad(warning.name, width)}${warning.message}`);
+    }
+  }
+  for (const note of report.notes) lines.push(`  note: ${note}`);
   lines.push(
     report.ok
       ? `result: complete for the ${report.target}`
