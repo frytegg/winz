@@ -176,6 +176,9 @@ une connexion inutilisée après 5 s. Sur Vercel, chaque réponse d'une route AP
 une instance gelée ne garde plus de connexion du pooler. Ailleurs (`next dev`, tests), rien
 n'attend. Quand Privy ne peut pas vérifier un jeton (ses clés injoignables), la route répond
 `503 internal` (« try again »), jamais `401` : le front ne déconnecte personne.
+Si Privy refuse la demande de clés elle-même (400, 401, 403 ou 404, le plus souvent un
+`NEXT_PUBLIC_PRIVY_APP_ID` faux), la réponse reste `503`, mais une ligne ERROR (une par minute), et
+elle seule, le dit et nomme la variable ; une panne (5xx, délai, réseau) reste un WARN.
 
 ### Routes réelles
 

@@ -58,9 +58,17 @@ export class InvalidAccessTokenError extends Error {
  * so that the front does not sign a person out because the provider is slow or unreachable.
  */
 export class AuthUnavailableError extends Error {
-  constructor(reason: string, options?: { cause?: unknown }) {
-    super(`Access token could not be checked: ${reason}`, options);
+  /**
+   * True when the verifier has already logged the reason as a configuration error (a wrong app
+   * id, say): the outage log then stays silent, so that one request is not reported both as a
+   * configuration error and as an outage. The answer is the same 503 either way.
+   */
+  readonly configuration: boolean;
+
+  constructor(reason: string, options?: { cause?: unknown; configuration?: boolean }) {
+    super(`Access token could not be checked: ${reason}`, { cause: options?.cause });
     this.name = "AuthUnavailableError";
+    this.configuration = options?.configuration === true;
   }
 }
 
@@ -96,6 +104,8 @@ export class ThrottledOutageLog {
   ) {}
 
   report(error: AuthUnavailableError): void {
+    // Already logged at ERROR by the verifier, with the variable to check: not an outage.
+    if (error.configuration) return;
     const now = this.now();
     if (now - this.lastLoggedAt < this.windowMs) {
       this.heldBack += 1;

@@ -1,7 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { lookup } from "node:dns/promises";
 import { connect, createServer, type AddressInfo, type Server, type Socket } from "node:net";
-import { hostname } from "node:os";
 
 import postgres from "postgres";
 import { afterAll, afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
@@ -31,6 +29,32 @@ function withHost(url: string, host: string): string {
 
 function withParameter(url: string, parameter: string): string {
   return `${url}${url.includes("?") ? "&" : "?"}${parameter}`;
+}
+
+/** A host name that is not local and resolves nowhere: `.invalid` is reserved by RFC 6761. */
+const NOT_LOCAL_HOST = "db.winz-tls-test.invalid";
+
+/** Postgres's SSLRequest: length 8, code 80877103 (node_modules/postgres/src/protocol.js). */
+const SSL_REQUEST = Buffer.from([0x00, 0x00, 0x00, 0x08, 0x04, 0xd2, 0x16, 0x2f]);
+
+/**
+ * Makes `db` open its connections to the forwarder on 127.0.0.1:`port`, whatever host and port it
+ * was given, through Postgres.js's `socket` option (read from the client's options each time a
+ * connection opens, src/socket.js `Socket`). Records each `host:port` the client asked for.
+ */
+function throughForwarder(db: Db, port: number, dialled: string[]): void {
+  const socket = (_options: unknown, host: string, wanted: number): Promise<Socket> => {
+    dialled.push(`${host}:${String(wanted)}`);
+    return new Promise((resolve, reject) => {
+      const opened = connect(port, "127.0.0.1");
+      opened.once("error", reject);
+      opened.once("connect", () => {
+        opened.off("error", reject);
+        resolve(opened);
+      });
+    });
+  };
+  Object.assign(db.options, { socket });
 }
 
 afterEach(() => {
@@ -178,15 +202,20 @@ describe("connections, with the TLS option", () => {
   });
 
   it("refuses to talk in clear to a host that is not local, with a clear error", async () => {
-    // Built without any network: the URL names this machine by its own hostname, which the system
-    // resolver maps to one of its own addresses (here /etc/hosts says 127.0.0.1); a TCP forwarder
-    // listening on that address pipes to the test Postgres. Nothing leaves the machine, but the
-    // URL's host is not a local name, so the client asks for TLS first, and Postgres says no.
-    const name = hostname();
-    expect(isLocalDatabaseHost(name), `the hostname "${name}" must not look local`).toBe(false);
-    const { address } = await lookup(name);
+    // Built without the machine's name, DNS or any network. The URL names a host under `.invalid`,
+    // which RFC 6761 reserves so that it never resolves anywhere. The real client is given a socket
+    // of its own (Postgres.js's `socket` option, which src/socket.js `Socket` calls with the host
+    // and port in place of its own `net.connect`, so nothing resolves the name): a TCP connection
+    // to a forwarder on 127.0.0.1 that records every byte the client sends and pipes them to the
+    // test Postgres. The client still reasons on the URL's host, which is not local: it asks for
+    // TLS first, and Postgres says no.
+    expect(isLocalDatabaseHost(NOT_LOCAL_HOST)).toBe(false);
     const target = new URL(database.url.replace(/^postgres:/, "http:"));
+    const sent: Buffer[][] = [];
     forwarder = createServer((incoming) => {
+      const received: Buffer[] = [];
+      sent.push(received);
+      incoming.on("data", (chunk: Buffer) => received.push(chunk));
       const outgoing = connect(Number(target.port), "127.0.0.1");
       for (const socket of [incoming, outgoing]) {
         sockets.add(socket);
@@ -195,15 +224,18 @@ describe("connections, with the TLS option", () => {
       }
       incoming.pipe(outgoing).pipe(incoming);
     });
-    await new Promise<void>((resolve) => forwarder?.listen(0, address, () => resolve()));
-    const port = (forwarder.address() as AddressInfo).port;
+    await new Promise<void>((resolve) => forwarder?.listen(0, "127.0.0.1", () => resolve()));
+    const forwarderPort = (forwarder.address() as AddressInfo).port;
     const remoteLooking = database.url.replace(
       `@127.0.0.1:${target.port}`,
-      `@${name}:${String(port)}`,
+      `@${NOT_LOCAL_HOST}:5432`,
     );
     expect(databaseSsl(remoteLooking, {})).toBe("require");
 
-    const refused = await client(remoteLooking)`select 1`.then(
+    const dialled: string[] = [];
+    const refusing = client(remoteLooking);
+    throughForwarder(refusing, forwarderPort, dialled);
+    const refused = await refusing`select 1`.then(
       () => null,
       (error: unknown) => error,
     );
@@ -211,12 +243,23 @@ describe("connections, with the TLS option", () => {
       code: "SSL_NOT_SUPPORTED",
       message: expect.stringContaining("does not support SSL") as unknown,
     });
+    // The client dialled the name of the URL, and sent nothing but its request for TLS.
+    expect(dialled.length).toBeGreaterThan(0);
+    expect(new Set(dialled)).toEqual(new Set([`${NOT_LOCAL_HOST}:5432`]));
+    expect(sent).toHaveLength(dialled.length);
+    for (const received of sent) expect(Buffer.concat(received)).toEqual(SSL_REQUEST);
 
-    // Positive control: the same path works once the URL explicitly says no TLS.
-    const [row] = await client(withParameter(remoteLooking, "sslmode=disable"))<
-      { one: number }[]
-    >`select 1 as one`;
+    // Positive control: the same path works once the URL explicitly says no TLS, and the recorder
+    // then sees the start-up message in clear (it would see one above, had it been sent).
+    sent.length = 0;
+    const plain = client(withParameter(remoteLooking, "sslmode=disable"));
+    throughForwarder(plain, forwarderPort, dialled);
+    const [row] = await plain<{ one: number }[]>`select 1 as one`;
     expect(row?.one).toBe(1);
+    expect(sent).toHaveLength(1);
+    const startup = Buffer.concat(sent[0] ?? []);
+    expect(startup.length).toBeGreaterThan(SSL_REQUEST.length);
+    expect(startup.subarray(0, SSL_REQUEST.length)).not.toEqual(SSL_REQUEST);
   });
 });
 

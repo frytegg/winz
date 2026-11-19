@@ -1153,7 +1153,7 @@ Livraisons Stripe : Developers → Webhooks → l'endpoint.
 | 1 | le code n'arrive pas, « We couldn't send the code » | console du navigateur | Email coupé chez Privy, captcha actif (étape 3, b et g) |
 | 1 | `/start` reste sur l'écran de chargement | console : erreur d'origine Privy | origine non autorisée (étape 3, c), ou une Preview au lieu du domaine |
 | 1 | connecté puis aussitôt déconnecté | Network : `/api/me` | `401` : cookies HttpOnly (e) ou deux applications Privy ; `409` : graine démo (étape 2, point 3) |
-| 1 | « try again » à la connexion | Vercel Logs, route `/api/me` | `503` : clés Privy injoignables depuis Vercel ; réessayer |
+| 1 | « try again » à la connexion | Vercel Logs, route `/api/me` | `503` avec une ligne WARN : clés Privy injoignables depuis Vercel, réessayer. `503` avec une ligne ERROR « Privy refuses the request for its key set (HTTP 404) » (une par minute) : `NEXT_PUBLIC_PRIVY_APP_ID` est faux, le corriger sur Vercel puis rebâtir (il est recopié dans le JavaScript) |
 | 1 | le match de samedi n'est pas dans la liste | SQL de l'étape 2 point 5 ; logs moteur `catalogue …` | catalogue pas encore passé, ou ligue NCAAF en erreur |
 | 2 | M6 « The market for this game isn't ready » | logs moteur `book-feed` | carnet Gemini pas encore suivi ou sans offre : attendre, « Check again » |
 | 2 | M6 « would be paused » | — | chance au-dessus du seuil : autre modèle (point 2) |

@@ -16,7 +16,7 @@ import {
 import { GET as getHedgeDesk } from "@/app/api/hedge-desk/route";
 
 import { createTestDatabase, type TestDatabase } from "../../../engine/src/testing/postgres";
-import { apiRoute, setAfterResponseForTesting } from "./api-route";
+import { apiRoute, platformAfterResponse, setAfterResponseForTesting } from "./api-route";
 import { IDLE_CLOSE_MARGIN_MS, createWebDb, type Db } from "./db";
 import { setServerDepsForTesting } from "./deps";
 import { FakeIdentity, serverDepsFor } from "./testing/fixtures";
@@ -29,6 +29,44 @@ import { FakeIdentity, serverDepsFor } from "./testing/fixtures";
 const IDLE_TIMEOUT_S = 1;
 const BOUND_MS = IDLE_TIMEOUT_S * 1000 + IDLE_CLOSE_MARGIN_MS;
 const noParams = { params: Promise.resolve({}) };
+
+describe("platformAfterResponse: the wait runs only where the platform freezes the process", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const absent: [string, Record<string, string | undefined>][] = [
+    ["VERCEL is unset", {}],
+    ["VERCEL is set to undefined", { VERCEL: undefined }],
+    ["VERCEL is empty", { VERCEL: "" }],
+    ["VERCEL is 0", { VERCEL: "0" }],
+    ["VERCEL is true (Vercel itself only ever sets 1)", { VERCEL: "true" }],
+  ];
+
+  it.each(absent)("installs no hook when %s", (_label, env) => {
+    const calls: (() => Promise<void>)[] = [];
+    expect(platformAfterResponse(env, (task) => calls.push(task))).toBeNull();
+    expect(calls).toHaveLength(0);
+  });
+
+  it("installs the hook when VERCEL is 1, and the hook hands the task to the platform", () => {
+    const calls: (() => Promise<void>)[] = [];
+    const hook = platformAfterResponse({ VERCEL: "1" }, (task) => calls.push(task));
+    expect(hook).not.toBeNull();
+    const task = (): Promise<void> => Promise.resolve();
+    hook?.(task);
+    expect(calls).toEqual([task]);
+  });
+
+  it("reads the process's environment by default", () => {
+    vi.stubEnv("VERCEL", undefined);
+    expect(platformAfterResponse()).toBeNull();
+    vi.stubEnv("VERCEL", "0");
+    expect(platformAfterResponse()).toBeNull();
+    vi.stubEnv("VERCEL", "1");
+    expect(platformAfterResponse()).toBeTypeOf("function");
+  });
+});
 
 describe("apiRoute keeps the instance awake until its connections are closed", () => {
   let database: TestDatabase;
