@@ -1,5 +1,12 @@
 # Tâches de Téo (front)
 
+> **19 novembre, à lire avant de continuer : [`REVUE-FRONT-19-NOV.md`](REVUE-FRONT-19-NOV.md).**
+> Une revue de ta PR n°10 (fusionnée sur `main`) a confirmé trois défauts d'argent, à corriger avant
+> la démo : le `requestId` de « Fund » ne survit pas à un rechargement (seconde campagne, second
+> paiement), chaque nouvel essai d'un fan crée un nouveau PaymentIntent (deux tickets, deux débits),
+> et une erreur de Stripe après une autorisation réussie est affichée comme un échec. Les
+> corrections sont décrites, quelques lignes chacune (sections 1.1 à 1.3).
+
 Extrait de `TASKS.md`, qui reste la source de vérité : on coche les cases là-bas. La spec est `SPEC.md` v1.1.
 Rendu Devpost : **vendredi 20 novembre, 12 h CST**.
 
