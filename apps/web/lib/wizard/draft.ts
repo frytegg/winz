@@ -1,4 +1,6 @@
+import { maxCostBps } from "@winz/pricing";
 import {
+  BPS,
   eventSummarySchema,
   type CampaignTerms,
   type EventSummary,
@@ -94,6 +96,32 @@ export function resolveOffer(
     minMarginBps,
     budgetCents: draft.budgetCents ?? DEFAULT_BUDGET_CENTS,
   };
+}
+
+/** A margin as `packages/pricing` takes it: a whole number of basis points, 0 to 100 %. */
+function marginBps(bps: number): bigint {
+  return BigInt(Math.min(Number(BPS), Math.max(0, Math.trunc(bps))));
+}
+
+/**
+ * The most one sale may cost, as a share of its price: usual margin minus minimum margin (`c_max`,
+ * SPEC 4.3), with the merchant's M6 values (its defaults until they are changed there). The same
+ * function as the one that prices M6 on the server (`limits` in `packages/pricing`), so M4 and M6
+ * never disagree on it.
+ */
+export function acceptedCostBps(
+  offer: Pick<ResolvedOffer, "usualMarginBps" | "minMarginBps">,
+): number {
+  return Number(maxCostBps(marginBps(offer.usualMarginBps), marginBps(offer.minMarginBps)));
+}
+
+/**
+ * M4: a promo whose estimated cost (`costBps`, the cost of a sale at the best ask, fees included)
+ * is above what the merchant accepts would open paused (its odds are past `p_max`, SPEC 4.3): it is
+ * greyed. A template without a quote is not judged here (it is unavailable for that reason).
+ */
+export function isAboveCap(template: Pick<PromoTemplate, "costBps">, capBps: number): boolean {
+  return template.costBps !== null && template.costBps > capBps;
 }
 
 /** The terms the API takes (micro-USDC strings), from a draft and its chosen promo. */

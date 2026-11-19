@@ -1,9 +1,12 @@
+import { pauseThresholdBps } from "@winz/pricing";
 import { apiExamples } from "@winz/shared";
 import { describe, expect, it } from "vitest";
 
 import {
   EMPTY_DRAFT,
+  acceptedCostBps,
   buildTerms,
+  isAboveCap,
   isValidAmountCents,
   nextStep,
   offerIsValid,
@@ -117,5 +120,51 @@ describe("the draft", () => {
     expect(parseDraft(null)).toEqual(EMPTY_DRAFT);
     expect(parseDraft("{not json")).toEqual(EMPTY_DRAFT);
     expect(parseDraft(JSON.stringify({ event: "nope" }))).toEqual(EMPTY_DRAFT);
+  });
+});
+
+describe("the promos M4 greys: a cost above what the merchant accepts (SPEC 4.3, M4)", () => {
+  const byId = (id: string): (typeof event.templates)[number] => {
+    const found = event.templates.find((candidate) => candidate.id === id);
+    if (found === undefined) throw new Error(`the example event has no ${id}`);
+    return found;
+  };
+
+  it("accepts usual margin minus minimum margin: 20% with a pizza's defaults (M6's)", () => {
+    expect(acceptedCostBps(resolveOffer(EMPTY_DRAFT, pizza))).toBe(2000);
+    expect(acceptedCostBps({ usualMarginBps: 6500, minMarginBps: 6500 })).toBe(0);
+    expect(acceptedCostBps({ usualMarginBps: 4000, minMarginBps: 5000 })).toBe(0);
+  });
+
+  it("follows the margins M6 was given, and never throws on a margin out of range", () => {
+    const lowered = resolveOffer({ ...EMPTY_DRAFT, minMarginBps: 1500 }, pizza);
+    expect(acceptedCostBps(lowered)).toBe(5000);
+    expect(acceptedCostBps({ usualMarginBps: 12_000, minMarginBps: -5 })).toBe(10_000);
+  });
+
+  it("on Saturday's game greys the side priced around 91%, and not the other side", () => {
+    const cap = acceptedCostBps(resolveOffer(EMPTY_DRAFT, pizza));
+    const texasWins = byId("tpl_tex_ml_half");
+    expect(texasWins.probabilityBps).toBe(9100);
+    expect(isAboveCap(texasWins, cap)).toBe(true);
+    expect(isAboveCap(byId("tpl_ark_ml_full"), cap)).toBe(false);
+    expect(isAboveCap(byId("tpl_tex13_full"), cap)).toBe(false);
+  });
+
+  it("does not judge a template without a quote, and a cost exactly at the cap still sells", () => {
+    expect(isAboveCap(byId("tpl_tex20_full"), 0)).toBe(false);
+    expect(isAboveCap({ costBps: 2000 }, 2000)).toBe(false);
+    expect(isAboveCap({ costBps: 2001 }, 2000)).toBe(true);
+  });
+
+  it("agrees with the pause threshold the server prices M6 with: above the cap is past p_max", () => {
+    // A full refund: the cost of one sale at an ask p is p + 7% x p x (1 - p), rounded up.
+    const cap = 2000;
+    const threshold = Number(pauseThresholdBps(BigInt(cap), 10_000n));
+    expect(threshold).toBe(1800);
+    const costAt = (askBps: number): number =>
+      Math.ceil(askBps + (700 * askBps * (10_000 - askBps)) / 100_000_000);
+    expect(isAboveCap({ costBps: costAt(threshold) }, cap)).toBe(false);
+    expect(isAboveCap({ costBps: costAt(threshold + 100) }, cap)).toBe(true);
   });
 });

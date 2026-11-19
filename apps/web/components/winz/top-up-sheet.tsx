@@ -8,12 +8,7 @@ import { Stepper } from "@/components/ui/stepper";
 import { useToast } from "@/components/ui/toast";
 import { apiFetch } from "@/lib/api/client";
 import { copy } from "@/lib/copy";
-import {
-  RequestIds,
-  isRequestSpent,
-  planFromTopUp,
-  retryWhileCreating,
-} from "@/lib/merchant/funding";
+import { RequestIds, planFromTopUp, sendRenewingOnce } from "@/lib/merchant/funding";
 import {
   MAX_CARD_AMOUNT_CENTS,
   MIN_CARD_AMOUNT_CENTS,
@@ -36,7 +31,9 @@ const QUICK_CENTS = [10_000, 25_000, 50_000, 100_000] as const;
  *
  * `requestId` is chosen once per top-up and kept for its retries: a second tap after a refused
  * payment, or after a dropped connection, asks for the same payment instead of creating another.
- * Changing the amount is a new top-up, so it gets a new `requestId`.
+ * Changing the amount is a new top-up, so it gets a new `requestId`. It is kept in the tab's
+ * storage, per promo, so a reload asks for the same top-up. A card refused at Stripe ends the
+ * top-up (its repeat answers 409 "This top-up request is over"): the same tap then sends a new one.
  */
 export function TopUpSheet({
   open,
@@ -52,7 +49,7 @@ export function TopUpSheet({
 }): React.JSX.Element {
   const toast = useToast();
   const [cents, setCents] = useState(DEFAULT_CENTS);
-  const requestIds = useRef(new RequestIds());
+  const requestIds = useRef(new RequestIds(`winz.top-up-request.${campaignId}`));
 
   return (
     <Sheet
@@ -89,19 +86,16 @@ export function TopUpSheet({
           amountCents={cents}
           prepare={async () => {
             // The same amount keeps its `requestId`; another amount is another top-up.
-            const requestId = requestIds.current.idFor(cents.toString());
-            try {
-              const response = await retryWhileCreating(() =>
+            const response = await sendRenewingOnce(
+              requestIds.current,
+              cents.toString(),
+              (requestId) =>
                 apiFetch("topUpCampaign", {
                   params: { id: campaignId },
                   body: { amount: microToWire(centsToMicro(cents)), requestId },
                 }),
-              );
-              return planFromTopUp(response);
-            } catch (error: unknown) {
-              if (isRequestSpent(error)) requestIds.current.renew();
-              throw error;
-            }
+            );
+            return planFromTopUp(response);
           }}
           onFunded={() => {
             requestIds.current.renew();

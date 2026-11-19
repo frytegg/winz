@@ -59,27 +59,107 @@ export function planFromTopUp(response: TopUpCampaignResponse): FundingPlan {
 }
 
 /**
+ * Where a request id is kept between two loads of the page: the tab's `sessionStorage`. Only
+ * what the request ids use of it.
+ */
+export interface RequestIdStorage {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
+
+/** The tab's `sessionStorage`; `null` on the server, or where the browser refuses it. */
+export function sessionRequestStorage(): RequestIdStorage | null {
+  try {
+    return typeof window === "undefined" ? null : window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+interface StoredRequest {
+  key: string;
+  id: string;
+}
+
+function parseStored(raw: string | null): StoredRequest | null {
+  if (raw === null) return null;
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (typeof value !== "object" || value === null) return null;
+    const { key, id } = value as { key?: unknown; id?: unknown };
+    return typeof key === "string" && typeof id === "string" && UUID.test(id) ? { key, id } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The `requestId` of a "Fund" request: a uuid chosen once and kept for every retry of the same
  * request, so a double tap or a retry after a dropped connection pays one campaign, not two. A new
  * request (other terms, or a request the back end says is over) gets a new one.
+ *
+ * With a `storageKey`, the pair (key of the request, id) is also written to the tab's storage, at
+ * once, by `idFor` itself: before the request leaves, and outside React's state, whose update can
+ * run after the request has started. A reload, or the screen mounted again, reads it back and asks
+ * for the same request. Where the storage throws or is full (private mode), the id lives in memory
+ * only, without an error.
  */
 export class RequestIds {
   private key: string | null = null;
   private id: string | null = null;
 
+  constructor(
+    private readonly storageKey: string | null = null,
+    private readonly storage: () => RequestIdStorage | null = sessionRequestStorage,
+  ) {}
+
   /** The `requestId` for the request described by `key`; a different `key` is a new request. */
   idFor(key: string): string {
+    const stored = this.read();
+    if (stored !== null && stored.key === key) {
+      this.key = stored.key;
+      this.id = stored.id;
+      return stored.id;
+    }
     if (this.id === null || this.key !== key) {
       this.key = key;
       this.id = crypto.randomUUID();
     }
+    this.write({ key, id: this.id });
     return this.id;
   }
 
-  /** The next call starts a new request. */
+  /** The next call starts a new request (after a success, or a request the back end says is over). */
   renew(): void {
     this.key = null;
     this.id = null;
+    if (this.storageKey === null) return;
+    try {
+      this.storage()?.removeItem(this.storageKey);
+    } catch {
+      // Blocked storage: nothing was kept there either.
+    }
+  }
+
+  private read(): StoredRequest | null {
+    if (this.storageKey === null) return null;
+    try {
+      return parseStored(this.storage()?.getItem(this.storageKey) ?? null);
+    } catch {
+      return null;
+    }
+  }
+
+  private write(request: StoredRequest): void {
+    if (this.storageKey === null) return;
+    try {
+      this.storage()?.setItem(this.storageKey, JSON.stringify(request));
+    } catch {
+      // Private mode or a full storage: the id lives in memory only, for this page.
+    }
   }
 }
 
@@ -122,4 +202,44 @@ export async function retryWhileCreating<T>(
     }
   }
   return request();
+}
+
+/**
+ * Sends the request described by `key` with its `requestId`, chosen (and stored) before anything
+ * leaves. While the answer is 503 the same request is sent again (`retryWhileCreating`); any other
+ * failure keeps the request for the next tap, except a 409 "spent", after which the next tap is a
+ * new request.
+ */
+export async function sendRequest<T>(
+  ids: RequestIds,
+  key: string,
+  send: (requestId: string) => Promise<T>,
+  wait?: (ms: number) => Promise<void>,
+): Promise<T> {
+  const requestId = ids.idFor(key);
+  try {
+    return await retryWhileCreating(() => send(requestId), wait);
+  } catch (error: unknown) {
+    if (isRequestSpent(error)) ids.renew();
+    throw error;
+  }
+}
+
+/**
+ * `sendRequest`, and when the answer is 409 "spent" (a top-up refused at the card is over: its
+ * repeat answers "This top-up request is over"), a new request is sent once more within the same
+ * tap, instead of showing the 409 and asking for a third tap. A second 409 is shown.
+ */
+export async function sendRenewingOnce<T>(
+  ids: RequestIds,
+  key: string,
+  send: (requestId: string) => Promise<T>,
+  wait?: (ms: number) => Promise<void>,
+): Promise<T> {
+  try {
+    return await sendRequest(ids, key, send, wait);
+  } catch (error: unknown) {
+    if (!isRequestSpent(error)) throw error;
+    return sendRequest(ids, key, send, wait);
+  }
 }

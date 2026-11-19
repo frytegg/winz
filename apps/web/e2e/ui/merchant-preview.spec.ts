@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import { apiExamples } from "@winz/shared";
 
 import { copy } from "../../lib/copy";
+import { EMPTY_DRAFT, acceptedCostBps, resolveOffer } from "../../lib/wizard/draft";
 import { MARKET_RETRY_CAP_MS } from "../../lib/wizard/market-watch";
 
 import { expect, test } from "./support/fixtures";
@@ -62,6 +63,48 @@ test("M4: a promo whose market has no book is shown greyed and cannot be picked"
     page.getByText(copy.pickPromo.recommended),
     "only one promo is recommended, and not the greyed one",
   ).toHaveCount(1);
+});
+
+/** The cost a sale may have with the merchant's M6 defaults, from the same function M4 greys with. */
+const MERCHANT = apiExamples.meExamples.merchant.merchant;
+const CAP_BPS = acceptedCostBps(resolveOffer(EMPTY_DRAFT, MERCHANT));
+
+function escaped(text: string): RegExp {
+  return new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+}
+
+test("M4: on Saturday's game, the promo priced around 91% costs more than the margins allow: greyed, with the reason (scenario aboveThreshold)", async ({
+  page,
+}) => {
+  const templates = FIRST_EVENT?.templates ?? [];
+  const tooDear = templates.find((template) => template.probabilityBps === 9100);
+  const other = templates.find((template) => template.id === "tpl_ark_ml_full");
+  if (tooDear?.costBps == null || other?.costBps == null) {
+    throw new Error("Saturday's game no longer has its 91% template and the Arkansas one");
+  }
+  expect(tooDear.costBps, "the 91% side costs more than the merchant accepts").toBeGreaterThan(
+    CAP_BPS,
+  );
+  expect(other.costBps, "the other side costs less").toBeLessThanOrEqual(CAP_BPS);
+
+  await signInAsMerchant(page);
+  await page.goto("/new?scenario=aboveThreshold");
+  await page.locator("section").getByRole("button", { disabled: false }).first().tap();
+  await expect(page.getByRole("heading", { name: copy.wizard.steps.promo })).toBeVisible();
+
+  await expect(page.getByText(tooDear.headline, { exact: true }), "it is listed").toBeVisible();
+  await expect(
+    page.getByRole("button", { name: escaped(tooDear.headline) }),
+    "it cannot be picked",
+  ).toHaveCount(0);
+  await expect(
+    page.getByText(copy.pickPromo.aboveCap(CAP_BPS / 100), { exact: true }),
+    "it says why",
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: escaped(other.headline) }),
+    "the other side of the game can be picked",
+  ).toBeEnabled();
 });
 
 const BLOCKED: readonly {

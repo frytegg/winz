@@ -257,7 +257,10 @@ payer le budget. La campagne reste `funding` jusqu'à ce que le moteur l'ait cr�
 passe `live` avec son `slug` : relire `GET /api/campaigns/:id` jusqu'à voir `live`.
 
 Le front tire un `requestId` (`crypto.randomUUID()`) à chaque appui sur « Fund » et le renvoie à
-chaque nouvelle tentative de ce même appui (réseau coupé, `502`). Deux appels du même `requestId`,
+chaque nouvelle tentative de ce même appui (réseau coupé, `502`). M7 le garde dans le
+`sessionStorage` de l'onglet (`winz.fund-request`, écrit avant l'envoi, avec la clé des réglages) :
+un rechargement ou un aller-retour par M6 renvoie le même ; il est oublié une fois le budget payé et
+après un `409`. Deux appels du même `requestId`,
 même au même instant, font une campagne et un paiement. Ce que rend une répétition, selon où en
 est la campagne :
 
@@ -292,7 +295,8 @@ Une action impossible dans l'état actuel (déjà en pause, ventes closes, campa
 ### Recharger le budget (CA-6)
 
 `POST /api/campaigns/:id/top-up` prend `{ amount, requestId }` (micro-USDC, un `uuid` gardé par le
-front pour ses nouvelles tentatives) et répond comme la création : `budgetPayment.clientSecret` pour
+front pour ses nouvelles tentatives, dans le `sessionStorage` par promo ; sur un `409` de demande
+finie, la feuille en tire un nouveau et renvoie une fois, dans le même geste) et répond comme la création : `budgetPayment.clientSecret` pour
 le Payment Element, et `status` (`requires_payment`). Le même `requestId` rend le même paiement
 avec son `status` du moment (`processing` une fois payée, `credited` une fois versée : rien à
 payer) ; une recharge finie autrement (annulée, refusée, remplacée, remboursée) répond `409` : il

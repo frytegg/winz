@@ -1,12 +1,24 @@
-import { apiExamples } from "@winz/shared";
+import type { Locator, Page } from "@playwright/test";
+import { MOCK_SCENARIO_HEADER, apiExamples, type CampaignDetail } from "@winz/shared";
 
 import { copy } from "../../lib/copy";
 import { centsToMicro, formatMoney, formatMoneyCompact } from "../../lib/format";
+import { LIVE_GIVE_UP_AFTER_MS, LIVE_SLOW_AFTER_MS } from "../../lib/merchant/launch-state";
 import { DEFAULT_BUDGET_CENTS } from "../../lib/wizard/draft";
 
 import { CRITERIA, meetsLimit } from "./support/criteria";
 import { expect, test } from "./support/fixtures";
+import {
+  fundButton,
+  isCreateCampaign,
+  loseAnswer,
+  marginToReview,
+  reachMargin,
+  requestIdOf,
+  signInAsNewUser,
+} from "./support/merchant-flow";
 import { recordMeasure, seconds } from "./support/measures";
+import { signInAsMerchant } from "./support/sign-in";
 import { TapCounter } from "./support/taps";
 
 /** SPEC section 17, criterion 1: strictly fewer than 15 taps and 2 minutes. */
@@ -196,4 +208,264 @@ test("M0 to M8: a new merchant puts a promo live in fewer than 15 taps and 2 min
     meetsLimit(elapsed, MAX_SECONDS * 1000),
     `${elapsed.toString()} ms from M0 to M8, criterion 1 wants under ${MAX_SECONDS.toString()} s`,
   ).toBe(true);
+});
+
+/** What the simulated `GET /api/campaigns/:id` answers for a live promo: M8's other states patch it. */
+const DETAIL = apiExamples.campaignDetailExamples.live;
+const CAMPAIGN_ID = DETAIL.id;
+const PROMO_PAGE = `/campaigns/${CAMPAIGN_ID}`;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** The screen's own error line for a dropped connection (Next's route announcer is an alert too). */
+function networkAlert(page: Page): Locator {
+  return page.getByRole("alert").filter({ hasText: copy.common.networkError });
+}
+
+test.describe("M7: a Fund request is one campaign, whatever happens to its answer (review 1.1)", () => {
+  test("the answer is lost, the merchant reloads, steps back to M6 and comes back: the same requestId each time", async ({
+    page,
+  }) => {
+    await signInAsMerchant(page);
+    await reachMargin(page);
+    await marginToReview(page);
+
+    const sent: string[] = [];
+    let losing = true;
+    await page.route(isCreateCampaign, async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      sent.push(requestIdOf(route.request()));
+      if (losing) await loseAnswer(route);
+      else await route.fallback();
+    });
+
+    // 1. The server creates the campaign and its payment; the answer never comes back.
+    await fundButton(page).tap();
+    await expect(networkAlert(page), "M7 says the answer did not come").toBeVisible();
+
+    // 2. A reload: the draft comes back from the tab's storage, the review step is mounted again.
+    await page.reload();
+    await expect(page.getByRole("heading", { name: copy.wizard.steps.review })).toBeVisible();
+    await expect(fundButton(page)).toBeEnabled();
+    await fundButton(page).tap();
+    await expect(networkAlert(page)).toBeVisible();
+
+    // 3. Back to M6 and forward again: another mount of the review step.
+    await page.getByRole("button", { name: copy.common.back }).tap();
+    await expect(page.getByRole("heading", { name: copy.wizard.steps.margin })).toBeVisible();
+    await marginToReview(page);
+    losing = false;
+    await fundButton(page).tap();
+    await expect(
+      page.getByRole("heading", { name: copy.live.title }),
+      "the third tap gets its answer: M8",
+    ).toBeVisible();
+
+    expect(sent, "three taps, three requests").toHaveLength(3);
+    expect(sent[0], "a uuid").toMatch(UUID);
+    expect(sent, "one request: the same requestId after a reload and a remount").toEqual([
+      sent[0],
+      sent[0],
+      sent[0],
+    ]);
+
+    // 4. The promo is created: the next promo, even with the very same terms, is a new request.
+    await reachMargin(page);
+    await marginToReview(page);
+    await fundButton(page).tap();
+    await expect(page.getByRole("heading", { name: copy.live.title })).toBeVisible();
+    expect(sent, "a fourth request").toHaveLength(4);
+    expect(sent[3], "a new promo after a success never reuses the paid request").not.toBe(sent[0]);
+  });
+
+  test("the developer kit's payment page keeps its requestId for a retry (/kit/pay)", async ({
+    page,
+  }) => {
+    const sent: string[] = [];
+    let losing = true;
+    await page.route(isCreateCampaign, async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      sent.push(requestIdOf(route.request()));
+      if (losing) await loseAnswer(route);
+      else await route.fallback();
+    });
+    await page.goto("/kit/pay");
+    await fundButton(page).tap();
+    await expect(networkAlert(page)).toBeVisible();
+    losing = false;
+    await fundButton(page).tap();
+    await expect(page.getByTestId("funded")).toContainText(CAMPAIGN_ID);
+    expect(sent).toHaveLength(2);
+    expect(sent[0]).toMatch(UUID);
+    expect(sent[1], "the retry is the same request").toBe(sent[0]);
+  });
+});
+
+test("M7: when the review's numbers cannot be computed, it says so and offers to try again (review 2.8)", async ({
+  page,
+}) => {
+  await signInAsMerchant(page);
+  await reachMargin(page);
+  // M6's own preview answers first: only M7's is cut.
+  await expect(
+    page.getByRole("button", { name: copy.margin.reviewCta }),
+    "M6 has its numbers",
+  ).toBeEnabled();
+  const isPreview = (url: URL): boolean => url.pathname === "/api/campaigns/preview";
+  let previews = 0;
+  await page.route(isPreview, async (route) => {
+    previews += 1;
+    await route.abort("blockedbyclient");
+  });
+  await page.getByRole("button", { name: copy.margin.reviewCta }).tap();
+  await expect(page.getByRole("heading", { name: copy.wizard.steps.review })).toBeVisible();
+
+  await expect(networkAlert(page), "M7 says why there are no numbers").toBeVisible();
+  const retry = page.getByRole("button", { name: copy.common.tryAgain });
+  await expect(retry, "and offers to try again, as M6 does").toBeVisible();
+  await expect(fundButton(page), "nothing can be funded without the numbers").toBeDisabled();
+  const before = previews;
+  await retry.tap();
+  await expect
+    .poll(() => previews, { message: "« Try again » asks again" })
+    .toBeGreaterThan(before);
+
+  await page.unroute(isPreview);
+  await expect(
+    page.getByLabel(formatMoney(PREVIEW.costPerSale), { exact: true }),
+    "once the preview answers, M7 shows its numbers",
+  ).toBeVisible();
+  await expect(fundButton(page)).toBeEnabled();
+});
+
+test("M2: a business already created by a lost first tap: the second tap's 409 moves on to M3 (review 2.3)", async ({
+  page,
+  screens,
+}) => {
+  await signInAsNewUser(page);
+  await page.getByLabel(copy.business.nameLabel).fill("Joe's Texas Bar");
+  await page.getByRole("button", { name: copy.business.categories.bar }).tap();
+
+  // Since the first tap, the user has a business, and this body differs from it: the API answers
+  // 409, and `GET /api/me` now answers a merchant.
+  screens.allowStatus(/\/api\/merchants$/, 409);
+  await page.route("**/api/merchants", (route) =>
+    route.fulfill({
+      status: 409,
+      json: { error: { code: "conflict", message: "You already have a business" } },
+    }),
+  );
+  let meAsked = 0;
+  await page.route("**/api/me", async (route) => {
+    meAsked += 1;
+    await route.fallback({
+      headers: { ...route.request().headers(), [MOCK_SCENARIO_HEADER]: "merchant" },
+    });
+  });
+
+  await page.getByRole("button", { name: copy.common.continue }).tap();
+  await expect(
+    page.getByRole("heading", { name: copy.wizard.steps.game }),
+    "the session is read again, the guard sees the business and opens M3",
+  ).toBeVisible();
+  expect(meAsked, "the session was read again after the 409").toBeGreaterThan(0);
+});
+
+test.describe("M8: every state the promo can be in (review 2.9)", () => {
+  const states: readonly {
+    name: string;
+    detail: CampaignDetail;
+    title: string;
+    body: string;
+  }[] = [
+    {
+      name: "a cancelled game (void) is not a failed creation",
+      detail: {
+        ...DETAIL,
+        status: "void",
+        saleState: "closed",
+        outcome: "void",
+        probabilityBps: null,
+      },
+      title: copy.live.cancelledTitle,
+      body: copy.live.cancelledBody,
+    },
+    {
+      name: "a paid promo that could never go live is closed and refunded",
+      detail: {
+        ...DETAIL,
+        status: "closed",
+        saleState: "closed",
+        slug: null,
+        url: null,
+        liveAt: null,
+        onchain: null,
+      },
+      title: copy.live.failedTitle,
+      body: copy.live.refundedBody,
+    },
+    {
+      name: "a promo whose sales are over is not said to be live",
+      detail: { ...DETAIL, status: "settled_no", saleState: "closed", outcome: "no" },
+      title: copy.live.endedTitle,
+      body: copy.live.endedBody,
+    },
+  ];
+
+  for (const state of states) {
+    test(state.name, async ({ page }) => {
+      await signInAsMerchant(page);
+      await page.route(`**/api/campaigns/${CAMPAIGN_ID}`, (route) =>
+        route.fulfill({ json: state.detail }),
+      );
+      await page.goto(`/new/${CAMPAIGN_ID}/live`);
+      await expect(page.getByRole("heading", { name: state.title })).toBeVisible();
+      await expect(page.getByText(state.body)).toBeVisible();
+      await expect(page.getByRole("heading", { name: copy.live.title })).toHaveCount(0);
+      await expect(
+        page.getByRole("link", { name: copy.live.openPromo }),
+        "M8 says where the promo is",
+      ).toHaveAttribute("href", PROMO_PAGE);
+    });
+  }
+
+  test("a promo that does not go live: the wait is bounded, and says where to find the promo", async ({
+    page,
+  }) => {
+    await signInAsMerchant(page);
+    let reads = 0;
+    await page.route(`**/api/campaigns/${CAMPAIGN_ID}`, async (route) => {
+      reads += 1;
+      await route.fulfill({
+        json: { ...DETAIL, status: "funding", slug: null, url: null, liveAt: null, onchain: null },
+      });
+    });
+    await page.clock.install();
+    await page.goto(`/new/${CAMPAIGN_ID}/live`);
+    await expect(page.getByText(copy.live.puttingLive)).toBeVisible();
+
+    await page.clock.fastForward(LIVE_SLOW_AFTER_MS);
+    await expect(page.getByRole("heading", { name: copy.live.slowTitle })).toBeVisible();
+    await expect(page.getByText(copy.live.slowBody)).toBeVisible();
+    await expect(page.getByRole("link", { name: copy.live.openPromo })).toHaveAttribute(
+      "href",
+      PROMO_PAGE,
+    );
+
+    await page.clock.fastForward(LIVE_GIVE_UP_AFTER_MS);
+    await expect(page.getByRole("heading", { name: copy.live.gaveUpTitle })).toBeVisible();
+    await expect(page.getByText(copy.live.gaveUpBody)).toBeVisible();
+    await expect(page.getByRole("link", { name: copy.live.openPromo })).toHaveAttribute(
+      "href",
+      PROMO_PAGE,
+    );
+    const stopped = reads;
+    await page.clock.fastForward(60_000);
+    await page.clock.fastForward(60_000);
+    expect(reads, "M8 stopped asking once the wait was over").toBe(stopped);
+
+    await page.getByRole("button", { name: copy.live.checkAgain }).tap();
+    await expect
+      .poll(() => reads, { message: "« Check again » asks again" })
+      .toBeGreaterThan(stopped);
+  });
 });
