@@ -4,7 +4,7 @@ import { LandingShareCard } from "@/components/og/landing-share-card";
 import { landingCopy } from "@/lib/landing/copy";
 import { loadSoraFonts, wordmarkDataUrl } from "@/lib/og/assets";
 
-export const alt = `Winz: ${landingCopy.heroTitle.before}${landingCopy.heroTitle.highlight}${landingCopy.heroTitle.after}`;
+export const alt = `Winz: ${landingCopy.heroTitle.before}${landingCopy.heroTitle.highlight}${landingCopy.heroTitle.firstLineEnd} ${landingCopy.heroTitle.second}`;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
