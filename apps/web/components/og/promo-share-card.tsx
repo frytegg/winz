@@ -1,16 +1,13 @@
 import { copy } from "@/lib/copy";
+import { OG_COLORS } from "@/lib/og/colors";
 import { PREVIEW_SIZES, layoutPromise } from "@/lib/og/promise-layout";
 
 /**
  * The 1200 × 630 card a link to a promo gets in a chat or a feed: the promise, big, with the
  * venue's name. It is drawn by the image renderer, which knows a subset of CSS: every box is a flex
- * box, and colors are written out (the CSS variables do not exist there). They are the tokens of the
- * app: --color-ink, --color-lime, --color-text, --color-muted.
+ * box, and colors are written out (the CSS variables do not exist there).
  */
-const INK = "#131314";
-const LIME = "#D8FE35";
-const TEXT = "#FFFFFF";
-const MUTED = "#A1A1AA";
+const { ink: INK, lime: LIME, text: TEXT, muted: MUTED } = OG_COLORS;
 
 export function PromoShareCard({
   promise,
