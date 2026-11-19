@@ -4,7 +4,7 @@
 et ce fichier sont réécrits à chaque passage ; `measures.json` garde les mesures (une mesure qu'un
 passage partiel n'a pas refaite garde sa date d'origine, dans la dernière colonne).
 
-Dernier passage : 2026-11-19T12:34:21.247Z (UTC).
+Dernier passage : 2026-11-19T19:45:17.939Z (UTC).
 
 ## Mesures du dernier passage
 
@@ -17,11 +17,11 @@ de 30 secondes ») : une valeur égale à la limite est notée DÉPASSÉ.
 
 | Mesure | Valeur | Limite stricte (SPEC 17) | Détail | Mesurée le (UTC) |
 | --- | --- | --- | --- | --- |
-| Compilation des pages et des routes par `next dev` avant les parcours (non comptée dans les parcours) | 164,3 s | – | 15 pages, 15 routes d'API, une requête chacune | 2026-11-19T12:32:53.370Z |
-| Achat client, du scan (ouverture de C1) au ticket affiché | 6,4 s (tenu) | 30 s | navigation vers /c/joes-texas jusqu'à la jauge du ticket visible, hors prise des captures ; comprend 0,5 s d'autorisation simulée et le suivi du paiement (1 s) | 2026-11-19T07:51:21.048Z |
-| Achat client, C1 → C3 : taps | 2 taps | – | 1. tap « Buy with Apple Pay » (C1) · 2. tap the simulated payment (C2) | 2026-11-19T07:51:21.048Z |
-| Onboarding commerçant, M0 → M8 : durée | 13,1 s (tenu) | 120 s | de M0 affiché au QR de M8 affiché, hors prise des captures ; gestes d'un robot, un humain lit et tape plus lentement | 2026-11-19T07:51:44.467Z |
-| Onboarding commerçant, M0 → M8 : taps | 12 taps (tenu) | 15 taps | 1. tap « Start a promo » (M0) · 2. type the e-mail (M1) · 3. tap Continue (M1) · 4. type the 6-digit code (M1) · 5. type the business name (M2) · 6. tap the category « Bar » (M2) · 7. tap Continue (M2) · 8. tap the first game (M3) · 9. tap the recommended promo (M4) · 10. tap Continue (M5) · 11. tap « Review the promo » (M6) · 12. tap the simulated payment (M7) | 2026-11-19T07:51:44.467Z |
+| Compilation des pages et des routes par `next dev` avant les parcours (non comptée dans les parcours) | 130,3 s | – | 15 pages, 15 routes d'API, une requête chacune | 2026-11-19T19:41:46.888Z |
+| Achat client, du scan (ouverture de C1) au ticket affiché | 6,1 s (tenu) | 30 s | navigation vers /c/joes-texas jusqu'à la jauge du ticket visible, hors prise des captures ; comprend 0,5 s d'autorisation simulée et le suivi du paiement (1 s) | 2026-11-19T19:42:06.373Z |
+| Achat client, C1 → C3 : taps | 2 taps | – | 1. tap « Buy with Apple Pay » (C1) · 2. tap the simulated payment (C2) | 2026-11-19T19:42:06.373Z |
+| Onboarding commerçant, M0 → M8 : durée | 11,8 s (tenu) | 120 s | de M0 affiché au QR de M8 affiché, hors prise des captures ; gestes d'un robot, un humain lit et tape plus lentement | 2026-11-19T19:43:25.016Z |
+| Onboarding commerçant, M0 → M8 : taps | 12 taps (tenu) | 15 taps | 1. tap « Start a promo » (M0) · 2. type the e-mail (M1) · 3. tap Continue (M1) · 4. type the 6-digit code (M1) · 5. type the business name (M2) · 6. tap the category « Bar » (M2) · 7. tap Continue (M2) · 8. tap the first game (M3) · 9. tap the recommended promo (M4) · 10. tap Continue (M5) · 11. tap « Review the promo » (M6) · 12. tap the simulated payment (M7) | 2026-11-19T19:43:25.016Z |
 
 ## Les images
 
@@ -72,8 +72,19 @@ Pleine page, viewport de l'iPhone 15 (393 px de large) à l'échelle 2, sans vid
 | [`md-detail-paused.png`](./md-detail-paused.png) | Détail d'une promo en pause (scénario `paused`). |
 | [`md-detail-settled-yes.png`](./md-detail-settled-yes.png) | Détail d'une promo réglée sur OUI, avec le bilan (scénario `settledYes`). |
 | [`md-detail-settled-no.png`](./md-detail-settled-no.png) | Détail d'une promo réglée sur NON, avec le bilan (scénario `settledNo`). |
+| [`md-detail-cancelled.png`](./md-detail-cancelled.png) | Détail d'une promo dont le match est annulé, avec son bilan (scénario `cancelled`) : « Cancelled », jamais « Lost ». |
+| [`md-detail-polled-sale.png`](./md-detail-polled-sale.png) | Détail d'une promo en ligne : une vente apparue par la seule relecture de l'API, Realtime absent. |
+| [`md-detail-stale.png`](./md-detail-stale.png) | Détail d'une promo en ligne quand les relectures échouent : « reconnecting », cote « updating ». |
+| [`md-home-with-cancelled.png`](./md-home-with-cancelled.png) | L'accueil avec une promo au match annulé (scénario `withCancelled`) : ses ventes comptent. |
+| [`md-stats-with-cancelled.png`](./md-stats-with-cancelled.png) | Les statistiques avec une promo au match annulé (scénario `withCancelled`) : ses ventes comptent. |
 | [`md-settings.png`](./md-settings.png) | Les réglages : profil, solde, informations techniques repliées, déconnexion. |
 | [`hd-desk.png`](./hd-desk.png) | Le Hedge desk public : lieu d'exécution en tête, totaux, limites, instruments. |
+| [`hd-desk-tripped.png`](./hd-desk-tripped.png) | Le Hedge desk, réponse servie par le test : coupe-circuit déclenché (carnet périmé), non couvert au-dessus de la limite. |
+| [`admin-key.png`](./admin-key.png) | Le panneau démo, l'écran de la clé, bandeau « DEMO MODE » déjà affiché. |
+| [`admin-key-refused.png`](./admin-key-refused.png) | L'écran de la clé après une mauvaise clé (401 de l'API simulée) : redemandée. |
+| [`admin-result-confirm.png`](./admin-result-confirm.png) | « Force the result » : la confirmation qui nomme le choix et l'instrument, rien d'envoyé encore. |
+| [`admin-panel.png`](./admin-panel.png) | Le panneau après les quatre actions (carnet piloté, résultat forcé, deux ventes rejouées, remise à zéro) et leur journal. |
+| [`admin-refusals.png`](./admin-refusals.png) | Le panneau après un 400 (carnet), un 404 (résultat) et un 409 (vente) : les mots de l'API. |
 
 ## Défauts trouvés, gardés en attentes `test.fail`
 
@@ -86,7 +97,6 @@ retirer alors le `test.fail`.
 
 - M0's fan link (« winz ▾ » → /TICKETS) opens /tickets, which has no page: 404 (components/winz/start-screen.tsx:69; no app/**/tickets/page.tsx, C4 « My tickets » is U-09). The link reads « winz /TICKETS » (start-screen.tsx:75), not SPEC M0's « I'm a fan »
 - C3 before the game shows « 14% · CHANCE IT'S FREE », not SPEC 5.4's « 14 % chance this is free »: that sentence (copy.ticket.chanceTitle) is only the gauge's aria-label (components/ui/gauge.tsx:26, visible text gauge.tsx:67)
-- M8 has no « Download poster » (SPEC M8 « Télécharger l'affiche (PNG) »; copy.live.downloadPoster is unused): only « Download QR » (components/winz/live-screen.tsx:291). The poster is ◇ in U-08
 
 ## Ce que ces reçus ne prouvent pas
 
