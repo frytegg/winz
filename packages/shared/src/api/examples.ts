@@ -587,6 +587,46 @@ export const ticketsExample: TicketsResponse = {
   refundedTotal: "10000000",
 };
 
+const pittRefunded: Ticket = ticketsExample.tickets[1] ?? ticketPreGame;
+
+/**
+ * More answers of `GET /api/tickets`, for « My tickets » (C4): nobody's ticket yet, one ticket in
+ * each phase (two of the same promo, bought twice, for the quantity), and a demo ticket.
+ */
+export const ticketsExamples = {
+  noTickets: { tickets: [], refundedTotal: "0" },
+  severalTickets: {
+    tickets: [
+      {
+        ...ticketPreGame,
+        token: "tkt_example_joes_texas_two",
+        qty: 2,
+        paid: "40000000",
+        refundable: "40000000",
+      },
+      { ...ticketExamples.inGame, token: "tkt_example_joes_texas_live" },
+      pittRefunded,
+      {
+        ...ticketExamples.notThisTime,
+        token: "tkt_example_joes_texas_lost",
+        startsAt: "2026-11-14T20:30:00.000Z",
+        purchasedAt: "2026-11-14T19:02:00.000Z",
+      },
+      {
+        ...ticketExamples.cancelled,
+        token: "tkt_example_joes_texas_void",
+        startsAt: "2026-11-07T20:30:00.000Z",
+        purchasedAt: "2026-11-07T18:45:00.000Z",
+      },
+    ],
+    refundedTotal: "10000000",
+  },
+  demoTicket: {
+    tickets: [{ ...ticketPreGame, token: "tkt_example_demo", demo: true }],
+    refundedTotal: "0",
+  },
+} satisfies Record<string, TicketsResponse>;
+
 export const hedgeDeskExample: HedgeDeskResponse = {
   venue: "paper",
   venueLabel: "PAPER · live Gemini book",

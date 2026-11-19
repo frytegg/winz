@@ -20,7 +20,16 @@ export {
   type Me,
   type MerchantProfile,
 } from "./auth-context";
-export { useRouteGuard, resolveGuard, type RouteNeed } from "./route-guard";
+export {
+  useRouteGuard,
+  resolveGuard,
+  entryFromQuery,
+  ENTRY_PARAM,
+  FAN_SIGN_IN_PATH,
+  TICKETS_PATH,
+  type RouteNeed,
+  type SignInEntry,
+} from "./route-guard";
 
 // A separate chunk: the Privy SDK is large and the simulated sign-in, or a fan's page, never uses it.
 const PrivyAuthProvider = dynamic(() =>

@@ -23,7 +23,7 @@ const SLIDE_ART = [
   { src: "/onboarding/slide-3.png", width: 238, height: 485 },
 ] as const;
 
-/** The "winz ▾" pill: the venue's side, with the fan's side one tap away. */
+/** The "winz ▾" pill: the venue's side, with the fan's side (« I'm a fan », C4) one tap away. */
 function RoleMenu(): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -67,13 +67,9 @@ function RoleMenu(): React.JSX.Element {
       {open ? (
         <Link
           href="/tickets"
-          aria-label={copy.start.roleMenu.tickets}
-          className="flex h-[52px] w-[167px] animate-screen-in items-center justify-center gap-1.5 rounded-full bg-card-raised/90 backdrop-blur-sm transition-transform duration-150 ease-out active:scale-[0.97]"
+          className="flex h-[52px] w-[167px] animate-screen-in items-center justify-center rounded-full bg-card-raised/90 text-body text-text backdrop-blur-sm transition-transform duration-150 ease-out active:scale-[0.97]"
         >
-          <Logo className="h-[22px]" />
-          <span aria-hidden="true" className="text-caption text-text">
-            {copy.start.roleMenu.ticketsTag}
-          </span>
+          {copy.start.roleMenu.fan}
         </Link>
       ) : null}
     </div>

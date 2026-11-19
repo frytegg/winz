@@ -73,6 +73,7 @@ export const copy = {
       venues: "For venues",
       tickets: "My tickets",
       ticketsTag: "/TICKETS",
+      fan: "I'm a fan",
     },
     carouselLabel: "What Winz does",
     slideLabel: (index: number, total: number): string =>
@@ -102,6 +103,9 @@ export const copy = {
     emailBody: "No password. We'll email you a 6-digit code.",
     emailLabel: "Email",
     emailPlaceholder: "you@yourbusiness.com",
+    fanEmailTitle: "Find your tickets",
+    fanEmailBody: "Use the email you paid with. We'll send you a 6-digit code.",
+    fanEmailPlaceholder: "you@email.com",
     faceId: "Use Face ID instead",
     codeTitle: "Check your email",
     codeSent: (email: string): string => `We sent a code to ${email}`,
@@ -117,6 +121,8 @@ export const copy = {
     tooManyTries: "Too many tries. Wait a minute, then try again.",
     signInFailed: "We couldn't sign you in. Try again in a moment.",
     unavailable: "Signing in isn't available right now. Please try again later.",
+    unreachableTitle: "Can't reach Winz",
+    unreachableBody: "You're still signed in. Check your connection, then try again.",
     codeDigit: (index: number): string => `Digit ${index.toString()} of 6`,
   },
 
@@ -621,6 +627,16 @@ export const copy = {
     emptyLive: "No live tickets. Scan a promo at your favorite spot.",
     emptyWon: "Nothing refunded yet.",
     emptyPast: "No past tickets yet.",
+    groups: { live: "Live", won: "Won", notThisTime: "Not this time" },
+    home: "Winz home",
+    listLabel: (group: string): string => `${group} tickets`,
+    open: (promise: string): string => `Open your ticket: ${promise}`,
+    refundedAmount: (amount: string): string => `Refunded ${amount}`,
+    signedInAs: (email: string): string => `Signed in as ${email}`,
+    otherEmail: "Use another email",
+    empty: "No tickets yet. Scan a promo at your favorite spot and pay: your ticket shows up here.",
+    emptyHint: "Paid with another email? Sign in with that one.",
+    loadFailedTitle: "We couldn't load your tickets",
   },
 
   /** Jury and demo */

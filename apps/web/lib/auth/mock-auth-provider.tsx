@@ -6,8 +6,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { z } from "zod";
 
 import {
-  ApiError,
   apiFetch,
+  isAbortError,
   setAccessTokenProvider,
   setUnauthenticatedHandler,
 } from "@/lib/api/client";
@@ -22,6 +22,8 @@ import {
   type MerchantProfile,
 } from "./auth-context";
 import { withMerchant } from "./me";
+import { loadMeWithRetry, MeLoadError, waitMs } from "./me-retry";
+import { UnreachableGate } from "./unreachable-gate";
 
 /**
  * The simulated sign-in, used while the mock API is on (`NEXT_PUBLIC_APP_API_MOCK=true`, see
@@ -96,15 +98,51 @@ export function MockAuthProvider({ children }: { children: ReactNode }): React.J
   const [me, setMe] = useState<Me | null>(null);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const signedIn = useRef(false);
+  /** The load of `GET /api/me` in progress, cancelled when a newer one starts or on unmount. */
+  const loading = useRef<AbortController | null>(null);
+
+  /**
+   * `GET /api/me` with the retries of `me-retry.ts`: a 401 or a 403 ends the session, anything else
+   * keeps it and ends `unreachable` (review 2.2). Resolves `null` when a newer load replaced it.
+   * A sign-in keeps its screen meanwhile (`showLoading` false): the code screen shows its own wait.
+   */
+  const loadSession = useCallback(async (showLoading: boolean): Promise<Me | null> => {
+    loading.current?.abort();
+    const controller = new AbortController();
+    loading.current = controller;
+    if (showLoading) setStatus("loading");
+    try {
+      const next = await loadMeWithRetry(fetchMe, { sleep: waitMs, signal: controller.signal });
+      if (controller.signal.aborted) return null;
+      setMe(next);
+      setStatus("authenticated");
+      return next;
+    } catch (error: unknown) {
+      if (controller.signal.aborted || isAbortError(error)) return null;
+      if (error instanceof MeLoadError && error.failure === "anonymous") {
+        signedIn.current = false;
+        writeStorage(SESSION_KEY, null);
+        setMe(null);
+        setStatus("anonymous");
+      } else {
+        setStatus("unreachable");
+      }
+      throw error;
+    }
+  }, []);
 
   const finishSignIn = useCallback(async (): Promise<Me> => {
     signedIn.current = true;
-    const next = await fetchMe();
-    setMe(next);
-    setPendingEmail(null);
-    setStatus("authenticated");
-    return next;
-  }, []);
+    try {
+      const next = await loadSession(false);
+      if (next === null) throw new AuthError("sign_in_failed", copy.signIn.signInFailed);
+      setPendingEmail(null);
+      return next;
+    } catch (error: unknown) {
+      if (error instanceof AuthError) throw error;
+      throw new AuthError("sign_in_failed", copy.signIn.signInFailed);
+    }
+  }, [loadSession]);
 
   // Restore the session, and wire the API client to it.
   useEffect(() => {
@@ -118,32 +156,20 @@ export function MockAuthProvider({ children }: { children: ReactNode }): React.J
       router.replace("/start");
     });
 
-    let cancelled = false;
     if (readStorage(SESSION_KEY) === null) {
       setStatus("anonymous");
     } else {
       signedIn.current = true;
-      fetchMe().then(
-        (restored) => {
-          if (cancelled) return;
-          setMe(restored);
-          setStatus("authenticated");
-        },
-        (error: unknown) => {
-          if (cancelled) return;
-          // An expired session (401) or an unreachable API: start from the sign-in screen.
-          signedIn.current = false;
-          if (error instanceof ApiError && error.status === 401) writeStorage(SESSION_KEY, null);
-          setStatus("anonymous");
-        },
-      );
+      // An expired session (401, 403) starts from the sign-in screen; an API that does not answer
+      // keeps the session and ends on « can't reach Winz » (`loadSession`).
+      loadSession(true).catch(() => undefined);
     }
     return () => {
-      cancelled = true;
+      loading.current?.abort();
       setAccessTokenProvider(null);
       setUnauthenticatedHandler(null);
     };
-  }, [router]);
+  }, [router, loadSession]);
 
   const sendCode = useCallback(async (email: string): Promise<void> => {
     const address = email.trim();
@@ -151,6 +177,8 @@ export function MockAuthProvider({ children }: { children: ReactNode }): React.J
       throw new AuthError("invalid_email", copy.signIn.invalidEmail);
     }
     await wait(SIMULATED_LATENCY_MS);
+    // A real send needs the network: offline, the simulated one fails the same way.
+    if (!window.navigator.onLine) throw new AuthError("send_failed", copy.signIn.sendFailed);
     setPendingEmail(address);
   }, []);
 
@@ -173,6 +201,7 @@ export function MockAuthProvider({ children }: { children: ReactNode }): React.J
   }, [finishSignIn]);
 
   const signOut = useCallback((): Promise<void> => {
+    loading.current?.abort();
     signedIn.current = false;
     writeStorage(SESSION_KEY, null);
     writeStorage(MERCHANT_KEY, null);
@@ -187,6 +216,10 @@ export function MockAuthProvider({ children }: { children: ReactNode }): React.J
     setMe(next);
     return next;
   }, []);
+
+  const reconnect = useCallback((): void => {
+    loadSession(true).catch(() => undefined);
+  }, [loadSession]);
 
   const adoptMerchant = useCallback((merchant: MerchantProfile): void => {
     writeStorage(MERCHANT_KEY, JSON.stringify(merchant));
@@ -205,6 +238,7 @@ export function MockAuthProvider({ children }: { children: ReactNode }): React.J
       loginWithPasskey,
       signOut,
       refreshMe,
+      reconnect,
       adoptMerchant,
     }),
     [
@@ -216,9 +250,14 @@ export function MockAuthProvider({ children }: { children: ReactNode }): React.J
       loginWithPasskey,
       signOut,
       refreshMe,
+      reconnect,
       adoptMerchant,
     ],
   );
 
-  return <AuthContextProvider value={value}>{children}</AuthContextProvider>;
+  return (
+    <AuthContextProvider value={value}>
+      <UnreachableGate>{children}</UnreachableGate>
+    </AuthContextProvider>
+  );
 }

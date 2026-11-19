@@ -25,6 +25,7 @@ const SIGNED_OUT: AuthApi = {
   loginWithPasskey: unavailable,
   signOut: () => Promise.resolve(),
   refreshMe: unavailable,
+  reconnect: () => undefined,
   adoptMerchant: () => undefined,
 };
 

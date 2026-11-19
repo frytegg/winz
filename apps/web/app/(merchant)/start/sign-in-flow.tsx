@@ -10,7 +10,14 @@ import { CODE_LENGTH, CodeInput } from "@/components/ui/code-input";
 import { Field } from "@/components/ui/field";
 import { Splash } from "@/components/ui/splash";
 import { WizardFrame } from "@/components/wizard/wizard-frame";
-import { AuthError, useAuth, useRouteGuard } from "@/lib/auth";
+import {
+  AuthError,
+  ENTRY_PARAM,
+  entryFromQuery,
+  FAN_SIGN_IN_PATH,
+  useAuth,
+  useRouteGuard,
+} from "@/lib/auth";
 import { copy } from "@/lib/copy";
 import { useNow } from "@/lib/hooks";
 import { journeyProgress } from "@/lib/journey";
@@ -21,14 +28,19 @@ const emailCheck = z.email();
 /**
  * M1: e-mail, then the 6-digit code. The code is sent as soon as the sixth digit is typed, so the
  * Continue button is only there for a retry. Once signed in, the route guard moves on by itself:
- * `/home` for a merchant, `/business` for a new user.
+ * `/home` for a merchant, `/business` for a new user, and « My tickets » for whoever came from the
+ * fan's entry (`?from=tickets`, kept through the code step): one sign-in for both, C4 included.
  */
 export function SignInFlow(): React.JSX.Element {
   const router = useRouter();
   const params = useSearchParams();
   const { pendingEmail, sendCode, verifyCode, loginWithPasskey, passkeyAvailable } = useAuth();
-  const ready = useRouteGuard("anonymous");
+  const entry = entryFromQuery(params.get(ENTRY_PARAM));
+  const ready = useRouteGuard("anonymous", entry);
   const now = useNow();
+  const fan = entry === "fan";
+  const startPath = fan ? FAN_SIGN_IN_PATH : "/start";
+  const codePath = `${startPath}${fan ? "&" : "?"}step=code`;
 
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState<string | undefined>();
@@ -40,13 +52,14 @@ export function SignInFlow(): React.JSX.Element {
   const [verifying, setVerifying] = useState(false);
   const [resendAt, setResendAt] = useState(0);
   const [passkeyBusy, setPasskeyBusy] = useState(false);
+  const [resendError, setResendError] = useState<string | undefined>();
 
   const stage = params.get("step") === "code" && pendingEmail !== null ? "code" : "email";
 
   // A reload on the code step has lost the address: start again from the first step.
   useEffect(() => {
-    if (params.get("step") === "code" && pendingEmail === null && ready) router.replace("/start");
-  }, [params, pendingEmail, ready, router]);
+    if (params.get("step") === "code" && pendingEmail === null && ready) router.replace(startPath);
+  }, [params, pendingEmail, ready, router, startPath]);
 
   if (!ready) return <Splash />;
 
@@ -66,8 +79,9 @@ export function SignInFlow(): React.JSX.Element {
       await sendCode(email.trim());
       setCode("");
       setCodeError(false);
+      setResendError(undefined);
       setResendAt(Date.now() + RESEND_AFTER_MS);
-      router.push("/start?step=code");
+      router.push(codePath);
     } catch (error: unknown) {
       setEmailError(error instanceof AuthError ? error.message : copy.common.genericError);
     } finally {
@@ -94,11 +108,13 @@ export function SignInFlow(): React.JSX.Element {
 
   async function resend(): Promise<void> {
     if (pendingEmail === null || secondsLeft > 0) return;
+    setResendError(undefined);
     try {
       await sendCode(pendingEmail);
       setResendAt(Date.now() + RESEND_AFTER_MS);
     } catch (error: unknown) {
-      setEmailError(error instanceof AuthError ? error.message : copy.common.genericError);
+      // Shown on this screen: the e-mail step's error would never be seen from here.
+      setResendError(error instanceof AuthError ? error.message : copy.signIn.sendFailed);
     }
   }
 
@@ -108,8 +124,13 @@ export function SignInFlow(): React.JSX.Element {
     setEmailError(undefined);
     try {
       await loginWithPasskey();
-    } catch {
-      setEmailError(copy.signIn.passkeyFailed);
+    } catch (error: unknown) {
+      // Face ID itself failed, or it worked and the API then refused the sign-in: each says so.
+      setEmailError(
+        error instanceof AuthError && error.code !== "passkey_failed"
+          ? error.message
+          : copy.signIn.passkeyFailed,
+      );
       setPasskeyBusy(false);
     }
   }
@@ -125,14 +146,14 @@ export function SignInFlow(): React.JSX.Element {
             {copy.signIn.codeSent(pendingEmail ?? "")} ·{" "}
             <button
               type="button"
-              onClick={() => router.replace("/start")}
+              onClick={() => router.replace(startPath)}
               className="-my-3 inline-block py-3 text-lime underline underline-offset-4"
             >
               {copy.signIn.change}
             </button>
           </>
         }
-        onBack={() => router.replace("/start")}
+        onBack={() => router.replace(startPath)}
         footer={
           <Button
             disabled={code.length !== CODE_LENGTH}
@@ -172,6 +193,11 @@ export function SignInFlow(): React.JSX.Element {
         >
           {secondsLeft > 0 ? copy.signIn.resendIn(secondsLeft) : copy.signIn.resend}
         </button>
+        {resendError === undefined ? null : (
+          <p role="alert" className="-mt-4 px-1 text-caption text-danger">
+            {resendError}
+          </p>
+        )}
       </WizardFrame>
     );
   }
@@ -180,8 +206,8 @@ export function SignInFlow(): React.JSX.Element {
     <WizardFrame
       stepKey="email"
       progress={journeyProgress("email")}
-      title={copy.signIn.emailTitle}
-      subtitle={copy.signIn.emailBody}
+      title={fan ? copy.signIn.fanEmailTitle : copy.signIn.emailTitle}
+      subtitle={fan ? copy.signIn.fanEmailBody : copy.signIn.emailBody}
       backHref="/"
       footer={
         <Button type="submit" form="sign-in-email" disabled={!emailValid} loading={sending}>
@@ -200,7 +226,7 @@ export function SignInFlow(): React.JSX.Element {
           autoCorrect="off"
           spellCheck={false}
           enterKeyHint="go"
-          placeholder={copy.signIn.emailPlaceholder}
+          placeholder={fan ? copy.signIn.fanEmailPlaceholder : copy.signIn.emailPlaceholder}
           value={email}
           onChange={(event) => {
             setEmail(event.target.value);

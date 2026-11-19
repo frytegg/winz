@@ -177,7 +177,7 @@ export const API_ROUTES = {
     path: "/api/tickets",
     auth: "user",
     response: schemas.ticketsResponseSchema,
-    examples: { default: examples.ticketsExample },
+    examples: { default: examples.ticketsExample, ...examples.ticketsExamples },
   },
   hedgeDesk: {
     method: "GET",

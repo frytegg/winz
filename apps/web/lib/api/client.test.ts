@@ -68,6 +68,24 @@ describe("apiFetch", () => {
     });
   });
 
+  it("shows a plain sentence for a schema error, and keeps the detail off the screen", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ slug: "x" }));
+    const error = await apiFetch("publicCampaign", { params: { slug: "joes-texas" } }).catch(
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).message).toBe("Something went wrong. Try again.");
+    expect((error as ApiError).detail).toMatch(/^Unexpected answer from \/api\/c\/:slug: /);
+
+    const invalid = await apiFetch("checkout", {
+      body: { slug: "joes-texas", qty: 0 } as never,
+    }).catch((caught: unknown) => caught);
+    expect(invalid).toMatchObject({ code: "invalid_request", status: 400 });
+    expect((invalid as ApiError).message).toBe("Something went wrong. Try again.");
+    expect((invalid as ApiError).detail).toMatch(/^Invalid body\./);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("turns an API error into an ApiError with the message as sent", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(

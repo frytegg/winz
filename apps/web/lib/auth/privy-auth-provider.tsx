@@ -21,7 +21,6 @@ import {
 import { z } from "zod";
 
 import {
-  ApiError,
   apiFetch,
   errorMessage,
   setAccessTokenProvider,
@@ -38,6 +37,8 @@ import {
   type MerchantProfile,
 } from "./auth-context";
 import { withMerchant } from "./me";
+import { loadMeWithRetry, MeLoadError, waitMs, type MeFailure } from "./me-retry";
+import { UnreachableGate } from "./unreachable-gate";
 import { privyClientConfig } from "./privy-config";
 import { passkeyError, sendCodeError, verifyCodeError } from "./privy-errors";
 import { hasEthereumEmbeddedWallet, isWalletAlreadyThere } from "./privy-wallet";
@@ -82,8 +83,12 @@ function PrivyAuthBridge({ children }: { children: ReactNode }): React.JSX.Eleme
   const walletCreation = useCreateWallet();
 
   const [me, setMe] = useState<Me | null>(null);
-  /** `GET /api/me` failed while Privy still holds a session: back to the sign-in screen. */
-  const [meFailed, setMeFailed] = useState(false);
+  /**
+   * How the last load of `GET /api/me` failed while Privy still holds a session, after its retries
+   * (`me-retry.ts`): `anonymous` (401, 403) goes back to the sign-in screen, `unreachable` keeps
+   * the session and shows « can't reach Winz ».
+   */
+  const [meFailure, setMeFailure] = useState<MeFailure | null>(null);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   // Decided after the first render: the server cannot know whether this browser has passkeys.
   const [passkeyAvailable, setPasskeyAvailable] = useState(false);
@@ -138,19 +143,29 @@ function PrivyAuthBridge({ children }: { children: ReactNode }): React.JSX.Eleme
   }, []);
 
   // One `GET /api/me` at a time: a sign-in and the restore of the session would both ask for it.
+  // A cold start of the API is ridden out (1 s, 2 s, 4 s) before anything is decided (review 2.2).
   const inflight = useRef<Promise<Me> | null>(null);
+  const unmounted = useRef<AbortController>(new AbortController());
+  useEffect(() => {
+    const controller = new AbortController();
+    unmounted.current = controller;
+    return () => controller.abort();
+  }, []);
   const loadMe = useCallback((): Promise<Me> => {
     if (inflight.current !== null) return inflight.current;
-    const request = ensureWallet()
-      .then(() => apiFetch("me"))
+    setMeFailure(null);
+    const request = loadMeWithRetry(() => ensureWallet().then(() => apiFetch("me")), {
+      sleep: waitMs,
+      signal: unmounted.current.signal,
+    })
       .then(
         (next) => {
           setMe(next);
-          setMeFailed(false);
+          setMeFailure(null);
           return next;
         },
         (error: unknown) => {
-          setMeFailed(true);
+          if (error instanceof MeLoadError) setMeFailure(error.failure);
           throw error;
         },
       )
@@ -159,7 +174,7 @@ function PrivyAuthBridge({ children }: { children: ReactNode }): React.JSX.Eleme
       });
     inflight.current = request;
     return request;
-  }, []);
+  }, [ensureWallet]);
 
   // Wire the API client to Privy. A layout effect, so that it is in place before the passive
   // effects of the screens below start their first requests.
@@ -188,12 +203,13 @@ function PrivyAuthBridge({ children }: { children: ReactNode }): React.JSX.Eleme
     if (!authenticated) {
       walletReady.current = false;
       setMe(null);
-      setMeFailed(false);
+      setMeFailure(null);
       return;
     }
     loadMe().catch((error: unknown) => {
-      // An expired session: end it, so that the next visit starts from the sign-in screen.
-      if (error instanceof ApiError && error.status === 401) void sdk.current.logout();
+      // An expired session (401, 403): end it, so that the next visit starts from the sign-in
+      // screen. An API that does not answer keeps it: « can't reach Winz », and a retry.
+      if (error instanceof MeLoadError && error.failure === "anonymous") void sdk.current.logout();
     });
   }, [ready, authenticated, loadMe]);
 
@@ -208,8 +224,13 @@ function PrivyAuthBridge({ children }: { children: ReactNode }): React.JSX.Eleme
       setPendingEmail(null);
       return next;
     } catch (error: unknown) {
-      await sdk.current.logout();
-      throw new AuthError("sign_in_failed", errorMessage(error, copy.signIn.signInFailed));
+      // Refused by the API: the Privy session is ended. Not reached: it is kept, and the person
+      // sees « can't reach Winz » with a retry instead of typing a new code.
+      if (!(error instanceof MeLoadError) || error.failure === "anonymous") {
+        await sdk.current.logout();
+      }
+      const cause = error instanceof MeLoadError ? error.cause : error;
+      throw new AuthError("sign_in_failed", errorMessage(cause, copy.signIn.signInFailed));
     }
   }, [loadMe]);
 
@@ -260,14 +281,21 @@ function PrivyAuthBridge({ children }: { children: ReactNode }): React.JSX.Eleme
 
   const refreshMe = useCallback((): Promise<Me> => loadMe(), [loadMe]);
 
+  const reconnect = useCallback((): void => {
+    loadMe().catch((error: unknown) => {
+      if (error instanceof MeLoadError && error.failure === "anonymous") void sdk.current.logout();
+    });
+  }, [loadMe]);
+
   const adoptMerchant = useCallback((merchant: MerchantProfile): void => {
     setMe((current) => (current === null ? current : withMerchant(current, merchant)));
   }, []);
 
   let status: AuthStatus = "loading";
   if (ready) {
-    if (!authenticated || (me === null && meFailed)) status = "anonymous";
+    if (!authenticated || (me === null && meFailure === "anonymous")) status = "anonymous";
     else if (me !== null) status = "authenticated";
+    else if (meFailure === "unreachable") status = "unreachable";
   }
 
   const value = useMemo<AuthApi>(
@@ -282,6 +310,7 @@ function PrivyAuthBridge({ children }: { children: ReactNode }): React.JSX.Eleme
       loginWithPasskey,
       signOut,
       refreshMe,
+      reconnect,
       adoptMerchant,
     }),
     [
@@ -295,9 +324,14 @@ function PrivyAuthBridge({ children }: { children: ReactNode }): React.JSX.Eleme
       loginWithPasskey,
       signOut,
       refreshMe,
+      reconnect,
       adoptMerchant,
     ],
   );
 
-  return <AuthContextProvider value={value}>{children}</AuthContextProvider>;
+  return (
+    <AuthContextProvider value={value}>
+      <UnreachableGate>{children}</UnreachableGate>
+    </AuthContextProvider>
+  );
 }

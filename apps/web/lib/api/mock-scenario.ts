@@ -55,10 +55,13 @@ export function setMockScenario(name: string | null): void {
 /**
  * Scenarios that only the mock API knows: they answer an error, not an example, so they are not in
  * `API_ROUTES` (the back keeps them in `MOCK_REFUSALS`). The front lists them to be able to ask for
- * them: a fan refused at checkout because the promo paused or closed in the meantime.
+ * them: a fan refused at checkout because the promo paused or closed in the meantime, a sign-in
+ * the API refuses (`403`), and an API that answers `503` to `GET /api/me` or `GET /api/tickets`.
  */
 const MOCK_REFUSALS: Partial<Record<ApiRouteName, readonly string[]>> = {
   checkout: ["salesPaused", "salesClosed"],
+  me: ["meRefused", "meUnavailable"],
+  tickets: ["ticketsUnavailable"],
 };
 
 /** The scenario to send for `route`: only when that route has an example or a refusal of this name. */
