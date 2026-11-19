@@ -6,6 +6,9 @@ export default defineConfig({
   resolve: {
     alias: { "@": fileURLToPath(new URL(".", import.meta.url)) },
   },
+  // Components are .tsx and tsconfig keeps `jsx: preserve` for Next, so tests render them with the
+  // automatic runtime (renderToStaticMarkup): the landing's sections are tested that way.
+  oxc: { jsx: { runtime: "automatic" } },
   test: {
     include: ["**/*.test.ts", "**/*.test.tsx"],
     // e2e/ui is the Playwright suite (`pnpm e2e:ui`), not vitest's.
