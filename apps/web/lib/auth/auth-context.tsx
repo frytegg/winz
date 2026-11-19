@@ -12,8 +12,12 @@ import type { RouteResponse } from "@/lib/api/client";
 export type Me = RouteResponse<"me">;
 export type MerchantProfile = NonNullable<Me["merchant"]>;
 
-/** `loading` until the stored session (if any) has been checked. */
-export type AuthStatus = "loading" | "anonymous" | "authenticated";
+/**
+ * `loading` until the stored session (if any) has been checked, retries included. `unreachable`:
+ * the API could not say who this is (no answer, a `5xx`) after every retry; the session is kept,
+ * and `reconnect` asks again (`me-retry.ts`).
+ */
+export type AuthStatus = "loading" | "anonymous" | "authenticated" | "unreachable";
 
 export type AuthErrorCode =
   | "invalid_email"
@@ -51,6 +55,8 @@ export interface AuthApi {
   signOut: () => Promise<void>;
   /** Reads `GET /api/me` again. */
   refreshMe: () => Promise<Me>;
+  /** After `unreachable`: back to `loading`, and `GET /api/me` asked again, retries included. */
+  reconnect: () => void;
   /** The merchant just created on M2: the user is a merchant from now on, without another round trip. */
   adoptMerchant: (merchant: MerchantProfile) => void;
 }

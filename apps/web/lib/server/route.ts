@@ -135,6 +135,27 @@ export const MOCK_REFUSALS: Partial<Record<ApiRouteName, Record<string, MockRefu
   demoReset: {
     wrongKey: { status: 401, code: "unauthenticated", message: "Missing or invalid admin key" },
   },
+  me: {
+    // The API refuses this person (a 403): the sign-in ends, the session with it.
+    meRefused: {
+      status: 403,
+      code: "forbidden",
+      message: "This account can't sign in right now",
+    },
+    // The API cannot say who is signed in (a cold start, a token it cannot check): the session stays.
+    meUnavailable: {
+      status: 503,
+      code: "internal",
+      message: "We couldn't check your sign-in. Try again in a moment",
+    },
+  },
+  tickets: {
+    ticketsUnavailable: {
+      status: 503,
+      code: "internal",
+      message: "Your tickets are not available right now. Try again in a moment",
+    },
+  },
 };
 
 /** Every scenario name the mock API accepts for a route, `default` first. */
@@ -145,7 +166,11 @@ export function mockScenarios(name: ApiRouteName): string[] {
 
 function mockResponse(name: ApiRouteName, route: RouteSpec, request: Request): Response {
   const scenario = request.headers.get(MOCK_SCENARIO_HEADER)?.trim() || "default";
-  const refusal = MOCK_REFUSALS[name]?.[scenario];
+  // Own names only: `toString` or `constructor` would otherwise be found on the object's prototype
+  // and answered as a refusal with no status.
+  const refusals = MOCK_REFUSALS[name];
+  const refusal =
+    refusals !== undefined && Object.hasOwn(refusals, scenario) ? refusals[scenario] : undefined;
   if (refusal) return errorResponse(refusal.status, refusal.code, refusal.message);
   if (!Object.hasOwn(route.examples, scenario)) {
     throw new ApiRouteError(

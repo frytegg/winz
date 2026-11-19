@@ -70,7 +70,7 @@ réponse.
 | `POST /api/checkout/:pi/confirm` | `default`, `processing`, `ticketed`, `cancelledPaused`, `failed`           |
 | `GET /api/checkout/:pi`          | `default`, `processing`, `ticketed`, `cancelledPaused`, `failed`           |
 | `GET /api/t/:token`              | `default`, `preGame`, `inGame`, `refunded`, `notThisTime`, `cancelled`, `demo` |
-| `GET /api/tickets`               | `default`                                                                  |
+| `GET /api/tickets`               | `default`, `noTickets`, `severalTickets`, `demoTicket`                     |
 | `GET /api/hedge-desk`            | `default`, `demo`                                                          |
 | `POST /api/admin/demo/book`      | `default`                                                                  |
 | `POST /api/admin/demo/result`    | `default`                                                                  |
@@ -140,6 +140,14 @@ les écrans « promo en pause » et « ventes closes » :
 | ------------- | --------------------------------------- |
 | `salesPaused` | `409`, `error.code` vaut `sales_paused` |
 | `salesClosed` | `409`, `error.code` vaut `sales_closed` |
+
+D'autres refus servent aux écrans de connexion et à « My tickets » :
+
+| Route               | Scénario             | Réponse                                                         |
+| ------------------- | -------------------- | --------------------------------------------------------------- |
+| `GET /api/me`       | `meRefused`          | `403`, `forbidden` : la session est fermée, comme sur un `401`  |
+| `GET /api/me`       | `meUnavailable`      | `503`, `internal` : l'API ne sait pas dire qui est connecté     |
+| `GET /api/tickets`  | `ticketsUnavailable` | `503`, `internal` : la liste ne se charge pas                   |
 
 Toute réponse d'erreur a la même forme, en mode simulé comme en vrai :
 
@@ -450,6 +458,32 @@ sauf `sale` qui donne toujours un `paymentIntentId` et, si le ticket est déjà 
   exactement comme pour un achat par carte, jusqu'à `ticketed`, `failed` ou `cancelled_paused`.
   Ne pas relancer `sale` après un `ticketToken` à `null` : chaque appel est une nouvelle vente.
 - `reset` : les campagnes touchées par une action démo restent des campagnes démo.
+
+### Qui est connecté, et où il arrive
+
+- **Une API lente ne déconnecte personne** (`lib/auth/me-retry.ts`, les deux fournisseurs de
+  connexion). Seuls un `401` ou un `403` de `GET /api/me` ferment la session. Sans réponse, ou sur
+  un `5xx` (dont le `503` du serveur quand il ne peut pas vérifier un jeton), l'écran reste en
+  chargement, la requête est refaite après 1 s, 2 s et 4 s, puis « Can't reach Winz » s'affiche avec
+  « Try again » (`lib/auth/unreachable-gate.tsx`), la session gardée.
+- **Deux entrées, une seule connexion** (`lib/auth/route-guard.ts`). « Start a promo » ouvre
+  `/start` : un commerçant arrive sur `/home`, les autres sur `/business`. « I'm a fan » (M0) ouvre
+  `/tickets`, qui envoie quelqu'un de non connecté sur `/start?from=tickets` (« Find your tickets »,
+  avec l'e-mail du paiement, code ou Face ID) ; `from=tickets` suit l'étape du code, et la connexion
+  finit sur « My tickets », jamais sur `/business`. Un commerçant qui ouvre `/tickets` y voit ses
+  propres tickets.
+
+### « My tickets » (C4, `/tickets`)
+
+La liste de `GET /api/tickets`, en trois groupes comme le dit la SPEC C4 (`lib/fan/tickets-view.ts`) :
+**Live** (`pre_game`, `in_game`, le prochain match d'abord), **Won** (`refunded`) et **Not this time**
+(`not_this_time`, et `cancelled`, qui garde son étiquette « Cancelled » : pas de remboursement,
+l'achat tient), les deux derniers du match le plus récent au plus ancien. Chaque ticket porte le mot
+de sa page (`copy.ticket.phases`) et ouvre son ticket vivant (`/t/<token>`). En tête, le total
+remboursé tel que l'API l'envoie (`refundedTotal`, jamais recalculé). Sans ticket : quoi faire, et
+« Use another email ». Erreur : le message et « Try again ». Le bandeau « DEMO MODE » suit la
+réponse (un ticket `demo`). Scénarios : `noTickets`, `severalTickets` (un ticket par phase, dont
+deux pizzas), `demoTicket`, et le refus `ticketsUnavailable`.
 
 ### Le bandeau « DEMO MODE »
 

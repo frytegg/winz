@@ -12,8 +12,9 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    // The splash is ink; the status bar is the deeper black of the app background.
-    background_color: "#131314",
+    // The system background of SPEC and design-system/winz/MASTER.md (`--color-ink-deep`): the
+    // launch splash and the status bar both use it.
+    background_color: "#0B0B0C",
     theme_color: "#0B0B0C",
     categories: ["sports", "business"],
     icons: [

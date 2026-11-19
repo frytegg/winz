@@ -7,12 +7,6 @@ import { test } from "@playwright/test";
  * receipts' README too.
  */
 export const KNOWN_DEFECTS = {
-  fanLinkDeadEnd: {
-    reason:
-      "M0's fan link (« winz ▾ » → /TICKETS) opens /tickets, which has no page: 404 " +
-      "(components/winz/start-screen.tsx:69; no app/**/tickets/page.tsx, C4 « My tickets » is U-09). " +
-      "The link reads « winz /TICKETS » (start-screen.tsx:75), not SPEC M0's « I'm a fan »",
-  },
   ticketChanceWording: {
     reason:
       "C3 before the game shows « 14% · CHANCE IT'S FREE », not SPEC 5.4's « 14 % chance this is free »: " +

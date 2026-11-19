@@ -94,6 +94,18 @@ describe("defineRoute in mock mode", () => {
     expect(response.status).toBe(400);
   });
 
+  it("does not resolve them among a route's refusals either", async () => {
+    // `checkout` has simulated refusals: their lookup must not reach the prototype.
+    for (const scenario of ["toString", "constructor", "hasOwnProperty"]) {
+      const response = await defineRoute("checkout")(
+        post("/api/checkout", { slug: "joes-texas", qty: 1 }, { [MOCK_SCENARIO_HEADER]: scenario }),
+        noParams,
+      );
+      expect(response.status, scenario).toBe(400);
+      expect((await errorOf(response)).message).toContain("Unknown mock scenario");
+    }
+  });
+
   it("refuses a body that fails the schema, naming the field", async () => {
     const response = await defineRoute("checkout")(
       post("/api/checkout", { slug: "joes-texas", qty: 0 }),

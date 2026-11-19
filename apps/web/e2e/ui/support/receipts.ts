@@ -47,6 +47,16 @@ export const RECEIPTS = {
   "c3-ticket-not-this-time": "C3, le ticket perdu : « Not this time… », « Find another promo ».",
   "c3-ticket-cancelled": "C3, le match annulé : « Game cancelled · your purchase stands ».",
   "c3-ticket-not-found": "C3, un lien de ticket inconnu (404 renvoyé par le test lui-même).",
+  // « My tickets » (C4) and who is signed in
+  "c4-sign-in": "C4, la connexion du fan (« Find your tickets »), ouverte depuis « My tickets ».",
+  "c4-tickets":
+    "C4, « My tickets » : Live, Won, Not this time, le total remboursé (scénario `severalTickets`).",
+  "c4-tickets-empty": "C4, aucun ticket : que faire (scénario `noTickets`).",
+  "c4-tickets-error":
+    "C4, la liste n'a pas chargé : le message et « Try again » (refus `ticketsUnavailable`).",
+  "c4-tickets-demo": "C4, un ticket de démo : le bandeau « DEMO MODE » (scénario `demoTicket`).",
+  "id-unreachable":
+    "L'API ne répond pas à `GET /api/me` (refus `meUnavailable`, 503) : « Can't reach Winz », la session gardée.",
   // Merchant space
   "md-home": "Espace commerçant, l'accueil (solde, statistiques, promos actives).",
   "md-list-in-progress": "Espace commerçant, la liste des promos, onglet « In progress ».",

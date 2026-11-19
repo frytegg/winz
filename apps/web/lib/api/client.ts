@@ -81,14 +81,28 @@ export type ApiClientErrorCode = ApiErrorCode | "network" | "invalid_response";
 export class ApiError extends Error {
   readonly status: number;
   readonly code: ApiClientErrorCode;
+  /**
+   * What went wrong inside, for a developer (a schema's first failing field): never in `message`,
+   * which a screen may show as it is. `null` when the message says it all.
+   */
+  readonly detail: string | null;
 
-  constructor(status: number, code: ApiClientErrorCode, message: string) {
+  constructor(
+    status: number,
+    code: ApiClientErrorCode,
+    message: string,
+    detail: string | null = null,
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    this.detail = detail;
   }
 }
+
+/** What a person reads when the app itself got something wrong: a plain sentence, no field name. */
+export const INTERNAL_ERROR_MESSAGE = "Something went wrong. Try again.";
 
 export function isApiError(error: unknown): error is ApiError {
   return error instanceof ApiError;
@@ -172,7 +186,12 @@ export async function apiFetch<K extends ApiRouteName>(
   if (spec.request !== undefined) {
     const parsed = spec.request.safeParse(options.body);
     if (!parsed.success) {
-      throw new ApiError(400, "invalid_request", `Invalid body.${describeIssues(parsed.error)}`);
+      throw new ApiError(
+        400,
+        "invalid_request",
+        INTERNAL_ERROR_MESSAGE,
+        `Invalid body.${describeIssues(parsed.error)}`,
+      );
     }
     body = JSON.stringify(parsed.data);
   }
@@ -222,7 +241,7 @@ export async function apiFetch<K extends ApiRouteName>(
         parsedError.data.error.message,
       );
     }
-    throw new ApiError(response.status, "internal", "Something went wrong. Try again.");
+    throw new ApiError(response.status, "internal", INTERNAL_ERROR_MESSAGE);
   }
 
   const parsed = spec.response.safeParse(json);
@@ -230,6 +249,7 @@ export async function apiFetch<K extends ApiRouteName>(
     throw new ApiError(
       response.status,
       "invalid_response",
+      INTERNAL_ERROR_MESSAGE,
       `Unexpected answer from ${spec.path}: ${describeIssues(parsed.error)}`,
     );
   }
