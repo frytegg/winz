@@ -7,9 +7,22 @@ import { BOOK_STALE_AFTER_MS, liveInstrumentRowSchema } from "@winz/shared";
  * is never one the API would have hidden.
  */
 
+/**
+ * Supabase Realtime sends a timestamp the way Postgres writes it ("2026-11-19T05:52:31.453+00:00"),
+ * while the API schemas only accept the "Z" form. Checked against the real feed: without this every
+ * pushed row was refused and the odds showed "–". The instant is the same, only the spelling changes.
+ */
+function withZuluDate(row: unknown): unknown {
+  if (typeof row !== "object" || row === null) return row;
+  const observedAt = (row as { observed_at?: unknown }).observed_at;
+  if (typeof observedAt !== "string") return row;
+  const time = new Date(observedAt).getTime();
+  return Number.isNaN(time) ? row : { ...row, observed_at: new Date(time).toISOString() };
+}
+
 /** A pushed row → the chance in basis points, or `null` when there is no fresh quote. */
 export function oddsFromRow(row: unknown, nowMs: number): number | null {
-  const parsed = liveInstrumentRowSchema.safeParse(row);
+  const parsed = liveInstrumentRowSchema.safeParse(withZuluDate(row));
   if (!parsed.success) return null;
   const { mid_bps: mid, stale, observed_at: observedAt } = parsed.data;
   if (mid === null || stale) return null;

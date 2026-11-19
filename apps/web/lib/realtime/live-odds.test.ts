@@ -33,6 +33,13 @@ describe("oddsFromRow", () => {
     expect(oddsFromRow(row({ observed_at: edge }), NOW)).toBe(1200);
   });
 
+  it("reads a row the way Supabase Realtime sends it, with a +00:00 offset instead of Z", () => {
+    const pushed = row({ observed_at: new Date(NOW - 1000).toISOString().replace("Z", "+00:00") });
+    expect(oddsFromRow(pushed, NOW)).toBe(1200);
+    const old = new Date(NOW - BOOK_STALE_AFTER_MS - 1).toISOString().replace("Z", "+00:00");
+    expect(oddsFromRow(row({ observed_at: old }), NOW)).toBeNull();
+  });
+
   it("shows nothing when the row has no mid", () => {
     expect(oddsFromRow(row({ mid_bps: null }), NOW)).toBeNull();
   });

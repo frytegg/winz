@@ -230,6 +230,10 @@ export const copy = {
     pausedPrice:
       "At today's odds this promo would be paused. Lower your minimum margin or pick another promo.",
     pausedMarket: "The market for this game isn't ready yet.",
+    marketOpening: "The market for this game is opening. Checking again every few seconds.",
+    marketStillClosed:
+      "The market for this game still isn't ready. Check again in a moment, or pick another promo.",
+    checkAgain: "Check again",
     budgetChipsLabel: "Quick budgets",
     pausesAt: (percent: number): string => `Pauses at ${percent.toString()}%`,
     reviewCta: "Review the promo",
@@ -260,6 +264,10 @@ export const copy = {
   /** M8 */
   live: {
     puttingLive: "Putting your promo live…",
+    slowTitle: "This is taking longer than usual",
+    slowBody:
+      "Your promo isn't live yet. Keep this page open: it opens by itself as soon as it is, or check again.",
+    checkAgain: "Check again",
     badge: "Live campaign",
     title: "Your promo is live!",
     days: "Days",
