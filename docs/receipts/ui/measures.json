@@ -1,19 +1,19 @@
 {
   "warmup-seconds": {
     "label": "Compilation des pages et des routes par `next dev` avant les parcours (non comptée dans les parcours)",
-    "value": 115.7,
+    "value": 115,
     "unit": "s",
     "limit": null,
     "detail": "15 pages, 15 routes d'API, une requête chacune",
-    "measuredAt": "2026-11-19T19:55:39.824Z"
+    "measuredAt": "2026-11-19T21:45:37.088Z"
   },
   "fan-scan-to-ticket-seconds": {
     "label": "Achat client, du scan (ouverture de C1) au ticket affiché",
-    "value": 5.9,
+    "value": 5.7,
     "unit": "s",
     "limit": 30,
     "detail": "navigation vers /c/joes-texas jusqu'à la jauge du ticket visible, hors prise des captures ; comprend 0,5 s d'autorisation simulée et le suivi du paiement (1 s)",
-    "measuredAt": "2026-11-19T19:55:59.950Z"
+    "measuredAt": "2026-11-19T21:45:54.560Z"
   },
   "fan-taps": {
     "label": "Achat client, C1 → C3 : taps",
@@ -21,15 +21,15 @@
     "unit": "taps",
     "limit": null,
     "detail": "1. tap « Buy with Apple Pay » (C1) · 2. tap the simulated payment (C2)",
-    "measuredAt": "2026-11-19T19:55:59.950Z"
+    "measuredAt": "2026-11-19T21:45:54.559Z"
   },
   "onboarding-seconds": {
     "label": "Onboarding commerçant, M0 → M8 : durée",
-    "value": 13.4,
+    "value": 11.4,
     "unit": "s",
     "limit": 120,
     "detail": "de M0 affiché au QR de M8 affiché, hors prise des captures ; gestes d'un robot, un humain lit et tape plus lentement",
-    "measuredAt": "2026-11-19T19:57:13.263Z"
+    "measuredAt": "2026-11-19T21:47:09.388Z"
   },
   "onboarding-taps": {
     "label": "Onboarding commerçant, M0 → M8 : taps",
@@ -37,6 +37,6 @@
     "unit": "taps",
     "limit": 15,
     "detail": "1. tap « Start a promo » (M0) · 2. type the e-mail (M1) · 3. tap Continue (M1) · 4. type the 6-digit code (M1) · 5. type the business name (M2) · 6. tap the category « Bar » (M2) · 7. tap Continue (M2) · 8. tap the first game (M3) · 9. tap the recommended promo (M4) · 10. tap Continue (M5) · 11. tap « Review the promo » (M6) · 12. tap the simulated payment (M7)",
-    "measuredAt": "2026-11-19T19:57:13.262Z"
+    "measuredAt": "2026-11-19T21:47:09.387Z"
   }
 }
