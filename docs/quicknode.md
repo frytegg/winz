@@ -2,7 +2,8 @@
 
 > **Vérifié sur la documentation seulement, jamais contre le service.** Rien de cette page n'a été
 > essayé sur un vrai compte QuickNode. Les pages de QuickNode ont été lues en entier le 18 novembre
-> 2026 (liste en fin de page). Trois points restent à confirmer sur la première livraison réelle
+> 2026, et celles des limites d'`eth_getLogs`, de la facturation des Streams, de la taille des lots
+> et des prix relues le 19 novembre (liste en fin de page). Trois points restent à confirmer sur la première livraison réelle
 > (étape 5) parce que la documentation ne les écrit pas : le nom du réseau d'Arc testnet dans les
 > métadonnées, la forme exacte du corps quand un filtre est actif, et si une nouvelle tentative
 > porte un nouvel horodatage. Le code les accepte sous toutes les formes plausibles et le log de
@@ -45,15 +46,18 @@ Ce que la documentation dit, et ce que le code en fait :
   déterministe et les lecteurs du moteur n'en gèrent pas. Un log marqué `removed` n'est jamais
   écrit (log d'erreur).
 - **Facturation** : Streams consomme des crédits par bloc traité, que le filtre garde quelque chose
-  ou non.
+  ou non : `crédits = blocs traités × multiplicateur`, **20 par bloc** pour Arc Testnet, jeu Logs.
+  Streams et RPC puisent dans **le même** lot de crédits. Un Stream en pause ne consomme rien ; à
+  la reprise, repartir du dernier bloc évite de payer les blocs manqués. Ce que cela coûte par
+  jour, et donc quand créer le Stream : étape 3.
 - **Origine** : les livraisons partent de l'adresse IP `141.148.40.227` (utile seulement pour un
   pare-feu ; Vercel n'en a pas besoin).
 
 ## 1. Créer le compte (téléphone)
 
-1. Créer un compte sur quicknode.com. Page des prix, lue le 18 novembre 2026 : **Free trial**, un
-   mois, 10 M de crédits, **15 requêtes/s**, sans carte ; **Build**, 49 $/mois (34 $ par an),
-   80 M de crédits, **50 requêtes/s**.
+1. Créer un compte sur quicknode.com. Page des prix, relue le 19 novembre 2026 : **Free trial**,
+   un mois, 10 M de crédits sans dépassement possible, **15 requêtes/s**, sans carte ; **Build**,
+   49 $/mois (34 $ par mois facturé à l'année), 80 M de crédits, **50 requêtes/s**.
 2. Rien d'autre à faire sur le téléphone avant l'étape 2 : la suite se fait dans le tableau de bord.
 
 ## 2. Créer l'endpoint HTTP Arc testnet
@@ -62,12 +66,33 @@ Ce que la documentation dit, et ce que le code en fait :
 2. Copier l'URL HTTP (de la forme `https://<nom>.quiknode.pro/<jeton>/` : le jeton est dans le
    chemin, c'est un secret, jamais dans le dépôt).
 3. Sur l'hôte du **moteur** (Render, page Environment du service) : `ARC_RPC_URL=<cette URL>`, et
-   `ARC_RPC_FALLBACK_URL=https://rpc.testnet.arc.io` (la valeur par défaut, à laisser).
+   `ARC_RPC_FALLBACK_URL=https://rpc.testnet.arc.io` (la valeur par défaut, à laisser). **Preuve**
+   (une minute ; l'URL lue par `read -rs ARC_RPC_URL`, elle contient le jeton) :
+
+   ```bash
+   curl -s -X POST "$ARC_RPC_URL" -H 'content-type: application/json' \
+     -d '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}'
+   ```
+
+   Attendu : `"result":"0x4cef52"` (5042002). Une autre valeur : l'endpoint n'est pas Arc
+   **testnet**, et le moteur refuserait de démarrer (`ChainIdMismatchError`).
 4. Débit : le moteur ne dépasse jamais `ARC_RPC_MAX_REQUESTS_PER_SECOND` (défaut 10, dont 4
    `eth_getLogs` par `ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND`). Cette limite vaut pour les deux URL
    ensemble : quand QuickNode échoue, la même requête part vers le RPC public dans le même tour,
    et celui-ci a été mesuré à environ 10 requêtes/s (`apps/engine/src/chain/rpc-limiter.ts`).
-   - Free trial (15 requêtes/s) : **ne rien changer** (10 reste sous les deux plafonds) ;
+   - Free trial (15 requêtes/s) : **ne rien changer** (10 reste sous les deux plafonds). **Mais
+     sur le Free plan, QuickNode limite `eth_getLogs` à 5 blocs** (10 000 sur les offres payantes,
+     page `eth_getLogs` d'Arc) : les lectures du moteur (une dizaine de blocs toutes les 5 s, et
+     jusqu'à 2 000 blocs pendant un rattrapage) sont refusées par QuickNode et servies par le RPC
+     public, dans le même tour (repli de viem). Rien ne se perd, mais le lecteur d'événements
+     dépend alors du seul RPC public, et chaque lecture coûte deux requêtes. Le moteur le dit :
+     `ARC_RPC_URL did not serve eth_getLogs: ARC_RPC_FALLBACK_URL serves the escrow's logs
+     instead, and the event reader now depends on it (QuickNode's Free plan limits eth_getLogs to
+     5 blocks)` (module `rpc`, niveau warn, avec l'hôte de chaque nœud et le nombre de refus ;
+     une fois, puis au plus toutes les 10 minutes). Sur Free, cet avertissement est attendu. Si le
+     RPC public tombe ou limite, les événements que le moteur n'a pas envoyés lui-même attendent
+     son retour ; ses propres transactions sont enregistrées par leurs reçus et les achats
+     continuent. Build lève la limite (10 000 blocs, le moteur en demande 2 000 au plus) ;
    - Build (50 requêtes/s) : `ARC_RPC_MAX_REQUESTS_PER_SECOND=20` au plus, la moitié du plafond,
      et `ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND` laissé à 4. Au-delà, une panne de QuickNode
      enverrait plus que le RPC public n'accepte (le limiteur temporise alors, sans perte).
@@ -81,7 +106,7 @@ Tableau de bord → **Streams** → **Create Stream** :
 | Chaîne et réseau | **Arc**, **Testnet** |
 | Jeu de données | **Logs** |
 | Début | le dernier bloc (**latest**) : l'historique est déjà lu par le moteur depuis `ARC_ESCROW_DEPLOY_BLOCK` |
-| Taille des lots | 1 bloc ; si le tableau de bord la refuse, 5 avec **Elastic Batch** activé (voir dessous) |
+| Taille des lots | **5**, avec **Elastic Batch** activé (voir dessous) |
 | Distance au sommet, réorganisations | 0 et désactivé : Arc est final au bloc |
 | Filtre | le code ci-dessous |
 | Destination | **Webhook**, URL `https://<domaine>/api/webhooks/quicknode` |
@@ -91,8 +116,25 @@ Tableau de bord → **Streams** → **Create Stream** :
 
 Taille des lots : la documentation de l'API REST exige au moins 5 blocs par lot pour un Stream qui
 suit le sommet d'un réseau aux blocs plus rapides qu'une seconde (refus 422 sinon) et conseille
-Elastic Batch, qui livre sans attendre que le lot soit plein. Elle ne dit pas si Arc est dans ce
-cas : prendre ce que le tableau de bord accepte, la route lit les lots de toute taille.
+Elastic Batch, qui livre sans attendre que le lot soit plein. **Arc testnet est dans ce cas** :
+0,51 s par bloc, mesuré le 19 novembre par la revue de déploiement sur `rpc.testnet.arc.io`
+(251 587 blocs en 128 353 s depuis le bloc de déploiement de l'escrow ; pas refait ici). Avec
+Elastic Batch, un lot de 5 n'attend pas : les blocs partent dès qu'ils existent. La route lit les
+lots de toute taille.
+
+**Ce que le Stream coûte, et quand le créer.** À 1,96 bloc par seconde et 20 crédits par bloc
+(jeu Logs, Arc Testnet, page de facturation des Streams ; le filtre ne réduit rien) :
+3 600 × 1,96 × 20 ≈ **141 000 crédits par heure**, soit **≈ 3,4 M par jour**, avant les requêtes
+RPC du moteur, qui puisent dans le même lot. Le Free trial (10 M, sans dépassement) est donc vidé
+par le Stream seul en **moins de trois jours** ; Build (80 M par mois) le tient environ trois
+semaines. Le moteur n'a pas besoin du Stream (il lit les événements par `eth_getLogs` et par les
+reçus) : **ne pas le créer ce matin**. Sur le Free trial, le créer le plus tard possible (vendredi
+soir pour le samedi), ou le laisser en pause jusqu'à la démo ; à la reprise, repartir du dernier
+bloc. Preuve, une heure après sa création : le compteur de crédits du tableau de bord a avancé
+d'environ 141 000 plus ce que le moteur consomme ; comparer avec le compteur relevé juste avant.
+Ce qui se passe quand les crédits sont épuisés n'est pas écrit dans les pages lues : si QuickNode
+répond alors une erreur, le moteur passe sur le RPC public ; s'il ne répondait plus du tout, le
+moteur attendrait ses délais à chaque requête. Surveiller le compteur.
 
 Le filtre garde les logs de l'escrow (`packages/contracts/deployments/5042002.json`), à quelque
 profondeur qu'ils soient dans `data`, et ne livre rien pour un lot qui n'en a pas :
@@ -119,7 +161,10 @@ sous `data`, ou dans un tableau de plus. À confirmer sur la première livraison
 
 Le **jeton de sécurité** du Stream (réglage « Security token » de la destination, bouton Rotate
 pour en changer) va dans `QUICKNODE_STREAMS_TOKEN`, sur l'hôte de l'**application web**
-(Vercel), jamais préfixé `NEXT_PUBLIC_`. `ARC_ESCROW_ADDRESS` doit y valoir l'adresse ci-dessus.
+(Vercel), jamais préfixé `NEXT_PUBLIC_`, puis Redeploy. `ARC_ESCROW_ADDRESS` y vaut déjà
+l'adresse ci-dessus : elle est posée sur Vercel dès le premier déploiement, Stream ou pas
+(`docs/deploy.md`, étape 4, point 2), parce qu'elle donne aussi le lien vers l'explorateur de
+chaque promo.
 Si la première livraison est refusée pour « another network », le log donne le nom reçu : le
 mettre dans `QUICKNODE_STREAMS_NETWORK` (défaut `arc-testnet`) et redéployer. Les trois valeurs
 sont lues par la configuration du serveur (`serverConfigOf`, `apps/web/lib/server/deps.ts`).
@@ -167,6 +212,18 @@ pnpm quicknode:record --port 8787 --out apps/engine/fixtures/quicknode --once
 
 ## Sources
 
+Pages relues en entier le 19 novembre 2026 :
+
+- [Arc, `eth_getLogs`](https://www.quicknode.com/docs/arc/eth_getLogs) (5 blocs sur le Free plan,
+  10 000 sur les offres payantes) ·
+  [Streams, facturation](https://www.quicknode.com/docs/streams/billing) (crédits = blocs ×
+  multiplicateur, 20 pour Arc Testnet Logs, un seul lot de crédits avec le RPC, filtres sans effet
+  sur le coût, Stream en pause gratuit) ·
+  [API REST, lots et Elastic Batch](https://www.quicknode.com/docs/streams/rest-api) (au moins 5
+  blocs sous la seconde, refus 422) ·
+  [Créer un Stream](https://www.quicknode.com/docs/streams/rest-api/create-stream) ·
+  [Prix et offres](https://www.quicknode.com/pricing)
+
 Pages lues en entier le 18 novembre 2026 :
 
 - [Streams, chaînes prises en charge](https://www.quicknode.com/docs/streams/supported-chains) ·
@@ -181,8 +238,5 @@ Pages lues en entier le 18 novembre 2026 :
   [Guide des filtres](https://www.quicknode.com/guides/quicknode-products/streams/how-to-use-filters-with-streams)
 - [Compression](https://www.quicknode.com/guides/quicknode-products/streams/reduce-streams-costs-with-data-compression) ·
   [Réorganisations](https://www.quicknode.com/docs/streams/reorg-handling) ·
-  [API REST, lots et Elastic Batch](https://www.quicknode.com/docs/streams/rest-api) ·
-  [Créer un Stream (paramètres de retentative)](https://www.quicknode.com/docs/streams/rest-api/create-stream) ·
   [Relancer un Stream en pause](https://www.quicknode.com/docs/streams/rest-api/activate-stream) ·
   [FAQ](https://www.quicknode.com/docs/streams/faq)
-- [Prix et offres](https://www.quicknode.com/pricing)
