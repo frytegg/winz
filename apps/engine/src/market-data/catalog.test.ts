@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { CatalogCache } from "./catalog-cache";
+import { CATALOG_LEAGUES } from "./catalog-leagues";
 import { InMemoryCatalogStore, mapEventStatus } from "./catalog-store";
 import { SettlementConflictError } from "./errors";
 import { GeminiRestClient } from "./gemini-rest-client";
@@ -146,8 +147,8 @@ describe("InMemoryCatalogStore", () => {
       .map((instrument) => instrument.symbol)
       .filter((symbol) => symbol !== "GEMI-NCAAF-2611212030-ARK-TEX-M-TEX");
 
-    expect(await store.markDelisted(listed)).toBe(1);
-    expect(await store.markDelisted(listed)).toBe(0);
+    expect(await store.markDelisted(listed, ["NCAAF"])).toBe(1);
+    expect(await store.markDelisted(listed, ["NCAAF"])).toBe(0);
     expect(store.listInstruments()).toHaveLength(catalog.instruments.length);
     expect(store.getInstrument("GEMI-NCAAF-2611212030-ARK-TEX-M-TEX")?.active).toBe(false);
     expect(store.getInstrument("GEMI-NCAAF-2611212030-ARK-TEX-M-ARK")?.active).toBe(true);
@@ -213,13 +214,16 @@ describe("sync", () => {
     });
     const store = new InMemoryCatalogStore();
 
+    // One page per league (the fixture is short) and one coverage request per sport.
+    const perLoad =
+      CATALOG_LEAGUES.length + new Set(CATALOG_LEAGUES.map((league) => league.sport)).size;
     expect(await syncCatalog(cache, store)).toEqual({ events: 3, instruments: 73, delisted: 0 });
     expect(await syncCatalog(cache, store)).toEqual({ events: 3, instruments: 73, delisted: 0 });
-    expect(http.urls).toHaveLength(1);
+    expect(http.urls).toHaveLength(perLoad);
 
     time.advance(60_000);
     await syncCatalog(cache, store);
-    expect(http.urls).toHaveLength(2);
+    expect(http.urls).toHaveLength(2 * perLoad);
     expect(store.listEvents()).toHaveLength(3);
     expect(store.listInstruments()).toHaveLength(73);
   });
@@ -245,7 +249,8 @@ describe("sync", () => {
       now: () => SETTLED_AT.getTime(),
     });
 
-    expect(settled).toBe(2);
+    expect(settled.newlySettled).toBe(2);
+    expect(settled).toMatchObject({ pages: 1, complete: true, conflicts: 0, events: 4 });
     expect(http.urls).toEqual([
       "https://gemini.test/v1/prediction-markets/events/recently-settled?limit=50&offset=0&category=Sports",
     ]);

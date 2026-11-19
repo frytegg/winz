@@ -3,7 +3,7 @@ import type { Outcome } from "@winz/shared";
 
 import type { Db } from "../db";
 
-import { mapEventStatus, type CatalogStore } from "./catalog-store";
+import { mapEventStatus, type AwaitedEvent, type CatalogStore } from "./catalog-store";
 import { SettlementConflictError } from "./errors";
 import type { NormalizedEvent, NormalizedInstrument } from "./normalize";
 import { systemClock, type Clock } from "./rate-limiter";
@@ -161,19 +161,56 @@ export class PgCatalogStore implements CatalogStore {
     });
   }
 
-  async markDelisted(listedSymbols: readonly string[]): Promise<number> {
+  /**
+   * Only instruments whose game (`events.league`) is of one of `leagues`: a league that was not
+   * read completely keeps its games as they are.
+   */
+  async markDelisted(
+    listedSymbols: readonly string[],
+    leagues: readonly string[],
+  ): Promise<number> {
+    if (leagues.length === 0) return 0;
     const listed = [...new Set(listedSymbols)].map((symbol) => ({ symbol }));
+    const complete = [...new Set(leagues)].map((league) => ({ league }));
     const result = await this.db.begin(
       (tx) => tx`
         update instruments
         set active = false
         where active
+          and event_ticker in (
+            select e.ticker from events e
+            where e.league in (
+              select r.league from jsonb_to_recordset(${tx.json(complete)}::jsonb) as r (league text)
+            )
+          )
           and symbol not in (
             select r.symbol from jsonb_to_recordset(${tx.json(listed)}::jsonb) as r (symbol text)
           )
       `,
     );
     return result.count;
+  }
+
+  /**
+   * Campaigns that wait on a result: on-chain, live, paused or with sales closed, past their sales
+   * close at `now`, their instrument without an outcome, and no forced demo result (which wins
+   * over Gemini's anyway). Grouped by game, longest waiting first.
+   */
+  async listAwaitedEvents(now: Date): Promise<AwaitedEvent[]> {
+    const rows = await this.db<{ event_ticker: string; symbols: string[] }[]>`
+      select i.event_ticker, array_agg(distinct i.symbol order by i.symbol) as symbols
+      from campaigns c
+      join instruments i on i.symbol = c.instrument
+      left join demo_overrides d on d.instrument = c.instrument
+      where c.onchain_id is not null
+        and c.status in ('live', 'paused', 'sales_closed')
+        and c.sales_close <= ${now.toISOString()}::timestamptz
+        and i.outcome is null
+        and d.forced_result is null
+      group by i.event_ticker
+      order by min(c.sales_close), i.event_ticker
+    `;
+    return rows.map((row) => ({ eventTicker: row.event_ticker, symbols: row.symbols }));
   }
 
   /**

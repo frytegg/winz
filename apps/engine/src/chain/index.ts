@@ -6,6 +6,27 @@ export {
 } from "./clients";
 export { abortableSleep, systemClock } from "./clock";
 export {
+  EngineIdentityError,
+  EngineIdentityForeignHistoryError,
+  EngineIdentityMismatchError,
+  assertSameIdentity,
+  claimEngineIdentity,
+  readEngineIdentity,
+  type EngineIdentity,
+  type ForeignHistory,
+  type RecordedIdentity,
+} from "./engine-identity";
+export {
+  EscrowConfigError,
+  EscrowNotFoundError,
+  EscrowRolesMismatchError,
+  EscrowRolesUnreadableError,
+  checkEscrowRoles,
+  type EscrowRolesCheck,
+  type EscrowRolesClient,
+  type RoleMismatch,
+} from "./escrow-roles";
+export {
   classifyBroadcastError,
   classifySimulationError,
   decodeRevertData,

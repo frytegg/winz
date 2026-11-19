@@ -86,6 +86,11 @@ const rawEventFields = {
   category: z.string().nullish(),
   /** Absent on futures ("MLS Cup Champion") and other non-game events. */
   startTime: z.iso.datetime().nullish(),
+  /**
+   * When Gemini resolved the event. Present on settled events; the recently-settled list is
+   * sorted on it, newest first (checked on the whole list, 280 events, 19 Nov 2026).
+   */
+  resolvedAt: z.iso.datetime().nullish(),
   participants: z.array(rawParticipantSchema).nullish(),
   /** Shared by every market of the same game; the only reliable link between them. */
   gameId: z.string().nullish(),

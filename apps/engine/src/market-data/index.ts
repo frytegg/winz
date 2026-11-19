@@ -1,8 +1,10 @@
 export { CATALOG_TTL_MS, CatalogCache, type CatalogCacheOptions } from "./catalog-cache";
+export { CATALOG_LEAGUES, type CatalogLeague } from "./catalog-leagues";
 export {
   EVENT_STATUSES,
   InMemoryCatalogStore,
   mapEventStatus,
+  type AwaitedEvent,
   type CatalogStore,
   type EventStatus,
   type StoredInstrument,
@@ -13,9 +15,12 @@ export {
   GeminiNetworkError,
   GeminiResponseError,
   SettlementConflictError,
+  SyncAbortedError,
 } from "./errors";
 export {
   GeminiRestClient,
+  LISTING_CAP,
+  MAX_PAGE_SIZE,
   SPORTS_CATEGORY,
   type EventsPage,
   type FetchLike,
@@ -24,6 +29,8 @@ export {
   type ListAllParams,
   type ListEventsParams,
   type ListSettledParams,
+  type ListingRead,
+  type ReadListingParams,
 } from "./gemini-rest-client";
 export {
   INSTRUMENT_SIDES,
@@ -67,14 +74,24 @@ export {
 } from "./schemas";
 export { INVALID_EVENT_STATUS, parseSettlements } from "./settlement";
 export {
+  DIRECT_READS_PER_RUN,
+  SETTLED_MAX_PAGES,
+  SETTLED_OVERLAP_MS,
   loadSportsCatalog,
+  readAwaitedResults,
   startCatalogSync,
   storeCatalog,
   syncCatalog,
   syncSettlements,
+  type AwaitedResultsRun,
   type CatalogSyncResult,
   type CatalogSyncService,
   type CatalogSyncServiceOptions,
+  type LeagueRead,
+  type LoadSportsCatalogOptions,
+  type ReadAwaitedResultsOptions,
+  type SettlementSyncResult,
+  type SportsCatalog,
   type SyncSettlementsOptions,
 } from "./sync";
 export {

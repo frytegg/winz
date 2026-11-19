@@ -4,7 +4,13 @@ import type { z } from "zod";
 import { parseContracts, parsePriceBps } from "@winz/shared";
 import type { Book, BookLevel } from "@winz/shared";
 
-import { GeminiHttpError, GeminiNetworkError, GeminiResponseError, describeError } from "./errors";
+import {
+  GeminiHttpError,
+  GeminiNetworkError,
+  GeminiResponseError,
+  SyncAbortedError,
+  describeError,
+} from "./errors";
 import {
   GEMINI_BUCKET_DEFAULTS,
   TokenBucket,
@@ -17,6 +23,7 @@ import {
 import {
   bookResponseSchema,
   eventsResponseSchema,
+  rawEventSchema,
   type Pagination,
   type RawEvent,
 } from "./schemas";
@@ -56,7 +63,12 @@ export interface GeminiRestClientOptions {
 export interface ListEventsParams {
   /** Gemini category, e.g. "Sports". */
   category?: string;
-  /** Free-text search on the event title. */
+  /**
+   * Gemini `sportsMarket.sport`, e.g. "american_football". Checked by Gemini: an unknown value
+   * is answered HTTP 400 `invalid sport` (19 Nov 2026).
+   */
+  sport?: string;
+  /** Free-text search: it matches the ticker ("NCAAF" finds every NCAAF event) and the title. */
   search?: string;
   limit: number;
   offset: number;
@@ -70,10 +82,44 @@ export interface ListSettledParams {
 
 export interface ListAllParams {
   category?: string;
+  sport?: string;
   search?: string;
   pageSize?: number;
   /** Safety stop if `pagination.total` keeps growing or lies. */
   maxPages?: number;
+}
+
+export interface ReadListingParams {
+  category?: string;
+  sport?: string;
+  search?: string;
+  /** Events per request. Default 100; Gemini serves at most 500 (a larger `limit` is cut). */
+  pageSize?: number;
+  /**
+   * Each page after the first starts this many events before the end of the previous one, and
+   * must contain one of them: proof that no event slid between two pages. Default 10.
+   */
+  overlap?: number;
+  /** Safety stop. Default 20 (1 810 events at the defaults, more than the cap). */
+  maxPages?: number;
+  /** Checked before each page: once aborted, the read throws `SyncAbortedError`. */
+  signal?: AbortSignal;
+}
+
+/**
+ * A listing read to its end, and whether it can be trusted as the WHOLE of what Gemini lists for
+ * that filter. Only a complete listing may be used to decide that something is no longer listed.
+ */
+export interface ListingRead {
+  /** Every event read, in API order, each once. */
+  events: RawEvent[];
+  /** `pagination.total` of the last page read (0 when nothing was read). */
+  total: number;
+  /** Requests sent (each page once; the client's retries are not counted). */
+  requests: number;
+  complete: boolean;
+  /** Why it is not complete; null when it is. */
+  incompleteReason: string | null;
 }
 
 export interface EventsPage {
@@ -84,6 +130,21 @@ export interface EventsPage {
 export const SPORTS_CATEGORY = "Sports";
 const DEFAULT_PAGE_SIZE = 50;
 const DEFAULT_MAX_PAGES = 60;
+
+/**
+ * Gemini's events listing stops at about 1 000 events, whatever the filter (measured 19 Nov 2026,
+ * 06:47 to 07:15 UTC: `status=active&category=Sports` and `status=active` alone both report
+ * `pagination.total` 1003 and serve nothing past offset 1003, while the per-sport listings of the
+ * same moment add up to 1 359; the listing is sorted by start time, so the cut drops the games
+ * furthest out). A listing whose `total` reaches this value is treated as cut: it is never the
+ * whole of anything.
+ */
+export const LISTING_CAP = 1_000;
+/** Gemini answers at most this many events per request (`limit=1000` came back `limit: 500`). */
+export const MAX_PAGE_SIZE = 500;
+const DEFAULT_LISTING_PAGE_SIZE = 100;
+const DEFAULT_LISTING_OVERLAP = 10;
+const DEFAULT_LISTING_MAX_PAGES = 20;
 /** A `Retry-After` longer than this is not honoured in-request; the caller's next poll retries. */
 const MAX_RETRY_AFTER_MS = 60_000;
 /** Generic on purpose: nothing about the project or its owner leaves the machine. */
@@ -138,11 +199,106 @@ export class GeminiRestClient {
         offset: params.offset.toString(),
         status: "active",
         category: params.category,
+        sport: params.sport,
         search: params.search,
       },
       eventsResponseSchema,
     );
     return { events: body.data, pagination: body.pagination };
+  }
+
+  /**
+   * Reads an active listing to its end and says whether it is the whole of it. Pages overlap by
+   * `overlap` events, and each page must contain one of the previous page's last `overlap`
+   * tickers: the listing is sorted (start time, then a stable tie-break, checked 19 Nov 2026),
+   * so an event that ended between two requests can shift the rest by one, which the overlap
+   * absorbs, and a shift larger than the overlap is detected instead of silently skipping events.
+   *
+   * A listing at the cap is still read to its end (what it serves is kept) and is not complete.
+   * Not complete when: `total` reaches `LISTING_CAP`, a page breaks the overlap, a page comes back
+   * empty before `total`, or `maxPages` is reached. A failed request throws (the caller decides),
+   * and so does an aborted `signal`, before the next page (`SyncAbortedError`).
+   */
+  async readActiveListing(params: ReadListingParams = {}): Promise<ListingRead> {
+    const pageSize = params.pageSize ?? DEFAULT_LISTING_PAGE_SIZE;
+    const overlap = params.overlap ?? DEFAULT_LISTING_OVERLAP;
+    const maxPages = params.maxPages ?? DEFAULT_LISTING_MAX_PAGES;
+    if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
+      throw new RangeError(`readActiveListing: pageSize must be 1 to ${MAX_PAGE_SIZE.toString()}`);
+    }
+    if (!Number.isInteger(overlap) || overlap < 0 || overlap >= pageSize) {
+      throw new RangeError("readActiveListing: overlap must be 0 or more and under pageSize");
+    }
+    const byTicker = new Map<string, RawEvent>();
+    let previousTail: string[] = [];
+    let offset = 0;
+    let total = 0;
+    let requests = 0;
+    const result = (complete: boolean, incompleteReason: string | null): ListingRead => ({
+      events: [...byTicker.values()],
+      total,
+      requests,
+      complete,
+      incompleteReason,
+    });
+
+    for (let page = 0; page < maxPages; page += 1) {
+      if (params.signal?.aborted) throw new SyncAbortedError();
+      const answer = await this.listActiveEvents({
+        category: params.category,
+        sport: params.sport,
+        search: params.search,
+        limit: pageSize,
+        offset,
+      });
+      requests += 1;
+      total = answer.pagination.total;
+      const tickers = answer.events.map((event) => event.ticker);
+      if (page > 0 && previousTail.length > 0 && answer.events.length > 0) {
+        const tail = new Set(previousTail);
+        if (!tickers.some((ticker) => tail.has(ticker))) {
+          for (const event of answer.events) byTicker.set(event.ticker, event);
+          return result(
+            false,
+            `the page at offset ${offset.toString()} does not overlap the previous one: ` +
+              "the listing moved by more than the overlap while it was read",
+          );
+        }
+      }
+      for (const event of answer.events) {
+        if (!byTicker.has(event.ticker)) byTicker.set(event.ticker, event);
+      }
+      const end = offset + answer.events.length;
+      if (end >= total) {
+        // Read to the end of what is served; at the cap, that is not the whole listing.
+        return total >= LISTING_CAP
+          ? result(
+              false,
+              `the listing reports ${total.toString()} events, at Gemini's cap of about ` +
+                `${LISTING_CAP.toString()}: what lies past the cap is never served`,
+            )
+          : result(true, null);
+      }
+      if (answer.events.length === 0) {
+        return result(
+          false,
+          `an empty page at offset ${offset.toString()} before the reported total of ${total.toString()}`,
+        );
+      }
+      // An answer shorter than asked, before the total: the listing shrank while it was read.
+      previousTail = tickers.slice(Math.max(0, tickers.length - overlap));
+      offset = Math.max(offset + 1, end - overlap);
+    }
+    return result(false, `stopped after ${maxPages.toString()} pages, before the end`);
+  }
+
+  /**
+   * One event by ticker, as Gemini serves it on its own page: a game comes with its other markets
+   * in `events`, each with its contracts and, once resolved, their `resolutionSide` (checked on a
+   * settled NBA game, 19 Nov 2026). Throws `GeminiHttpError` (404) for an unknown ticker.
+   */
+  async getEvent(ticker: string): Promise<RawEvent> {
+    return this.request(`${EVENTS_PATH}/${encodeURIComponent(ticker)}`, {}, rawEventSchema);
   }
 
   /** Every active event matching the filter, all pages, in API order (duplicates included). */
@@ -154,13 +310,28 @@ export class GeminiRestClient {
     for (let page = 0; page < maxPages; page += 1) {
       const result = await this.listActiveEvents({
         category: params.category,
+        sport: params.sport,
         search: params.search,
         limit: pageSize,
         offset,
       });
       events.push(...result.events);
       offset += result.events.length;
-      if (result.events.length === 0 || offset >= result.pagination.total) return events;
+      if (result.events.length === 0 || offset >= result.pagination.total) {
+        if (result.pagination.total >= LISTING_CAP) {
+          this.logger.error(
+            {
+              category: params.category,
+              sport: params.sport,
+              search: params.search,
+              total: result.pagination.total,
+              cap: LISTING_CAP,
+            },
+            "gemini events listing cut at its cap: events past it are missing",
+          );
+        }
+        return events;
+      }
     }
     this.logger.warn(
       { maxPages, pageSize, fetched: events.length },
@@ -169,7 +340,11 @@ export class GeminiRestClient {
     return events;
   }
 
-  /** Every active sports event, all pages. About 20 requests for ~950 events. */
+  /**
+   * The single Sports listing, all pages. It is CUT at about 1 000 events (`LISTING_CAP`): on
+   * 19 Nov 2026 it held 193 of the games, and not Saturday's. The catalogue no longer uses it
+   * (see `loadSportsCatalog`, one listing per league); kept for tools that want a quick look.
+   */
   listAllSportsEvents(): Promise<RawEvent[]> {
     return this.listAllActiveEvents({ category: SPORTS_CATEGORY });
   }

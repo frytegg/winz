@@ -60,6 +60,17 @@ export class GeminiResponseError extends GeminiError {
   }
 }
 
+/**
+ * A sync stopped between two requests because its service is stopping (the engine's stop, or the
+ * lease's fence). Nothing of an unfinished catalogue is written.
+ */
+export class SyncAbortedError extends Error {
+  constructor() {
+    super("the sync was stopped before it finished");
+    this.name = "SyncAbortedError";
+  }
+}
+
 /** An instrument was reported settled twice with two different outcomes. Needs a human. */
 export class SettlementConflictError extends Error {
   constructor(
