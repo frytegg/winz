@@ -252,7 +252,9 @@ export const copy = {
     simulatePayment: "Simulate payment",
     simulatePaymentOf: (amount: string): string => `Simulate payment · ${amount}`,
     paying: "Paying…",
-    cardSoon: "Card payment arrives with the live version.",
+    fundWithCard: (amount: string): string => `Fund ${amount} with card`,
+    fundAmount: (amount: string): string => `Pay ${amount}`,
+    cardTitle: "Pay with card",
   },
 
   /** M8 */
@@ -518,7 +520,9 @@ export const copy = {
     total: "Total",
     chargedWhenReady: "You're only charged once your ticket is ready.",
     backToPromo: "Back to the promo",
-    cardSoon: "Card payment arrives with the live version.",
+    payAmount: (amount: string): string => `Pay ${amount}`,
+    noWallet: "Apple Pay isn't available here. Pay with your card instead.",
+    unavailable: "Payment isn't available right now. Try again in a moment.",
     closeSheet: "Close checkout",
     ticketPrinting: "Your ticket is being printed",
   },
