@@ -677,7 +677,15 @@ bord.
    Plus, pour le front : `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (`pk_test_…`),
    `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Mettre `APP_ENV=production`,
    `APP_BASE_URL=https://<domaine>`, `APP_EXECUTION_VENUE` égal à celui du moteur, et **ne pas**
-   définir `APP_API_MOCK` (en production il est ignoré de toute façon).
+   définir `APP_API_MOCK` (en production il est ignoré de toute façon) **ni
+   `NEXT_PUBLIC_APP_API_MOCK`** : celle-ci est recopiée dans le JavaScript à la construction, le
+   serveur ne peut pas l'ignorer, et un front de production construit avec elle proposerait la
+   connexion simulée devant une API réelle.
+
+   **Mode simulé, pour l'environnement Preview seulement** (voir les écrans avec les données
+   d'exemple, sans base ni Stripe ni Privy) : `APP_API_MOCK=true` et
+   `NEXT_PUBLIC_APP_API_MOCK=true`, toujours les deux ensemble, en ne cochant que **Preview**.
+   Chaque push sur une branche autre que `main` donne alors une version simulée.
 
    **Construction et exécution.** `next build` ne lit aucune variable du serveur (vérifié : la
    construction passe avec un environnement vide) : elles ne servent qu'à l'exécution, lues à la

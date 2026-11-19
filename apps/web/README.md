@@ -13,7 +13,7 @@ réponse d'exemple figée, au format exact que renverra le vrai back. Aucun serv
 tourner et aucun secret n'est nécessaire : ni base de données, ni Stripe, ni Privy.
 
 ```bash
-APP_API_MOCK=true pnpm --filter @winz/web dev
+APP_API_MOCK=true NEXT_PUBLIC_APP_API_MOCK=true pnpm --filter @winz/web dev
 ```
 
 L'application est sur `http://localhost:3000`. Pour vérifier que l'API répond :
