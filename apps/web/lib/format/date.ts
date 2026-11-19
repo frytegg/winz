@@ -5,6 +5,11 @@
  */
 
 const TIME = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
+const TIME_SECONDS = new Intl.DateTimeFormat("en-US", {
+  hour: "numeric",
+  minute: "2-digit",
+  second: "2-digit",
+});
 const SHORT_DATE = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 const WEEKDAY = new Intl.DateTimeFormat("en-US", { weekday: "short" });
 const WEEKDAY_LONG = new Intl.DateTimeFormat("en-US", { weekday: "long" });
@@ -18,6 +23,11 @@ function parse(iso: string): Date {
 /** "7:00 PM" */
 export function formatTime(iso: string): string {
   return TIME.format(parse(iso));
+}
+
+/** "7:00:04 PM", for a feed where seconds matter (the Hedge desk). */
+export function formatTimeSeconds(iso: string): string {
+  return TIME_SECONDS.format(parse(iso));
 }
 
 /** "Nov 22" */
