@@ -10,7 +10,7 @@ import type { LandingLinks } from "../../lib/landing/links";
  * Relative import on purpose (not `@/`): the check script loads this file outside Next.
  */
 export const landingLinks: LandingLinks = {
-  liveDemoUrl: null,
+  liveDemoUrl: "/",
   videoUrl: null,
   githubUrl: null,
   devpostUrl: null,
@@ -18,5 +18,6 @@ export const landingLinks: LandingLinks = {
     { name: "Téo", url: null },
     { name: "Alexandre", url: null },
   ],
-  appInstallUrl: null,
+  appInstallUrl: "/",
+  appQrUrl: "https://winz-nu.vercel.app/",
 };

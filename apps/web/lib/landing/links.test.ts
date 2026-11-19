@@ -11,6 +11,7 @@ const complete: LandingLinks = {
   devpostUrl: "https://devpost.com/software/winz",
   teamLinks: [{ name: "Téo", url: "https://x.com/someone" }],
   appInstallUrl: "/",
+  appQrUrl: "https://winz-nu.vercel.app/",
 };
 
 describe("isUsableLink", () => {
@@ -84,9 +85,16 @@ describe("landingLinks (the config)", () => {
       landingLinks.githubUrl,
       landingLinks.devpostUrl,
       landingLinks.appInstallUrl,
+      landingLinks.appQrUrl,
       ...landingLinks.teamLinks.map((person) => person.url),
     ];
     for (const value of values) expect(value === null || isUsableLink(value)).toBe(true);
+  });
+
+  it("keeps the QR URL absolute: a code is scanned away from this site, a path would lead nowhere", () => {
+    expect(landingLinks.appQrUrl === null || landingLinks.appQrUrl.startsWith("https://")).toBe(
+      true,
+    );
   });
 
   it("names the two people of the footer", () => {
