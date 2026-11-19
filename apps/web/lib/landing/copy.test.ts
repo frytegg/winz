@@ -18,8 +18,8 @@ describe("landingCopy.meta", () => {
 
 describe("landingCopy.heroTitle", () => {
   it("reads as the H1 of COPY.md once the three runs are put together", () => {
-    const { before, highlight, after } = landingCopy.heroTitle;
-    expect(`${before}${highlight}${after}`).toBe("Get payback if your team wins.");
+    const { before, highlight, firstLineEnd, second } = landingCopy.heroTitle;
+    expect(`${before}${highlight}${firstLineEnd} ${second}`).toBe("Get payback if your team wins.");
     expect(highlight).toBe("payback");
   });
 });

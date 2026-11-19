@@ -13,9 +13,8 @@ const { ink: INK, end: END, fadeStart } = OG_LANDING_HERO;
 const TITLE_SIZE = 104;
 
 export function LandingShareCard({ wordmark }: { wordmark: string | null }): React.JSX.Element {
-  const { before, highlight, after } = landingCopy.heroTitle;
   // "Get payback if" on the first line, "your team wins." on the second, as on the page.
-  const [afterFirstLine = "", secondLine = ""] = after.split(/(?<=if) /);
+  const { before, highlight, firstLineEnd, second } = landingCopy.heroTitle;
 
   return (
     <div
@@ -68,9 +67,9 @@ export function LandingShareCard({ wordmark }: { wordmark: string | null }): Rea
         <div style={{ display: "flex", whiteSpace: "pre" }}>
           {before}
           <span style={{ color: LIME }}>{highlight}</span>
-          {afterFirstLine}
+          {firstLineEnd}
         </div>
-        <div style={{ display: "flex" }}>{secondLine}</div>
+        <div style={{ display: "flex" }}>{second}</div>
       </div>
     </div>
   );
