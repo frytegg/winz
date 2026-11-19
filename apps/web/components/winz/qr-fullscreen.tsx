@@ -4,12 +4,14 @@ import { X } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { copy } from "@/lib/copy";
+import { useScreenAwake } from "@/lib/use-screen-awake";
 
 import { QrCode } from "./qr-code";
 
 /**
  * The QR code at full size, for a customer to scan from across the counter. A native modal
- * `<dialog>`: Escape closes it and focus stays inside.
+ * `<dialog>`: Escape closes it and focus stays inside. A tap anywhere closes it too, and the screen
+ * is kept awake while it is up (a browser cannot raise the brightness: the caption asks for it).
  */
 export function QrFullscreen({
   open,
@@ -21,6 +23,7 @@ export function QrFullscreen({
   value: string;
 }): React.JSX.Element {
   const ref = useRef<HTMLDialogElement>(null);
+  useScreenAwake(open);
 
   useEffect(() => {
     const dialog = ref.current;
@@ -34,10 +37,8 @@ export function QrFullscreen({
       ref={ref}
       aria-label={copy.live.qrAlt}
       onClose={onClose}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-      className="m-0 h-dvh max-h-none w-dvw max-w-none bg-white-pill p-0 open:grid open:place-items-center"
+      onClick={onClose}
+      className="m-0 h-dvh max-h-none w-dvw max-w-none bg-white-pill p-0 text-ink open:grid open:place-items-center"
     >
       <button
         type="button"
@@ -47,8 +48,9 @@ export function QrFullscreen({
       >
         <X className="size-5" strokeWidth={1.5} aria-hidden="true" />
       </button>
-      <div className="w-[min(88vw,88dvh,560px)]">
+      <div className="flex w-[min(88vw,76dvh,560px)] flex-col items-center gap-5">
         <QrCode value={value} label={copy.live.qrAlt} />
+        <p className="text-center text-body">{copy.live.qrBrightness}</p>
       </div>
     </dialog>
   );

@@ -279,6 +279,7 @@ export const copy = {
     dashboard: "Go to my dashboard",
     qrAlt: "QR code of your promo page",
     closeQr: "Close",
+    qrBrightness: "Turn your brightness all the way up so it scans from across the counter.",
     copyLink: "Copy the link",
     enlargeQr: "Enlarge the QR code",
     shareTitle: (merchant: string): string => (merchant === "" ? "Winz" : `${merchant} on Winz`),
