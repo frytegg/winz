@@ -139,6 +139,11 @@ values (
 insert into public.engine_lease (name, holder, acquired_at, renewed_at, expires_at)
 values ('engine', 'eng-0123456789ab', now(), now(), now() + interval '15 seconds');
 
+-- The chain and escrow this database belongs to, recorded by the first engine on it
+-- (apps/engine/src/chain/engine-identity.ts).
+insert into public.engine_identity (chain_id, escrow_address)
+values (5042002, '0x81d2d4050e617184b2b832c30be68f8811b37d2c');
+
 -- The seed and the fixtures together put at least one row in every table.
 select test.count_is(
   format('select count(*) from (select 1 from public.%I limit 1) t', t.name),

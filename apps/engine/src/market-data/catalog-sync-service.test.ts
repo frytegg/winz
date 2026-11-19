@@ -3,13 +3,18 @@ import pino, { type Logger } from "pino";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CatalogCache } from "./catalog-cache";
-import { InMemoryCatalogStore, type CatalogStore } from "./catalog-store";
+import { CATALOG_LEAGUES } from "./catalog-leagues";
+import { InMemoryCatalogStore, type AwaitedEvent, type CatalogStore } from "./catalog-store";
 import { GeminiRestClient } from "./gemini-rest-client";
 import type { NormalizedEvent, NormalizedInstrument } from "./normalize";
 import { loadSportsCatalog, startCatalogSync } from "./sync";
 import { fakeFetch, fakeTime, fixtureText, silentLogger, type FakeFetch } from "./test-support";
 
 const INTERVAL_MS = 60_000;
+
+/** Requests of one catalogue load: one page per league (the fixture is short), one per sport. */
+const CATALOGUE_REQUESTS =
+  CATALOG_LEAGUES.length + new Set(CATALOG_LEAGUES.map((league) => league.sport)).size;
 
 function geminiOn(respond: (url: string) => string = defaultBody): {
   client: GeminiRestClient;
@@ -80,8 +85,12 @@ class ScriptedStore implements CatalogStore {
     return this.inner.upsertInstruments(instruments);
   }
 
-  markDelisted(listedSymbols: readonly string[]): Promise<number> {
-    return this.inner.markDelisted(listedSymbols);
+  markDelisted(listedSymbols: readonly string[], leagues: readonly string[]): Promise<number> {
+    return this.inner.markDelisted(listedSymbols, leagues);
+  }
+
+  listAwaitedEvents(now: Date): Promise<AwaitedEvent[]> {
+    return this.inner.listAwaitedEvents(now);
   }
 
   markSettled(outcomes: ReadonlyMap<string, Outcome>, settledAt: Date): Promise<number> {
@@ -133,7 +142,7 @@ describe("startCatalogSync", () => {
     expect(store.inner.listEvents()).toHaveLength(3);
     expect(store.inner.listInstruments()).toHaveLength(73);
     expect(http.urls.map((url) => new URL(url).pathname)).toEqual([
-      "/v1/prediction-markets/events",
+      ...Array.from({ length: CATALOGUE_REQUESTS }, () => "/v1/prediction-markets/events"),
       "/v1/prediction-markets/events/recently-settled",
     ]);
 
@@ -339,7 +348,7 @@ describe("startCatalogSync", () => {
     await flush();
     expect(store.inner.listEvents()).toHaveLength(3);
     const catalogueRequests = http.urls.filter((url) => !url.includes("recently-settled"));
-    expect(catalogueRequests).toHaveLength(1);
+    expect(catalogueRequests).toHaveLength(CATALOGUE_REQUESTS);
   });
 
   it("rejects an interval that is not a positive number", () => {

@@ -17,11 +17,15 @@ The web app never does either: it writes rows and enqueues jobs, and the engine 
 | `sale-states` | Decides every second whether each campaign can sell, and why not.                                          |
 | `settlement`  | Once a game is decided: final hedge charges, `settle`, refunds in batches of 50, payout, release.          |
 | `jobs`        | The work the web app enqueues: create a campaign, sell a ticket, pause, close sales, top up a budget.      |
-| `catalog-sync`| Gemini's catalogue of games and their results, every minute.                                               |
+| `catalog-sync`| Gemini's catalogue of games (one listing per league) and their results, every minute: see below.           |
 
 The budget top-up job (`campaign.top_up`, one per paid top-up, SPEC CA-6) sends
 `topUpBudgetFor` (key `topUpBudget:<payment id>`, a barrier) and projects its `BudgetToppedUp`,
 or, when the campaign can no longer take it, refunds the merchant's card once: never both.
+
+Before the first of them starts, `startEngine` runs two start checks (the escrow's roles, the
+database's chain and escrow) and refuses to start on either: see
+[Start-up checks](#start-up-checks).
 
 Every service resumes from the database and the chain after a restart: a transaction signed
 before a crash is re-broadcast as it was, never signed twice. Only **one engine works on a
@@ -40,7 +44,7 @@ start, naming each problem, when one is missing or malformed.
 
 | Variable                                              | Needed    | Notes                                                                                 |
 | ----------------------------------------------------- | --------- | ------------------------------------------------------------------------------------- |
-| `DB_URL`                                              | yes       | Postgres. Works through Supabase's transaction pooler.                                |
+| `DB_URL`                                              | yes       | Postgres. Works through Supabase's transaction pooler. TLS is required for any host that is not local (`sslmode=require`: encrypted, certificate not verified); `sslmode=` in the URL overrides it. |
 | `APP_ADMIN_DEMO_KEY`                                  | yes       | At least 16 characters. Same value as the web app.                                    |
 | `ARC_RPC_URL`, `ARC_ESCROW_ADDRESS`, `ARC_ESCROW_DEPLOY_BLOCK` | yes | See `docs/arc-testnet.md` and `packages/contracts/deployments/`.                   |
 | `ARC_RELAYER_PRIVATE_KEY`, `ARC_ORACLE_PRIVATE_KEY`   | yes       | Two different keys. Testnet only. Never logged.                                       |
@@ -66,6 +70,87 @@ again. On a first start far behind the head, the event reader catches up in rang
 blocks, four a second: 60 000 blocks take about 30 requests and 8 s. On shutdown, requests
 still waiting for their turn after 9 s are released unsent, so the engine stops within its
 15 s grace period.
+
+## Gemini catalogue and results
+
+**One listing per league.** Gemini's events listing stops at about 1 000 events whatever the
+filter (`LISTING_CAP`): on 19 Nov 2026 the single Sports listing the engine read reported 1003,
+sorted by start time, and held 193 games, without Saturday's Arkansas at Texas. The catalogue is
+now the union of one listing per league, `sport=<sport>&search=<league>`, each far under the cap.
+The leagues, each with its reason, are the list `CATALOG_LEAGUES`
+(`src/market-data/catalog-leagues.ts`): NCAAF, NFL, NCAAM, NBA, NHL, UCL, EPL, MLS, LALIGA,
+LIGAMX, MLB. Pages of 100 overlap by 10, and each page must contain one of the previous page's last
+tickers, so an event that slid between two requests is noticed rather than skipped.
+
+- A league whose listing reaches the cap is logged at ERROR with its name (`gemini league listing
+  at the cap`); a league whose read fails, too. Neither counts as read.
+- Each sport's own listing total is compared with the sum of its leagues' (one `limit=1` request
+  per sport); a sport with more events is logged at WARN: a league is missing from the list.
+- **A game is deactivated only by a complete read of its own league that no longer lists it**
+  (`events.league`). A league cut at the cap, failed or not read keeps its games as they are; an
+  empty catalogue deactivates nothing.
+
+Measured against api.gemini.com on 19 Nov 2026 with the engine's own loader:
+
+| | Requests | Duration | Games | Instruments | Saturday's game |
+| --- | --- | --- | --- | --- | --- |
+| Before (07:24 UTC, one Sports listing) | 21 | 5.7 s | 193 (8 NCAAF) | 1 683 | absent |
+| After (07:23 UTC, 11 leagues + 5 sports) | 26 | 21 s | 298 (65 NCAAF) | 5 280 | present, Texas 0.91 / 0.92 |
+| Before again (12:32 UTC) | 21 | 10.9 s | 187 (6 NCAAF) | 1 344 | absent |
+| After again (12:31 UTC, NCAAF 673 events) | 27 | 43 s | 298 (65 NCAAF) | 5 283 | present, Texas 0.91 / 0.92 |
+
+The duration is the download: a page of 100 NCAAF events is about 7 MB (5.4 s alone at 12:33
+UTC), and one catalogue is about 1 400 events. A run (catalogue, results, direct reads) fits its
+60 s period, but not by much on a slow link; when one takes longer, the next starts as soon as it
+ends and `catalogue sync run took longer than its interval` is logged. Runs never overlap (the
+next starts when the last ends), and a stop ends a run between two requests.
+
+**The seed's demo game.** `supabase/seed.sql` seeds `NCAAF-2611212030-ARK-TEX-M` with
+`…-M-TEX`, `…-M-ARK`, `…-S-TEX13` and `…-S-TEX20`: the four are real Gemini tickers of
+Saturday's game (checked 19 Nov 2026). Before this change the first sync set all four inactive,
+the cut listing not holding them; now the complete NCAAF read lists them and keeps them active,
+the moneylines with their quotes (the two spreads had no quote at 07:23 UTC).
+
+**Results are never missed.** Each run reads the recently-settled list (newest first, sorted by
+`resolvedAt`) page after page until it has read a result resolved before the start of the last
+complete run minus 10 minutes, the end of the list, or 20 pages (1 000 results). The first run of
+a service reads the whole list (Gemini keeps about a day of it: 280 results on 19 Nov 2026), so a
+deploy, a sleep or a lost lease is caught up by the next leader. A failed read is logged, records
+what it read, and leaves the span to the next run. Then, for each game a campaign past its sales
+close still waits on (no outcome, no forced demo result), the run asks that game's own page
+(`GET /v1/prediction-markets/events/{ticker}`, which carries its spreads and totals): at most 5
+games a run, the least recently asked first, none when the settled list could not be read. Only a
+contract's `resolutionSide` and Gemini's documented `invalid` status (all void) are results; a game
+over in any other way is logged at WARN with its symbols. A result is applied once whichever path
+brings it, and a game whose result contradicts a recorded one is logged at ERROR and left out
+without holding back the others.
+
+## Start-up checks
+
+Each a configuration error that stops the start, as a wrong chain id already did. `startEngine`
+runs them before any service; `src/index.ts` runs them read-only at boot too, so a standby with
+the wrong configuration exits at once instead of failing at a failover. Messages name addresses
+and chain ids, never a key.
+
+- **The escrow's roles** (`src/chain/escrow-roles.ts`): the node serves `ARC_CHAIN_ID`,
+  `ARC_ESCROW_ADDRESS` holds code there, and the escrow's `relayer()` and `oracle()` are the
+  addresses of `ARC_RELAYER_PRIVATE_KEY` and `ARC_ORACLE_PRIVATE_KEY`. `EscrowRolesMismatchError`
+  names the escrow's address and the configured one for each role, and says when the two keys are
+  swapped; `EscrowNotFoundError`: no code at the address on that chain; `EscrowRolesUnreadableError`:
+  the contract there is not a WinzEscrow. At boot, a node that does not answer is only a warning.
+- **The database's chain and escrow** (`src/chain/engine-identity.ts`, table `engine_identity`,
+  migration `20261119020000_engine_identity.sql`): the first engine on a database records its
+  chain id and escrow address, in one statement the database decides (of two engines starting
+  together, one records, the other compares); every later start compares.
+  `EngineIdentityMismatchError` names the recorded pair and the configured one: use the database
+  of that chain and escrow, or start from an empty one. A database from before the table that
+  already holds `chain_txs` or an event reader cursor of another chain or escrow is refused too
+  (`EngineIdentityForeignHistoryError`) instead of being recorded.
+
+The event reader's node: when `ARC_RPC_URL` does not serve an `eth_getLogs` (QuickNode's Free plan
+limits it to 5 blocks) and viem's fallback sends it to `ARC_RPC_FALLBACK_URL`, the `rpc` logger
+warns `ARC_RPC_URL did not serve eth_getLogs`, with the host of each node (never the URL's path),
+once and then at most every 10 minutes with the count since.
 
 ## Deploy
 
@@ -173,7 +258,8 @@ answer to an older renewal cannot trigger it once a newer renewal has succeeded.
 | The real process (`node --import tsx src/index.ts`), SIGTERM to `engine stopped`   | 0.5 to 3.1 s   |
 
 The real process's stop is dominated by the Gemini catalogue sync, whose request in flight is not
-aborted (10 s timeout per attempt); in that test Gemini points at a closed port. A stop can
+aborted (10 s timeout per attempt); in that test Gemini points at a closed port. (Measured before
+the sync read one listing per league; a run now stops between two requests, see above.) A stop can
 outlast the margin: a job handler that ignores its abort keeps the job worker up to its 10 s
 grace, and a service waiting on a database that has gone silent (it accepts connections and
 answers nothing) waits for an answer that never comes (`leader.e2e.test.ts` shows it).

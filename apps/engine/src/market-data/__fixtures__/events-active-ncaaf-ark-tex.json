@@ -1,0 +1,2908 @@
+{
+  "data": [
+    {
+      "id": "462562",
+      "title": "Arkansas vs Texas",
+      "slug": "arkansas-vs-texas",
+      "type": "categorical",
+      "category": "Sports",
+      "ticker": "NCAAF-2611212030-ARK-TEX-M",
+      "status": "active",
+      "createdAt": "2026-11-15T00:05:47.492Z",
+      "contracts": [
+        {
+          "id": "462562-1150996",
+          "label": "Texas",
+          "prices": {
+            "buy": {
+              "yes": "0.92",
+              "no": "0.09"
+            },
+            "sell": {
+              "yes": "0.91",
+              "no": "0.08"
+            },
+            "bestBid": "0.91",
+            "bestAsk": "0.92",
+            "lastTradePrice": "0.92"
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T00:05:47.492Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/NCAA_FBS_Win-Loss_23ef351f-7ee0-4503-a740-5da5c95d4b2c.pdf",
+          "ticker": "TEX",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-M-TEX",
+          "marketState": "open",
+          "abbreviatedName": "TEX",
+          "color": "#BF5700",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 2,
+          "sportsSide": "home",
+          "teamId": "ae68bc50-4135-47b5-b2f1-03d0669e54c8",
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "462562-1150995",
+          "label": "Arkansas",
+          "prices": {
+            "buy": {
+              "yes": "0.09",
+              "no": "0.92"
+            },
+            "sell": {
+              "yes": "0.08",
+              "no": "0.91"
+            },
+            "bestBid": "0.08",
+            "bestAsk": "0.09"
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T00:05:47.492Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/NCAA_FBS_Win-Loss_23ef351f-7ee0-4503-a740-5da5c95d4b2c.pdf",
+          "ticker": "ARK",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-M-ARK",
+          "marketState": "open",
+          "abbreviatedName": "ARK",
+          "color": "#9D2235",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Arkansas_Razorbacks_e5ebc981-ed78-4170-b9c0-45988547c161.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 1,
+          "sportsSide": "away",
+          "teamId": "52dc23de-c6ba-4467-b964-a433658eded2",
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        }
+      ],
+      "effectiveDate": "2026-11-15T00:05:47.492Z",
+      "isLive": false,
+      "participants": [
+        {
+          "id": "1140",
+          "name": "Texas Longhorns",
+          "abbreviation": "TEX",
+          "side": "home"
+        },
+        {
+          "id": "1127",
+          "name": "Arkansas Razorbacks",
+          "abbreviation": "ARK",
+          "side": "away"
+        }
+      ],
+      "description": "Arkansas vs Texas",
+      "imageUrl": "https://assets.gemini.com/predictions/images/Football_fb67fb13-3768-40c7-a99d-cbe2644d299e.avif",
+      "volume": "10.8",
+      "volume24h": "10.8",
+      "tags": ["College Football"],
+      "expiryDate": "2026-11-22T20:30:00.000Z",
+      "startTime": "2026-11-21T20:30:00.000Z",
+      "termsLink": "https://assets.gemini.com/predictions/terms_and_conditions/NCAA_FBS_Win-Loss_23ef351f-7ee0-4503-a740-5da5c95d4b2c.pdf",
+      "subcategory": {
+        "id": 13,
+        "slug": "sports_football_college-football",
+        "name": "College Football",
+        "path": ["Sports", "Football", "College Football"]
+      },
+      "socialImageUrl": "https://assets.gemini.com/predictions/images/Card_Carousel_-_2026-08-30T231309788_65d010c8-004b-415c-bdae-6bbc819277b7.png",
+      "events": [
+        {
+          "id": "464290",
+          "title": "Arkansas vs Texas: Point Spread",
+          "slug": "arkansas-vs-texas-point-spread",
+          "type": "categorical",
+          "category": "Sports",
+          "ticker": "NCAAF-2611212030-ARK-TEX-S",
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "contracts": [
+            {
+              "id": "464290-1156504",
+              "label": "Texas wins by more than 6.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX6",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX6",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 0,
+              "strike": {
+                "type": "spread",
+                "value": "6.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156505",
+              "label": "Texas wins by more than 17.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX17",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX17",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 1,
+              "strike": {
+                "type": "spread",
+                "value": "17.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156506",
+              "label": "Texas wins by more than 5.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX5",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX5",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 2,
+              "strike": {
+                "type": "spread",
+                "value": "5.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156507",
+              "label": "Texas wins by more than 14.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX14",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX14",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 3,
+              "strike": {
+                "type": "spread",
+                "value": "14.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156508",
+              "label": "Texas wins by more than 20.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX20",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX20",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 4,
+              "strike": {
+                "type": "spread",
+                "value": "20.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156509",
+              "label": "Texas wins by more than 30.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX30",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX30",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 5,
+              "strike": {
+                "type": "spread",
+                "value": "30.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156510",
+              "label": "Texas wins by more than 33.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX33",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX33",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 6,
+              "strike": {
+                "type": "spread",
+                "value": "33.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156511",
+              "label": "Texas wins by more than 23.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX23",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX23",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 7,
+              "strike": {
+                "type": "spread",
+                "value": "23.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156512",
+              "label": "Texas wins by more than 27.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX27",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX27",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 8,
+              "strike": {
+                "type": "spread",
+                "value": "27.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156513",
+              "label": "Texas wins by more than 10.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX10",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX10",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 9,
+              "strike": {
+                "type": "spread",
+                "value": "10.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156514",
+              "label": "Texas wins by more than 11.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX11",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX11",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 10,
+              "strike": {
+                "type": "spread",
+                "value": "11.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156515",
+              "label": "Texas wins by more than 1.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX1",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX1",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 11,
+              "strike": {
+                "type": "spread",
+                "value": "1.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156516",
+              "label": "Texas wins by more than 21.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX21",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX21",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 12,
+              "strike": {
+                "type": "spread",
+                "value": "21.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156517",
+              "label": "Texas wins by more than 2.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX2",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX2",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 13,
+              "strike": {
+                "type": "spread",
+                "value": "2.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156518",
+              "label": "Texas wins by more than 3.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX3",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX3",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 14,
+              "strike": {
+                "type": "spread",
+                "value": "3.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156519",
+              "label": "Texas wins by more than 35.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX35",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX35",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 15,
+              "strike": {
+                "type": "spread",
+                "value": "35.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156520",
+              "label": "Texas wins by more than 4.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX4",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX4",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 16,
+              "strike": {
+                "type": "spread",
+                "value": "4.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156521",
+              "label": "Texas wins by more than 16.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX16",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX16",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 17,
+              "strike": {
+                "type": "spread",
+                "value": "16.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156522",
+              "label": "Texas wins by more than 24.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX24",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX24",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 18,
+              "strike": {
+                "type": "spread",
+                "value": "24.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156523",
+              "label": "Texas wins by more than 38.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX38",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX38",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 19,
+              "strike": {
+                "type": "spread",
+                "value": "38.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156524",
+              "label": "Texas wins by more than 9.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX9",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX9",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 20,
+              "strike": {
+                "type": "spread",
+                "value": "9.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156525",
+              "label": "Texas wins by more than 41.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX41",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX41",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 21,
+              "strike": {
+                "type": "spread",
+                "value": "41.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156526",
+              "label": "Texas wins by more than 13.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX13",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX13",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 22,
+              "strike": {
+                "type": "spread",
+                "value": "13.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464290-1156527",
+              "label": "Texas wins by more than 7.5 points",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:21:38.571Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+              "ticker": "TEX7",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX7",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 23,
+              "strike": {
+                "type": "spread",
+                "value": "7.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            }
+          ],
+          "effectiveDate": "2026-11-15T08:21:38.571Z",
+          "isLive": false,
+          "participants": [
+            {
+              "id": "1140",
+              "name": "Texas Longhorns",
+              "abbreviation": "TEX",
+              "side": "home"
+            },
+            {
+              "id": "1127",
+              "name": "Arkansas Razorbacks",
+              "abbreviation": "ARK",
+              "side": "away"
+            }
+          ],
+          "description": "What will the point difference be?",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Football_fb67fb13-3768-40c7-a99d-cbe2644d299e.avif",
+          "volume": "0",
+          "volume24h": "0",
+          "tags": ["College Football"],
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "startTime": "2026-11-21T20:30:00.000Z",
+          "termsLink": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "subcategory": {
+            "id": 13,
+            "slug": "sports_football_college-football",
+            "name": "College Football",
+            "path": ["Sports", "Football", "College Football"]
+          },
+          "socialImageUrl": "https://assets.gemini.com/predictions/images/Card_Carousel_-_2026-08-30T231309788_65d010c8-004b-415c-bdae-6bbc819277b7.png",
+          "featuredImageUrl": "https://assets.gemini.com/predictions/images/Card_Carousel_-_2026-08-30T231309788_65d010c8-004b-415c-bdae-6bbc819277b7.avif",
+          "template": "sports-spread",
+          "gameId": "f7ee826d-9c21-4b1c-9462-61adef2404f9",
+          "sourceDetails": {
+            "agency": "statscore-rest-api",
+            "index": "Am. football"
+          },
+          "volumeDelta24hPct": "0",
+          "sportsMarket": {
+            "sport": "american_football",
+            "type": "spread",
+            "subject": "team",
+            "scope": {
+              "type": "full_contest"
+            },
+            "metric": "points"
+          }
+        },
+        {
+          "id": "464291",
+          "title": "Arkansas vs Texas: Total Points",
+          "slug": "arkansas-vs-texas-total-points",
+          "type": "categorical",
+          "category": "Sports",
+          "ticker": "NCAAF-2611212030-ARK-TEX-T",
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "contracts": [
+            {
+              "id": "464291-1156528",
+              "label": "More than 67.5 points scored",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:22:59.759Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+              "ticker": "O67",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O67",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 0,
+              "strike": {
+                "type": "over",
+                "value": "67.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464291-1156529",
+              "label": "More than 70.5 points scored",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:22:59.759Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+              "ticker": "O70",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O70",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 1,
+              "strike": {
+                "type": "over",
+                "value": "70.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464291-1156530",
+              "label": "More than 47.5 points scored",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:22:59.759Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+              "ticker": "O47",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O47",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 2,
+              "strike": {
+                "type": "over",
+                "value": "47.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464291-1156531",
+              "label": "More than 61.5 points scored",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:22:59.759Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+              "ticker": "O61",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O61",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 3,
+              "strike": {
+                "type": "over",
+                "value": "61.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464291-1156532",
+              "label": "More than 58.5 points scored",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:22:59.759Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+              "ticker": "O58",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O58",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 4,
+              "strike": {
+                "type": "over",
+                "value": "58.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464291-1156533",
+              "label": "More than 37.5 points scored",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:22:59.759Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+              "ticker": "O37",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O37",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 5,
+              "strike": {
+                "type": "over",
+                "value": "37.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464291-1156534",
+              "label": "More than 34.5 points scored",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:22:59.759Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+              "ticker": "O34",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O34",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 6,
+              "strike": {
+                "type": "over",
+                "value": "34.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464291-1156535",
+              "label": "More than 64.5 points scored",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:22:59.759Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+              "ticker": "O64",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O64",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 7,
+              "strike": {
+                "type": "over",
+                "value": "64.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464291-1156536",
+              "label": "More than 48.5 points scored",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:22:59.759Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+              "ticker": "O48",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O48",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 8,
+              "strike": {
+                "type": "over",
+                "value": "48.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464291-1156537",
+              "label": "More than 55.5 points scored",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:22:59.759Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+              "ticker": "O55",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O55",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 9,
+              "strike": {
+                "type": "over",
+                "value": "55.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464291-1156538",
+              "label": "More than 31.5 points scored",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:22:59.759Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+              "ticker": "O31",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O31",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 10,
+              "strike": {
+                "type": "over",
+                "value": "31.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464291-1156539",
+              "label": "More than 50.5 points scored",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:22:59.759Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+              "ticker": "O50",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O50",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 11,
+              "strike": {
+                "type": "over",
+                "value": "50.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464291-1156540",
+              "label": "More than 52.5 points scored",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:22:59.759Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+              "ticker": "O52",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O52",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 12,
+              "strike": {
+                "type": "over",
+                "value": "52.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464291-1156541",
+              "label": "More than 49.5 points scored",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:22:59.759Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+              "ticker": "O49",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O49",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 13,
+              "strike": {
+                "type": "over",
+                "value": "49.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464291-1156542",
+              "label": "More than 43.5 points scored",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:22:59.759Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+              "ticker": "O43",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O43",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 14,
+              "strike": {
+                "type": "over",
+                "value": "43.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464291-1156543",
+              "label": "More than 28.5 points scored",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:22:59.759Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+              "ticker": "O28",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O28",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 15,
+              "strike": {
+                "type": "over",
+                "value": "28.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464291-1156544",
+              "label": "More than 40.5 points scored",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:22:59.759Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+              "ticker": "O40",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O40",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 16,
+              "strike": {
+                "type": "over",
+                "value": "40.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464291-1156545",
+              "label": "More than 51.5 points scored",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:22:59.759Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+              "ticker": "O51",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O51",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 17,
+              "strike": {
+                "type": "over",
+                "value": "51.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            },
+            {
+              "id": "464291-1156546",
+              "label": "More than 46.5 points scored",
+              "prices": {
+                "buy": {},
+                "sell": {}
+              },
+              "status": "active",
+              "createdAt": "2026-11-15T08:22:59.759Z",
+              "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+              "ticker": "O46",
+              "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O46",
+              "marketState": "open",
+              "color": "#0f9ee7",
+              "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+              "expiryDate": "2026-11-22T20:30:00.000Z",
+              "effectiveDate": "2026-11-15T00:00:08.000Z",
+              "sortOrder": 18,
+              "strike": {
+                "type": "over",
+                "value": "46.5"
+              },
+              "isCombo": false,
+              "quantityIncrement": "0.01",
+              "quantityMinimum": "0.01",
+              "priceIncrement": "0.01",
+              "quoteAssetPrecision": 2,
+              "priceMinimum": "0.01"
+            }
+          ],
+          "effectiveDate": "2026-11-15T08:22:59.759Z",
+          "isLive": false,
+          "participants": [
+            {
+              "id": "1140",
+              "name": "Texas Longhorns",
+              "abbreviation": "TEX",
+              "side": "home"
+            },
+            {
+              "id": "1127",
+              "name": "Arkansas Razorbacks",
+              "abbreviation": "ARK",
+              "side": "away"
+            }
+          ],
+          "description": "How many points will be scored?",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Football_fb67fb13-3768-40c7-a99d-cbe2644d299e.avif",
+          "volume": "0",
+          "volume24h": "0",
+          "tags": ["College Football"],
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "startTime": "2026-11-21T20:30:00.000Z",
+          "termsLink": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "subcategory": {
+            "id": 13,
+            "slug": "sports_football_college-football",
+            "name": "College Football",
+            "path": ["Sports", "Football", "College Football"]
+          },
+          "socialImageUrl": "https://assets.gemini.com/predictions/images/Card_Carousel_-_2026-08-30T231309788_65d010c8-004b-415c-bdae-6bbc819277b7.png",
+          "featuredImageUrl": "https://assets.gemini.com/predictions/images/Card_Carousel_-_2026-08-30T231309788_65d010c8-004b-415c-bdae-6bbc819277b7.avif",
+          "template": "sports-total",
+          "gameId": "f7ee826d-9c21-4b1c-9462-61adef2404f9",
+          "sourceDetails": {
+            "agency": "statscore-rest-api",
+            "index": "Am. football"
+          },
+          "volumeDelta24hPct": "0",
+          "sportsMarket": {
+            "sport": "american_football",
+            "type": "total",
+            "subject": "contest",
+            "scope": {
+              "type": "full_contest"
+            },
+            "metric": "points"
+          }
+        }
+      ],
+      "template": "sports-game",
+      "gameId": "f7ee826d-9c21-4b1c-9462-61adef2404f9",
+      "eventTags": [
+        {
+          "id": 2,
+          "name": "Games",
+          "slug": "games"
+        },
+        {
+          "id": 6943,
+          "name": "Longhorns",
+          "slug": "longhorns"
+        },
+        {
+          "id": 5855,
+          "name": "MM Collegiate Ranked Team",
+          "slug": "mm-collegiate-ranked-team"
+        },
+        {
+          "id": 8022,
+          "name": "Razorbacks",
+          "slug": "razorbacks"
+        },
+        {
+          "id": 7355,
+          "name": "SEC",
+          "slug": "sec"
+        }
+      ],
+      "sourceDetails": {
+        "agency": "statscore-rest-api",
+        "index": "Am. football"
+      },
+      "volumeDelta24hPct": "0",
+      "sportsMarket": {
+        "sport": "american_football",
+        "type": "moneyline",
+        "subject": "contest",
+        "scope": {
+          "type": "full_contest"
+        },
+        "team": {
+          "symbol": "ARK",
+          "name": "Arkansas Razorbacks",
+          "externalIds": {
+            "sportradarId": "52dc23de-c6ba-4467-b964-a433658eded2"
+          }
+        }
+      }
+    },
+    {
+      "id": "464290",
+      "title": "Arkansas vs Texas: Point Spread",
+      "slug": "arkansas-vs-texas-point-spread",
+      "type": "categorical",
+      "category": "Sports",
+      "ticker": "NCAAF-2611212030-ARK-TEX-S",
+      "status": "active",
+      "createdAt": "2026-11-15T08:21:38.571Z",
+      "contracts": [
+        {
+          "id": "464290-1156504",
+          "label": "Texas wins by more than 6.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX6",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX6",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 0,
+          "strike": {
+            "type": "spread",
+            "value": "6.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156505",
+          "label": "Texas wins by more than 17.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX17",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX17",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 1,
+          "strike": {
+            "type": "spread",
+            "value": "17.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156506",
+          "label": "Texas wins by more than 5.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX5",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX5",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 2,
+          "strike": {
+            "type": "spread",
+            "value": "5.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156507",
+          "label": "Texas wins by more than 14.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX14",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX14",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 3,
+          "strike": {
+            "type": "spread",
+            "value": "14.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156508",
+          "label": "Texas wins by more than 20.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX20",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX20",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 4,
+          "strike": {
+            "type": "spread",
+            "value": "20.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156509",
+          "label": "Texas wins by more than 30.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX30",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX30",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 5,
+          "strike": {
+            "type": "spread",
+            "value": "30.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156510",
+          "label": "Texas wins by more than 33.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX33",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX33",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 6,
+          "strike": {
+            "type": "spread",
+            "value": "33.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156511",
+          "label": "Texas wins by more than 23.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX23",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX23",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 7,
+          "strike": {
+            "type": "spread",
+            "value": "23.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156512",
+          "label": "Texas wins by more than 27.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX27",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX27",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 8,
+          "strike": {
+            "type": "spread",
+            "value": "27.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156513",
+          "label": "Texas wins by more than 10.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX10",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX10",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 9,
+          "strike": {
+            "type": "spread",
+            "value": "10.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156514",
+          "label": "Texas wins by more than 11.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX11",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX11",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 10,
+          "strike": {
+            "type": "spread",
+            "value": "11.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156515",
+          "label": "Texas wins by more than 1.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX1",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX1",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 11,
+          "strike": {
+            "type": "spread",
+            "value": "1.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156516",
+          "label": "Texas wins by more than 21.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX21",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX21",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 12,
+          "strike": {
+            "type": "spread",
+            "value": "21.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156517",
+          "label": "Texas wins by more than 2.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX2",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX2",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 13,
+          "strike": {
+            "type": "spread",
+            "value": "2.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156518",
+          "label": "Texas wins by more than 3.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX3",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX3",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 14,
+          "strike": {
+            "type": "spread",
+            "value": "3.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156519",
+          "label": "Texas wins by more than 35.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX35",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX35",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 15,
+          "strike": {
+            "type": "spread",
+            "value": "35.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156520",
+          "label": "Texas wins by more than 4.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX4",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX4",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 16,
+          "strike": {
+            "type": "spread",
+            "value": "4.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156521",
+          "label": "Texas wins by more than 16.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX16",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX16",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 17,
+          "strike": {
+            "type": "spread",
+            "value": "16.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156522",
+          "label": "Texas wins by more than 24.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX24",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX24",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 18,
+          "strike": {
+            "type": "spread",
+            "value": "24.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156523",
+          "label": "Texas wins by more than 38.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX38",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX38",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 19,
+          "strike": {
+            "type": "spread",
+            "value": "38.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156524",
+          "label": "Texas wins by more than 9.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX9",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX9",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 20,
+          "strike": {
+            "type": "spread",
+            "value": "9.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156525",
+          "label": "Texas wins by more than 41.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX41",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX41",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 21,
+          "strike": {
+            "type": "spread",
+            "value": "41.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156526",
+          "label": "Texas wins by more than 13.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX13",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX13",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 22,
+          "strike": {
+            "type": "spread",
+            "value": "13.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464290-1156527",
+          "label": "Texas wins by more than 7.5 points",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:21:38.571Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+          "ticker": "TEX7",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX7",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Longhorns_4acf7007-b065-4407-a51f-3984e4db894a.avif",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 23,
+          "strike": {
+            "type": "spread",
+            "value": "7.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        }
+      ],
+      "effectiveDate": "2026-11-15T08:21:38.571Z",
+      "isLive": false,
+      "participants": [
+        {
+          "id": "1140",
+          "name": "Texas Longhorns",
+          "abbreviation": "TEX",
+          "side": "home"
+        },
+        {
+          "id": "1127",
+          "name": "Arkansas Razorbacks",
+          "abbreviation": "ARK",
+          "side": "away"
+        }
+      ],
+      "description": "What will the point difference be?",
+      "imageUrl": "https://assets.gemini.com/predictions/images/Football_fb67fb13-3768-40c7-a99d-cbe2644d299e.avif",
+      "volume": "0",
+      "volume24h": "0",
+      "tags": ["College Football"],
+      "expiryDate": "2026-11-22T20:30:00.000Z",
+      "startTime": "2026-11-21T20:30:00.000Z",
+      "termsLink": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Spread_Class_941e2dcb-07e0-4ee4-9d21-bdd1a7612f13.pdf",
+      "subcategory": {
+        "id": 13,
+        "slug": "sports_football_college-football",
+        "name": "College Football",
+        "path": ["Sports", "Football", "College Football"]
+      },
+      "socialImageUrl": "https://assets.gemini.com/predictions/images/Card_Carousel_-_2026-08-30T231309788_65d010c8-004b-415c-bdae-6bbc819277b7.png",
+      "template": "sports-spread",
+      "gameId": "f7ee826d-9c21-4b1c-9462-61adef2404f9",
+      "sourceDetails": {
+        "agency": "statscore-rest-api",
+        "index": "Am. football"
+      },
+      "volumeDelta24hPct": "0",
+      "sportsMarket": {
+        "sport": "american_football",
+        "type": "spread",
+        "subject": "team",
+        "scope": {
+          "type": "full_contest"
+        },
+        "metric": "points"
+      }
+    },
+    {
+      "id": "464291",
+      "title": "Arkansas vs Texas: Total Points",
+      "slug": "arkansas-vs-texas-total-points",
+      "type": "categorical",
+      "category": "Sports",
+      "ticker": "NCAAF-2611212030-ARK-TEX-T",
+      "status": "active",
+      "createdAt": "2026-11-15T08:22:59.759Z",
+      "contracts": [
+        {
+          "id": "464291-1156528",
+          "label": "More than 67.5 points scored",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "ticker": "O67",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O67",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 0,
+          "strike": {
+            "type": "over",
+            "value": "67.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464291-1156529",
+          "label": "More than 70.5 points scored",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "ticker": "O70",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O70",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 1,
+          "strike": {
+            "type": "over",
+            "value": "70.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464291-1156530",
+          "label": "More than 47.5 points scored",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "ticker": "O47",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O47",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 2,
+          "strike": {
+            "type": "over",
+            "value": "47.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464291-1156531",
+          "label": "More than 61.5 points scored",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "ticker": "O61",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O61",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 3,
+          "strike": {
+            "type": "over",
+            "value": "61.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464291-1156532",
+          "label": "More than 58.5 points scored",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "ticker": "O58",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O58",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 4,
+          "strike": {
+            "type": "over",
+            "value": "58.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464291-1156533",
+          "label": "More than 37.5 points scored",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "ticker": "O37",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O37",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 5,
+          "strike": {
+            "type": "over",
+            "value": "37.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464291-1156534",
+          "label": "More than 34.5 points scored",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "ticker": "O34",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O34",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 6,
+          "strike": {
+            "type": "over",
+            "value": "34.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464291-1156535",
+          "label": "More than 64.5 points scored",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "ticker": "O64",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O64",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 7,
+          "strike": {
+            "type": "over",
+            "value": "64.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464291-1156536",
+          "label": "More than 48.5 points scored",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "ticker": "O48",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O48",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 8,
+          "strike": {
+            "type": "over",
+            "value": "48.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464291-1156537",
+          "label": "More than 55.5 points scored",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "ticker": "O55",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O55",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 9,
+          "strike": {
+            "type": "over",
+            "value": "55.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464291-1156538",
+          "label": "More than 31.5 points scored",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "ticker": "O31",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O31",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 10,
+          "strike": {
+            "type": "over",
+            "value": "31.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464291-1156539",
+          "label": "More than 50.5 points scored",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "ticker": "O50",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O50",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 11,
+          "strike": {
+            "type": "over",
+            "value": "50.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464291-1156540",
+          "label": "More than 52.5 points scored",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "ticker": "O52",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O52",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 12,
+          "strike": {
+            "type": "over",
+            "value": "52.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464291-1156541",
+          "label": "More than 49.5 points scored",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "ticker": "O49",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O49",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 13,
+          "strike": {
+            "type": "over",
+            "value": "49.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464291-1156542",
+          "label": "More than 43.5 points scored",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "ticker": "O43",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O43",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 14,
+          "strike": {
+            "type": "over",
+            "value": "43.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464291-1156543",
+          "label": "More than 28.5 points scored",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "ticker": "O28",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O28",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 15,
+          "strike": {
+            "type": "over",
+            "value": "28.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464291-1156544",
+          "label": "More than 40.5 points scored",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "ticker": "O40",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O40",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 16,
+          "strike": {
+            "type": "over",
+            "value": "40.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464291-1156545",
+          "label": "More than 51.5 points scored",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "ticker": "O51",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O51",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 17,
+          "strike": {
+            "type": "over",
+            "value": "51.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "464291-1156546",
+          "label": "More than 46.5 points scored",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-15T08:22:59.759Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+          "ticker": "O46",
+          "instrumentSymbol": "GEMI-NCAAF-2611212030-ARK-TEX-T-O46",
+          "marketState": "open",
+          "color": "#0f9ee7",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NFL_Football_f63a788d-5456-41b8-8c6a-fc50a5396611.png",
+          "expiryDate": "2026-11-22T20:30:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:08.000Z",
+          "sortOrder": 18,
+          "strike": {
+            "type": "over",
+            "value": "46.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        }
+      ],
+      "effectiveDate": "2026-11-15T08:22:59.759Z",
+      "isLive": false,
+      "participants": [
+        {
+          "id": "1140",
+          "name": "Texas Longhorns",
+          "abbreviation": "TEX",
+          "side": "home"
+        },
+        {
+          "id": "1127",
+          "name": "Arkansas Razorbacks",
+          "abbreviation": "ARK",
+          "side": "away"
+        }
+      ],
+      "description": "How many points will be scored?",
+      "imageUrl": "https://assets.gemini.com/predictions/images/Football_fb67fb13-3768-40c7-a99d-cbe2644d299e.avif",
+      "volume": "0",
+      "volume24h": "0",
+      "tags": ["College Football"],
+      "expiryDate": "2026-11-22T20:30:00.000Z",
+      "startTime": "2026-11-21T20:30:00.000Z",
+      "termsLink": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_CFB_Point_Total_Class_b23bc807-8bb2-4c32-a1b7-040c83d433ec.pdf",
+      "subcategory": {
+        "id": 13,
+        "slug": "sports_football_college-football",
+        "name": "College Football",
+        "path": ["Sports", "Football", "College Football"]
+      },
+      "socialImageUrl": "https://assets.gemini.com/predictions/images/Card_Carousel_-_2026-08-30T231309788_65d010c8-004b-415c-bdae-6bbc819277b7.png",
+      "template": "sports-total",
+      "gameId": "f7ee826d-9c21-4b1c-9462-61adef2404f9",
+      "sourceDetails": {
+        "agency": "statscore-rest-api",
+        "index": "Am. football"
+      },
+      "volumeDelta24hPct": "0",
+      "sportsMarket": {
+        "sport": "american_football",
+        "type": "total",
+        "subject": "contest",
+        "scope": {
+          "type": "full_contest"
+        },
+        "metric": "points"
+      }
+    }
+  ],
+  "pagination": {
+    "limit": 50,
+    "offset": 0,
+    "total": 3
+  }
+}

@@ -5,6 +5,7 @@ import {
   fallback,
   http,
   type Chain,
+  type EIP1193RequestFn,
   type PublicClient,
   type Transport,
 } from "viem";
@@ -13,7 +14,9 @@ import { privateKeyToAccount } from "viem/accounts";
 import { ARC_TESTNET_CHAIN_ID, ARC_TESTNET_EXPLORER_URL } from "@winz/shared";
 
 import type { EngineEnv } from "../config/env";
+import { summarizeError } from "./error-summary";
 import { explicitLogRange } from "./log-range";
+import { classifyRpcRefusal } from "./rpc-errors";
 import { rateLimitedTransport, RpcLimiter, type RpcLimits } from "./rpc-limiter";
 import type { SignerAccounts } from "./types";
 
@@ -64,8 +67,84 @@ export interface ArcClientOptions {
    * fallback transport, as they did before it existed.
    */
   rateLimit?: Partial<RpcLimits> | false;
-  /** Where the limiter warns that a cool-down starts. Default: nowhere. */
+  /**
+   * Where the limiter warns that a cool-down starts, and where a node that refuses `eth_getLogs`
+   * while the next one serves them is reported (`warnOnLogRefusals`). Default: nowhere.
+   */
   logger?: Logger;
+}
+
+/** After its first warning, a node still refusing `eth_getLogs` is reported at most this often. */
+export const LOG_REFUSAL_WARN_EVERY_MS = 10 * 60_000;
+
+type LooseRequest = (
+  args: { method: string; params?: unknown },
+  options?: { signal?: AbortSignal },
+) => Promise<unknown>;
+
+/** Host of an RPC URL, never its path: QuickNode's path is its access token. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "unparseable URL";
+  }
+}
+
+/**
+ * `inner`, for every endpoint but the last of the fallback list: when it refuses an `eth_getLogs`,
+ * viem's fallback sends the same request to the next endpoint without telling anyone. Measured on
+ * 19 Nov 2026 (docs/quicknode.md, QuickNode's Arc page): the Free plan limits `eth_getLogs` to
+ * 5 blocks and answers -32602 beyond, so every log poll of the engine went to the public RPC, and
+ * a rate limit there would have stalled the event reader while QuickNode looked healthy.
+ *
+ * This logs a WARN naming the endpoint (its variable and host, never its URL path) and the next
+ * one, the first time and then at most every `LOG_REFUSAL_WARN_EVERY_MS` with the count since the
+ * last warning; the request and its outcome are unchanged.
+ */
+export function warnOnLogRefusals(
+  inner: Transport,
+  endpoint: { variable: string; url: string; next: { variable: string; url: string } },
+  logger: Logger,
+  now: () => number = Date.now,
+): Transport {
+  let refusals = 0;
+  let lastWarnAt: number | null = null;
+  const wrapped: Transport = (parameters) => {
+    const transport = inner(parameters);
+    const send = transport.request as unknown as LooseRequest;
+    const request: LooseRequest = async (args, options) => {
+      try {
+        return await send(args, options);
+      } catch (error: unknown) {
+        if (args.method === "eth_getLogs") {
+          refusals += 1;
+          const at = now();
+          if (lastWarnAt === null || at - lastWarnAt >= LOG_REFUSAL_WARN_EVERY_MS) {
+            logger.warn(
+              {
+                node: endpoint.variable,
+                host: hostOf(endpoint.url),
+                servedBy: endpoint.next.variable,
+                servedByHost: hostOf(endpoint.next.url),
+                refusals,
+                refusal: classifyRpcRefusal(error),
+                err: summarizeError(error),
+              },
+              `${endpoint.variable} did not serve eth_getLogs: ${endpoint.next.variable} serves ` +
+                "the escrow's logs instead, and the event reader now depends on it (QuickNode's " +
+                "Free plan limits eth_getLogs to 5 blocks)",
+            );
+            lastWarnAt = at;
+            refusals = 0;
+          }
+        }
+        throw error;
+      }
+    };
+    return { ...transport, request: request as unknown as EIP1193RequestFn };
+  };
+  return wrapped;
 }
 
 /** The limits set by the environment, the unset ones left out. */
@@ -115,7 +194,22 @@ export function createArcClients(env: ArcClientEnv, options: ArcClientOptions = 
   });
   const timeout = options.requestTimeoutMs ?? 10_000;
   const retryCount = options.retryCount ?? 2;
-  const endpoints = urls.map((url) => http(url, { timeout }));
+  const variables = ["ARC_RPC_URL", "ARC_RPC_FALLBACK_URL"];
+  const logger = options.logger;
+  const endpoints = urls.map((url, index) => {
+    const endpoint = http(url, { timeout });
+    const next = urls[index + 1];
+    if (logger === undefined || next === undefined) return endpoint;
+    return warnOnLogRefusals(
+      endpoint,
+      {
+        variable: variables[index] ?? "ARC_RPC_URL",
+        url,
+        next: { variable: variables[index + 1] ?? "ARC_RPC_FALLBACK_URL", url: next },
+      },
+      logger,
+    );
+  });
 
   let limiter: RpcLimiter | null = null;
   let transport: Transport;

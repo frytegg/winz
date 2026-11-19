@@ -1,5 +1,6 @@
 import { instrumentId } from "@winz/shared";
 import type { Outcome } from "@winz/shared";
+import pino, { type Logger } from "pino";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { createTestDatabase, type TestDatabase } from "../testing/postgres";
@@ -429,7 +430,7 @@ describe("PgCatalogStore", () => {
     it("accepts an empty batch", async () => {
       await store.upsertEvents([]);
       await store.upsertInstruments([]);
-      expect(await store.markDelisted([])).toBe(0);
+      expect(await store.markDelisted([], ["NHL"])).toBe(0);
       expect(await counts()).toEqual({ events: 0n, instruments: 0n });
     });
   });
@@ -550,7 +551,7 @@ describe("PgCatalogStore", () => {
 
     it("counts delisted instruments too: an event with an unresolved one stays open", async () => {
       await seedSettledGames();
-      await store.markDelisted([VAN, TXSO, UCSD]);
+      await store.markDelisted([VAN, TXSO, UCSD], ["NHL", "NCAAM"]);
       await store.markSettled(new Map<string, Outcome>([[VAN, "yes"]]), SETTLED_AT);
       expect((await instrumentRow(UTA)).active).toBe(false);
       expect((await eventRow(VAN_UTA)).status).toBe("active");
@@ -591,15 +592,19 @@ describe("PgCatalogStore", () => {
   });
 
   describe("settlement sync against the recorded settled pages", () => {
-    async function settleFrom(fixture: FixtureName): Promise<number> {
-      return syncSettlements(
+    async function settleFrom(
+      fixture: FixtureName,
+      logger: Logger = silentLogger,
+    ): Promise<number> {
+      const result = await syncSettlements(
         clientOn(() => fixtureText(fixture)),
         store,
-        silentLogger,
+        logger,
         {
           now: () => SETTLED_AT.getTime(),
         },
       );
+      return result.newlySettled;
     }
 
     it("settles the two stored games and ignores the events it does not store", async () => {
@@ -629,15 +634,38 @@ describe("PgCatalogStore", () => {
       expect((await eventRow(VAN_UTA)).status).toBe("settled");
     });
 
-    it("refuses a page that contradicts a recorded outcome, and applies nothing", async () => {
+    it("applies nothing of a game that contradicts a recorded outcome, logs it, and still applies the other games", async () => {
       await seedSettledGames();
       await settleFrom("events-recently-settled");
+      // VAN at UTA is settled no more: the page that contradicts TXSO at UCSD must still settle it.
+      await database.db`
+        update instruments set outcome = null, settled_at = null, active = true
+        where event_ticker = ${VAN_UTA}
+      `;
+      await database.db`update events set status = 'active' where ticker = ${VAN_UTA}`;
+      const lines: { level: number; msg: string; event?: string; instrument?: string }[] = [];
+      const logger = pino(
+        { level: "info" },
+        { write: (line: string) => lines.push(JSON.parse(line)) },
+      );
 
+      // The batch is refused (the store's rule), then applied game by game.
       await expect(
-        settleFrom("events-recently-settled.invalid-hand-edited"),
+        store.markSettled(
+          new Map<string, Outcome>([[`GEMI-${TXSO_UCSD}-UCSD`, "void"]]),
+          SETTLED_AT,
+        ),
       ).rejects.toBeInstanceOf(SettlementConflictError);
+      expect(await settleFrom("events-recently-settled.invalid-hand-edited", logger)).toBe(2);
+
       expect((await instrumentRow(`GEMI-${TXSO_UCSD}-UCSD`)).outcome).toBe("yes");
+      expect((await instrumentRow(`GEMI-${TXSO_UCSD}-TXSO`)).outcome).toBe("no");
       expect((await eventRow(TXSO_UCSD)).status).toBe("settled");
+      expect((await instrumentRow(`GEMI-${VAN_UTA}-VAN`)).outcome).toBe("yes");
+      expect((await eventRow(VAN_UTA)).status).toBe("settled");
+      const conflicts = lines.filter((line) => line.level === 50);
+      expect(conflicts).toHaveLength(1);
+      expect(conflicts[0]).toMatchObject({ event: TXSO_UCSD });
     });
   });
 

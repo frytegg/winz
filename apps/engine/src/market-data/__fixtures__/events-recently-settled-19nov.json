@@ -1,0 +1,744 @@
+{
+  "data": [
+    {
+      "id": "479388",
+      "title": "Utah Yes + More than 6.5 goals scored No + Boston Yes",
+      "slug": "utah-yes-more-than-65-goals-scored-no-boston-yes",
+      "type": "binary",
+      "category": "Sports",
+      "ticker": "CMB-261120-5036E87D4F7C4FA5",
+      "status": "settled",
+      "createdAt": "2026-11-19T02:22:05.876Z",
+      "contracts": [
+        {
+          "id": "479388-1217903",
+          "label": "Utah Yes + More than 6.5 goals scored No + Boston Yes",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-19T02:22:05.876Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_-_Combos_Class_c3a4c1f2-a3fe-4d21-976a-2643cabf017f.pdf",
+          "ticker": "CMB",
+          "instrumentSymbol": "GEMI-CMB-261120-5036E87D4F7C4FA5-CMB",
+          "marketState": "closed",
+          "color": "#4CAF50",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Pro_hockey_3b0135ea-116d-40cf-aa1a-c9c93bee933f.avif",
+          "expiryDate": "2026-11-20T15:00:00.000Z",
+          "resolutionSide": "yes",
+          "resolvedAt": "2026-11-19T06:15:57.376Z",
+          "effectiveDate": "2026-11-19T02:22:05.000Z",
+          "isCombo": true,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "1",
+          "priceIncrement": "0.0001",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.0001"
+        }
+      ],
+      "effectiveDate": "2026-11-19T02:22:05.876Z",
+      "isLive": false,
+      "participants": [],
+      "description": "Combo contracts expiring on 2026-11-20",
+      "imageUrl": "",
+      "resolvedAt": "2026-11-19T06:15:57.376Z",
+      "volume": "0",
+      "volume24h": "0",
+      "tags": ["Pro Hockey"],
+      "expiryDate": "2026-11-20T15:00:00.000Z",
+      "termsLink": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_-_Combos_Class_c3a4c1f2-a3fe-4d21-976a-2643cabf017f.pdf",
+      "subcategory": {
+        "id": 58,
+        "slug": "sports_pro-hockey",
+        "name": "Pro Hockey",
+        "path": ["Sports", "Pro Hockey"]
+      },
+      "socialImageUrl": "",
+      "featuredImageUrl": "https://assets.gemini.com/predictions/images/Pro_hockey_3b0135ea-116d-40cf-aa1a-c9c93bee933f.avif",
+      "template": "unspecified",
+      "settlement": {},
+      "volumeDelta24hPct": "0"
+    },
+    {
+      "id": "478749",
+      "title": "Boston Yes + Montreal Yes + Colorado Yes",
+      "slug": "boston-yes-montreal-yes-colorado-yes",
+      "type": "binary",
+      "category": "Sports",
+      "ticker": "CMB-261120-96BCB1D296905D31",
+      "status": "settled",
+      "createdAt": "2026-11-18T23:58:22.360Z",
+      "contracts": [
+        {
+          "id": "478749-1213808",
+          "label": "Boston Yes + Montreal Yes + Colorado Yes",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-18T23:58:22.360Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_-_Combos_Class_c3a4c1f2-a3fe-4d21-976a-2643cabf017f.pdf",
+          "ticker": "CMB",
+          "instrumentSymbol": "GEMI-CMB-261120-96BCB1D296905D31-CMB",
+          "marketState": "closed",
+          "color": "#4CAF50",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Pro_hockey_3b0135ea-116d-40cf-aa1a-c9c93bee933f.avif",
+          "expiryDate": "2026-11-20T15:00:00.000Z",
+          "resolutionSide": "no",
+          "resolvedAt": "2026-11-19T06:15:57.042Z",
+          "effectiveDate": "2026-11-18T23:58:22.000Z",
+          "isCombo": true,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "1",
+          "priceIncrement": "0.0001",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.0001"
+        }
+      ],
+      "effectiveDate": "2026-11-18T23:58:22.360Z",
+      "isLive": false,
+      "participants": [],
+      "description": "Combo contracts expiring on 2026-11-20",
+      "imageUrl": "",
+      "resolvedAt": "2026-11-19T06:15:57.042Z",
+      "volume": "445.45",
+      "volume24h": "445.45",
+      "tags": ["Pro Hockey"],
+      "expiryDate": "2026-11-20T15:00:00.000Z",
+      "termsLink": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_-_Combos_Class_c3a4c1f2-a3fe-4d21-976a-2643cabf017f.pdf",
+      "subcategory": {
+        "id": 58,
+        "slug": "sports_pro-hockey",
+        "name": "Pro Hockey",
+        "path": ["Sports", "Pro Hockey"]
+      },
+      "socialImageUrl": "",
+      "featuredImageUrl": "https://assets.gemini.com/predictions/images/Pro_hockey_3b0135ea-116d-40cf-aa1a-c9c93bee933f.avif",
+      "template": "unspecified",
+      "settlement": {},
+      "volumeDelta24hPct": "0"
+    },
+    {
+      "id": "474056",
+      "title": "Colorado vs Utah",
+      "slug": "colorado-vs-utah",
+      "type": "categorical",
+      "category": "Sports",
+      "ticker": "NHL-2611190300-COL-UTA-M",
+      "status": "settled",
+      "createdAt": "2026-11-17T16:37:33.250Z",
+      "contracts": [
+        {
+          "id": "474056-1190380",
+          "label": "Colorado",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T16:37:33.250Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NHL_Win_Lose_Class_f11866d9-f4df-4a25-b727-a0d488f72f5d.pdf",
+          "ticker": "COL",
+          "instrumentSymbol": "GEMI-NHL-2611190300-COL-UTA-M-COL",
+          "marketState": "closed",
+          "abbreviatedName": "COL",
+          "color": "#6F263D",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Colorado_AvalancheDark_0b2c9727-bf93-4e20-a7a7-dc662da5a2c0.png",
+          "expiryDate": "2026-11-20T15:00:00.000Z",
+          "resolutionSide": "no",
+          "resolvedAt": "2026-11-19T06:15:56.641Z",
+          "effectiveDate": "2026-11-17T16:37:00.000Z",
+          "sortOrder": 1,
+          "sportsSide": "away",
+          "teamId": "4415ce44-0f24-11e2-8525-18a905767e44",
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "474056-1190383",
+          "label": "Utah",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T16:37:33.250Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NHL_Win_Lose_Class_f11866d9-f4df-4a25-b727-a0d488f72f5d.pdf",
+          "ticker": "UTA",
+          "instrumentSymbol": "GEMI-NHL-2611190300-COL-UTA-M-UTA",
+          "marketState": "closed",
+          "abbreviatedName": "UTA",
+          "color": "#000000",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Utah_Hockey_ClubDark_7552fa47-b002-4f81-8706-e102629a80e1.png",
+          "expiryDate": "2026-11-20T15:00:00.000Z",
+          "resolutionSide": "yes",
+          "resolvedAt": "2026-11-19T06:15:56.987Z",
+          "effectiveDate": "2026-11-17T16:37:00.000Z",
+          "sortOrder": 2,
+          "sportsSide": "home",
+          "teamId": "715a1dba-4e9f-4158-8346-3473b6e3557f",
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        }
+      ],
+      "effectiveDate": "2026-11-17T16:37:33.250Z",
+      "isLive": false,
+      "participants": [
+        {
+          "id": "516",
+          "name": "Utah Mammoth",
+          "abbreviation": "UTA",
+          "side": "home"
+        },
+        {
+          "id": "495",
+          "name": "Colorado Avalanche",
+          "abbreviation": "COL",
+          "side": "away"
+        }
+      ],
+      "description": "Colorado vs Utah",
+      "imageUrl": "https://images.ctfassets.net/jg6lo9a2ukvr/1pk48qsNzOP1ME0DPqoyaH/f555b1ee0a4f6db059720c4c39cfe350/Hockey_Alt.png",
+      "resolvedAt": "2026-11-19T06:15:56.987Z",
+      "volume": "825.94",
+      "volume24h": "825.94",
+      "tags": ["Pro Hockey"],
+      "expiryDate": "2026-11-20T15:00:00.000Z",
+      "startTime": "2026-11-19T03:00:00.000Z",
+      "termsLink": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NHL_Win_Lose_Class_f11866d9-f4df-4a25-b727-a0d488f72f5d.pdf",
+      "subcategory": {
+        "id": 58,
+        "slug": "sports_pro-hockey",
+        "name": "Pro Hockey",
+        "path": ["Sports", "Pro Hockey"]
+      },
+      "socialImageUrl": "https://images.ctfassets.net/jg6lo9a2ukvr/7sE8gYgWoRySeYegeHYfFN/eea793e039352bc6c751d4334ecff861/Hockey_Alt_2.png",
+      "featuredImageUrl": "https://images.ctfassets.net/jg6lo9a2ukvr/7sE8gYgWoRySeYegeHYfFN/eea793e039352bc6c751d4334ecff861/Hockey_Alt_2.png",
+      "template": "sports-game",
+      "gameId": "392dc728-3e03-4768-8054-f896ae2c21b7",
+      "eventTags": [
+        {
+          "id": 31,
+          "name": "Avalanche",
+          "slug": "avalanche"
+        },
+        {
+          "id": 13880,
+          "name": "Central",
+          "slug": "central"
+        },
+        {
+          "id": 2,
+          "name": "Games",
+          "slug": "games"
+        },
+        {
+          "id": 38,
+          "name": "Mammoth",
+          "slug": "mammoth"
+        }
+      ],
+      "settlement": {},
+      "sourceDetails": {
+        "agency": "statscore-rest-api",
+        "index": "Ice Hockey"
+      },
+      "volumeDelta24hPct": "0",
+      "sportsMarket": {
+        "sport": "hockey",
+        "type": "moneyline",
+        "subject": "contest",
+        "scope": {
+          "type": "full_contest"
+        },
+        "team": {
+          "symbol": "COL",
+          "name": "Colorado Avalanche",
+          "externalIds": {
+            "sportradarId": "4415ce44-0f24-11e2-8525-18a905767e44"
+          }
+        }
+      }
+    },
+    {
+      "id": "471875",
+      "title": "Cal State Fullerton vs UCLA",
+      "slug": "cal-state-fullerton-vs-ucla",
+      "type": "categorical",
+      "category": "Sports",
+      "ticker": "NCAAM-2611190330-CSUF-UCLA-M",
+      "status": "settled",
+      "createdAt": "2026-11-17T00:07:14.949Z",
+      "contracts": [
+        {
+          "id": "471875-1181710",
+          "label": "Cal State Fullerton",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T00:07:14.949Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_MB_Win-Lose_Classdocx_893b1bbb-20f3-490c-81bb-650735bfb0f4.pdf",
+          "ticker": "CSUF",
+          "instrumentSymbol": "GEMI-NCAAM-2611190330-CSUF-UCLA-M-CSUF",
+          "marketState": "closed",
+          "abbreviatedName": "CSUF",
+          "color": "#003768",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Cal_State_Fullerton_TitansDark_132f435c-1af0-41eb-bedb-75d8c990c0d8.png",
+          "expiryDate": "2026-11-21T03:30:00.000Z",
+          "resolutionSide": "no",
+          "resolvedAt": "2026-11-19T06:15:55.951Z",
+          "effectiveDate": "2026-11-17T00:00:07.000Z",
+          "sortOrder": 1,
+          "sportsSide": "away",
+          "teamId": "c009914b-3303-4dee-b915-978aa48a31d0",
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "471875-1181711",
+          "label": "UCLA",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T00:07:14.949Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_MB_Win-Lose_Classdocx_893b1bbb-20f3-490c-81bb-650735bfb0f4.pdf",
+          "ticker": "UCLA",
+          "instrumentSymbol": "GEMI-NCAAM-2611190330-CSUF-UCLA-M-UCLA",
+          "marketState": "closed",
+          "abbreviatedName": "UCLA",
+          "color": "#2D68C4",
+          "imageUrl": "https://assets.gemini.com/predictions/images/UCLA_4ae5251a-b264-49d6-a7cd-84d04d37343f.png",
+          "expiryDate": "2026-11-21T03:30:00.000Z",
+          "resolutionSide": "yes",
+          "resolvedAt": "2026-11-19T06:15:56.381Z",
+          "effectiveDate": "2026-11-17T00:00:07.000Z",
+          "sortOrder": 2,
+          "sportsSide": "home",
+          "teamId": "ec0d6b67-4b16-4b50-92b2-1a651dae6b0f",
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        }
+      ],
+      "effectiveDate": "2026-11-17T00:07:14.949Z",
+      "isLive": false,
+      "participants": [
+        {
+          "id": "814",
+          "name": "UCLA Bruins",
+          "abbreviation": "UCLA",
+          "side": "home"
+        },
+        {
+          "id": "583",
+          "name": "Cal State Fullerton Titans",
+          "abbreviation": "CSUF",
+          "side": "away"
+        }
+      ],
+      "description": "Cal State Fullerton vs UCLA",
+      "imageUrl": "https://assets.gemini.com/predictions/images/bb_f53a7e9b-c0fc-4a5c-a011-d0bf655f8263.avif",
+      "resolvedAt": "2026-11-19T06:15:56.381Z",
+      "volume": "8355.4",
+      "volume24h": "8355.4",
+      "tags": ["College Basketball"],
+      "expiryDate": "2026-11-21T03:30:00.000Z",
+      "startTime": "2026-11-19T03:30:00.000Z",
+      "termsLink": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_MB_Win-Lose_Classdocx_893b1bbb-20f3-490c-81bb-650735bfb0f4.pdf",
+      "subcategory": {
+        "id": 15,
+        "slug": "sports_basketball_college-basketball",
+        "name": "College Basketball",
+        "path": ["Sports", "Basketball", "College Basketball"]
+      },
+      "socialImageUrl": "https://assets.gemini.com/predictions/images/Card_Carousel__40__b3388226-c9ca-43be-9611-88185341baf0.png",
+      "featuredImageUrl": "https://assets.gemini.com/predictions/images/Card_Carousel__40__b3388226-c9ca-43be-9611-88185341baf0.avif",
+      "template": "sports-game",
+      "gameId": "5755d404-3572-42e7-91c1-8735f35ffe4b",
+      "eventTags": [
+        {
+          "id": 7354,
+          "name": "Big Ten",
+          "slug": "big-ten"
+        },
+        {
+          "id": 31228,
+          "name": "Big West",
+          "slug": "big-west"
+        },
+        {
+          "id": 27736,
+          "name": "Cal State Fullerton Titans",
+          "slug": "cal-state-fullerton-titans"
+        },
+        {
+          "id": 2,
+          "name": "Games",
+          "slug": "games"
+        },
+        {
+          "id": 26297,
+          "name": "UCLA Bruins",
+          "slug": "ucla-bruins"
+        }
+      ],
+      "settlement": {},
+      "sourceDetails": {
+        "agency": "statscore-rest-api",
+        "index": "Basketball"
+      },
+      "volumeDelta24hPct": "0",
+      "sportsMarket": {
+        "sport": "basketball",
+        "type": "moneyline",
+        "subject": "contest",
+        "scope": {
+          "type": "full_contest"
+        },
+        "team": {
+          "symbol": "CSUF",
+          "name": "Cal State Fullerton Titans",
+          "externalIds": {
+            "sportradarId": "c009914b-3303-4dee-b915-978aa48a31d0"
+          }
+        }
+      }
+    },
+    {
+      "id": "471868",
+      "title": "Texas Southern vs San Diego State",
+      "slug": "texas-southern-vs-san-diego-state",
+      "type": "categorical",
+      "category": "Sports",
+      "ticker": "NCAAM-2611190300-TXSO-SDSU-M",
+      "status": "settled",
+      "createdAt": "2026-11-17T00:06:50.139Z",
+      "contracts": [
+        {
+          "id": "471868-1181663",
+          "label": "Texas Southern",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T00:06:50.139Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_MB_Win-Lose_Classdocx_893b1bbb-20f3-490c-81bb-650735bfb0f4.pdf",
+          "ticker": "TXSO",
+          "instrumentSymbol": "GEMI-NCAAM-2611190300-TXSO-SDSU-M-TXSO",
+          "marketState": "closed",
+          "abbreviatedName": "TXSO",
+          "color": "#6A0403",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Texas_Southern_TigersDark_394f88d2-31d7-4068-8c28-2f63fcd1543b.png",
+          "expiryDate": "2026-11-21T03:00:00.000Z",
+          "resolutionSide": "no",
+          "resolvedAt": "2026-11-19T05:52:00.508Z",
+          "effectiveDate": "2026-11-17T00:00:07.000Z",
+          "sortOrder": 1,
+          "sportsSide": "away",
+          "teamId": "eb157f98-0697-459c-9293-ddb162ceb28b",
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "471868-1181681",
+          "label": "San Diego State",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T00:06:50.139Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_MB_Win-Lose_Classdocx_893b1bbb-20f3-490c-81bb-650735bfb0f4.pdf",
+          "ticker": "SDSU",
+          "instrumentSymbol": "GEMI-NCAAM-2611190300-TXSO-SDSU-M-SDSU",
+          "marketState": "closed",
+          "abbreviatedName": "SDSU",
+          "color": "#231F20",
+          "imageUrl": "https://assets.gemini.com/predictions/images/San_Diego_State_AztecsDark_d16061a3-bba4-4fa2-b558-89e8afcca226.png",
+          "expiryDate": "2026-11-21T03:00:00.000Z",
+          "resolutionSide": "yes",
+          "resolvedAt": "2026-11-19T05:52:00.833Z",
+          "effectiveDate": "2026-11-17T00:00:07.000Z",
+          "sortOrder": 2,
+          "sportsSide": "home",
+          "teamId": "e6914f16-ca37-4d2e-ba26-a425910283e2",
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        }
+      ],
+      "effectiveDate": "2026-11-17T00:06:50.139Z",
+      "isLive": false,
+      "participants": [
+        {
+          "id": "764",
+          "name": "San Diego State Aztecs",
+          "abbreviation": "SDSU",
+          "side": "home"
+        },
+        {
+          "id": "806",
+          "name": "Texas Southern Tigers",
+          "abbreviation": "TXSO",
+          "side": "away"
+        }
+      ],
+      "description": "Texas Southern vs San Diego State",
+      "imageUrl": "https://assets.gemini.com/predictions/images/bb_f53a7e9b-c0fc-4a5c-a011-d0bf655f8263.avif",
+      "resolvedAt": "2026-11-19T05:52:00.833Z",
+      "volume": "0",
+      "volume24h": "0",
+      "tags": ["College Basketball"],
+      "expiryDate": "2026-11-21T03:00:00.000Z",
+      "startTime": "2026-11-19T03:00:00.000Z",
+      "termsLink": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_MB_Win-Lose_Classdocx_893b1bbb-20f3-490c-81bb-650735bfb0f4.pdf",
+      "subcategory": {
+        "id": 15,
+        "slug": "sports_basketball_college-basketball",
+        "name": "College Basketball",
+        "path": ["Sports", "Basketball", "College Basketball"]
+      },
+      "socialImageUrl": "https://assets.gemini.com/predictions/images/Card_Carousel__40__b3388226-c9ca-43be-9611-88185341baf0.png",
+      "featuredImageUrl": "https://assets.gemini.com/predictions/images/Card_Carousel__40__b3388226-c9ca-43be-9611-88185341baf0.avif",
+      "template": "sports-game",
+      "gameId": "b320500b-f1e6-4f08-b42b-afbccb7a03fa",
+      "eventTags": [
+        {
+          "id": 2,
+          "name": "Games",
+          "slug": "games"
+        },
+        {
+          "id": 7358,
+          "name": "Mountain West",
+          "slug": "mountain-west"
+        },
+        {
+          "id": 27735,
+          "name": "San Diego State Aztecs",
+          "slug": "san-diego-state-aztecs"
+        },
+        {
+          "id": 31246,
+          "name": "SWAC",
+          "slug": "swac"
+        },
+        {
+          "id": 26264,
+          "name": "Texas Southern Tigers",
+          "slug": "texas-southern-tigers"
+        }
+      ],
+      "settlement": {},
+      "sourceDetails": {
+        "agency": "statscore-rest-api",
+        "index": "Basketball"
+      },
+      "volumeDelta24hPct": "0",
+      "sportsMarket": {
+        "sport": "basketball",
+        "type": "moneyline",
+        "subject": "contest",
+        "scope": {
+          "type": "full_contest"
+        },
+        "team": {
+          "symbol": "TXSO",
+          "name": "Texas Southern Tigers",
+          "externalIds": {
+            "sportradarId": "eb157f98-0697-459c-9293-ddb162ceb28b"
+          }
+        }
+      }
+    },
+    {
+      "id": "477671",
+      "title": "Notre Dame vs Rutgers",
+      "slug": "notre-dame-vs-rutgers",
+      "type": "categorical",
+      "category": "Sports",
+      "ticker": "NCAAM-2611181900-ND-RUT-M",
+      "status": "settled",
+      "createdAt": "2026-11-18T17:54:59.164Z",
+      "contracts": [
+        {
+          "id": "477671-1209311",
+          "label": "Notre Dame",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-18T17:54:59.164Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_MB_Win-Lose_Classdocx_893b1bbb-20f3-490c-81bb-650735bfb0f4.pdf",
+          "ticker": "ND",
+          "instrumentSymbol": "GEMI-NCAAM-2611181900-ND-RUT-M-ND",
+          "marketState": "closed",
+          "abbreviatedName": "ND",
+          "color": "#0C2340",
+          "imageUrl": "https://assets.gemini.com/predictions/images/NotreDame_ec53d03c-d9b6-4ae7-9c65-63b30628f6f4.png",
+          "expiryDate": "2026-11-20T19:00:00.000Z",
+          "resolutionSide": "yes",
+          "resolvedAt": "2026-11-19T05:51:25.127Z",
+          "effectiveDate": "2026-11-18T17:55:00.000Z",
+          "sortOrder": 1,
+          "sportsSide": "away",
+          "teamId": "80962f09-8821-48b6-8cf0-0cf0eea56aa8",
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        },
+        {
+          "id": "477671-1209312",
+          "label": "Rutgers",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-18T17:54:59.164Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_MB_Win-Lose_Classdocx_893b1bbb-20f3-490c-81bb-650735bfb0f4.pdf",
+          "ticker": "RUT",
+          "instrumentSymbol": "GEMI-NCAAM-2611181900-ND-RUT-M-RUT",
+          "marketState": "closed",
+          "abbreviatedName": "RUT",
+          "color": "#CC0033",
+          "imageUrl": "https://assets.gemini.com/predictions/images/Rutgers_c5d5f8d9-eb6f-42de-8e7b-17d23e9ad16b.png",
+          "expiryDate": "2026-11-20T19:00:00.000Z",
+          "resolutionSide": "no",
+          "resolvedAt": "2026-11-19T05:51:24.746Z",
+          "effectiveDate": "2026-11-18T17:55:00.000Z",
+          "sortOrder": 2,
+          "sportsSide": "home",
+          "teamId": "b03bb029-4499-4a2c-9074-5071ed360b21",
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01"
+        }
+      ],
+      "effectiveDate": "2026-11-18T17:54:59.164Z",
+      "isLive": false,
+      "participants": [
+        {
+          "id": "754",
+          "name": "Rutgers Scarlet Knights",
+          "abbreviation": "RUT",
+          "side": "home"
+        },
+        {
+          "id": "708",
+          "name": "Notre Dame Fighting Irish",
+          "abbreviation": "ND",
+          "side": "away"
+        }
+      ],
+      "description": "Notre Dame vs Rutgers",
+      "imageUrl": "https://assets.gemini.com/predictions/images/bb_f53a7e9b-c0fc-4a5c-a011-d0bf655f8263.avif",
+      "resolvedAt": "2026-11-19T05:51:25.127Z",
+      "volume": "3718.99",
+      "volume24h": "3718.99",
+      "tags": ["College Basketball"],
+      "expiryDate": "2026-11-20T19:00:00.000Z",
+      "startTime": "2026-11-18T19:00:00.000Z",
+      "termsLink": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NCAA_MB_Win-Lose_Classdocx_893b1bbb-20f3-490c-81bb-650735bfb0f4.pdf",
+      "subcategory": {
+        "id": 15,
+        "slug": "sports_basketball_college-basketball",
+        "name": "College Basketball",
+        "path": ["Sports", "Basketball", "College Basketball"]
+      },
+      "socialImageUrl": "https://assets.gemini.com/predictions/images/Card_Carousel__40__b3388226-c9ca-43be-9611-88185341baf0.png",
+      "featuredImageUrl": "https://assets.gemini.com/predictions/images/Card_Carousel__40__b3388226-c9ca-43be-9611-88185341baf0.avif",
+      "template": "sports-game",
+      "gameId": "1976074f-3646-44dc-ae23-fd7b79a54d97",
+      "eventTags": [
+        {
+          "id": 7352,
+          "name": "ACC",
+          "slug": "acc"
+        },
+        {
+          "id": 7354,
+          "name": "Big Ten",
+          "slug": "big-ten"
+        },
+        {
+          "id": 2,
+          "name": "Games",
+          "slug": "games"
+        },
+        {
+          "id": 25978,
+          "name": "Notre Dame Fighting Irish",
+          "slug": "notre-dame-fighting-irish"
+        },
+        {
+          "id": 29613,
+          "name": "Rutgers Scarlet Knights",
+          "slug": "rutgers-scarlet-knights"
+        }
+      ],
+      "settlement": {},
+      "sourceDetails": {
+        "agency": "statscore-rest-api",
+        "index": "Basketball"
+      },
+      "volumeDelta24hPct": "0",
+      "sportsMarket": {
+        "sport": "basketball",
+        "type": "moneyline",
+        "subject": "contest",
+        "scope": {
+          "type": "full_contest"
+        },
+        "team": {
+          "symbol": "RUT",
+          "name": "Rutgers Scarlet Knights",
+          "externalIds": {
+            "sportradarId": "b03bb029-4499-4a2c-9074-5071ed360b21"
+          }
+        }
+      }
+    }
+  ],
+  "pagination": {
+    "limit": 50,
+    "offset": 0,
+    "total": 6
+  }
+}

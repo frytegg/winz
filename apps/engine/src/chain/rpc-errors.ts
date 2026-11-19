@@ -40,7 +40,8 @@ const REVERT_PATTERNS: readonly RegExp[] = [/execution reverted/i, /\breverted\b
 
 /** Wordings of a refusal of the size of an `eth_getLogs` request. */
 const SIZE_REFUSAL_PATTERNS: readonly RegExp[] = [
-  /block range/i,
+  // "block range", and QuickNode's "limited to a 10,000 blocks range" (plural).
+  /blocks? range/i,
   /range (is )?too (large|wide|big)/i,
   /exceeds? .*range/i,
   /max(imum)? .*range/i,

@@ -12,11 +12,28 @@ import { eventsResponseSchema, type RawEvent } from "./schemas";
  * Real Gemini responses recorded on 17 Nov 2026, cut down to a few events. The only edit
  * inside an event is the removal of each contract's `description` (rich text, ~900 bytes,
  * unused), to keep the folder small. `*.hand-edited.json` files are altered on purpose.
+ *
+ * Recorded on 19 Nov 2026 from api.gemini.com, same edits, plus: a game's nested `events` keep
+ * only its full-game spread and total (`-S`, `-T`), and a cut listing's `pagination.total` is
+ * the number of events kept, except where said:
+ * - `events-active-ncaaf-ark-tex` (07:14 UTC, `status=active&category=Sports&search=
+ *   NCAAF-2611212030-ARK-TEX&limit=50`, 15 events, kept: `-M`, `-S`, `-T`): Saturday's game with
+ *   a two-sided moneyline book (Texas 0.91 / 0.92, Arkansas 0.08 / 0.09);
+ * - `events-active-sports-cap` (07:09 UTC, `status=active&category=Sports&limit=1`): one event and
+ *   the real `pagination.total` of 1003, the listing's cap;
+ * - `events-recently-settled-19nov` (07:13 UTC, `recently-settled?category=Sports&limit=50`,
+ *   total 280): six events of the first page, each with its `resolvedAt`;
+ * - `event-settled-nba-uta-lal` (07:13 UTC, `events/NBA-2611190300-UTA-LAL-M`): one settled game
+ *   as its own page serves it, its spread and total markets nested with their `resolutionSide`.
  */
 export type FixtureName =
   | "events-active-sports"
   | "events-recently-settled"
   | "events-recently-settled.invalid-hand-edited"
+  | "events-active-ncaaf-ark-tex"
+  | "events-active-sports-cap"
+  | "events-recently-settled-19nov"
+  | "event-settled-nba-uta-lal"
   | "book-with-depth"
   | "book-empty";
 

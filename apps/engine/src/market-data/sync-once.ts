@@ -20,9 +20,6 @@ import { PgCatalogStore } from "./pg-catalog-store";
 import { loadSportsCatalog, storeCatalog, syncSettlements } from "./sync";
 import { SyncOnceConfigError, loadSyncOnceEnv } from "./sync-once-env";
 
-/** 200 settled events: a one-shot run has more to catch up on than the 60 s poll. */
-const SETTLEMENT_PAGES = 4;
-
 function out(line: string): void {
   process.stdout.write(`${line}\n`);
 }
@@ -61,17 +58,29 @@ async function main(): Promise<void> {
     const store = new PgCatalogStore(db);
     const catalog = await loadSportsCatalog(client, logger);
     const synced = await storeCatalog(catalog, store);
-    const newlySettled = await syncSettlements(client, store, logger, {
-      pages: SETTLEMENT_PAGES,
-    });
+    // The whole settled list (Gemini keeps about a day of it), bounded by SETTLED_MAX_PAGES.
+    const settled = await syncSettlements(client, store, logger);
     const counts = await tableCounts(db);
 
+    const incomplete = catalog.leagues.filter((league) => !league.complete);
+    out(
+      `catalogue: ${catalog.leagues.length.toString()} leagues read with ` +
+        `${catalog.requests.toString()} requests, ${catalog.completeLeagues.length.toString()} complete` +
+        (incomplete.length === 0
+          ? ""
+          : ` (incomplete: ${incomplete.map((league) => `${league.league}: ${league.reason ?? "?"}`).join("; ")})`),
+    );
     out(
       `catalogue: ${synced.events.toString()} events and ${synced.instruments.toString()} instruments ` +
         `written, ${catalog.skipped.length.toString()} items skipped, ` +
         `${synced.delisted.toString()} instruments newly delisted`,
     );
-    out(`settlements: ${newlySettled.toString()} instruments newly settled`);
+    out(
+      `settlements: ${settled.events.toString()} settled events read in ${settled.pages.toString()} pages ` +
+        `(${settled.complete ? "to the end of the list" : "stopped at the bound"}), ` +
+        `${settled.newlySettled.toString()} instruments newly settled, ` +
+        `${settled.conflicts.toString()} contradicted games`,
+    );
     out(
       `database: ${counts.events.toString()} events, ${counts.instruments.toString()} instruments ` +
         `(${counts.active.toString()} active, ${counts.quoted.toString()} quoted on both sides, ` +

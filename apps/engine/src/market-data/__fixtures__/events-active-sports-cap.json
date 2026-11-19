@@ -1,0 +1,1010 @@
+{
+  "data": [
+    {
+      "id": "472855",
+      "title": "Charlotte vs Los Angeles L: Player Assists",
+      "slug": "charlotte-vs-los-angeles-l-player-assists",
+      "type": "categorical",
+      "category": "Sports",
+      "ticker": "NBA-2611180400-CHA-LAL-PPAST",
+      "status": "active",
+      "createdAt": "2026-11-17T05:55:09.905Z",
+      "contracts": [
+        {
+          "id": "472855-1185377",
+          "label": "Grayson Allen 2+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "GALLENO1",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-GALLENO1",
+          "marketState": "post_only",
+          "color": "#1D1160",
+          "imageUrl": "https://assets.gemini.com/predictions/images/CHA_80ee586f-28bb-40e8-a81c-5739ddd1bdfd.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 12,
+          "teamId": "583ec97e-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "1.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Grayson Allen",
+            "externalIds": {
+              "sportradar": "ffa9a64f-d624-4033-bd23-59dcfd805175"
+            }
+          }
+        },
+        {
+          "id": "472855-1185378",
+          "label": "Grayson Allen 4+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "GALLENO3",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-GALLENO3",
+          "marketState": "post_only",
+          "color": "#1D1160",
+          "imageUrl": "https://assets.gemini.com/predictions/images/CHA_80ee586f-28bb-40e8-a81c-5739ddd1bdfd.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 13,
+          "teamId": "583ec97e-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "3.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Grayson Allen",
+            "externalIds": {
+              "sportradar": "ffa9a64f-d624-4033-bd23-59dcfd805175"
+            }
+          }
+        },
+        {
+          "id": "472855-1185379",
+          "label": "Grayson Allen 6+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "GALLENO5",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-GALLENO5",
+          "marketState": "post_only",
+          "color": "#1D1160",
+          "imageUrl": "https://assets.gemini.com/predictions/images/CHA_80ee586f-28bb-40e8-a81c-5739ddd1bdfd.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 14,
+          "teamId": "583ec97e-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "5.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Grayson Allen",
+            "externalIds": {
+              "sportradar": "ffa9a64f-d624-4033-bd23-59dcfd805175"
+            }
+          }
+        },
+        {
+          "id": "472855-1185380",
+          "label": "Grayson Allen 8+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "active",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "GALLENO7",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-GALLENO7",
+          "marketState": "post_only",
+          "color": "#1D1160",
+          "imageUrl": "https://assets.gemini.com/predictions/images/CHA_80ee586f-28bb-40e8-a81c-5739ddd1bdfd.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 15,
+          "teamId": "583ec97e-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "7.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Grayson Allen",
+            "externalIds": {
+              "sportradar": "ffa9a64f-d624-4033-bd23-59dcfd805175"
+            }
+          }
+        },
+        {
+          "id": "472855-1185365",
+          "label": "Brandon Miller 2+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "BMILLERO1",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-BMILLERO1",
+          "marketState": "closed",
+          "color": "#1D1160",
+          "imageUrl": "https://assets.gemini.com/predictions/images/CHA_80ee586f-28bb-40e8-a81c-5739ddd1bdfd.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "yes",
+          "resolvedAt": "2026-11-18T07:48:04.560Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 0,
+          "teamId": "583ec97e-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "1.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Brandon Miller",
+            "externalIds": {
+              "sportradar": "775e4450-cdcd-43a1-b4cd-dc29fba48503"
+            }
+          }
+        },
+        {
+          "id": "472855-1185366",
+          "label": "Brandon Miller 4+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "BMILLERO3",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-BMILLERO3",
+          "marketState": "closed",
+          "color": "#1D1160",
+          "imageUrl": "https://assets.gemini.com/predictions/images/CHA_80ee586f-28bb-40e8-a81c-5739ddd1bdfd.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "yes",
+          "resolvedAt": "2026-11-18T07:48:04.771Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 1,
+          "teamId": "583ec97e-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "3.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Brandon Miller",
+            "externalIds": {
+              "sportradar": "775e4450-cdcd-43a1-b4cd-dc29fba48503"
+            }
+          }
+        },
+        {
+          "id": "472855-1185367",
+          "label": "Brandon Miller 6+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "BMILLERO5",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-BMILLERO5",
+          "marketState": "closed",
+          "color": "#1D1160",
+          "imageUrl": "https://assets.gemini.com/predictions/images/CHA_80ee586f-28bb-40e8-a81c-5739ddd1bdfd.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "no",
+          "resolvedAt": "2026-11-18T07:48:02.035Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 2,
+          "teamId": "583ec97e-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "5.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Brandon Miller",
+            "externalIds": {
+              "sportradar": "775e4450-cdcd-43a1-b4cd-dc29fba48503"
+            }
+          }
+        },
+        {
+          "id": "472855-1185368",
+          "label": "Brandon Miller 8+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "BMILLERO7",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-BMILLERO7",
+          "marketState": "closed",
+          "color": "#1D1160",
+          "imageUrl": "https://assets.gemini.com/predictions/images/CHA_80ee586f-28bb-40e8-a81c-5739ddd1bdfd.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "no",
+          "resolvedAt": "2026-11-18T07:48:02.740Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 3,
+          "teamId": "583ec97e-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "7.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Brandon Miller",
+            "externalIds": {
+              "sportradar": "775e4450-cdcd-43a1-b4cd-dc29fba48503"
+            }
+          }
+        },
+        {
+          "id": "472855-1185369",
+          "label": "Coby White 2+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "COBYO1",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-COBYO1",
+          "marketState": "closed",
+          "color": "#1D1160",
+          "imageUrl": "https://assets.gemini.com/predictions/images/CHA_80ee586f-28bb-40e8-a81c-5739ddd1bdfd.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "yes",
+          "resolvedAt": "2026-11-18T07:48:03.209Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 4,
+          "teamId": "583ec97e-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "1.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Coby White",
+            "externalIds": {
+              "sportradar": "a1e46e84-bd9e-454d-9117-a8fa1aab0ce4"
+            }
+          }
+        },
+        {
+          "id": "472855-1185370",
+          "label": "Coby White 4+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "COBYO3",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-COBYO3",
+          "marketState": "closed",
+          "color": "#1D1160",
+          "imageUrl": "https://assets.gemini.com/predictions/images/CHA_80ee586f-28bb-40e8-a81c-5739ddd1bdfd.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "yes",
+          "resolvedAt": "2026-11-18T07:48:02.917Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 5,
+          "teamId": "583ec97e-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "3.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Coby White",
+            "externalIds": {
+              "sportradar": "a1e46e84-bd9e-454d-9117-a8fa1aab0ce4"
+            }
+          }
+        },
+        {
+          "id": "472855-1185371",
+          "label": "Coby White 6+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "COBYO5",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-COBYO5",
+          "marketState": "closed",
+          "color": "#1D1160",
+          "imageUrl": "https://assets.gemini.com/predictions/images/CHA_80ee586f-28bb-40e8-a81c-5739ddd1bdfd.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "no",
+          "resolvedAt": "2026-11-18T07:48:02.036Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 6,
+          "teamId": "583ec97e-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "5.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Coby White",
+            "externalIds": {
+              "sportradar": "a1e46e84-bd9e-454d-9117-a8fa1aab0ce4"
+            }
+          }
+        },
+        {
+          "id": "472855-1185372",
+          "label": "Coby White 8+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "COBYO7",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-COBYO7",
+          "marketState": "closed",
+          "color": "#1D1160",
+          "imageUrl": "https://assets.gemini.com/predictions/images/CHA_80ee586f-28bb-40e8-a81c-5739ddd1bdfd.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "no",
+          "resolvedAt": "2026-11-18T07:48:02.211Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 7,
+          "teamId": "583ec97e-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "7.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Coby White",
+            "externalIds": {
+              "sportradar": "a1e46e84-bd9e-454d-9117-a8fa1aab0ce4"
+            }
+          }
+        },
+        {
+          "id": "472855-1185373",
+          "label": "Collin Sexton 2+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "SEXTONO1",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-SEXTONO1",
+          "marketState": "closed",
+          "color": "#552583",
+          "imageUrl": "https://assets.gemini.com/predictions/images/LAL_b9eaf22e-3646-42fa-aec4-8f64cfda7f76.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "yes",
+          "resolvedAt": "2026-11-18T07:48:04.013Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 8,
+          "teamId": "583ecae2-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "1.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Collin Sexton",
+            "externalIds": {
+              "sportradar": "80b5cccf-203b-4482-92aa-76d1598216be"
+            }
+          }
+        },
+        {
+          "id": "472855-1185374",
+          "label": "Collin Sexton 4+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "SEXTONO3",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-SEXTONO3",
+          "marketState": "closed",
+          "color": "#552583",
+          "imageUrl": "https://assets.gemini.com/predictions/images/LAL_b9eaf22e-3646-42fa-aec4-8f64cfda7f76.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "no",
+          "resolvedAt": "2026-11-18T07:48:02.008Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 9,
+          "teamId": "583ecae2-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "3.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Collin Sexton",
+            "externalIds": {
+              "sportradar": "80b5cccf-203b-4482-92aa-76d1598216be"
+            }
+          }
+        },
+        {
+          "id": "472855-1185375",
+          "label": "Collin Sexton 6+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "SEXTONO5",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-SEXTONO5",
+          "marketState": "closed",
+          "color": "#552583",
+          "imageUrl": "https://assets.gemini.com/predictions/images/LAL_b9eaf22e-3646-42fa-aec4-8f64cfda7f76.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "no",
+          "resolvedAt": "2026-11-18T07:48:01.737Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 10,
+          "teamId": "583ecae2-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "5.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Collin Sexton",
+            "externalIds": {
+              "sportradar": "80b5cccf-203b-4482-92aa-76d1598216be"
+            }
+          }
+        },
+        {
+          "id": "472855-1185376",
+          "label": "Collin Sexton 8+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "SEXTONO7",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-SEXTONO7",
+          "marketState": "closed",
+          "color": "#552583",
+          "imageUrl": "https://assets.gemini.com/predictions/images/LAL_b9eaf22e-3646-42fa-aec4-8f64cfda7f76.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "no",
+          "resolvedAt": "2026-11-18T07:48:01.739Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 11,
+          "teamId": "583ecae2-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "7.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Collin Sexton",
+            "externalIds": {
+              "sportradar": "80b5cccf-203b-4482-92aa-76d1598216be"
+            }
+          }
+        },
+        {
+          "id": "472855-1185381",
+          "label": "Luka Don\u010di\u0107 4+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "LUKAO3",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-LUKAO3",
+          "marketState": "closed",
+          "color": "#552583",
+          "imageUrl": "https://assets.gemini.com/predictions/images/LAL_b9eaf22e-3646-42fa-aec4-8f64cfda7f76.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "yes",
+          "resolvedAt": "2026-11-18T07:48:03.456Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 16,
+          "teamId": "583ecae2-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "3.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Luka Don\u010di\u0107",
+            "externalIds": {
+              "sportradar": "d2ee92e9-3e72-45eb-b156-2dc5adc1e6f7"
+            }
+          }
+        },
+        {
+          "id": "472855-1185382",
+          "label": "Luka Don\u010di\u0107 6+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "LUKAO5",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-LUKAO5",
+          "marketState": "closed",
+          "color": "#552583",
+          "imageUrl": "https://assets.gemini.com/predictions/images/LAL_b9eaf22e-3646-42fa-aec4-8f64cfda7f76.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "yes",
+          "resolvedAt": "2026-11-18T07:48:03.731Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 17,
+          "teamId": "583ecae2-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "5.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Luka Don\u010di\u0107",
+            "externalIds": {
+              "sportradar": "d2ee92e9-3e72-45eb-b156-2dc5adc1e6f7"
+            }
+          }
+        },
+        {
+          "id": "472855-1185383",
+          "label": "Luka Don\u010di\u0107 8+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "LUKAO7",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-LUKAO7",
+          "marketState": "closed",
+          "color": "#552583",
+          "imageUrl": "https://assets.gemini.com/predictions/images/LAL_b9eaf22e-3646-42fa-aec4-8f64cfda7f76.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "no",
+          "resolvedAt": "2026-11-18T07:48:01.806Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 18,
+          "teamId": "583ecae2-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "7.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Luka Don\u010di\u0107",
+            "externalIds": {
+              "sportradar": "d2ee92e9-3e72-45eb-b156-2dc5adc1e6f7"
+            }
+          }
+        },
+        {
+          "id": "472855-1185385",
+          "label": "Luka Don\u010di\u0107 10+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "LUKAO9",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-LUKAO9",
+          "marketState": "closed",
+          "color": "#552583",
+          "imageUrl": "https://assets.gemini.com/predictions/images/LAL_b9eaf22e-3646-42fa-aec4-8f64cfda7f76.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "no",
+          "resolvedAt": "2026-11-18T07:48:02.171Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 19,
+          "teamId": "583ecae2-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "9.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Luka Don\u010di\u0107",
+            "externalIds": {
+              "sportradar": "d2ee92e9-3e72-45eb-b156-2dc5adc1e6f7"
+            }
+          }
+        },
+        {
+          "id": "472855-1185386",
+          "label": "Luka Don\u010di\u0107 12+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "LUKAO11",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-LUKAO11",
+          "marketState": "closed",
+          "color": "#552583",
+          "imageUrl": "https://assets.gemini.com/predictions/images/LAL_b9eaf22e-3646-42fa-aec4-8f64cfda7f76.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "no",
+          "resolvedAt": "2026-11-18T07:48:01.721Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 20,
+          "teamId": "583ecae2-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "11.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Luka Don\u010di\u0107",
+            "externalIds": {
+              "sportradar": "d2ee92e9-3e72-45eb-b156-2dc5adc1e6f7"
+            }
+          }
+        },
+        {
+          "id": "472855-1185387",
+          "label": "Naz Reid 2+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "NAZREIDO1",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-NAZREIDO1",
+          "marketState": "closed",
+          "color": "#1D1160",
+          "imageUrl": "https://assets.gemini.com/predictions/images/CHA_80ee586f-28bb-40e8-a81c-5739ddd1bdfd.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "yes",
+          "resolvedAt": "2026-11-18T07:48:04.329Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 21,
+          "teamId": "583ec97e-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "1.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Naz Reid",
+            "externalIds": {
+              "sportradar": "823b2161-0c34-494c-9d7c-b438152f4f4d"
+            }
+          }
+        },
+        {
+          "id": "472855-1185388",
+          "label": "Naz Reid 4+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "NAZREIDO3",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-NAZREIDO3",
+          "marketState": "closed",
+          "color": "#1D1160",
+          "imageUrl": "https://assets.gemini.com/predictions/images/CHA_80ee586f-28bb-40e8-a81c-5739ddd1bdfd.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "yes",
+          "resolvedAt": "2026-11-18T07:48:04.987Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 22,
+          "teamId": "583ec97e-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "3.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Naz Reid",
+            "externalIds": {
+              "sportradar": "823b2161-0c34-494c-9d7c-b438152f4f4d"
+            }
+          }
+        },
+        {
+          "id": "472855-1185389",
+          "label": "Naz Reid 6+ Assists",
+          "prices": {
+            "buy": {},
+            "sell": {}
+          },
+          "status": "settled",
+          "createdAt": "2026-11-17T05:55:09.905Z",
+          "termsAndConditionsUrl": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+          "ticker": "NAZREIDO5",
+          "instrumentSymbol": "GEMI-NBA-2611180400-CHA-LAL-PPAST-NAZREIDO5",
+          "marketState": "closed",
+          "color": "#1D1160",
+          "imageUrl": "https://assets.gemini.com/predictions/images/CHA_80ee586f-28bb-40e8-a81c-5739ddd1bdfd.png",
+          "expiryDate": "2026-11-19T16:00:00.000Z",
+          "resolutionSide": "no",
+          "resolvedAt": "2026-11-18T07:48:01.818Z",
+          "effectiveDate": "2026-11-15T00:00:06.000Z",
+          "sortOrder": 23,
+          "teamId": "583ec97e-fb46-11e1-82cb-f4ce4684ea4c",
+          "strike": {
+            "type": "over",
+            "value": "5.5"
+          },
+          "isCombo": false,
+          "quantityIncrement": "0.01",
+          "quantityMinimum": "0.01",
+          "priceIncrement": "0.01",
+          "quoteAssetPrecision": 2,
+          "priceMinimum": "0.01",
+          "target": {
+            "type": "player",
+            "name": "Naz Reid",
+            "externalIds": {
+              "sportradar": "823b2161-0c34-494c-9d7c-b438152f4f4d"
+            }
+          }
+        }
+      ],
+      "effectiveDate": "2026-11-17T05:55:09.905Z",
+      "isLive": true,
+      "participants": [
+        {
+          "id": "478",
+          "name": "Los Angeles Lakers",
+          "abbreviation": "LAL",
+          "side": "home"
+        },
+        {
+          "id": "461",
+          "name": "Charlotte Hornets",
+          "abbreviation": "CHA",
+          "side": "away"
+        }
+      ],
+      "description": "How many assists will each player make?",
+      "imageUrl": "https://assets.gemini.com/predictions/images/bb_f53a7e9b-c0fc-4a5c-a011-d0bf655f8263.avif",
+      "volume": "0",
+      "volume24h": "0",
+      "tags": ["Pro Basketball"],
+      "expiryDate": "2026-11-19T16:00:00.000Z",
+      "startTime": "2026-11-18T04:00:00.000Z",
+      "termsLink": "https://assets.gemini.com/predictions/terms_and_conditions/Terms_and_Conditions_NBA_Player_Assists_Class_76239ffa-aa99-438c-8704-db71de2d2363.pdf",
+      "subcategory": {
+        "id": 14,
+        "slug": "sports_basketball_pro-basketball",
+        "name": "Pro Basketball",
+        "path": ["Sports", "Basketball", "Pro Basketball"]
+      },
+      "socialImageUrl": "https://assets.gemini.com/predictions/images/Card_Carousel__40__b3388226-c9ca-43be-9611-88185341baf0.png",
+      "template": "sports-player-props",
+      "gameId": "40a9b530-5264-4d67-be28-71984eb5d1a4",
+      "sourceDetails": {
+        "agency": "sportradar-rest-api",
+        "index": "Basketball Player Props"
+      },
+      "volumeDelta24hPct": "0",
+      "sportsMarket": {
+        "sport": "basketball",
+        "type": "prop",
+        "subject": "player",
+        "scope": {
+          "type": "full_contest"
+        },
+        "metric": "assists",
+        "team": {
+          "symbol": "CHA",
+          "name": "Charlotte Hornets",
+          "externalIds": {
+            "sportradarId": "583ec97e-fb46-11e1-82cb-f4ce4684ea4c"
+          }
+        },
+        "player": {
+          "symbol": "GALLEN",
+          "name": "Grayson Allen",
+          "externalIds": {
+            "sportradarId": "ffa9a64f-d624-4033-bd23-59dcfd805175"
+          }
+        }
+      }
+    }
+  ],
+  "pagination": {
+    "limit": 1,
+    "offset": 0,
+    "total": 1003
+  }
+}

@@ -1,7 +1,16 @@
 import type { Hex } from "viem";
 
 import { startEngine, type Engine } from "./app";
-import { createArcClients, defaultCursorName } from "./chain";
+import {
+  ChainIdMismatchError,
+  EngineIdentityError,
+  EscrowConfigError,
+  assertSameIdentity,
+  checkEscrowRoles,
+  createArcClients,
+  defaultCursorName,
+  readEngineIdentity,
+} from "./chain";
 import { EnvValidationError, loadEngineEnv, type EngineEnv } from "./config/env";
 import { createDb } from "./db";
 import {
@@ -120,6 +129,51 @@ async function main(): Promise<void> {
   // Every request to the node goes through one limiter (ARC_RPC_* variables), shared by every
   // service through this one client.
   const arc = createArcClients(env, { logger: moduleLogger(root, "rpc") });
+
+  // Start checks at boot, read-only, so that a wrong configuration stops the process now rather
+  // than when it takes the lease (perhaps hours later, at a failover). `startEngine` runs them
+  // again under the lease, and records the database's identity there.
+  try {
+    const recorded = await readEngineIdentity(db);
+    if (recorded !== null) {
+      assertSameIdentity(recorded, {
+        chainId: env.ARC_CHAIN_ID,
+        escrowAddress: env.ARC_ESCROW_ADDRESS as Hex,
+      });
+    }
+  } catch (error: unknown) {
+    log.fatal(
+      { err: error },
+      error instanceof EngineIdentityError
+        ? "engine could not start: this database belongs to another chain or escrow"
+        : "engine could not start: engine_identity cannot be read (is every migration applied?)",
+    );
+    await db.end({ timeout: 5 }).catch(() => undefined);
+    process.exit(1);
+  }
+  try {
+    await checkEscrowRoles({
+      client: arc.publicClient,
+      chainId: env.ARC_CHAIN_ID,
+      escrowAddress: env.ARC_ESCROW_ADDRESS as Hex,
+      accounts: arc.accounts,
+    });
+  } catch (error: unknown) {
+    if (error instanceof EscrowConfigError || error instanceof ChainIdMismatchError) {
+      log.fatal(
+        { err: error },
+        "engine could not start: the keys or the escrow do not fit the chain",
+      );
+      arc.limiter?.close();
+      await db.end({ timeout: 5 }).catch(() => undefined);
+      process.exit(1);
+    }
+    // The node did not answer: not a configuration error. The check runs again under the lease.
+    log.warn(
+      { err: error },
+      "the escrow could not be checked at boot: checked again under the lease",
+    );
+  }
 
   /** The engine's services, started each time this process takes the lease. */
   const startServices = (signal: AbortSignal): Promise<Engine> => {

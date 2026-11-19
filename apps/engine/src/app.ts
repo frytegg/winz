@@ -4,6 +4,8 @@ import type { Address, PublicClient } from "viem";
 import type { ExecutionVenueName } from "@winz/shared";
 
 import {
+  checkEscrowRoles,
+  claimEngineIdentity,
   startChainIngest,
   TxSender,
   type ChainIngestOptions,
@@ -125,9 +127,16 @@ function aborted(signal: AbortSignal): Promise<void> {
  *    campaign's charges before it settles);
  * 4. the jobs the web app enqueues, last, so that no sale is accepted before hedging can see it.
  *
- * Throws when it cannot start (the node answers another chain id, an execution venue without an
- * adapter, a worker concurrency above the database pool): whatever was already started is
- * stopped before the error is thrown.
+ * Before anything starts, two start checks, each a configuration error that stops the start:
+ *
+ * - the escrow (`checkEscrowRoles`): the node serves `chainId`, `escrowAddress` holds code there,
+ *   and the escrow's `relayer()` and `oracle()` are the addresses of the configured keys;
+ * - the database (`claimEngineIdentity`): the first engine on a database records its chain id and
+ *   escrow, every later one must have the same pair. Written only once the escrow check passed.
+ *
+ * Throws when it cannot start (one of those checks, the node answers another chain id, an
+ * execution venue without an adapter, a worker concurrency above the database pool): whatever
+ * was already started is stopped before the error is thrown.
  *
  * On abort every subsystem finishes what it has in flight, and the transaction sender is stopped
  * only after all of them: a handler waiting on a transaction must still be able to read its
@@ -153,6 +162,28 @@ export async function startEngine(deps: EngineDeps): Promise<Engine> {
     config: { ...tuning.txSender, chainId: deps.chainId, escrowAddress: deps.escrowAddress },
   });
   try {
+    const roles = await checkEscrowRoles({
+      client: deps.publicClient,
+      chainId: deps.chainId,
+      escrowAddress: deps.escrowAddress,
+      accounts: deps.accounts,
+    });
+    const claim = await claimEngineIdentity(deps.db, {
+      chainId: deps.chainId,
+      escrowAddress: deps.escrowAddress,
+    });
+    log.info(
+      {
+        chainId: claim.identity.chainId,
+        escrow: claim.identity.escrowAddress.toLowerCase(),
+        relayer: roles.relayer.toLowerCase(),
+        oracle: roles.oracle.toLowerCase(),
+        identityRecordedAt: claim.identity.recordedAt.toISOString(),
+      },
+      claim.recorded
+        ? "start checks passed: this database is now recorded for this chain and escrow"
+        : "start checks passed: the keys are the escrow's relayer and oracle, the database is this chain's and escrow's",
+    );
     await txSender.start();
   } catch (error: unknown) {
     deps.signal.removeEventListener("abort", forward);
