@@ -57,7 +57,25 @@ export interface GeminiRestClientOptions {
   maxAttempts?: number;
   baseDelayMs?: number;
   maxDelayMs?: number;
+  /**
+   * Per attempt, for the small requests: an order book, one event's own page. Default 10 000.
+   */
   timeoutMs?: number;
+  /**
+   * Per attempt, for the listing requests (active events, recently settled), whose pages are
+   * large: a page of 100 NCAAF events is about 7 MB. Default `LISTING_TIMEOUT_MS`.
+   */
+  listingTimeoutMs?: number;
+}
+
+/** What a request of the client may carry besides its parameters. */
+export interface RequestOptions {
+  /**
+   * The caller's stop (the engine stopping, the lease lost). Once aborted, the request in flight
+   * is aborted with it, its download included, a backoff or a rate-limiter wait is abandoned, and
+   * the call throws `SyncAbortedError`: never retried, never logged as a failed request.
+   */
+  signal?: AbortSignal;
 }
 
 export interface ListEventsParams {
@@ -72,12 +90,16 @@ export interface ListEventsParams {
   search?: string;
   limit: number;
   offset: number;
+  /** See `RequestOptions.signal`. */
+  signal?: AbortSignal;
 }
 
 export interface ListSettledParams {
   category?: string;
   limit?: number;
   offset?: number;
+  /** See `RequestOptions.signal`. */
+  signal?: AbortSignal;
 }
 
 export interface ListAllParams {
@@ -102,7 +124,10 @@ export interface ReadListingParams {
   overlap?: number;
   /** Safety stop. Default 20 (1 810 events at the defaults, more than the cap). */
   maxPages?: number;
-  /** Checked before each page: once aborted, the read throws `SyncAbortedError`. */
+  /**
+   * The caller's stop: once aborted, the read throws `SyncAbortedError`, at once, the page in
+   * flight included (see `RequestOptions.signal`).
+   */
   signal?: AbortSignal;
 }
 
@@ -145,6 +170,15 @@ export const MAX_PAGE_SIZE = 500;
 const DEFAULT_LISTING_PAGE_SIZE = 100;
 const DEFAULT_LISTING_OVERLAP = 10;
 const DEFAULT_LISTING_MAX_PAGES = 20;
+/** Timeout of one attempt of a small request (an order book, one event). */
+export const REQUEST_TIMEOUT_MS = 10_000;
+/**
+ * Timeout of one attempt of a listing request. A page of 100 NCAAF events is about 7 MB: 5.4 s
+ * on 19 Nov 2026 at 12:33 UTC, 2.4 s at 14:07 UTC (1.5 s to the first byte), against the old
+ * 10 s. 30 s still accepts a link about five times slower than the slowest one measured
+ * (about 250 kB/s) before the page is given up and downloaded again.
+ */
+export const LISTING_TIMEOUT_MS = 30_000;
 /** A `Retry-After` longer than this is not honoured in-request; the caller's next poll retries. */
 const MAX_RETRY_AFTER_MS = 60_000;
 /** Generic on purpose: nothing about the project or its owner leaves the machine. */
@@ -172,6 +206,7 @@ export class GeminiRestClient {
   private readonly baseDelayMs: number;
   private readonly maxDelayMs: number;
   private readonly timeoutMs: number;
+  private readonly listingTimeoutMs: number;
 
   constructor(options: GeminiRestClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
@@ -186,7 +221,8 @@ export class GeminiRestClient {
     this.maxAttempts = options.maxAttempts ?? 4;
     this.baseDelayMs = options.baseDelayMs ?? 500;
     this.maxDelayMs = options.maxDelayMs ?? 8_000;
-    this.timeoutMs = options.timeoutMs ?? 10_000;
+    this.timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
+    this.listingTimeoutMs = options.listingTimeoutMs ?? LISTING_TIMEOUT_MS;
     if (this.maxAttempts < 1) throw new RangeError("GeminiRestClient: maxAttempts must be >= 1");
   }
 
@@ -203,6 +239,7 @@ export class GeminiRestClient {
         search: params.search,
       },
       eventsResponseSchema,
+      { timeoutMs: this.listingTimeoutMs, signal: params.signal },
     );
     return { events: body.data, pagination: body.pagination };
   }
@@ -214,10 +251,23 @@ export class GeminiRestClient {
    * so an event that ended between two requests can shift the rest by one, which the overlap
    * absorbs, and a shift larger than the overlap is detected instead of silently skipping events.
    *
+   * Complete only when nothing can have been skipped. An empty page proves the end only as the
+   * first page (offset 0: nothing is listed). Every later page is asked at `overlap` events
+   * before the end of the previous one, which itself ended before the `total` it reported: if
+   * the listing had not moved, that page would hold at least `overlap + 1` events. Empty, it
+   * means more than `overlap` events left the listing between the two requests, and events that
+   * were never read may have slid into positions already read (a finished game removes 10 to 15
+   * events at once). So an empty page after the first is never the end: the read is not
+   * complete, whatever `total` says. A non-empty page proves that nothing slid past it by
+   * containing one of the previous page's last `overlap` tickers.
+   *
    * A listing at the cap is still read to its end (what it serves is kept) and is not complete.
-   * Not complete when: `total` reaches `LISTING_CAP`, a page breaks the overlap, a page comes back
-   * empty before `total`, or `maxPages` is reached. A failed request throws (the caller decides),
-   * and so does an aborted `signal`, before the next page (`SyncAbortedError`).
+   * Not complete when: `total` reaches `LISTING_CAP`, a page breaks the overlap, a page after the
+   * first comes back empty, the first page comes back empty before `total`, or `maxPages` is
+   * reached. Not complete is safe: none of the league's games is deactivated this run, and the
+   * next run reads it again; the read is not repeated at once (it would download the whole league
+   * again, about 50 MB for NCAAF). A failed request throws (the caller decides), and so does an
+   * aborted `signal`, at once (`SyncAbortedError`).
    */
   async readActiveListing(params: ReadListingParams = {}): Promise<ListingRead> {
     const pageSize = params.pageSize ?? DEFAULT_LISTING_PAGE_SIZE;
@@ -250,6 +300,7 @@ export class GeminiRestClient {
         search: params.search,
         limit: pageSize,
         offset,
+        signal: params.signal,
       });
       requests += 1;
       total = answer.pagination.total;
@@ -267,6 +318,14 @@ export class GeminiRestClient {
       }
       for (const event of answer.events) {
         if (!byTicker.has(event.ticker)) byTicker.set(event.ticker, event);
+      }
+      if (page > 0 && answer.events.length === 0) {
+        return result(
+          false,
+          `an empty page at offset ${offset.toString()} after a page that ended before its total ` +
+            `(now ${total.toString()}): more than the overlap left the listing between two ` +
+            "requests, and unread events may have slid into positions already read",
+        );
       }
       const end = offset + answer.events.length;
       if (end >= total) {
@@ -297,8 +356,11 @@ export class GeminiRestClient {
    * in `events`, each with its contracts and, once resolved, their `resolutionSide` (checked on a
    * settled NBA game, 19 Nov 2026). Throws `GeminiHttpError` (404) for an unknown ticker.
    */
-  async getEvent(ticker: string): Promise<RawEvent> {
-    return this.request(`${EVENTS_PATH}/${encodeURIComponent(ticker)}`, {}, rawEventSchema);
+  async getEvent(ticker: string, options: RequestOptions = {}): Promise<RawEvent> {
+    return this.request(`${EVENTS_PATH}/${encodeURIComponent(ticker)}`, {}, rawEventSchema, {
+      timeoutMs: this.timeoutMs,
+      signal: options.signal,
+    });
   }
 
   /** Every active event matching the filter, all pages, in API order (duplicates included). */
@@ -359,6 +421,7 @@ export class GeminiRestClient {
         category: params.category,
       },
       eventsResponseSchema,
+      { timeoutMs: this.listingTimeoutMs, signal: params.signal },
     );
     return { events: body.data, pagination: body.pagination };
   }
@@ -369,6 +432,7 @@ export class GeminiRestClient {
       `/v1/book/${encodeURIComponent(instrumentSymbol)}`,
       {},
       bookResponseSchema,
+      { timeoutMs: this.timeoutMs },
     );
     const toLevel = (level: { price: string; amount: string }): BookLevel => ({
       priceBps: parsePriceBps(level.price),
@@ -391,6 +455,7 @@ export class GeminiRestClient {
     path: string,
     query: Record<string, string | undefined>,
     schema: S,
+    options: { timeoutMs: number; signal?: AbortSignal },
   ): Promise<z.infer<S>> {
     const search = new URLSearchParams();
     for (const [key, value] of Object.entries(query)) {
@@ -398,7 +463,7 @@ export class GeminiRestClient {
     }
     const queryString = search.toString();
     const endpoint = queryString === "" ? path : `${path}?${queryString}`;
-    const text = await this.fetchText(endpoint);
+    const text = await this.fetchText(endpoint, options);
 
     let json: unknown;
     try {
@@ -419,13 +484,42 @@ export class GeminiRestClient {
     return parsed.data;
   }
 
-  /** Returns the body of a 2xx response, retrying what is worth retrying. */
-  private async fetchText(endpoint: string): Promise<string> {
+  /**
+   * Returns the body of a 2xx response, retrying what is worth retrying. Each attempt has
+   * `timeoutMs`, the download of the body included. Once `signal` aborts, throws
+   * `SyncAbortedError` at once: the attempt in flight is aborted, a wait is abandoned, nothing is
+   * retried and nothing is logged.
+   */
+  private async fetchText(
+    endpoint: string,
+    options: { timeoutMs: number; signal?: AbortSignal },
+  ): Promise<string> {
     const url = `${this.baseUrl}${endpoint}`;
+    const stop = options.signal;
     for (let attempt = 1; ; attempt += 1) {
+      if (isStopped(stop)) throw new SyncAbortedError();
       const isLastAttempt = attempt >= this.maxAttempts;
-      await this.limiter.acquire();
+      await unlessStopped(this.limiter.acquire(), stop);
 
+      const timeout = new AbortController();
+      const timer = setTimeout(() => {
+        timeout.abort(
+          new DOMException(
+            `no complete answer within ${options.timeoutMs.toString()} ms`,
+            "TimeoutError",
+          ),
+        );
+      }, options.timeoutMs);
+      // Linked to the stop by hand for this attempt only, and unlinked in `finally`.
+      // `AbortSignal.any([timeout.signal, stop])` would keep every attempt's composite signal
+      // referenced by the stop, which lives as long as the leadership: about 180 bytes per
+      // request on Node 22, never released (measured, README).
+      const onStop = (): void => {
+        timeout.abort(stop?.reason);
+      };
+      stop?.addEventListener("abort", onStop, { once: true });
+      if (isStopped(stop)) onStop();
+      const signal = timeout.signal;
       let status: number;
       let text: string;
       let retryAfterMs: number | null;
@@ -433,20 +527,28 @@ export class GeminiRestClient {
         const response = await this.fetchImpl(url, {
           method: "GET",
           headers: { accept: "application/json", "user-agent": USER_AGENT },
-          signal: AbortSignal.timeout(this.timeoutMs),
+          signal,
         });
         status = response.status;
         retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
         text = await response.text();
       } catch (error: unknown) {
+        // This attempt is over: its timeout must not stay armed through the backoff below.
+        clearTimeout(timer);
+        stop?.removeEventListener("abort", onStop);
+        // The stop aborted this attempt: not a failure of the request, nothing to retry.
+        if (isStopped(stop)) throw new SyncAbortedError();
         if (isLastAttempt) throw new GeminiNetworkError(endpoint, attempt, error);
         const delayMs = this.backoffMs(attempt);
         this.logger.warn(
           { endpoint, attempt, delayMs, err: describeError(error) },
           "gemini request failed, retrying",
         );
-        await this.sleep(delayMs);
+        await unlessStopped(this.sleep(delayMs), stop);
         continue;
+      } finally {
+        clearTimeout(timer);
+        stop?.removeEventListener("abort", onStop);
       }
 
       if (status >= 200 && status < 300) return text;
@@ -463,7 +565,7 @@ export class GeminiRestClient {
         { endpoint, attempt, status, delayMs },
         "gemini answered an error, retrying",
       );
-      await this.sleep(delayMs);
+      await unlessStopped(this.sleep(delayMs), stop);
     }
   }
 
@@ -471,6 +573,40 @@ export class GeminiRestClient {
   private backoffMs(attempt: number): number {
     const step = Math.min(this.maxDelayMs, this.baseDelayMs * 2 ** (attempt - 1));
     return Math.round(step / 2 + this.random() * (step / 2));
+  }
+}
+
+/** Read through a call, so that a check made before an `await` does not narrow a later one. */
+function isStopped(stop: AbortSignal | undefined): boolean {
+  return stop?.aborted === true;
+}
+
+/**
+ * Waits for `promise`, or throws `SyncAbortedError` as soon as `stop` aborts. An abandoned
+ * promise runs on (a sleep ends, a limiter token is taken) and its failure is ignored.
+ */
+async function unlessStopped(promise: Promise<void>, stop: AbortSignal | undefined): Promise<void> {
+  if (stop === undefined) return promise;
+  if (stop.aborted) {
+    promise.catch(() => undefined);
+    throw new SyncAbortedError();
+  }
+  // Removes the abort listener once the wait is over, whichever way it ends.
+  const done = new AbortController();
+  const aborted = new Promise<never>((_resolve, reject) => {
+    stop.addEventListener(
+      "abort",
+      () => {
+        reject(new SyncAbortedError());
+      },
+      { once: true, signal: done.signal },
+    );
+  });
+  promise.catch(() => undefined);
+  try {
+    await Promise.race([promise, aborted]);
+  } finally {
+    done.abort();
   }
 }
 

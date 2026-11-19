@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { CATALOG_LEAGUES, type CatalogLeague } from "./catalog-leagues";
 import { InMemoryCatalogStore } from "./catalog-store";
-import { GeminiRestClient, LISTING_CAP } from "./gemini-rest-client";
+import { SyncAbortedError } from "./errors";
+import { GeminiRestClient, LISTING_CAP, type FetchLike } from "./gemini-rest-client";
 import { eventsResponseSchema, type RawEvent } from "./schemas";
 import { loadSportsCatalog, startCatalogSync, storeCatalog } from "./sync";
 import {
@@ -217,6 +218,67 @@ describe("GeminiRestClient.readActiveListing", () => {
     expect(bounded.incompleteReason).toContain("2 pages");
   });
 
+  describe("an empty page proves the end only as the first page", () => {
+    it("the verifier's probe: 20 of the first 90 of 105 end before the second request, total 85: not complete", async () => {
+      const events = filler("NCAAF", 105);
+      let listed = events;
+      const { client, http } = clientOn((url, call) => {
+        // Between the two requests, 20 of the 90 events read before the next offset end.
+        if (call === 1) listed = [...events.slice(0, 30), ...events.slice(50)];
+        return page(listed, url);
+      });
+      const listing = await client.readActiveListing({ search: "NCAAF" });
+
+      expect(http.urls.map((url) => new URL(url).searchParams.get("offset"))).toEqual(["0", "90"]);
+      expect(listing.total).toBe(85);
+      expect(listing.complete).toBe(false);
+      expect(listing.incompleteReason).toContain("empty page at offset 90");
+      // What made `complete: true` wrong: the last five slid into positions already read.
+      const read = new Set(listing.events.map((event) => event.ticker));
+      expect(events.slice(100).filter((event) => !read.has(event.ticker))).toHaveLength(5);
+    });
+
+    it("a listing that shrinks by less than the overlap is still complete, nothing missed", async () => {
+      const events = filler("NCAAF", 105);
+      let listed = events;
+      const { client } = clientOn((url, call) => {
+        if (call === 1) listed = [...events.slice(0, 40), ...events.slice(45)];
+        return page(listed, url);
+      });
+      const listing = await client.readActiveListing({ search: "NCAAF" });
+
+      expect(listing).toMatchObject({ complete: true, total: 100, requests: 2 });
+      const read = new Set(listing.events.map((event) => event.ticker));
+      expect(listed.every((event) => read.has(event.ticker))).toBe(true);
+    });
+
+    it("a listing that ends on a page boundary is complete, without an empty request", async () => {
+      for (const [count, offsets] of [
+        [100, ["0"]],
+        [190, ["0", "90"]],
+        [280, ["0", "90", "180"]],
+      ] as const) {
+        const events = filler("NCAAF", count);
+        const { client, http } = clientOn((url) => page(events, url));
+        const listing = await client.readActiveListing({ search: "NCAAF" });
+        expect(listing).toMatchObject({ complete: true, total: count, incompleteReason: null });
+        expect(listing.events).toHaveLength(count);
+        expect(http.urls.map((url) => new URL(url).searchParams.get("offset"))).toEqual(offsets);
+      }
+    });
+
+    it("an empty league is complete in one request", async () => {
+      const { client } = clientOn((url) => page([], url));
+      expect(await client.readActiveListing({ search: "MLB" })).toEqual({
+        events: [],
+        total: 0,
+        requests: 1,
+        complete: true,
+        incompleteReason: null,
+      });
+    });
+  });
+
   it("throws when a page fails, after the client's retries", async () => {
     const events = filler("NCAAF", 250);
     const { client } = clientOn((url) =>
@@ -294,11 +356,27 @@ describe("loadSportsCatalog, one listing per league", () => {
     expect(lines.filter((line) => line.level >= 40)).toEqual([]);
   });
 
-  it("keeps a league whose page fails mid-way out of the complete leagues, logs it, and keeps what was read", async () => {
+  it("keeps a league whose page fails mid-way out of the complete leagues, logs it, and leaves its stored games as they are: neither updated nor deactivated", async () => {
+    const store = new InMemoryCatalogStore();
+    const first = clientOn(gemini({ NCAAF: arkTex(), NHL: nhlGame() }));
+    await storeCatalog(await loadSportsCatalog(first.client, silentLogger), store);
+    const before = store.listInstruments(ARK_TEX);
+    expect(before.length).toBeGreaterThan(0);
+    expect(store.getInstrument(TEX_WINS)).toMatchObject({ active: true, bestBidBps: 9100n });
+
+    // The first page, which succeeds, lists the game renamed and requoted; the second fails.
+    const changed = arkTex().map((event) => ({
+      ...event,
+      title: event.ticker === ARK_TEX ? "Arkansas vs Texas, requoted" : event.title,
+      contracts: event.contracts.map((contract) => ({
+        ...contract,
+        prices: contract.prices ? { ...contract.prices, bestBid: "0.5" } : contract.prices,
+      })),
+    }));
     const { logger, lines } = recordingLogger();
     const { client } = clientOn(
       gemini(
-        { NCAAF: [...arkTex(), ...filler("NCAAF", 200)], NHL: nhlGame() },
+        { NCAAF: [...changed, ...filler("NCAAF", 200)], NHL: nhlGame() },
         {
           fail: (url) =>
             url.searchParams.get("search") === "NCAAF" && url.searchParams.get("offset") !== "0"
@@ -311,10 +389,19 @@ describe("loadSportsCatalog, one listing per league", () => {
 
     expect(catalog.completeLeagues).not.toContain("NCAAF");
     expect(catalog.completeLeagues).toContain("NHL");
+    // Nothing of the failed league is in the catalogue, not even its first page.
+    expect(catalog.events.filter((event) => event.league === "NCAAF")).toEqual([]);
+    expect(catalog.instruments.filter((item) => item.eventTicker === ARK_TEX)).toEqual([]);
     const errors = lines.filter((line) => line.level === 50);
     expect(errors).toHaveLength(1);
     expect(errors[0]).toMatchObject({ league: "NCAAF" });
     expect(errors[0]?.msg).toContain("failed");
+
+    const result = await storeCatalog(catalog, store);
+    expect(result.delisted).toBe(0);
+    expect(store.getEvent(ARK_TEX)?.title).toBe("Arkansas vs Texas");
+    expect(store.listInstruments(ARK_TEX)).toEqual(before);
+    expect(store.getInstrument(TEX_WINS)).toMatchObject({ active: true, bestBidBps: 9100n });
   });
 
   it("throws when not one league could be read (Gemini down), so the run is logged as failed", async () => {
@@ -374,6 +461,152 @@ describe("startCatalogSync stops between two requests", () => {
       "catalogue sync stopped part-way by the stop: nothing written",
     );
     expect(lines.filter((line) => line.level >= 50)).toEqual([]);
+  });
+});
+
+describe("a stop during a download", () => {
+  /**
+   * A Gemini whose NCAAF page at offset 90 sends its headers, then never finishes its body until
+   * the request's signal aborts, as a 7 MB page on a slow link. `onDownload` runs when it starts.
+   */
+  function slowDownload(onDownload: () => void): { fetch: FetchLike; urls: string[] } {
+    const respond = gemini({ NCAAF: [...arkTex(), ...filler("NCAAF", 400)] });
+    const urls: string[] = [];
+    const fetch: FetchLike = (raw, init) => {
+      urls.push(raw);
+      const url = new URL(raw);
+      if (url.searchParams.get("search") !== "NCAAF" || url.searchParams.get("offset") !== "90") {
+        const answer = respond(url);
+        return Promise.resolve({
+          status: answer.status,
+          headers: { get: () => null },
+          text: () => Promise.resolve(answer.body),
+        });
+      }
+      onDownload();
+      return Promise.resolve({
+        status: 200,
+        headers: { get: () => null },
+        text: () =>
+          new Promise<string>((_resolve, reject) => {
+            const abort = (): void => {
+              reject(
+                init.signal.reason instanceof Error ? init.signal.reason : new Error("aborted"),
+              );
+            };
+            if (init.signal.aborted) abort();
+            else init.signal.addEventListener("abort", abort, { once: true });
+          }),
+      });
+    };
+    return { fetch, urls };
+  }
+
+  it("ends the run at once: the download is aborted, not retried, and no ERROR or WARN line", async () => {
+    const controller = new AbortController();
+    const http = slowDownload(() => {
+      setTimeout(() => {
+        controller.abort();
+      }, 20);
+    });
+    const { logger, lines } = recordingLogger();
+    // The client's defaults: four attempts, the listing timeout (30 s), the real limiter.
+    const client = new GeminiRestClient({
+      baseUrl: "https://gemini.test",
+      logger,
+      fetch: http.fetch,
+    });
+    const store = new InMemoryCatalogStore();
+    const startedAt = performance.now();
+    const service = startCatalogSync({ client, store, logger, signal: controller.signal });
+    await service.stopped;
+    const elapsedMs = performance.now() - startedAt;
+
+    // Bound: the stop comes 20 ms into the download; the run is over well within a second,
+    // where waiting for the request would have taken its 30 s timeout.
+    expect(elapsedMs).toBeLessThan(1_000);
+    expect(http.urls.map((url) => new URL(url).searchParams.get("offset"))).toEqual(["0", "90"]);
+    expect(store.listEvents()).toEqual([]);
+    expect(lines.filter((line) => line.level >= 40)).toEqual([]);
+    expect(lines.map((line) => line.msg)).toContain(
+      "catalogue sync stopped part-way by the stop: nothing written",
+    );
+  });
+
+  it("ends the run quietly when the stop comes during the per-sport coverage check", async () => {
+    const controller = new AbortController();
+    const respond = gemini({ NCAAF: arkTex() });
+    const urls: string[] = [];
+    const fetch: FetchLike = (raw, init) => {
+      urls.push(raw);
+      const url = new URL(raw);
+      const answer = respond(url);
+      // Every league is read; the sport's own one-event listing is held until the stop.
+      const coverage = url.searchParams.get("search") === null;
+      if (coverage) {
+        setTimeout(() => {
+          controller.abort();
+        }, 20);
+      }
+      return Promise.resolve({
+        status: answer.status,
+        headers: { get: () => null },
+        text: () =>
+          coverage
+            ? new Promise<string>((_resolve, reject) => {
+                init.signal.addEventListener(
+                  "abort",
+                  () => {
+                    reject(
+                      init.signal.reason instanceof Error
+                        ? init.signal.reason
+                        : new Error("aborted"),
+                    );
+                  },
+                  { once: true },
+                );
+              })
+            : Promise.resolve(answer.body),
+      });
+    };
+    const { logger, lines } = recordingLogger();
+    const client = new GeminiRestClient({ baseUrl: "https://gemini.test", logger, fetch });
+    const store = new InMemoryCatalogStore();
+    const startedAt = performance.now();
+    const service = startCatalogSync({ client, store, logger, signal: controller.signal });
+    await service.stopped;
+
+    expect(performance.now() - startedAt).toBeLessThan(1_000);
+    // Every league was read, then one coverage request, aborted: nothing after it.
+    const coverageRequests = urls.filter((url) => new URL(url).searchParams.get("search") === null);
+    expect(coverageRequests).toHaveLength(1);
+    expect(urls.at(-1)).toBe(coverageRequests[0]);
+    // Not a failure: no WARN or ERROR line. And a stopped run writes nothing.
+    expect(lines.filter((line) => line.level >= 40)).toEqual([]);
+    expect(lines.map((line) => line.msg)).toContain(
+      "catalogue sync stopped part-way by the stop: nothing written",
+    );
+    expect(store.listEvents()).toEqual([]);
+  });
+
+  it("readActiveListing throws SyncAbortedError, after one request for the page", async () => {
+    const controller = new AbortController();
+    const http = slowDownload(() => {
+      queueMicrotask(() => {
+        controller.abort();
+      });
+    });
+    const { logger, lines } = recordingLogger();
+    const client = new GeminiRestClient({
+      baseUrl: "https://gemini.test",
+      logger,
+      fetch: http.fetch,
+    });
+    await expect(
+      client.readActiveListing({ search: "NCAAF", signal: controller.signal }),
+    ).rejects.toBeInstanceOf(SyncAbortedError);
+    expect(http.urls).toHaveLength(2);
+    expect(lines).toEqual([]);
   });
 });
 

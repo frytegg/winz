@@ -82,6 +82,19 @@ The leagues, each with its reason, are the list `CATALOG_LEAGUES`
 LIGAMX, MLB. Pages of 100 overlap by 10, and each page must contain one of the previous page's last
 tickers, so an event that slid between two requests is noticed rather than skipped.
 
+**When a league's read is complete.** Only when nothing can have been skipped
+(`readActiveListing`). An empty page proves the end only as the first page (offset 0: the league
+lists nothing, as MLB today). Every later page is asked 10 events before the end of the previous
+one, which ended before the total it reported, so an unchanged listing gives it at least 11
+events: an empty one means more than the overlap left the listing between two requests (one
+finished game removes 10 to 15 events, and on Saturday many end together), and events not read
+yet may have slid into positions already read. Such a read is not complete, whatever the total now
+says; nor is one whose page does not contain one of the previous page's last 10 tickers. A
+listing that ends on a page boundary never asks an empty page, so the ordinary case stays quiet.
+Not complete only means none of that league's games is deactivated this run (logged at WARN); the
+read is not repeated at once, which would download the league again (about 50 MB for NCAAF), and
+the next run, a minute later, reads it again.
+
 - A league whose listing reaches the cap is logged at ERROR with its name (`gemini league listing
   at the cap`); a league whose read fails, too. Neither counts as read.
 - Each sport's own listing total is compared with the sum of its leagues' (one `limit=1` request
@@ -89,6 +102,24 @@ tickers, so an event that slid between two requests is noticed rather than skipp
 - **A game is deactivated only by a complete read of its own league that no longer lists it**
   (`events.league`). A league cut at the cap, failed or not read keeps its games as they are; an
   empty catalogue deactivates nothing.
+- So a league that is not (or no longer) in `CATALOG_LEAGUES` is never deactivated: its
+  instruments stay active until they settle. Rows left by an older catalogue (the single Sports
+  listing stored games of every league, tennis and WNBA included) are listed by
+  `select e.league, count(*) from instruments i join events e on e.ticker = i.event_ticker where
+  i.active and e.league not in ('NCAAF', 'NFL', 'NCAAM', 'NBA', 'NHL', 'UCL', 'EPL', 'MLS',
+  'LALIGA', 'LIGAMX', 'MLB') group by 1`; once checked, deactivate the ones no campaign uses:
+
+  ```sql
+  update instruments i set active = false
+  from events e
+  where e.ticker = i.event_ticker
+    and i.active
+    and e.league not in ('NCAAF', 'NFL', 'NCAAM', 'NBA', 'NHL', 'UCL', 'EPL', 'MLS',
+                         'LALIGA', 'LIGAMX', 'MLB')
+    and not exists (select 1 from campaigns c where c.instrument = i.symbol);
+  ```
+
+  Removing a league from the list has the same effect on its games: run the same statement then.
 
 Measured against api.gemini.com on 19 Nov 2026 with the engine's own loader:
 
@@ -99,11 +130,44 @@ Measured against api.gemini.com on 19 Nov 2026 with the engine's own loader:
 | Before again (12:32 UTC) | 21 | 10.9 s | 187 (6 NCAAF) | 1 344 | absent |
 | After again (12:31 UTC, NCAAF 673 events) | 27 | 43 s | 298 (65 NCAAF) | 5 283 | present, Texas 0.91 / 0.92 |
 
-The duration is the download: a page of 100 NCAAF events is about 7 MB (5.4 s alone at 12:33
-UTC), and one catalogue is about 1 400 events. A run (catalogue, results, direct reads) fits its
-60 s period, but not by much on a slow link; when one takes longer, the next starts as soon as it
-ends and `catalogue sync run took longer than its interval` is logged. Runs never overlap (the
-next starts when the last ends), and a stop ends a run between two requests.
+**What a run costs.** The duration is the download: a page of 100 NCAAF events is about 7 MB
+(7 042 796 bytes at 14:07 UTC: 2.4 s, 1.5 s to the first byte; 5.4 s at 12:33 UTC), and one
+catalogue is about 1 400 events. One catalogue load with the engine's own loader, measured with
+the process's own counters:
+
+| When (19 Nov 2026, UTC) | Duration | CPU (user + system) | Peak resident memory | Longest event-loop block |
+| --- | --- | --- | --- | --- |
+| 14:00, listing timeout 10 s (the orchestrator's measure) | 30.9 s | 2.8 s | 190 MB | 102 ms |
+| 14:22, listing timeout 30 s (stdout only, not kept) | 24.3 s | 2.6 + 0.3 s | 206 MB | 105 ms |
+| 15:03, listing timeout 30 s, the stop passed down (output kept) | 81.1 s | 4.2 + 0.6 s | 214 MB | 393 ms |
+
+The 15:03 load read the 11 leagues complete (298 games, 5 283 instruments, 27 requests), but two
+first NCAAF and NFL pages were cut mid-body (`terminated: other side closed`) and downloaded
+again: a link that cuts a 7 MB page costs the whole page again, and a run can then last longer
+than its 60 s period. These loads went through an HTTPS proxy, not from the deployed host.
+
+The timeout is per attempt and covers the whole body: 30 s for a listing request (the events of
+a league, the settled list: `LISTING_TIMEOUT_MS`), which accepts a link about five times slower
+than the slowest page measured before the page is given up and downloaded again; 10 s, as before,
+for the small ones (an order book, one game's own page: `REQUEST_TIMEOUT_MS`). A failed attempt
+is retried up to four in all; a league whose page still fails contributes nothing that run.
+
+A run (catalogue, results, direct reads) fits its 60 s period, but not by much on a slow link;
+when one takes longer, the next starts as soon as it ends and `catalogue sync run took longer than
+its interval` is logged. Runs never overlap (the next starts when the last ends).
+
+**A stop does not wait for a download.** The stop (SIGTERM at a deploy, or the lease lost) is
+passed to the request in flight: its download is aborted at once, a retry wait or a rate-limiter
+wait is abandoned, and nothing more is asked. The aborted request is neither retried nor logged
+as a failure (`SyncAbortedError`): a catalogue stopped part-way is not written (`catalogue sync
+stopped part-way by the stop: nothing written`), results read so far are. What is left of the run
+after a stop is that database write; the tests stop a run 20 ms into a page download held open
+for its 30 s timeout and see it end within the second. A stop during the per-sport coverage
+check (after every league is read) ends the run the same way: nothing written, nothing logged
+above INFO. Each attempt links the stop to its own timeout by hand and unlinks it when the
+attempt ends: `AbortSignal.any([timeout, stop])` kept every attempt's signal referenced by the
+stop, which lives as long as the leadership (Node 22.23.4, 60 000 requests to a local server,
+heap after GC: 32.6 to 45.7 MB, about 0.9 MB per 5 000 requests; by hand: flat at 25.8 MB).
 
 **The seed's demo game.** `supabase/seed.sql` seeds `NCAAF-2611212030-ARK-TEX-M` with
 `…-M-TEX`, `…-M-ARK`, `…-S-TEX13` and `…-S-TEX20`: the four are real Gemini tickers of
@@ -257,9 +321,10 @@ answer to an older renewal cannot trigger it once a newer renewal has succeeded.
 | The same, fenced (renewals failing, or the database refusing connections)          | 0 to 31 ms     |
 | The real process (`node --import tsx src/index.ts`), SIGTERM to `engine stopped`   | 0.5 to 3.1 s   |
 
-The real process's stop is dominated by the Gemini catalogue sync, whose request in flight is not
-aborted (10 s timeout per attempt); in that test Gemini points at a closed port. (Measured before
-the sync read one listing per league; a run now stops between two requests, see above.) A stop can
+The real process's stop was dominated by the Gemini catalogue sync, whose request in flight was not
+aborted then (10 s timeout per attempt); in that test Gemini points at a closed port. (Measured
+before the sync read one listing per league; the stop now aborts the request in flight, see
+[Gemini catalogue and results](#gemini-catalogue-and-results); not measured again.) A stop can
 outlast the margin: a job handler that ignores its abort keeps the job worker up to its 10 s
 grace, and a service waiting on a database that has gone silent (it accepts connections and
 answers nothing) waits for an answer that never comes (`leader.e2e.test.ts` shows it).
