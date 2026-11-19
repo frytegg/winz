@@ -9,24 +9,21 @@ import { CampaignHero } from "@/components/winz/campaign-hero";
 import { FundBudget } from "@/components/winz/fund-budget";
 import { MatchSummary } from "@/components/winz/match-summary";
 import { Money } from "@/components/winz/money";
-import { apiFetch } from "@/lib/api/client";
+import { apiFetch, errorMessage } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth";
 import { copy } from "@/lib/copy";
 import { bpsToWholePercent, centsToMicro } from "@/lib/format";
 import { journeyProgress } from "@/lib/journey";
-import {
-  RequestIds,
-  isRequestSpent,
-  planFromCreate,
-  retryWhileCreating,
-  type FundingPlan,
-} from "@/lib/merchant/funding";
+import { RequestIds, planFromCreate, sendRequest, type FundingPlan } from "@/lib/merchant/funding";
 import { buildTerms, promiseText, resolveOffer, selectedTemplate } from "@/lib/wizard/draft";
 
 import { pausedExplanation, usePreview } from "./use-preview";
 import { useWizardNav } from "./use-wizard-nav";
 import { useWizard } from "./wizard-context";
 import { WizardFrame } from "./wizard-frame";
+
+/** Where M7 keeps its "Fund" request, so a reload or a step back to M6 asks for the same one. */
+const FUND_REQUEST_KEY = "winz.fund-request";
 
 function Row({ label, children }: { label: string; children: ReactNode }): React.JSX.Element {
   return (
@@ -56,7 +53,7 @@ export function StepReview({
   const offer = merchant == null ? null : resolveOffer(draft, merchant);
   const terms = offer === null || template === null ? null : buildTerms(offer, template);
   const preview = usePreview(terms, 0);
-  const requestIds = useRef(new RequestIds());
+  const requestIds = useRef(new RequestIds(FUND_REQUEST_KEY));
 
   if (merchant == null || offer === null || terms === null || template === null || event === null) {
     return null;
@@ -72,20 +69,19 @@ export function StepReview({
    * (the back end then answers the campaign's state of the moment, or a new campaign and a new
    * payment when Stripe cancelled the first: the last answer is the one to pay). The answer is never
    * kept here for that reason. A 503 ("still being created") is sent again with the same id.
+   * The id is kept in the tab's storage before the request leaves: a reload, or M6 and back, asks
+   * for the same campaign. It is forgotten once the promo is funded, or when the API says it is
+   * spent.
    */
   async function prepare(): Promise<FundingPlan> {
     if (offer === null || terms === null) throw new RangeError("Nothing to create");
     const product = offer.product.trim();
-    const requestId = requestIds.current.idFor(JSON.stringify({ terms, product }));
-    try {
-      const response = await retryWhileCreating(() =>
-        apiFetch("createCampaign", { body: { ...terms, product, requestId } }),
-      );
-      return planFromCreate(response);
-    } catch (error: unknown) {
-      if (isRequestSpent(error)) requestIds.current.renew();
-      throw error;
-    }
+    const response = await sendRequest(
+      requestIds.current,
+      JSON.stringify({ terms, product }),
+      (requestId) => apiFetch("createCampaign", { body: { ...terms, product, requestId } }),
+    );
+    return planFromCreate(response);
   }
 
   return (
@@ -99,7 +95,10 @@ export function StepReview({
         <FundBudget
           amountCents={offer.budgetCents}
           prepare={prepare}
-          onFunded={onLaunched}
+          onFunded={(campaignId) => {
+            requestIds.current.renew();
+            onLaunched(campaignId);
+          }}
           disabled={!canFund}
         />
       }
@@ -153,6 +152,16 @@ export function StepReview({
           </>
         )}
       </dl>
+      {result === null && preview.error !== null ? (
+        <div className="flex flex-col items-start gap-4">
+          <p role="alert" className="text-body text-danger">
+            {errorMessage(preview.error, copy.common.genericError)}
+          </p>
+          <Button variant="dark" size="md" arrow={false} onClick={preview.reload}>
+            {copy.common.tryAgain}
+          </Button>
+        </div>
+      ) : null}
 
       <p className="text-body text-muted">{copy.review.unusedBudget}</p>
     </WizardFrame>

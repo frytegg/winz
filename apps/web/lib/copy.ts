@@ -185,6 +185,9 @@ export const copy = {
     chance: (percent: number): string => `${percent.toString()}% chance it's free`,
     noBook: "Odds not open yet",
     staleBook: "Odds updating…",
+    /** `percent`: the most a sale may cost with the merchant's margins (usual minus minimum). */
+    aboveCap: (percent: number): string =>
+      `Costs more than your margins allow (${percent.toString()}% of the price)`,
   },
 
   /** M5 */
@@ -266,8 +269,18 @@ export const copy = {
     puttingLive: "Putting your promo live…",
     slowTitle: "This is taking longer than usual",
     slowBody:
-      "Your promo isn't live yet. Keep this page open: it opens by itself as soon as it is, or check again.",
+      "Your promo isn't live yet, and it isn't lost. Keep this page open: it opens by itself as soon as it is. You can also follow it from its page.",
     checkAgain: "Check again",
+    openPromo: "Open this promo",
+    gaveUpTitle: "Your promo is saved",
+    gaveUpBody:
+      "It isn't live yet. We stopped checking here: follow it from its page in your promos, or check again.",
+    cancelledTitle: "This game was cancelled",
+    cancelledBody:
+      "Your promo stopped selling. Your customers' purchases stand, and your unused budget comes back to you.",
+    refundedBody: "This game can't take your promo any more, so your budget was refunded.",
+    endedTitle: "This promo is no longer on sale",
+    endedBody: "Its sales are closed. See how it went on its page.",
     badge: "Live campaign",
     title: "Your promo is live!",
     days: "Days",

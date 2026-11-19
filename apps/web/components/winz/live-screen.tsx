@@ -17,7 +17,12 @@ import { useAsync } from "@/lib/api/use-async";
 import { useAuth, useRouteGuard } from "@/lib/auth";
 import { HOME_PATH } from "@/lib/auth/route-guard";
 import { copy } from "@/lib/copy";
-import { LIVE_SLOW_AFTER_MS } from "@/lib/merchant/launch-wait";
+import {
+  LIVE_GIVE_UP_AFTER_MS,
+  LIVE_SLOW_AFTER_MS,
+  keepsAsking,
+  launchStage,
+} from "@/lib/merchant/launch-state";
 import { gameFromEvent } from "@/lib/fan/teams";
 
 import { Celebration } from "./celebration";
@@ -47,23 +52,32 @@ function markCelebrated(id: string): void {
   }
 }
 
+/** The promo's own page in the merchant space: it shows the promo whatever its state. */
+function promoHref(campaignId: string): string {
+  return `/campaigns/${campaignId}`;
+}
+
 /**
  * The waiting state: the W drawn in lime, "Putting your promo live…". After a minute it says that this
- * is taking longer than usual, without ever saying the promo is live, and offers to check again.
+ * is taking longer than usual, without ever saying the promo is live, and offers to check again or
+ * to follow the promo from its page. After the bound it stops asking and says so (`gaveUp`).
  */
 function PuttingLive({
   error,
-  slow = false,
+  stage = "waiting",
   checking = false,
   onCheckAgain,
+  campaignId,
 }: {
   error?: string;
-  /** The wait has gone past what is usual: say so. */
-  slow?: boolean;
+  /** `slow`: the wait has gone past what is usual. `gaveUp`: past the bound, M8 stopped asking. */
+  stage?: "waiting" | "slow" | "gaveUp";
   /** A check the merchant asked for is in flight. */
   checking?: boolean;
   onCheckAgain?: () => void;
+  campaignId: string;
 }): React.JSX.Element {
+  const slow = stage !== "waiting";
   return (
     <div className="relative grid min-h-dvh place-items-center overflow-hidden bg-ink px-6">
       <img
@@ -77,8 +91,12 @@ function PuttingLive({
         <Logo variant="glyph" className="h-16 animate-draw" />
         {slow ? (
           <>
-            <h1 className="text-title">{copy.live.slowTitle}</h1>
-            <p className="text-body text-muted">{copy.live.slowBody}</p>
+            <h1 className="text-title">
+              {stage === "gaveUp" ? copy.live.gaveUpTitle : copy.live.slowTitle}
+            </h1>
+            <p className="text-body text-muted">
+              {stage === "gaveUp" ? copy.live.gaveUpBody : copy.live.slowBody}
+            </p>
           </>
         ) : (
           <p className="text-title">{copy.live.puttingLive}</p>
@@ -89,8 +107,8 @@ function PuttingLive({
             <Button variant="white" loading={checking} onClick={onCheckAgain}>
               {copy.live.checkAgain}
             </Button>
-            <Button href={HOME_PATH} variant="dark" arrow={false}>
-              {copy.live.dashboard}
+            <Button href={promoHref(campaignId)} variant="dark" arrow={false}>
+              {copy.live.openPromo}
             </Button>
           </div>
         ) : null}
@@ -99,10 +117,39 @@ function PuttingLive({
   );
 }
 
+/** A promo M8 cannot show as live: what happened to it, and where to find it. */
+function NotLive({
+  title,
+  body,
+  campaignId,
+}: {
+  title: string;
+  body: string;
+  campaignId: string;
+}): React.JSX.Element {
+  return (
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-6 px-6 text-center">
+      <h1 className="text-promise">{title}</h1>
+      <p className="text-body text-muted">{body}</p>
+      <div className="flex w-full max-w-xs flex-col gap-3">
+        <Button href={promoHref(campaignId)} variant="white">
+          {copy.live.openPromo}
+        </Button>
+        <Button href={HOME_PATH} variant="dark" arrow={false}>
+          {copy.live.dashboard}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /**
  * M8: waits for the campaign to be live (polling `GET /api/campaigns/:id` every 1.5 seconds while it
- * is `funding`), then opens with a wipe and a few diamonds, and shows what a merchant needs at the
- * counter: the countdown, the teams, the QR code, the link, share and download.
+ * is `funding`, for five minutes at most), then opens with a wipe and a few diamonds, and shows what a
+ * merchant needs at the counter: the countdown, the teams, the QR code, the link, share and the
+ * poster (the promise, the merchant's name, the QR code and the link, drawn in the browser).
+ * Every other status has its own sentence (`launchStage`): a cancelled game, a promo refunded
+ * before it could go live, a promo whose sales are over.
  */
 export function LiveScreen({ campaignId }: { campaignId: string }): React.JSX.Element {
   const guarded = useRouteGuard("merchant");
@@ -124,10 +171,29 @@ export function LiveScreen({ campaignId }: { campaignId: string }): React.JSX.El
     return () => clearTimeout(timer);
   }, [waited]);
 
+  // How long M8 has waited, in steps: after a minute it says the wait is unusual, after the bound it
+  // stops asking. « Check again » starts a new wait (`round`). Leaving the screen cancels the timers.
+  const [waitedMs, setWaitedMs] = useState(0);
+  const [round, setRound] = useState(0);
+  useEffect(() => {
+    if (!guarded) return;
+    setWaitedMs(0);
+    const slowTimer = setTimeout(() => setWaitedMs(LIVE_SLOW_AFTER_MS), LIVE_SLOW_AFTER_MS);
+    const overTimer = setTimeout(() => setWaitedMs(LIVE_GIVE_UP_AFTER_MS), LIVE_GIVE_UP_AFTER_MS);
+    return () => {
+      clearTimeout(slowTimer);
+      clearTimeout(overTimer);
+    };
+  }, [guarded, round]);
+
   const detail = useAsync(
     (signal) => apiFetch("campaignDetail", { params: { id: campaignId }, signal }),
     [campaignId],
-    { enabled: guarded, pollMs: POLL_MS, shouldPoll: (data) => data.status === "funding" },
+    {
+      enabled: guarded && waitedMs < LIVE_GIVE_UP_AFTER_MS,
+      pollMs: POLL_MS,
+      shouldPoll: (data) => keepsAsking(launchStage(data, 0)),
+    },
   );
   const campaign = detail.data;
   const { copyLink, share, downloadQr, downloadPoster, posterBusy } = usePromoShare({
@@ -136,27 +202,14 @@ export function LiveScreen({ campaignId }: { campaignId: string }): React.JSX.El
     promise: campaign?.promise ?? "",
     merchantName: me?.merchant?.name ?? "",
   });
+  const stage = launchStage(campaign, waitedMs);
+  const live = stage === "live" && waited;
 
-  const failed = campaign !== null && (campaign.status === "void" || campaign.status === "draft");
-  const live =
-    campaign !== null &&
-    !failed &&
-    campaign.status !== "funding" &&
-    campaign.slug !== null &&
-    campaign.url !== null &&
-    waited;
-
-  // A promo that is still not live after a minute: say so (the polling goes on, and the screen opens
-  // by itself if it does go live). Leaving the screen cancels the timer.
-  const [slow, setSlow] = useState(false);
-  useEffect(() => {
-    if (!guarded || live || failed) {
-      setSlow(false);
-      return;
-    }
-    const timer = setTimeout(() => setSlow(true), LIVE_SLOW_AFTER_MS);
-    return () => clearTimeout(timer);
-  }, [guarded, live, failed]);
+  function checkAgain(): void {
+    setWaitedMs(0);
+    setRound((current) => current + 1);
+    detail.reload();
+  }
 
   // Decide once, when the screen first becomes live, whether to play the opening.
   useEffect(() => {
@@ -170,7 +223,30 @@ export function LiveScreen({ campaignId }: { campaignId: string }): React.JSX.El
   }, [live, celebrate, campaignId]);
 
   if (!guarded) return <Splash />;
-  if (failed) {
+  if (stage === "cancelled") {
+    return (
+      <NotLive
+        title={copy.live.cancelledTitle}
+        body={copy.live.cancelledBody}
+        campaignId={campaignId}
+      />
+    );
+  }
+  if (stage === "refunded") {
+    return (
+      <NotLive
+        title={copy.live.failedTitle}
+        body={copy.live.refundedBody}
+        campaignId={campaignId}
+      />
+    );
+  }
+  if (stage === "ended") {
+    return (
+      <NotLive title={copy.live.endedTitle} body={copy.live.endedBody} campaignId={campaignId} />
+    );
+  }
+  if (stage === "failed") {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-6 px-6 text-center">
         <h1 className="text-promise">{copy.live.failedTitle}</h1>
@@ -184,9 +260,10 @@ export function LiveScreen({ campaignId }: { campaignId: string }): React.JSX.El
   if (!live || campaign === null || campaign.url === null) {
     return (
       <PuttingLive
-        slow={slow}
+        stage={stage === "slow" || stage === "gaveUp" ? stage : "waiting"}
         checking={detail.loading}
-        onCheckAgain={detail.reload}
+        onCheckAgain={checkAgain}
+        campaignId={campaignId}
         error={
           detail.error !== null && campaign === null
             ? errorMessage(detail.error, copy.common.networkError)

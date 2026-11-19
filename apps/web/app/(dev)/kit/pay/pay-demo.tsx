@@ -1,19 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { FundBudget } from "@/components/winz/fund-budget";
 import { apiFetch } from "@/lib/api/client";
-import { planFromCreate } from "@/lib/merchant/funding";
+import { RequestIds, planFromCreate, sendRequest } from "@/lib/merchant/funding";
 
 const AMOUNT_CENTS = 1000;
 
 /**
  * `FundBudget` with the real Stripe buttons, asking `POST /api/campaigns` as M7 does. Needs the real
- * back end (or one answered by the test harness) and a Stripe test key.
+ * back end (or one answered by the test harness) and a Stripe test key. Its `requestId` is kept
+ * for the retries of a payment, as M7's, and renewed once it is funded.
  */
 export function PayDemo(): React.JSX.Element {
   const [funded, setFunded] = useState<string | null>(null);
+  const requestIds = useRef(new RequestIds());
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col justify-end gap-6 px-5 pb-8">
       <h1 className="text-title">Fund $10 (Stripe test mode)</h1>
@@ -26,21 +28,26 @@ export function PayDemo(): React.JSX.Element {
         amountCents={AMOUNT_CENTS}
         prepare={async () =>
           planFromCreate(
-            await apiFetch("createCampaign", {
-              body: {
-                instrumentSymbol: "GEMI-TEST",
-                unitPrice: "20000000",
-                refundBps: 10000,
-                usualMarginBps: 6500,
-                minMarginBps: 4500,
-                budget: "10000000",
-                product: "Test pizza",
-                requestId: crypto.randomUUID(),
-              },
-            }),
+            await sendRequest(requestIds.current, "kit-pay", (requestId) =>
+              apiFetch("createCampaign", {
+                body: {
+                  instrumentSymbol: "GEMI-TEST",
+                  unitPrice: "20000000",
+                  refundBps: 10000,
+                  usualMarginBps: 6500,
+                  minMarginBps: 4500,
+                  budget: "10000000",
+                  product: "Test pizza",
+                  requestId,
+                },
+              }),
+            ),
           )
         }
-        onFunded={setFunded}
+        onFunded={(campaignId) => {
+          requestIds.current.renew();
+          setFunded(campaignId);
+        }}
       />
     </main>
   );

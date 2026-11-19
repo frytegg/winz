@@ -11,6 +11,9 @@ import {
   planFromCreate,
   planFromTopUp,
   retryWhileCreating,
+  sendRenewingOnce,
+  sendRequest,
+  type RequestIdStorage,
 } from "./funding";
 
 const { createCampaignExamples, topUpCampaignExamples } = apiExamples;
@@ -138,5 +141,197 @@ describe("retryWhileCreating", () => {
     await expect(retryWhileCreating(request, wait)).rejects.toBe(refused);
     expect(request).toHaveBeenCalledTimes(1);
     expect(wait).not.toHaveBeenCalled();
+  });
+});
+
+/** A tab's `sessionStorage`, as far as the request ids use it: it outlives a page instance. */
+class MemoryStorage implements RequestIdStorage {
+  readonly items = new Map<string, string>();
+  getItem(key: string): string | null {
+    return this.items.get(key) ?? null;
+  }
+  setItem(key: string, value: string): void {
+    this.items.set(key, value);
+  }
+  removeItem(key: string): void {
+    this.items.delete(key);
+  }
+}
+
+/** Private mode, or a full storage: every call throws. */
+const brokenStorage: RequestIdStorage = {
+  getItem: () => {
+    throw new DOMException("blocked", "SecurityError");
+  },
+  setItem: () => {
+    throw new DOMException("full", "QuotaExceededError");
+  },
+  removeItem: () => {
+    throw new DOMException("blocked", "SecurityError");
+  },
+};
+
+const SPENT = new ApiError(409, "conflict", "This top-up request is over; make a new request");
+const noWait = (): Promise<void> => Promise.resolve();
+
+describe("the request id of a Fund request, across a reload or a remount (review 1.1)", () => {
+  const KEY = "winz.fund-request";
+
+  it("is the same for the same terms after a reload: a new instance over the same storage", () => {
+    const tab = new MemoryStorage();
+    const first = new RequestIds(KEY, () => tab).idFor("terms-a");
+    const afterReload = new RequestIds(KEY, () => tab);
+    expect(afterReload.idFor("terms-a")).toBe(first);
+  });
+
+  it("is another one for other terms, which then replace the first in the storage", () => {
+    const tab = new MemoryStorage();
+    const first = new RequestIds(KEY, () => tab).idFor("terms-a");
+    const other = new RequestIds(KEY, () => tab).idFor("terms-b");
+    expect(other).not.toBe(first);
+    expect(new RequestIds(KEY, () => tab).idFor("terms-b")).toBe(other);
+    expect(new RequestIds(KEY, () => tab).idFor("terms-a")).not.toBe(first);
+  });
+
+  it("is written to the storage before the request leaves", async () => {
+    const tab = new MemoryStorage();
+    const ids = new RequestIds(KEY, () => tab);
+    let storedWhenSent: string | null = null;
+    const sentWith = await sendRequest(ids, "terms-a", (requestId) => {
+      storedWhenSent = tab.getItem(KEY);
+      return Promise.resolve(requestId);
+    });
+    expect(storedWhenSent).not.toBeNull();
+    expect(JSON.parse(storedWhenSent ?? "null")).toEqual({ key: "terms-a", id: sentWith });
+  });
+
+  it("is cleared after success: the next request with the same terms is a new one", () => {
+    const tab = new MemoryStorage();
+    const ids = new RequestIds(KEY, () => tab);
+    const paid = ids.idFor("terms-a");
+    ids.renew();
+    expect(tab.getItem(KEY)).toBeNull();
+    expect(new RequestIds(KEY, () => tab).idFor("terms-a")).not.toBe(paid);
+  });
+
+  it("is cleared after a 409 'spent', and the 409 is thrown", async () => {
+    const tab = new MemoryStorage();
+    const ids = new RequestIds(KEY, () => tab);
+    const first = ids.idFor("terms-a");
+    await expect(sendRequest(ids, "terms-a", () => Promise.reject(SPENT), noWait)).rejects.toBe(
+      SPENT,
+    );
+    expect(tab.getItem(KEY)).toBeNull();
+    expect(new RequestIds(KEY, () => tab).idFor("terms-a")).not.toBe(first);
+  });
+
+  it("is kept after any other failure (a lost answer, a 502, a 503 still being created)", async () => {
+    const tab = new MemoryStorage();
+    const ids = new RequestIds(KEY, () => tab);
+    const lost = new ApiError(0, "network", "offline");
+    let sent = "";
+    await expect(
+      sendRequest(
+        ids,
+        "terms-a",
+        (requestId) => {
+          sent = requestId;
+          return Promise.reject(lost);
+        },
+        noWait,
+      ),
+    ).rejects.toBe(lost);
+    expect(new RequestIds(KEY, () => tab).idFor("terms-a")).toBe(sent);
+  });
+
+  it("lives in memory when there is no storage (no window, private mode)", () => {
+    const ids = new RequestIds(KEY, () => null);
+    const first = ids.idFor("terms-a");
+    expect(ids.idFor("terms-a")).toBe(first);
+    expect(ids.idFor("terms-b")).not.toBe(first);
+  });
+
+  it("lives in memory, without an error, when the storage throws or is full", async () => {
+    const ids = new RequestIds(KEY, () => brokenStorage);
+    const first = ids.idFor("terms-a");
+    expect(first).toMatch(/^[0-9a-f-]{36}$/);
+    expect(ids.idFor("terms-a")).toBe(first);
+    await expect(sendRequest(ids, "terms-a", () => Promise.reject(SPENT), noWait)).rejects.toBe(
+      SPENT,
+    );
+    expect(ids.idFor("terms-a")).not.toBe(first);
+  });
+
+  it("ignores what it cannot read back in the storage", () => {
+    const tab = new MemoryStorage();
+    for (const junk of ["not json", "{}", '{"key":"terms-a","id":"not-a-uuid"}', "null"]) {
+      tab.setItem(KEY, junk);
+      expect(new RequestIds(KEY, () => tab).idFor("terms-a")).toMatch(/^[0-9a-f-]{36}$/);
+    }
+  });
+
+  it("keeps two requests apart when they are stored under two keys (a promo, a top-up)", () => {
+    const tab = new MemoryStorage();
+    const fund = new RequestIds(KEY, () => tab).idFor("same");
+    const topUp = new RequestIds("winz.top-up-request.cmp_1", () => tab).idFor("same");
+    expect(topUp).not.toBe(fund);
+    expect(new RequestIds(KEY, () => tab).idFor("same")).toBe(fund);
+  });
+});
+
+describe("a top-up refused at the card, then tapped again (review 1.4)", () => {
+  it("renews the request on the 409 'request is over' and sends it once more, in the same tap", async () => {
+    const ids = new RequestIds();
+    const sent: string[] = [];
+    const result = await sendRenewingOnce(
+      ids,
+      "50000",
+      (requestId) => {
+        sent.push(requestId);
+        return sent.length === 1 ? Promise.reject(SPENT) : Promise.resolve("paid");
+      },
+      noWait,
+    );
+    expect(result).toBe("paid");
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).not.toBe(sent[0]);
+    expect(ids.idFor("50000"), "the new request is the one kept for its retries").toBe(sent[1]);
+  });
+
+  it("sends once more only: a second 409 is shown, and the next tap is a new request", async () => {
+    const ids = new RequestIds();
+    const sent: string[] = [];
+    await expect(
+      sendRenewingOnce(
+        ids,
+        "50000",
+        (requestId) => {
+          sent.push(requestId);
+          return Promise.reject(SPENT);
+        },
+        noWait,
+      ),
+    ).rejects.toBe(SPENT);
+    expect(sent).toHaveLength(2);
+    expect(sent).not.toContain(ids.idFor("50000"));
+  });
+
+  it("never renews on another error: a lost answer or a 503 keeps the same request", async () => {
+    const ids = new RequestIds();
+    const lost = new ApiError(0, "network", "offline");
+    const send = vi.fn<(requestId: string) => Promise<string>>().mockRejectedValue(lost);
+    await expect(sendRenewingOnce(ids, "50000", send, noWait)).rejects.toBe(lost);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(ids.idFor("50000")).toBe(send.mock.calls[0]?.[0]);
+  });
+
+  it("sends the same request again while the answer is 503, as the creation does", async () => {
+    const ids = new RequestIds();
+    const send = vi
+      .fn<(requestId: string) => Promise<string>>()
+      .mockRejectedValueOnce(STILL_CREATING)
+      .mockResolvedValueOnce("paid");
+    await expect(sendRenewingOnce(ids, "50000", send, noWait)).resolves.toBe("paid");
+    expect(send.mock.calls[1]?.[0]).toBe(send.mock.calls[0]?.[0]);
   });
 });

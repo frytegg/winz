@@ -16,8 +16,13 @@ interface PromoCardProps {
   probabilityBps: number | null;
   recommended?: boolean;
   selected?: boolean;
-  /** Not available: greyed out, not tappable, with the reason. */
-  unavailableReason?: "no_book" | "stale_book" | null;
+  /**
+   * Not available: greyed out, not tappable, with the reason. `above_cap`: it costs more than the
+   * merchant's margins allow (`maxCostBps`).
+   */
+  unavailableReason?: "no_book" | "stale_book" | "above_cap" | null;
+  /** The most a sale may cost with the merchant's margins, for the `above_cap` reason. */
+  maxCostBps?: number;
   onSelect?: () => void;
   className?: string;
 }
@@ -31,6 +36,7 @@ export function PromoCard({
   recommended = false,
   selected = false,
   unavailableReason = null,
+  maxCostBps = 0,
   onSelect,
   className,
 }: PromoCardProps): React.JSX.Element {
@@ -71,7 +77,11 @@ export function PromoCard({
       </div>
       {disabled ? (
         <p className="mt-3 text-body text-muted">
-          {unavailableReason === "stale_book" ? copy.pickPromo.staleBook : copy.pickPromo.noBook}
+          {unavailableReason === "above_cap"
+            ? copy.pickPromo.aboveCap(bpsToWholePercent(maxCostBps))
+            : unavailableReason === "stale_book"
+              ? copy.pickPromo.staleBook
+              : copy.pickPromo.noBook}
         </p>
       ) : null}
     </>

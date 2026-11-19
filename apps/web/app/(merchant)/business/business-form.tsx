@@ -13,6 +13,7 @@ import { apiFetch, errorMessage } from "@/lib/api/client";
 import { useAuth, useRouteGuard } from "@/lib/auth";
 import { copy } from "@/lib/copy";
 import { journeyProgress } from "@/lib/journey";
+import { submitBusiness } from "@/lib/merchant/business-create";
 
 const CATEGORY_ICONS: Record<MerchantCategory, LucideIcon> = {
   bar: Beer,
@@ -38,7 +39,7 @@ function isHttpUrl(text: string): boolean {
  * API takes a URL and has no upload route yet (see DEMANDES-ALEXANDRE).
  */
 export function BusinessForm(): React.JSX.Element {
-  const { adoptMerchant } = useAuth();
+  const { adoptMerchant, refreshMe } = useAuth();
   const ready = useRouteGuard("signed-in");
 
   const [name, setName] = useState("");
@@ -61,15 +62,20 @@ export function BusinessForm(): React.JSX.Element {
     setSubmitting(true);
     setError(undefined);
     try {
-      const merchant = await apiFetch("createMerchant", {
-        body: {
-          name: trimmedName,
-          category,
-          ...(logoOpen && trimmedLogo !== "" ? { logoUrl: trimmedLogo } : {}),
-        },
-      });
-      // The route guard sees the merchant and moves on to the first step of the wizard.
-      adoptMerchant(merchant);
+      const outcome = await submitBusiness(
+        () =>
+          apiFetch("createMerchant", {
+            body: {
+              name: trimmedName,
+              category,
+              ...(logoOpen && trimmedLogo !== "" ? { logoUrl: trimmedLogo } : {}),
+            },
+          }),
+        async () => ({ hasBusiness: (await refreshMe()).merchant != null }),
+      );
+      // The route guard sees the merchant and moves on to the first step of the wizard. A user who
+      // already had a business (409) has it in the session read again: the guard moves on too.
+      if (outcome.kind === "created") adoptMerchant(outcome.merchant);
     } catch (caught: unknown) {
       setError(errorMessage(caught, copy.common.genericError));
       setSubmitting(false);
