@@ -473,6 +473,67 @@ moteur, `E2E_LOG_FILE=/chemin/engine.log` écrit tout son journal (niveau `debug
 fichier ; sans elle, seuls ses avertissements et erreurs sont gardés, et cités quand une attente
 échoue.
 
+## Les écrans dans un navigateur (`e2e/ui/`, Playwright)
+
+Une suite Playwright ouvre les écrans eux-mêmes, au format d'un iPhone 15, sur l'API simulée :
+l'onboarding M0 → M8 (taps comptés, moins de 15 comme le dit la SPEC 17, et durée), M4 et M6 quand
+la promo ne se vendrait pas (scénarios `aboveThreshold` et `noBook` de l'aperçu), la page de
+campagne C1 dans chaque état des scénarios, l'achat C2 par le paiement simulé (durée du scan au
+ticket, moins de 30 s ; total au cent près selon la quantité ; refus `sales_paused` et
+`sales_closed`, paiement `failed`, pause pendant l'attente), le ticket C3 dans ses cinq phases (le
+montant remboursé au cent près), l'espace commerçant (liste et onglets, détail en ligne, en pause,
+réglé avec son bilan, pause et reprise, réglages) et le Hedge desk. Sur chaque page ouverte, elle
+vérifie aussi : aucune réponse 404 ou 5xx, ni aucune 4xx de l'API, que le scénario n'a pas
+demandée, aucune erreur de page ni de console (les exceptions sont listées, avec leur raison, dans
+`e2e/ui/support/fixtures.ts`), aucun défilement horizontal à 393 px (mesuré contre
+`documentElement.clientWidth` : sous l'émulation mobile, `window.innerWidth` s'élargit avec le
+contenu et ne peut rien détecter), aucun lien vers une page qui n'existe pas, aucune requête qui
+sort de la machine (bloquée). `e2e/ui/harness.spec.ts` montre que chacune de ces gardes se
+déclenche sur un défaut planté (un élément de 900 px, une 400 de l'API), sans quoi une suite verte
+ne prouverait rien.
+
+```bash
+pnpm e2e:ui            # depuis la racine ; ou pnpm --filter @winz/web e2e:ui
+```
+
+- **Un seul projet**, `iphone-15` : le profil iPhone 15 de Playwright (taille, user agent, tactile,
+  mobile, échelle ramenée à 2) sur **Chromium**, faute de WebKit installé. La mise en page et les
+  parcours à cette taille sont prouvés, pas le rendu de Safari.
+- **Le serveur** : la suite lance `next dev --turbopack` en mode simulé (`APP_API_MOCK=true`,
+  `NEXT_PUBLIC_APP_API_MOCK=true`) sur le port 3460 (`E2E_UI_PORT` pour un autre), ou réutilise
+  celui qui y tourne déjà, après avoir vérifié qu'il est bien simulé. Turbopack plutôt que webpack :
+  avec webpack, `next dev` dépasse 6 Go en compilant toutes les routes et se relance au milieu du
+  passage. Chaque page et chaque route sont demandées une fois avant les parcours, pour que les
+  temps mesurés soient ceux de l'app et pas du compilateur. Pas de `next build` : il lui faut Google
+  Fonts.
+- **Aucun accès au réseau, serveur compris** : `next/font/google` lit
+  `e2e/ui/support/google-fonts-mock.cjs` au lieu de Google Fonts (`NEXT_FONT_GOOGLE_MOCKED_RESPONSES`),
+  une réponse `local()` sans fichier à télécharger ; toute autre requête sortante du serveur meurt
+  sur un proxy mort (`127.0.0.1:9`, localhost exclu). Les captures montrent donc la police de
+  repli, sauf sur une machine où Sora est installée. Pour la vraie police, lancer `pnpm dev` à la
+  main sur une machine qui a le réseau. Un serveur déjà lancé sur le port (réutilisé) n'a pas ces
+  garanties : `harness.spec.ts` échoue alors sur sa vérification de la police.
+- **Le service worker** ne joue pas : Serwist ne le génère qu'en production (`next.config.ts`), et
+  la suite bloque de toute façon les service workers (`serviceWorkers: "block"`), donc aucun passage
+  ne dépend du cache d'un passage précédent.
+- **Les reçus** : une capture pleine page de chaque écran atteint, sous un nom stable, dans
+  `docs/receipts/ui/`, réécrite à chaque passage, avec `README.md` (ce que montre chaque image, taps
+  et temps du dernier passage, date, ce que les reçus ne prouvent pas) et `measures.json`.
+- **Les défauts trouvés** restent des attentes marquées `test.fail` (liste et raisons dans
+  `e2e/ui/support/known-defects.ts`) : elles passent tant que le défaut existe et échouent le jour
+  où il est corrigé, il faut alors retirer la marque. La marque est posée en cours de test
+  (`knownDefectFromHere`), juste avant l'attente qui montre le défaut : une connexion ou une
+  navigation cassée avant elle fait échouer le test normalement au lieu de passer pour le défaut.
+- **Ce qu'aucun scénario n'offre** n'est pas testé : une page de campagne C1 introuvable (l'API
+  simulée ignore le slug, et C1 la lit côté serveur, hors d'atteinte du navigateur). Il faudrait un
+  refus simulé `notFound` sur `publicCampaign` (`MOCK_REFUSALS`, `lib/server/route.ts`).
+- vitest ignore `e2e/ui/` (`vitest.config.ts`) et Playwright ne lit que `e2e/ui/**/*.spec.ts`.
+
+Pas encore dans la CI : le runner devrait installer Chromium à chaque passage (`pnpm --filter
+@winz/web exec playwright install --with-deps chromium`, environ 150 Mo, ou une image
+`mcr.microsoft.com/playwright` à la version de `@playwright/test`), puis lancer `pnpm e2e:ui` et
+garder `docs/receipts/ui/` en artefact. Compter quatre à cinq minutes, compilation comprise.
+
 ## Répétition sur une vraie chaîne (`e2e/rehearsal/`, porte G2, Q-03, Q-04)
 
 La répétition joue toute la boucle en mode démo, en temps réel, sur une chaîne réelle : le moteur
