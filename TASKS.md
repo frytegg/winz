@@ -129,6 +129,7 @@ Tous parallèles entre eux dès que F-05 est figé. Lot à lancer ensemble : C-0
 - [ ] **D-01** · Qui : Agent `coder`, relu par A · Dép. : F-05 · Section 10
   Migrations de toutes les tables de la section 10, tables publiques `live_*` avec lecture seule pour le rôle anonyme et Realtime activé, contraintes d'unicité des idempotences, données de démo (`pnpm db:seed`).
   Fini quand : `pnpm db:migrate` passe sur une base vide, le rôle anonyme lit `live_*` et rien d'autre (testé).
+  État au 19 novembre : les 9 migrations et le seed s'appliquent sur une base vide, deux fois, et le rôle anonyme ne lit que `live_*` : c'est ce que vérifie `pnpm db:test` (1 076 assertions, dans la CI). Reste pour cocher : `pnpm db:migrate` joué sur le projet Supabase hébergé (`docs/deploy.md`, étape 1), et Realtime vérifié sur ce projet.
 
 ### Marché
 - [x] **M-01** · Qui : Agent `coder`, relu par A · Dép. : F-05 · MD-1, MD-3

@@ -109,8 +109,27 @@ function isUniqueViolation(error: unknown): boolean {
 }
 
 /**
+ * Whether `body` asks for exactly the business `row` already is, once the route's validation has
+ * run (an absent `logoUrl` is stored as null): the same name, category and logo.
+ */
+function sameBusiness(row: MerchantRow, body: CreateMerchantRequest): boolean {
+  return (
+    row.name === body.name &&
+    row.category === body.category &&
+    row.logo_url === (body.logoUrl ?? null)
+  );
+}
+
+/**
  * POST /api/merchants: creates the business of the signed-in user (screen M2) and gives them the
- * `merchant` role, in one transaction. One business per user: a second one answers 409.
+ * `merchant` role, in one transaction. One business per user, decided by the unique constraint on
+ * `merchants.user_id`: of two calls racing, the second one's insert waits for the first and then
+ * fails on it.
+ *
+ * A repeat of the same creation (the user already has a business equal to `body`: a second tap
+ * after an answer lost on a weak connection, or two taps racing) answers that business, exactly
+ * what the first call answered, and changes nothing. A different business from a user who already
+ * has one answers 409.
  */
 export async function createMerchant(
   db: Db,
@@ -134,6 +153,9 @@ export async function createMerchant(
     return toMerchant(row);
   } catch (error: unknown) {
     if (isUniqueViolation(error)) {
+      // The insert rolled back. Read what the user has now, committed by the earlier call.
+      const existing = await merchantOf(db, principal.userId);
+      if (existing && sameBusiness(existing, body)) return toMerchant(existing);
       throw new ApiRouteError(409, "conflict", "You already have a business");
     }
     throw error;

@@ -288,6 +288,8 @@ describe("route files", () => {
       "/api/webhooks/quicknode",
       "/api/checkout",
       "/api/checkout/:pi/confirm",
+      // The status read asks Stripe about a payment left `requires_payment` (checkout.ts).
+      "/api/checkout/:pi",
       "/api/campaigns",
       "/api/campaigns/:id/top-up",
       "/api/admin/demo/sale",
