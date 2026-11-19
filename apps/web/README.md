@@ -3,7 +3,7 @@
 L'application Next.js de Winz : les écrans (commerçant, page de campagne, ticket) et les routes
 HTTP de `/api`.
 
-Mise en ligne (Supabase, Render, Vercel, Stripe), réglages du projet Vercel et variables : voir
+Mise en ligne (Supabase, Render, Privy, Vercel, Stripe), réglages du projet Vercel et variables : voir
 [`docs/deploy.md`](../../docs/deploy.md).
 
 ## Construire les écrans sans le back : l'API simulée
