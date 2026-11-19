@@ -22,6 +22,10 @@ test.describe("the sideways-scroll check, at the iPhone 15 profile", () => {
   test("reports a planted 900 px element", async ({ page }) => {
     await page.goto(PAGE);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    // Plant only once React has hydrated the page: an element added to the server's HTML before
+    // hydration is removed by it, and the check then measured 393 px (seen twice on the full
+    // suite). The desk's instruments are drawn from its client-side read, so they mean hydrated.
+    await expect(page.locator("#desk-instruments"), "the desk has loaded its data").toBeVisible();
     await page.evaluate(() => {
       const wide = document.createElement("div");
       wide.style.width = "900px";

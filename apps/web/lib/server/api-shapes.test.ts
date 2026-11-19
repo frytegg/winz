@@ -415,7 +415,19 @@ describe("the mock API (APP_API_MOCK) serves the additions", () => {
       tickets: ['"event":', '"subjectName":', '"resultLabel":'],
       events: ['"winProbabilityBps":', '"subjectName":', '"team":'],
     };
+    // The additions live on the items of a list: a scenario whose list is empty (tickets,
+    // `noTickets`) has none to carry them, and is checked by the `toEqual` above only. The test
+    // below makes sure a non-empty scenario of every list still carries them.
+    const items = name === "tickets" ? (served as { tickets: unknown[] }).tickets : null;
+    if (items !== null && items.length === 0) return;
     for (const key of expected[name] ?? []) expect(text).toContain(key);
+  });
+
+  it("checks the additions on a tickets scenario that has tickets", () => {
+    const withTickets = Object.values(API_ROUTES.tickets.examples).filter(
+      (example) => example.tickets.length > 0,
+    );
+    expect(withTickets.length).toBeGreaterThan(0);
   });
 
   it.each(Object.entries(API_ROUTES.createCampaign.examples))(
