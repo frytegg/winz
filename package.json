@@ -18,6 +18,7 @@
     "completion-check": "node scripts/completion-check.mjs",
     "env:check": "tsx scripts/env-check.mjs",
     "smoke": "tsx scripts/smoke.mjs",
+    "e2e:ui": "pnpm --filter @winz/web e2e:ui",
     "quicknode:record": "node scripts/quicknode-record.mjs"
   },
   "devDependencies": {
