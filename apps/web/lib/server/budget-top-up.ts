@@ -8,12 +8,19 @@ import {
   type TopUpCampaignResponse,
 } from "@winz/shared";
 
-import { MAX_CARD_AMOUNT, checkCardAmount, paymentUnavailable } from "./campaign-writes";
+import {
+  MAX_CARD_AMOUNT,
+  MAX_PAYMENT_IN_PROGRESS_WAITS,
+  PAYMENT_IN_PROGRESS_PAUSE_MS,
+  checkCardAmount,
+  paymentUnavailable,
+} from "./campaign-writes";
 import type { Db } from "./db";
 import { enqueueJob, type JobSql } from "./jobs";
 import { serverLogger } from "./logger";
 import {
   PaymentGatewayError,
+  PaymentRequestInProgressError,
   paymentKindOf,
   topUpGatewayOf,
   type CreatedPaymentIntent,
@@ -113,6 +120,26 @@ export const TOP_UP_CONFLICTS = {
 
 /** How many times a request goes back to the provider when another request took the slot. */
 export const MAX_ROUNDS = 3;
+
+/**
+ * The 503 of a call whose payment another call of the SAME request was still creating after
+ * `MAX_PAYMENT_IN_PROGRESS_WAITS` pauses (`createPayment`). Not a 409: on this route a 409 says,
+ * for most of its messages, that the request is over and a new one is needed, while this answer
+ * asks for the same `requestId` again. A client that drew a new `requestId` here would create a
+ * second payment. Nothing was recorded or cancelled: the same request sent again answers the
+ * top-up the other call recorded, or creates it.
+ */
+export const TOP_UP_BUSY_MESSAGE = "This top-up is still being created; try again in a moment";
+
+/** Options of `topUpCampaign`. */
+export interface TopUpCampaignOptions {
+  /** Waits `ms` milliseconds (default: a timer). Tests pass a pause of their own. */
+  pause?: (ms: number) => Promise<void>;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function conflict(message: string): ApiRouteError {
   return new ApiRouteError(409, "conflict", message);
@@ -634,6 +661,85 @@ async function withdraw(
   return null;
 }
 
+/** What `createPayment` obtained for the request. */
+type Creation =
+  /** The provider answered the request's payment (created now, or replayed for its key). */
+  | { kind: "created"; payment: CreatedPaymentIntent }
+  /** The provider failed, and a concurrent call of the request had recorded its top-up. */
+  | { kind: "recorded"; row: TopUpRow };
+
+/** The request's top-up as recorded now, or null; a read that fails is logged and gives null. */
+async function recordedAfterFailure(db: Db, requestId: string): Promise<TopUpRow | null> {
+  try {
+    return await topUpOfRequest(db, requestId);
+  } catch (error: unknown) {
+    serverLogger("budget-top-up").warn(
+      { requestId, err: error },
+      "the top-up of a request could not be read again after a provider failure",
+    );
+    return null;
+  }
+}
+
+/**
+ * Creates the request's payment at the provider, with no lock held. Two calls of the same request
+ * at the same moment (a double tap, or a retry while the first call is still at the provider)
+ * send the same idempotency key (`campaign_budget_top_up:<requestId>`), and the provider refuses
+ * the second while it processes the first (`PaymentRequestInProgressError`). So when the create
+ * fails, the request's top-up is read again first: one that a concurrent call recorded meanwhile
+ * is returned, to be answered as the repeat it is (by its status, as any repeat). Otherwise, when
+ * the failure is that refusal, the call pauses (`PAYMENT_IN_PROGRESS_PAUSE_MS`) and creates again,
+ * which the provider answers with the first call's intent once it is done; at most
+ * `MAX_PAYMENT_IN_PROGRESS_WAITS` pauses, the bound of the creation of a campaign, whose budget
+ * payment has the same timeout and retries (`createBudgetTopUpPayment`), then 503
+ * `TOP_UP_BUSY_MESSAGE` with nothing recorded or cancelled. Any other failure answers 502, as it
+ * always did: no payment of this call exists to withdraw.
+ */
+async function createPayment(
+  db: Db,
+  payments: TopUpPaymentGateway,
+  campaignId: string,
+  requestId: string,
+  amount: bigint,
+  pause: (ms: number) => Promise<void>,
+): Promise<Creation> {
+  const log = serverLogger("budget-top-up");
+  for (let waits = 0; ; waits += 1) {
+    let failure: PaymentGatewayError;
+    try {
+      const payment = await payments.createBudgetTopUpPayment({ campaignId, requestId, amount });
+      return { kind: "created", payment };
+    } catch (error: unknown) {
+      if (!(error instanceof PaymentGatewayError)) throw error;
+      failure = error;
+    }
+    const recorded = await recordedAfterFailure(db, requestId);
+    if (recorded !== null) {
+      log.info(
+        { campaignId, requestId, paymentIntentId: recorded.stripe_pi, err: failure },
+        "the payment provider failed for a call whose top-up another call of the request recorded: answered as a repeat",
+      );
+      return { kind: "recorded", row: recorded };
+    }
+    if (!(failure instanceof PaymentRequestInProgressError)) {
+      log.error({ campaignId, requestId, err: failure }, "payment provider call failed");
+      throw paymentUnavailable();
+    }
+    if (waits === MAX_PAYMENT_IN_PROGRESS_WAITS) {
+      log.warn(
+        { campaignId, requestId, waits },
+        "another call of the request was still creating its payment: answered busy, nothing cancelled",
+      );
+      throw new ApiRouteError(503, "internal", TOP_UP_BUSY_MESSAGE);
+    }
+    log.info(
+      { campaignId, requestId },
+      "another call of the request is creating its payment: waiting for it",
+    );
+    await pause(PAYMENT_IN_PROGRESS_PAUSE_MS);
+  }
+}
+
 /**
  * POST /api/campaigns/:id/top-up, in three steps so that the campaign's row is never locked
  * while the payment provider answers:
@@ -647,7 +753,11 @@ async function withdraw(
  *    (409 when it is paid or being paid), then the card payment is created as the first budget's
  *    is (captured automatically, keyed on the request at Stripe, so the same request creates one
  *    intent however often it is sent), and its status is read: an intent Stripe replays already
- *    cancelled ends the request (`stillPayable`, 409 `TOP_UP_OVER_MESSAGE`).
+ *    cancelled ends the request (`stillPayable`, 409 `TOP_UP_OVER_MESSAGE`). When Stripe refuses
+ *    the create because another call of the same request is creating that intent right now, the
+ *    call waits for it, bounded, then answers 503 `TOP_UP_BUSY_MESSAGE`; when the create fails
+ *    after a concurrent call of the request recorded its top-up, that top-up is answered as a
+ *    repeat (`createPayment`).
  * 3. Under the lock again, everything is read again and the top-up recorded `requires_payment`
  *    (`commit`). The same request recorded meanwhile by a concurrent call is answered as a
  *    repeat. Another request's unpaid top-up recorded meanwhile is replaced in turn, as in step 2
@@ -666,7 +776,9 @@ export async function topUpCampaign(
   campaignId: string,
   body: TopUpCampaignRequest,
   now: Date,
+  options: TopUpCampaignOptions = {},
 ): Promise<TopUpCampaignResponse> {
+  const pause = options.pause ?? sleep;
   const payments = topUpGatewayOf(gateway);
   if (payments === null) {
     throw new ApiRouteError(503, "internal", "Top-ups are not available right now");
@@ -697,9 +809,16 @@ export async function topUpCampaign(
         holder = null;
       }
       if (payment === null) {
-        const fresh = await viaGateway(() =>
-          payments.createBudgetTopUpPayment({ campaignId: id, requestId: body.requestId, amount }),
-        );
+        const creation = await createPayment(db, payments, id, body.requestId, amount, pause);
+        if (creation.kind === "recorded") {
+          // A concurrent call of the request recorded its top-up, and this call has no payment of
+          // its own: answered as a repeat. The top-ups whose intents this call cancelled: a refusal
+          // (the recorded top-up is over) goes through the `catch` below, which ends them; an
+          // answer means the top-up was recorded open, after this call's decision, and the unique
+          // index on open top-ups means the commit that recorded it found them ended or ended them.
+          return await repeatedRequest(db, payments, creation.row, id, amount, null);
+        }
+        const fresh = creation.payment;
         payment = fresh;
         if (!(await stillPayable(gateway, id, body.requestId, fresh))) {
           await db.begin((tx) =>

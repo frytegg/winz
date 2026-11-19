@@ -296,6 +296,18 @@ paiement déjà annulé finit la demande (`409`, jamais un `clientSecret` impaya
 dont une demande plus récente a annulé le paiement finit `failed` aussitôt, même si cette demande
 est ensuite refusée : sa répétition répond `409`, et la place de la campagne est libre.
 
+Deux appels simultanés d'une même demande (double tap, ou nouvelle tentative pendant que le premier
+appel est encore chez Stripe) envoient la même clé d'idempotence, et Stripe refuse le second tant
+qu'il traite le premier. Le second attend alors le premier (pauses de 1 s, 8 au plus) et répond ce
+qu'il a obtenu : le même paiement, ou le même `409` si la demande a fini autrement. Si le premier
+n'a toujours pas fini, il répond `503` (`internal`) avec
+`This top-up is still being created; try again in a moment` : rien de cette demande n'a été
+enregistré ni annulé,
+et le front renvoie le **même** `requestId` un peu plus tard, jamais un nouveau (ce serait un
+second paiement). C'est pourquoi ce n'est pas un `409`, qui sur cette route demande le plus
+souvent une nouvelle demande. Une autre panne de Stripe reste un `502`, sauf si un autre appel de
+la même demande a enregistré la recharge entre-temps : l'appel répond alors cette recharge.
+
 ### Le parcours d'achat, côté front
 
 1. `POST /api/checkout` avec `{ slug, qty }`. Si la promo ne vend pas, `409` avec `sales_paused`
