@@ -133,7 +133,11 @@ export function topUpGatewayOf(
 }
 
 export interface PaymentGateway {
-  /** The merchant's budget payment, captured automatically once the card is confirmed. */
+  /**
+   * The merchant's budget payment, captured automatically once the card is confirmed. Keyed on
+   * the campaign: a second call for the same campaign gets the same intent, or, while the first
+   * one is still being processed, `PaymentRequestInProgressError`.
+   */
   createBudgetPayment(input: BudgetPaymentInput): Promise<CreatedPaymentIntent>;
   /** A customer's purchase: the card is only authorized (`capture_method: manual`). */
   createPurchaseAuthorization(input: PurchaseAuthorizationInput): Promise<CreatedPaymentIntent>;
@@ -155,6 +159,27 @@ export class PaymentGatewayError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options);
     this.name = "PaymentGatewayError";
+  }
+}
+
+/**
+ * Stripe's error code for an idempotency key in use by another request it is still processing.
+ * Stripe answers it with HTTP 409, and Stripe's client (stripe 23.1.0) retries a 409 like any
+ * other retryable answer, after its initial retry delay, as long as the call has retries left.
+ */
+export const STRIPE_KEY_IN_USE_CODE = "idempotency_key_in_use";
+
+/**
+ * Stripe refused a create because another request with the same idempotency key is still being
+ * processed (409 `idempotency_key_in_use`, still refused after the client's own retries). Nothing
+ * failed: the request in progress gets the intent, and the same key sent again once it is done
+ * replays that intent. A `PaymentGatewayError`, so that a caller with no use for the difference
+ * treats it as any provider failure.
+ */
+export class PaymentRequestInProgressError extends PaymentGatewayError {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = "PaymentRequestInProgressError";
   }
 }
 
@@ -354,6 +379,12 @@ export class StripePaymentGateway implements PaymentGateway, TopUpPaymentGateway
     try {
       intent = await stripe.paymentIntents.create(params, requestOptions);
     } catch (error: unknown) {
+      if (error instanceof Stripe.errors.StripeError && error.code === STRIPE_KEY_IN_USE_CODE) {
+        throw new PaymentRequestInProgressError(
+          "another Stripe request with this idempotency key is still in progress",
+          { cause: error },
+        );
+      }
       throw new PaymentGatewayError("Stripe refused to create the PaymentIntent", { cause: error });
     }
     if (!intent.client_secret) {

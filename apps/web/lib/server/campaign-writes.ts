@@ -18,6 +18,7 @@ import { enqueueJob, type JobSql } from "./jobs";
 import { serverLogger } from "./logger";
 import {
   PaymentGatewayError,
+  PaymentRequestInProgressError,
   STRIPE_MAX_AMOUNT_CENTS,
   STRIPE_MIN_AMOUNT_CENTS,
   topUpGatewayOf,
@@ -166,10 +167,12 @@ export async function createCampaign(
   merchantId: string,
   body: CreateCampaignRequest,
   now: Date,
+  options: CreateCampaignOptions = {},
 ): Promise<CreateCampaignResponse> {
   const terms = parseCampaignTerms(body);
   if (body.requestId !== undefined) {
-    return createCampaignOnce(db, payments, merchantId, body.requestId, terms, now);
+    const pause = options.pause ?? sleep;
+    return createCampaignOnce(db, payments, merchantId, body.requestId, terms, now, pause);
   }
   serverLogger("campaign-writes").warn(
     { merchantId, instrumentSymbol: terms.instrumentSymbol },
@@ -219,17 +222,57 @@ export async function createCampaign(
 // Creation, idempotent on the merchant's requestId
 // ---------------------------------------------------------------------------------------------
 
-/** The 409s of a creation request whose `requestId` is known. */
+/**
+ * The refusals of a creation request whose `requestId` is known. They ask opposite things of the
+ * client, so they do not share a status: `usedElsewhere` is a 409 (this `requestId` is spent: make
+ * a new request), `busy` is a 503 (nothing is decided yet: send the SAME `requestId` again). A
+ * client that drew a new `requestId` after `busy` would create a second campaign and a second
+ * payment, which is what a 5xx on this route must never lead to.
+ */
 export const CREATE_CAMPAIGN_CONFLICTS = {
   /** The `requestId` belongs to a campaign with other terms: it never fits these ones. */
   usedElsewhere:
     "This request was already used for another promo; make a new request to create one",
-  /** Other calls of the same request kept replacing its campaign (`MAX_CREATE_ROUNDS`). */
+  /**
+   * Other calls of the same request kept replacing its campaign (`MAX_CREATE_ROUNDS`), or another
+   * call of the request was still creating its payment after `MAX_PAYMENT_IN_PROGRESS_WAITS`
+   * pauses. Nothing was cancelled: the same `requestId` sent again later answers the campaign.
+   */
   busy: "This promo is still being created; try again in a moment",
 } as const;
 
 /** How many times a request starts over when its campaign row was discarded under it. */
 export const MAX_CREATE_ROUNDS = 3;
+
+/**
+ * The pause before another round when the provider answers that the request's payment is being
+ * created by another call of the same request right now (`PaymentRequestInProgressError`: two
+ * calls of one request at the same moment, with the same idempotency key).
+ */
+export const PAYMENT_IN_PROGRESS_PAUSE_MS = 1_000;
+
+/**
+ * How many such pauses a call takes before answering 503 `busy`. What they cover: Stripe holds the
+ * key while it processes the twin's create, and the twin's own caller waits at most
+ * `BUDGET_REQUEST_TIMEOUT_MS` (10 s, payments-gateway.ts) for one attempt. Each call refused for
+ * the key lasts at least 0.5 s on its own (Stripe's client retries a 409 once, after its initial
+ * delay of 0.5 s: stripe 23.1.0, `RequestSender._getSleepTimeInMS`, never below that delay), so
+ * 8 pauses of 1 s wait at least 8 × 1.5 s + 0.5 s = 12.5 s, past the twin's whole attempt. A key
+ * still held after that belongs to a call whose own caller has given up (Stripe's processing is
+ * not bounded by that timeout, only the wait for it is): this call stops waiting too, the claim
+ * stays, and the same request sent again finds it. A usual double tap needs one pause: a PaymentIntent is usually created within a second.
+ */
+export const MAX_PAYMENT_IN_PROGRESS_WAITS = 8;
+
+/** Options of `createCampaign`. */
+export interface CreateCampaignOptions {
+  /** Waits `ms` milliseconds (default: a timer). Tests pass a pause of their own. */
+  pause?: (ms: number) => Promise<void>;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /** A campaign row as the idempotent creation reads it. */
 interface RequestRow {
@@ -475,7 +518,12 @@ async function answerRecorded(
 }
 
 /** What one round of the creation decided. */
-type Round = { kind: "done"; response: CreateCampaignResponse } | { kind: "again" };
+type Round =
+  | { kind: "done"; response: CreateCampaignResponse }
+  /** The round's campaign was discarded under it: start over with a fresh row. */
+  | { kind: "again" }
+  /** Another call of the request is creating its payment right now: pause, then look again. */
+  | { kind: "wait" };
 
 /**
  * The campaign of the request: the row this call inserts, or the one another call of the same
@@ -546,9 +594,13 @@ async function createRound(
   }
   await openInstrument(db, terms.instrumentSymbol, now);
   const claimed = campaign;
-  const payment = await viaGateway(() =>
-    gateway.createBudgetPayment({ campaignId: claimed.id, amount: terms.budget }),
-  );
+  let payment: CreatedPaymentIntent;
+  try {
+    payment = await gateway.createBudgetPayment({ campaignId: claimed.id, amount: terms.budget });
+  } catch (error: unknown) {
+    if (!(error instanceof PaymentGatewayError)) throw error;
+    return afterProviderFailure(db, gateway, payments, merchantId, requestId, terms, error);
+  }
   if (!(await stillPayable(gateway, claimed.id, payment.id)).payable) {
     await db.begin((tx) => discardUnpaidCampaign(tx, claimed.id, payment.id));
     serverLogger("campaign-writes").info(
@@ -613,6 +665,52 @@ async function createRound(
 }
 
 /**
+ * The provider failed to create the request's payment. The claim is read again first: when a
+ * concurrent call of the request recorded the payment meanwhile (the provider answered it while
+ * refusing this call), this call answers it, as any repeat does. Otherwise, when the provider
+ * said that another call with the same key is still in progress, the call waits for it (`wait`:
+ * a pause, then another round, which finds the payment recorded or gets it replayed). Any other
+ * failure answers 502, the claim left in place so that a retry finds the intent the provider may
+ * have created.
+ */
+async function afterProviderFailure(
+  db: Db,
+  gateway: PaymentGateway,
+  payments: TopUpPaymentGateway,
+  merchantId: string,
+  requestId: string,
+  terms: CampaignTermsInput,
+  error: PaymentGatewayError,
+): Promise<Round> {
+  const log = serverLogger("campaign-writes");
+  let current: RequestRow | null = null;
+  try {
+    current = await campaignOfRequest(db, merchantId, requestId);
+  } catch (readError: unknown) {
+    log.warn({ requestId, err: readError }, "the claim of a request could not be read again");
+  }
+  if (current !== null && current.budget_pi !== null) {
+    log.info(
+      { campaignId: current.id, requestId, paymentIntentId: current.budget_pi, err: error },
+      "the payment provider failed for a call whose payment another call recorded: answered as a repeat",
+    );
+    const recorded = await answerRecorded(db, gateway, payments, current, terms, null);
+    return recorded.kind === "answer"
+      ? { kind: "done", response: recorded.response }
+      : { kind: "again" };
+  }
+  if (error instanceof PaymentRequestInProgressError) {
+    log.info(
+      { campaignId: current?.id ?? null, requestId },
+      "another call of the request is creating its payment: waiting for it",
+    );
+    return { kind: "wait" };
+  }
+  log.error({ requestId, err: error }, "payment provider call failed");
+  throw paymentUnavailable();
+}
+
+/**
  * POST /api/campaigns with a `requestId` (the merchant's uuid, chosen once per "Fund" tap and kept
  * for its retries): one campaign and one budget payment per merchant and `requestId`, however
  * often and however concurrently the request is sent. Applies the lessons of the budget top-up
@@ -635,15 +733,24 @@ async function createRound(
  *   fails after a concurrent call recorded the same intent is answered as the repeat it is.
  * - The same `requestId` again answers by the campaign's state of the moment (`answerRecorded`),
  *   whatever it is, and 409 when the terms differ.
+ * - A call whose payment the provider fails to create reads the claim again before failing: a
+ *   payment a concurrent call of the request recorded meanwhile is answered. When the provider
+ *   refused it because the twin's call with the same key is still in progress, the call pauses
+ *   (`PAYMENT_IN_PROGRESS_PAUSE_MS`) and takes another round, at most
+ *   `MAX_PAYMENT_IN_PROGRESS_WAITS` times, then answers 503 `busy` with nothing cancelled.
  *
  * Not carried over, because creation has no such thing: the single open slot per campaign (a
  * request never replaces another one here: each `requestId` is its own campaign), the cap on a
  * campaign's total budget, and the webhook that refunds a paid intent no row expects (a budget
  * intent no campaign records cannot be paid: its client secret was never answered).
  *
- * A campaign row exists from the claim on, while its payment is being created: it stays out of
- * the merchant's list and detail until a payment is recorded, and a provider failure leaves it so
- * that the retry finds the intent the provider may have created.
+ * A campaign row exists from the claim on, while its payment is being created: until a payment is
+ * recorded it is no campaign for the merchant (out of the list, 404 on the detail, the pause, the
+ * resume, the close and the top-up), and a provider failure leaves it so that the retry finds the
+ * intent the provider may have created. Nothing deletes a claim whose request is never retried:
+ * it is invisible, and a sweep would have to run within the provider's key retention (about a
+ * day), deleting the claim under the same guard as `discardUnpaidCampaign` before cancelling the
+ * intent its key gives, as `withdraw` does.
  */
 async function createCampaignOnce(
   db: Db,
@@ -652,16 +759,32 @@ async function createCampaignOnce(
   requestId: string,
   terms: CampaignTermsInput,
   now: Date,
+  pause: (ms: number) => Promise<void>,
 ): Promise<CreateCampaignResponse> {
   const payments = topUpGatewayOf(gateway);
   if (payments === null) {
     throw new ApiRouteError(503, "internal", "Creating a promo is not available right now");
   }
-  for (let round = 1; round <= MAX_CREATE_ROUNDS; round += 1) {
+  let rounds = 0;
+  let waits = 0;
+  while (rounds < MAX_CREATE_ROUNDS) {
     const result = await createRound(db, gateway, payments, merchantId, requestId, terms, now);
     if (result.kind === "done") return result.response;
+    if (result.kind === "again") {
+      rounds += 1;
+      continue;
+    }
+    if (waits === MAX_PAYMENT_IN_PROGRESS_WAITS) {
+      serverLogger("campaign-writes").warn(
+        { requestId, waits },
+        "another call of the request was still creating its payment: answered busy, nothing cancelled",
+      );
+      break;
+    }
+    waits += 1;
+    await pause(PAYMENT_IN_PROGRESS_PAUSE_MS);
   }
-  throw conflict(CREATE_CAMPAIGN_CONFLICTS.busy);
+  throw new ApiRouteError(503, "internal", CREATE_CAMPAIGN_CONFLICTS.busy);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -681,9 +804,10 @@ function conflict(message: string): ApiRouteError {
 }
 
 /**
- * Locks the merchant's own campaign for the rest of the transaction; 404 for an unknown id and
- * for another merchant's campaign alike (its existence is not revealed). Refuses any change after
- * settlement.
+ * Locks the merchant's own campaign for the rest of the transaction; 404 for an unknown id, for
+ * another merchant's campaign alike (its existence is not revealed), and for the claim of a
+ * creation request whose payment is not recorded (its id was never answered: it is no campaign
+ * yet, as in the list and the detail). Refuses any change after settlement.
  */
 async function lockOwnCampaign(
   tx: JobSql,
@@ -695,6 +819,8 @@ async function lockOwnCampaign(
         select id, status, sale_state, sales_close, outcome
         from campaigns
         where id = ${campaignId} and merchant_id = ${merchantId}
+          -- A creation request's claim whose payment is not recorded is not a campaign yet.
+          and not (request_id is not null and budget_pi is null)
         for update
       `
     : [];

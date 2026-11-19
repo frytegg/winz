@@ -5,9 +5,12 @@ import { listCampaigns } from "@/lib/server/campaigns";
 
 export const dynamic = "force-dynamic";
 
-// Worst case, POST: the budget payment created inside the campaign's transaction with the short
-// budget settings (10 s, 1 retry: about 21 s), plus the sign-in check. 30 s; the GET is a read.
-export const maxDuration = 30;
+// Worst case, POST with a requestId: the budget payment created with the short budget settings
+// (10 s, 1 retry: about 21 s), its status read back before it is recorded (default settings:
+// about 47 s), and, for the second of two simultaneous taps, up to 8 pauses of 1 s between calls
+// refused for a key still in use (about 13 s), then one more creation (about 21 s): about 102 s.
+// 120 s, so that the platform never cuts a call that is about to answer; the GET is a read.
+export const maxDuration = 120;
 
 export const POST = apiRoute("createCampaign", ({ principal, body }, deps) =>
   createCampaign(deps.db, deps.payments, requireMerchant(principal).merchantId, body, deps.now()),

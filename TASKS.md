@@ -255,6 +255,7 @@ Lots parallèles : (H-03 → H-04 → H-05, H-06), (R-01 → R-02), (A-05, A-06,
 - [x] **A-08** ◇ · Qui : Agent `coder` · Dép. : A-02 · CA-6 (Should)
   Recharge du budget (`topUpBudgetFor`).
   Fait le 18 nov. : `POST /api/campaigns/:id/top-up` (paiement par carte comme le premier budget, table `budget_top_ups`), job `campaign.top_up`, `topUpBudgetFor` envoyé seul par le relayer ; l'argent finit crédité sur la campagne ou remboursé sur la carte, jamais les deux ni aucun. Prouvé sur chaîne locale avec le vrai contrat (`apps/web/e2e/top-up.test.ts` : budget épuisé, rechargé, la vente reprend). Pas encore rejoué sur Arc testnet ; l'écran de recharge est côté front.
+  Reste connu (19 nov.) : face au vrai Stripe, le second de deux taps simultanés sur une recharge peut encore recevoir une erreur `502` alors que le premier a réussi (un seul paiement dans tous les cas ; la création de campagne, elle, attend et répond comme le premier). Le même correctif reste à porter sur la recharge.
 
 ### Écrans
 - [ ] **U-05** · Qui : T · Dép. : A-05 · MDB-1, MDB-2, 5.2

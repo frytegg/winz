@@ -235,6 +235,8 @@ est la campagne :
 | attend le paiement                            | `status: "funding"`, même `campaignId`, même `clientSecret` : rouvrir la feuille de paiement |
 | payée, en route vers la chaîne                | `status: "funding"`, même paiement : Stripe dira qu'il est déjà payé, suivre le détail       |
 | en ligne, en pause, close, réglée             | son `status` du moment (`live`…), même paiement : rien à payer, ouvrir la campagne           |
+| `funding`, son paiement annulé chez Stripe    | la campagne est jetée : `status: "funding"`, un NOUVEAU `campaignId` et un nouveau paiement : le front garde toujours le `campaignId` et le `clientSecret` de la DERNIÈRE réponse |
+| encore en création par un autre appel du même `requestId` | `503 internal`, `This promo is still being created; try again in a moment` : rien n'est annulé, renvoyer le **même** `requestId` un peu plus tard (comme après toute réponse `5xx` ou coupure réseau de cette route) |
 | mêmes `requestId`, autres réglages            | `409 conflict`, `This request was already used for another promo; make a new request to create one` |
 
 Un `requestId` qui n'est pas un `uuid` répond `400`. Si Stripe est en panne (`502`), le même

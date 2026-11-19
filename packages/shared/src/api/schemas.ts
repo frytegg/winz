@@ -247,7 +247,7 @@ export const campaignPreviewResponseSchema = z.object({
 /**
  * POST /api/campaigns: creates the draft and the payment of its budget (screen M7). With a
  * `requestId`, the request is idempotent: sent again by the same merchant, it answers the same
- * campaign and the same payment and creates nothing.
+ * campaign and the same payment and creates nothing (one exception, on `requestId` below).
  */
 export const createCampaignRequestSchema = campaignTermsSchema.extend({
   product: z.string().min(1).max(80),
@@ -257,6 +257,10 @@ export const createCampaignRequestSchema = campaignTermsSchema.extend({
    * (a double tap or a retry after a network cut creates a second campaign and a second payment).
    * Optional only until the shapes are frozen, then required. The same `requestId` with other
    * terms answers 409.
+   * One exception to "the same campaign and the same payment": a `funding` campaign whose payment
+   * was cancelled at Stripe before being paid is discarded, and the repeat answers a NEW
+   * `campaignId` and a new payment; the front always uses the `campaignId` and `clientSecret` of
+   * the LAST answer.
    */
   requestId: z.uuid().optional(),
 });

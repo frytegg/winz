@@ -633,7 +633,7 @@ bord.
      | `POST /api/webhooks/stripe` | 120 s | relire, annuler, relire une recharge échouée (≈ 114 s) |
      | `POST /api/checkout` | 60 s | créer le PaymentIntent (15 s × 3 essais ≈ 47 s) |
      | `POST /api/checkout/:pi/confirm` | 60 s | relire le PaymentIntent (≈ 47 s) |
-     | `POST /api/campaigns` (et son `GET`) | 30 s | créer le paiement du budget (10 s × 2 ≈ 21 s) |
+     | `POST /api/campaigns` (et son `GET`) | 120 s | créer le paiement du budget (≈ 21 s), relire son état (≈ 47 s), et pour le second de deux taps simultanés attendre le premier (≈ 13 s) puis créer (≈ 21 s) : ≈ 102 s |
      | `POST /api/campaigns/:id/top-up` | 300 s | ≈ 356 s si Stripe expirait à chaque appel ; 68 s d'ordinaire |
      | `POST /api/admin/demo/sale` | 15 s | attendre le ticket (8 s) |
      | `POST /api/webhooks/quicknode` | 30 s | aucun appel extérieur ; QuickNode attend 30 s par défaut |
