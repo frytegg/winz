@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CashIcon, ReceiptIcon } from "@/components/ui/icons";
+import { ProgressBar } from "@/components/ui/progress-bar";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { errorMessage } from "@/lib/api/client";
@@ -14,6 +15,7 @@ import { bpsToWholePercent, formatMoney, formatPercent } from "@/lib/format";
 import { budgetUsedTenths, formatBpsOneDecimal, formatTenths } from "@/lib/merchant/budget";
 import { isRunning } from "@/lib/merchant/campaigns";
 import type { OddsPoint } from "@/lib/merchant/odds-history";
+import { promoResult, resultWords } from "@/lib/merchant/status";
 import type { CampaignAction, CampaignDetailData } from "@/lib/merchant/use-campaign-detail";
 import { cn } from "@/lib/utils";
 
@@ -28,17 +30,19 @@ function ReportCard({
   campaign: CampaignDetailData & { report: NonNullable<CampaignDetailData["report"]> };
 }): React.JSX.Element {
   const { report } = campaign;
-  const won = campaign.status === "settled_yes" || campaign.outcome === "yes";
+  // A report exists once there is an outcome; a cancelled game has its own words, never "Lost".
+  const result = promoResult(campaign.status, campaign.outcome) ?? "lost";
+  const words = resultWords(result);
   const t = copy.campaignDetail.report;
   return (
     <Card tone="raised" diagonals className="p-5">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-label uppercase">{t.title}</h2>
         <span className="rounded-full bg-lime px-3 py-1 text-label uppercase text-ink">
-          {won ? t.won : t.lost}
+          {words.badge}
         </span>
       </div>
-      <p className="mt-3 text-body text-muted">{won ? t.wonBody : t.lostBody}</p>
+      <p className="mt-3 text-body text-muted">{words.body}</p>
       <dl className="mt-4 flex flex-col divide-y divide-white/10">
         <Row label={t.sales}>{report.sales.toLocaleString("en-US")}</Row>
         <Row label={t.newCustomers}>{report.newCustomers.toLocaleString("en-US")}</Row>
@@ -48,9 +52,11 @@ function ReportCard({
         <Row label={t.refundsPaid}>{formatMoney(report.refundsPaid)}</Row>
         <Row label={t.paidToYou}>{formatMoney(report.paidToMerchant)}</Row>
       </dl>
-      <p className="mt-4 text-caption text-muted">
-        {t.sameAs(formatBpsOneDecimal(report.equivalentDiscountBps))}
-      </p>
+      {result === "cancelled" ? null : (
+        <p className="mt-4 text-caption text-muted">
+          {t.sameAs(formatBpsOneDecimal(report.equivalentDiscountBps))}
+        </p>
+      )}
     </Card>
   );
 }
@@ -66,7 +72,8 @@ function Row({ label, children }: { label: string; children: string }): React.JS
 
 /**
  * Stats: the report (after the game), the four tiles, what was received and what is pending, the
- * live chance against the auto-pause line, and how many more sales the budget allows.
+ * coverage gauge (0 to 100 % of the exposure), the live chance against the auto-pause line, and how
+ * many more sales the budget allows.
  */
 export function StatsTab({
   campaign,
@@ -94,11 +101,8 @@ export function StatsTab({
         <StatTile label={t.grossSales} icon={CashIcon}>
           <Money micro={campaign.revenue} compact />
         </StatTile>
-        <StatTile label={t.coverage} icon={ReceiptIcon}>
-          <span className="figures">
-            {bpsToWholePercent(campaign.hedgedBps).toString()}
-            <span className="text-lime">%</span>
-          </span>
+        <StatTile label={t.exposure} icon={CashIcon}>
+          <Money micro={campaign.exposure} compact />
         </StatTile>
         <StatTile label={t.coverageCost} icon={CashIcon}>
           <Money micro={campaign.hedgeSpent} compact />
@@ -117,6 +121,22 @@ export function StatsTab({
           <p className="text-caption text-muted">{t.pendingNote}</p>
         </Card>
       </div>
+
+      <Card className="px-5 py-4">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-body font-light">{t.coverage}</p>
+          <p className="figures text-title">
+            {bpsToWholePercent(campaign.hedgedBps).toString()}
+            <span className="text-lime">%</span>
+          </p>
+        </div>
+        <ProgressBar
+          value={campaign.hedgedBps / 10_000}
+          label={t.coverageBar}
+          className="mt-3 h-3"
+        />
+        <p className="mt-2 text-caption text-muted">{t.coverageNote}</p>
+      </Card>
 
       {tracking ? (
         <Card className="p-5">
@@ -142,7 +162,11 @@ export function StatsTab({
             )}
           </div>
           <p className="mt-2 text-caption text-muted">
-            {points.length < 2 ? t.chartEmpty : t.chartSince}
+            {liveBps === null && points.length > 0
+              ? t.chartNoQuote
+              : points.length < 2
+                ? t.chartEmpty
+                : t.chartSince}
           </p>
         </Card>
       ) : null}

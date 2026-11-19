@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 import { copy } from "../../lib/copy";
 
@@ -14,6 +14,20 @@ async function firstCampaignHref(page: Page): Promise<string> {
   if (href === null) throw new Error("a promo card without a link");
   return href;
 }
+
+/**
+ * The figure tile (or card) whose label is `label`: the innermost block that holds the label, so
+ * the figure read is the one printed under that label and not a same amount elsewhere.
+ */
+function figureOf(page: Page, label: string): Locator {
+  return page
+    .locator("div")
+    .filter({ has: page.getByText(label, { exact: true }) })
+    .last();
+}
+
+/** `GET /api/campaigns/:id`, and only it (not `/pause`, `/resume`, `/close`, `/top-up`). */
+const DETAIL_URL = /\/api\/campaigns\/[^/?]+(\?.*)?$/;
 
 test.describe("the merchant space (SPEC 5.2)", () => {
   test("home, and the list with its two tabs", async ({ page, screens }) => {
@@ -156,6 +170,174 @@ test.describe("the merchant space (SPEC 5.2)", () => {
       await screens.shot(status.receipt);
     });
   }
+
+  test("a cancelled game: Cancelled in the detail and its report, never Lost", async ({
+    page,
+    screens,
+  }) => {
+    await signInAsMerchant(page);
+    await page.goto("/campaigns");
+    const href = await firstCampaignHref(page);
+    await page.goto(`${href}?scenario=cancelled`);
+    await expect(
+      page.getByText(copy.campaigns.status.void, { exact: true }).first(),
+      "the status says Cancelled",
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: copy.campaignDetail.report.title }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(copy.campaignDetail.report.cancelledBody),
+      "the report says what a cancelled game means for the merchant",
+    ).toBeVisible();
+    await expect(page.getByText(copy.campaignDetail.report.lostBody)).toHaveCount(0);
+    await expect(page.getByText(copy.campaignDetail.report.lost, { exact: true })).toHaveCount(0);
+    await expect(page.getByText(copy.campaignDetail.report.wonBody)).toHaveCount(0);
+    await screens.shot("md-detail-cancelled");
+  });
+
+  test("a live promo shows its exposure and its 0 to 100% coverage gauge (SPEC 5.2)", async ({
+    page,
+  }) => {
+    await signInAsMerchant(page);
+    await page.goto("/campaigns");
+    const href = await firstCampaignHref(page);
+    // The live example has exposure = revenue (100% back); a 50% promo tells the two apart, so the
+    // figure shown is proven to be `exposure` and not the gross sales.
+    await page.route(DETAIL_URL, async (route) => {
+      const response = await route.fetch();
+      const body = (await response.json()) as Record<string, unknown>;
+      await route.fulfill({ response, json: { ...body, exposure: "120000000", hedgedBps: 6667 } });
+    });
+    await page.goto(`${href}?scenario=live`);
+
+    const exposure = figureOf(page, copy.campaignDetail.exposure);
+    await expect(exposure, "the exposure is shown").toBeVisible();
+    await expect(exposure.getByLabel("$120", { exact: true })).toBeVisible();
+    await expect(figureOf(page, copy.campaignDetail.grossSales).getByLabel("$240")).toBeVisible();
+
+    const gauge = page.getByRole("progressbar", { name: copy.campaignDetail.coverageBar });
+    await expect(gauge, "the coverage is a gauge, not a bare number").toBeVisible();
+    await expect(gauge).toHaveAttribute("aria-valuemin", "0");
+    await expect(gauge).toHaveAttribute("aria-valuemax", "100");
+    await expect(gauge).toHaveAttribute("aria-valuenow", "67");
+    await expect(figureOf(page, copy.campaignDetail.coverage)).toContainText("67%");
+    // The poll goes on after the last check: stop answering it before the page closes.
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+  });
+
+  test("a sale shows within 3 seconds on polling alone (criterion 7, Realtime absent)", async ({
+    page,
+    screens,
+  }) => {
+    await signInAsMerchant(page);
+    await page.goto("/campaigns");
+    const href = await firstCampaignHref(page);
+    // The suite runs the simulated mode, where nothing subscribes to Supabase, and any request
+    // leaving the machine would fail the test: only the re-reads of the API can bring the sale.
+    let sold = false;
+    await page.route(DETAIL_URL, async (route) => {
+      const response = await route.fetch();
+      const body = (await response.json()) as { sales: number; revenue: string };
+      await route.fulfill({
+        response,
+        json: sold ? { ...body, sales: body.sales + 1, revenue: "260000000" } : body,
+      });
+    });
+    await page.goto(`${href}?scenario=live`);
+    const sales = figureOf(page, copy.campaignDetail.sales);
+    await expect(sales).toHaveText(/^Sales\s*12$/);
+
+    sold = true;
+    const began = Date.now();
+    // Checked on every frame in the page, so the time measured is the screen's, not the poll of
+    // an assertion.
+    await page.waitForFunction(
+      (label) =>
+        [...document.querySelectorAll("p")].some(
+          (p) =>
+            p.textContent?.trim() === label && p.nextElementSibling?.textContent?.trim() === "13",
+        ),
+      copy.campaignDetail.sales,
+      { polling: "raf", timeout: 10_000 },
+    );
+    const elapsed = Date.now() - began;
+    expect(elapsed, `the sale showed after ${elapsed.toString()} ms`).toBeLessThan(3000);
+    await expect(figureOf(page, copy.campaignDetail.grossSales).getByLabel("$260")).toBeVisible();
+    await screens.shot("md-detail-polled-sale");
+    // The poll goes on after the last check: stop answering it before the page closes.
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+  });
+
+  test("when the re-reads fail, the figures say they are not fresh", async ({ page, screens }) => {
+    await signInAsMerchant(page);
+    await page.goto("/campaigns");
+    const href = await firstCampaignHref(page);
+    let answered = 0;
+    screens.allowStatus(DETAIL_URL, 503);
+    await page.route(DETAIL_URL, async (route) => {
+      answered += 1;
+      if (answered === 1) {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({
+        status: 503,
+        json: { error: { code: "internal", message: "Service unavailable" } },
+      });
+    });
+    await page.goto(`${href}?scenario=live`);
+    await expect(figureOf(page, copy.campaignDetail.sales)).toHaveText(/^Sales\s*12$/);
+
+    await expect(
+      page.getByText(copy.campaignDetail.reconnecting),
+      "a failed re-read is said on screen",
+    ).toBeVisible();
+    await expect(
+      page.getByText(copy.campaignDetail.chartNoQuote).first(),
+      "the live chance is no longer shown as current",
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: copy.campaignDetail.liveChance }).locator("xpath=../.."),
+    ).toContainText("–");
+    // The last figures stay, under the message that they are the last ones.
+    await expect(figureOf(page, copy.campaignDetail.sales)).toHaveText(/^Sales\s*12$/);
+    await screens.shot("md-detail-stale");
+    // The poll goes on after the last check: stop answering it before the page closes.
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+  });
+
+  test("the totals count the sales of a cancelled game, which the merchant keeps (SPEC 4.6, ST-4)", async ({
+    page,
+    screens,
+  }) => {
+    // The home's figures are those of this month: the examples are dated November 2026.
+    await page.clock.setFixedTime(new Date("2026-11-21T12:00:00-06:00"));
+    await signInAsMerchant(page);
+
+    await page.goto("/home?scenario=withCancelled");
+    // 12 + 31 + 5 sales, $240 + $620 + $100.
+    await expect(figureOf(page, copy.home.grossSales).getByLabel("$960")).toBeVisible();
+    await expect(figureOf(page, copy.home.sales)).toHaveText(/^Sales\s*48$/);
+    await screens.shot("md-home-with-cancelled");
+
+    await page.goto("/stats?scenario=withCancelled");
+    await expect(figureOf(page, copy.stats.grossSales).getByLabel("$960")).toBeVisible();
+    await expect(figureOf(page, copy.stats.sales)).toHaveText(/^Sales\s*48$/);
+    await expect(figureOf(page, copy.stats.promos)).toHaveText(/^Promos run\s*3$/);
+    await expect(page.getByText("100% back if Pitt wins by 7+")).toBeVisible();
+    await screens.shot("md-stats-with-cancelled");
+
+    await page.goto("/campaigns?scenario=withCancelled");
+    const tabs = page.getByRole("radiogroup", { name: copy.campaigns.tabsLabel });
+    await tabs.getByRole("radio", { name: copy.campaigns.closed }).tap();
+    await expect(
+      page
+        .getByRole("link", { name: copy.campaigns.open("100% back if Pitt wins by 7+") })
+        .getByText(copy.campaigns.status.void, { exact: true }),
+      "the list says Cancelled, not Lost",
+    ).toBeVisible();
+  });
 
   test("the settings: profile, balance, technical details folded, sign out", async ({
     page,

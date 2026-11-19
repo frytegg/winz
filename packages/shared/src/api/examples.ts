@@ -350,6 +350,35 @@ export const campaignDetailExamples = {
       paidToMerchant: "240000000",
     },
   },
+  /**
+   * The game was cancelled (VOID, ST-4): treated as NO for the escrow, so nobody is refunded and
+   * the merchant keeps every sale; the coverage already charged is paid back, so the report's cost
+   * is zero. No result label for a void game.
+   */
+  cancelled: {
+    ...detailLive,
+    status: "void",
+    saleState: "closed",
+    probabilityBps: null,
+    hedgeSpent: "29880000",
+    hedgeReserved: "0",
+    budgetAvailable: "970120000",
+    hedgedBps: 10_000,
+    capacitySales: 0,
+    received: "240000000",
+    pending: "0",
+    outcome: "void",
+    resultLabel: null,
+    report: {
+      sales: 12,
+      newCustomers: 9,
+      hedgeCost: "0",
+      hedgeCostBps: 0,
+      equivalentDiscountBps: 0,
+      refundsPaid: "0",
+      paidToMerchant: "240000000",
+    },
+  },
 } satisfies Record<string, CampaignDetail>;
 
 export const campaignsExample: CampaignsResponse = {
@@ -393,6 +422,32 @@ export const campaignsWithFundingExample: CampaignsResponse = {
       liveAt: null,
     },
     ...campaignsExample.campaigns,
+  ],
+};
+
+/**
+ * GET /api/campaigns with a promo whose game was cancelled (`void`): it sold before the game, and the
+ * merchant keeps that money (ST-4), so its sales belong in the totals.
+ */
+export const campaignsWithCancelledExample: CampaignsResponse = {
+  campaigns: [
+    ...campaignsExample.campaigns,
+    {
+      ...summaryLive,
+      id: "cmp_joes_pitt_cancelled",
+      slug: "joes-pitt-cancelled",
+      promise: "100% back if Pitt wins by 7+",
+      status: "void",
+      saleState: "closed",
+      eventTitle: "Villanova vs Pittsburgh",
+      event: PITT_GAME,
+      startsAt: "2026-11-11T00:00:00.000Z",
+      salesCloseAt: "2026-11-10T23:55:00.000Z",
+      sales: 5,
+      revenue: "100000000",
+      createdAt: "2026-11-10T20:02:00.000Z",
+      liveAt: "2026-11-10T20:03:05.000Z",
+    },
   ],
 };
 

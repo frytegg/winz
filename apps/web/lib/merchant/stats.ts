@@ -3,9 +3,12 @@ import type { CampaignStatus, CampaignSummary } from "@winz/shared";
 /** The three periods of the home statistics (MH). */
 export type Period = "month" | "week" | "today";
 
-/** A campaign that never sold (not live yet, or cancelled) has nothing to add to the figures. */
+/**
+ * A campaign that never went on sale (not live yet) has nothing to add to the figures. A cancelled
+ * game does: it is settled like NO for the escrow, so the merchant keeps its sales (SPEC ST-4).
+ */
 export function countsInStats(status: CampaignStatus): boolean {
-  return status !== "draft" && status !== "funding" && status !== "void";
+  return status !== "draft" && status !== "funding";
 }
 
 function startOfDay(date: Date): Date {

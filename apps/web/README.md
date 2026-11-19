@@ -59,8 +59,8 @@ réponse.
 | `GET /api/events`                | `default`                                                                  |
 | `POST /api/campaigns/preview`    | `default`, `open`, `aboveThreshold`, `noBook`                              |
 | `POST /api/campaigns`            | `default`, `created`, `repeated`, `repeatedLive`                           |
-| `GET /api/campaigns`             | `default`, `withFunding`                                                   |
-| `GET /api/campaigns/:id`         | `default`, `live`, `paused`, `settledYes`, `settledNo`, `demo`             |
+| `GET /api/campaigns`             | `default`, `withFunding`, `withCancelled`                                  |
+| `GET /api/campaigns/:id`         | `default`, `live`, `paused`, `settledYes`, `settledNo`, `cancelled`, `demo` |
 | `POST /api/campaigns/:id/pause`  | `default`                                                                  |
 | `POST /api/campaigns/:id/resume` | `default`                                                                  |
 | `POST /api/campaigns/:id/close`  | `default`                                                                  |
@@ -78,6 +78,12 @@ réponse.
 | `POST /api/admin/demo/reset`     | `default`                                                                  |
 | `POST /api/webhooks/stripe`      | `default`                                                                  |
 | `POST /api/webhooks/quicknode`   | `default`                                                                  |
+
+Le détail d'une campagne suit aussi sa ligne publique `live_campaigns` en Supabase Realtime
+(`lib/realtime/use-live-campaign.ts`) : ventes, exposition, couverture et état des ventes en viennent
+quand elle est plus récente que la réponse de l'API, le reste vient de l'API, relue aussitôt, et
+toutes les 2 s tant que le flux se tait (`lib/merchant/live-detail.ts`). L'API simulée ne pousse
+rien : la suite du navigateur ne prouve que les relectures, la poussée se prouve sur la pile déployée.
 
 Quel exemple sert `default` :
 
@@ -507,7 +513,9 @@ campagne C1 dans chaque état des scénarios, l'achat C2 par le paiement simulé
 ticket, moins de 30 s ; total au cent près selon la quantité ; refus `sales_paused` et
 `sales_closed`, paiement `failed`, pause pendant l'attente), le ticket C3 dans ses cinq phases (le
 montant remboursé au cent près), l'espace commerçant (liste et onglets, détail en ligne, en pause,
-réglé avec son bilan, pause et reprise, réglages) et le Hedge desk. Sur chaque page ouverte, elle
+réglé avec son bilan, match annulé, exposition et jauge de couverture, une vente vue en moins de 3 s
+par les seules relectures de l'API, relectures en échec, totaux avec un match annulé, pause et
+reprise, réglages) et le Hedge desk. Sur chaque page ouverte, elle
 vérifie aussi : aucune réponse 404 ou 5xx, ni aucune 4xx de l'API, que le scénario n'a pas
 demandée, aucune erreur de page ni de console (les exceptions sont listées, avec leur raison, dans
 `e2e/ui/support/fixtures.ts`), aucun défilement horizontal à 393 px (mesuré contre
