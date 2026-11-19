@@ -2,7 +2,7 @@
 
 import { Download, MapPin, Copy, Share2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { BackButton } from "@/components/ui/icon-button";
 import { Button } from "@/components/ui/button";
@@ -18,9 +18,7 @@ import { useAsync } from "@/lib/api/use-async";
 import { useAuth, useRouteGuard } from "@/lib/auth";
 import { HOME_PATH } from "@/lib/auth/route-guard";
 import { copy } from "@/lib/copy";
-import { pickTeamArt } from "@/lib/team-art";
-import { readLaunched } from "@/lib/wizard/launched";
-import { splitEventTitle } from "@/lib/wizard/draft";
+import { gameFromEvent } from "@/lib/fan/teams";
 import { renderQrPng } from "@/lib/qr";
 
 import { Celebration } from "./celebration";
@@ -32,12 +30,6 @@ const POLL_MS = 1500;
 /** In simulated mode the campaign is live at once: hold the waiting state this long so it can be seen. */
 const SIMULATED_WAIT_MS = 1500;
 const CELEBRATED_PREFIX = "winz.celebrated.";
-
-interface TeamView {
-  name: string;
-  abbreviation: string;
-  art: string | null;
-}
 
 function celebratedBefore(id: string): boolean {
   try {
@@ -112,10 +104,6 @@ export function LiveScreen({ campaignId }: { campaignId: string }): React.JSX.El
   const [waited, setWaited] = useState(!isMockApi());
   const [qrOpen, setQrOpen] = useState(false);
   const [celebrate, setCelebrate] = useState<boolean | null>(null);
-  const launched = useMemo(
-    () => (typeof window === "undefined" ? null : readLaunched(campaignId)),
-    [campaignId],
-  );
 
   // The wizard has done its job: its choices are cleared, so a new promo starts fresh.
   useEffect(() => {
@@ -155,36 +143,6 @@ export function LiveScreen({ campaignId }: { campaignId: string }): React.JSX.El
     }
   }, [live, celebrate, campaignId]);
 
-  const teams = useMemo((): { away: TeamView; home: TeamView } | null => {
-    if (campaign === null) return null;
-    if (launched !== null) {
-      const art = pickTeamArt(
-        launched.event.sport,
-        launched.event.away.abbreviation,
-        launched.event.home.abbreviation,
-      );
-      return {
-        away: { ...launched.event.away, art: launched.event.away.logoUrl ?? art?.away ?? null },
-        home: { ...launched.event.home, art: launched.event.home.logoUrl ?? art?.home ?? null },
-      };
-    }
-    // No memory of the pick (another device): the names come from the title, in football art.
-    const names = splitEventTitle(campaign.eventTitle);
-    if (names === null) return null;
-    const [away, home] = names.map((name) => ({
-      name,
-      abbreviation: name
-        .replace(/[^A-Za-z]/g, "")
-        .slice(0, 3)
-        .toUpperCase(),
-    })) as [{ name: string; abbreviation: string }, { name: string; abbreviation: string }];
-    const art = pickTeamArt("football", away.abbreviation, home.abbreviation);
-    return {
-      away: { ...away, art: art?.away ?? null },
-      home: { ...home, art: art?.home ?? null },
-    };
-  }, [campaign, launched]);
-
   if (!guarded) return <Splash />;
   if (failed) {
     return (
@@ -211,7 +169,8 @@ export function LiveScreen({ campaignId }: { campaignId: string }): React.JSX.El
 
   const url = campaign.url;
   const shortUrl = url.replace(/^https?:\/\//, "");
-  const merchantName = me?.merchant?.name ?? launched?.merchantName ?? "";
+  const merchantName = me?.merchant?.name ?? "";
+  const teams = gameFromEvent(campaign.event);
 
   async function copyLink(): Promise<void> {
     toast.show((await copyText(url)) ? copy.common.copied : copy.common.genericError);
@@ -276,36 +235,32 @@ export function LiveScreen({ campaignId }: { campaignId: string }): React.JSX.El
 
         <Countdown target={campaign.salesCloseAt} size="lg" />
 
-        {teams === null ? (
-          <p className="text-lead">{campaign.eventTitle}</p>
-        ) : (
-          <div className="flex w-full items-center justify-center gap-3">
-            <div className="flex w-24 flex-col items-center gap-1">
-              <TeamBadge
-                abbreviation={teams.away.abbreviation}
-                src={teams.away.art}
-                side="a"
-                size={80}
-              />
-              <span className="text-lead">{teams.away.abbreviation}</span>
-            </div>
-            <span
-              aria-hidden="true"
-              className="grid size-14 place-items-center rounded-full bg-lime text-lead text-ink"
-            >
-              {copy.pickGame.vs}
-            </span>
-            <div className="flex w-24 flex-col items-center gap-1">
-              <TeamBadge
-                abbreviation={teams.home.abbreviation}
-                src={teams.home.art}
-                side="b"
-                size={80}
-              />
-              <span className="text-lead">{teams.home.abbreviation}</span>
-            </div>
+        <div className="flex w-full items-center justify-center gap-3">
+          <div className="flex w-24 flex-col items-center gap-1">
+            <TeamBadge
+              abbreviation={teams.away.abbreviation}
+              src={teams.away.art}
+              side="a"
+              size={80}
+            />
+            <span className="text-lead">{teams.away.abbreviation}</span>
           </div>
-        )}
+          <span
+            aria-hidden="true"
+            className="grid size-14 place-items-center rounded-full bg-lime text-lead text-ink"
+          >
+            {copy.pickGame.vs}
+          </span>
+          <div className="flex w-24 flex-col items-center gap-1">
+            <TeamBadge
+              abbreviation={teams.home.abbreviation}
+              src={teams.home.art}
+              side="b"
+              size={80}
+            />
+            <span className="text-lead">{teams.home.abbreviation}</span>
+          </div>
+        </div>
 
         <button
           type="button"

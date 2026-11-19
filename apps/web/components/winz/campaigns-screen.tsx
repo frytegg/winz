@@ -8,7 +8,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { apiFetch } from "@/lib/api/client";
 import { useAsync } from "@/lib/api/use-async";
 import { copy } from "@/lib/copy";
-import { orderForTab, type ListTab } from "@/lib/merchant/campaigns";
+import { orderForTab, visibleCampaigns, type ListTab } from "@/lib/merchant/campaigns";
 
 import { CampaignCard, CampaignCardSkeleton } from "./campaign-card";
 import { LoadError } from "./load-error";
@@ -23,7 +23,11 @@ const TAB_OPTIONS = [
 export function CampaignsScreen(): React.JSX.Element {
   const campaigns = useAsync((signal) => apiFetch("campaigns", { signal }), [], { pollMs: 10_000 });
   const [tab, setTab] = useState<ListTab>("inProgress");
-  const list = campaigns.data?.campaigns ?? null;
+  // An unpaid promo older than the grace period is not "going live": it is hidden.
+  const list = useMemo(
+    () => (campaigns.data === null ? null : visibleCampaigns(campaigns.data.campaigns, new Date())),
+    [campaigns.data],
+  );
   const shown = useMemo(() => (list === null ? null : orderForTab(list, tab)), [list, tab]);
 
   return (

@@ -1,6 +1,5 @@
 "use client";
 
-import type { CampaignStatus } from "@winz/shared";
 import { useRef, useState } from "react";
 
 import { Chip } from "@/components/ui/chip";
@@ -9,6 +8,12 @@ import { Stepper } from "@/components/ui/stepper";
 import { useToast } from "@/components/ui/toast";
 import { apiFetch } from "@/lib/api/client";
 import { copy } from "@/lib/copy";
+import {
+  RequestIds,
+  isRequestSpent,
+  planFromTopUp,
+  retryWhileCreating,
+} from "@/lib/merchant/funding";
 import {
   MAX_CARD_AMOUNT_CENTS,
   MIN_CARD_AMOUNT_CENTS,
@@ -37,26 +42,17 @@ export function TopUpSheet({
   open,
   onOpenChange,
   campaignId,
-  status,
   onAdded,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   campaignId: string;
-  status: CampaignStatus;
   /** The top-up went through: the screen reads the campaign again. */
   onAdded: () => void;
 }): React.JSX.Element {
   const toast = useToast();
   const [cents, setCents] = useState(DEFAULT_CENTS);
-  const attempt = useRef<{ cents: number; requestId: string } | null>(null);
-
-  function requestIdFor(amountCents: number): string {
-    if (attempt.current?.cents !== amountCents) {
-      attempt.current = { cents: amountCents, requestId: crypto.randomUUID() };
-    }
-    return attempt.current.requestId;
-  }
+  const requestIds = useRef(new RequestIds());
 
   return (
     <Sheet
@@ -91,15 +87,24 @@ export function TopUpSheet({
         </div>
         <FundBudget
           amountCents={cents}
-          createCampaign={async () => {
-            const topUp = await apiFetch("topUpCampaign", {
-              params: { id: campaignId },
-              body: { amount: microToWire(centsToMicro(cents)), requestId: requestIdFor(cents) },
-            });
-            return { campaignId: topUp.campaignId, status, budgetPayment: topUp.budgetPayment };
+          prepare={async () => {
+            // The same amount keeps its `requestId`; another amount is another top-up.
+            const requestId = requestIds.current.idFor(cents.toString());
+            try {
+              const response = await retryWhileCreating(() =>
+                apiFetch("topUpCampaign", {
+                  params: { id: campaignId },
+                  body: { amount: microToWire(centsToMicro(cents)), requestId },
+                }),
+              );
+              return planFromTopUp(response);
+            } catch (error: unknown) {
+              if (isRequestSpent(error)) requestIds.current.renew();
+              throw error;
+            }
           }}
           onFunded={() => {
-            attempt.current = null;
+            requestIds.current.renew();
             toast.show(copy.campaignDetail.addBudgetDone);
             onOpenChange(false);
             onAdded();

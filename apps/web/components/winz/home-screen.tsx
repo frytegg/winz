@@ -15,7 +15,7 @@ import { apiFetch } from "@/lib/api/client";
 import { useAsync } from "@/lib/api/use-async";
 import { useAuth } from "@/lib/auth";
 import { copy } from "@/lib/copy";
-import { isActivePromo } from "@/lib/merchant/campaigns";
+import { isActivePromo, visibleCampaigns } from "@/lib/merchant/campaigns";
 import { isPulsing, statusBadge } from "@/lib/merchant/status";
 import { totalsFor, type Period } from "@/lib/merchant/stats";
 
@@ -41,7 +41,11 @@ export function HomeScreen(): React.JSX.Element {
   const [period, setPeriod] = useState<Period>("month");
   const [withdrawOpen, setWithdrawOpen] = useState(false);
 
-  const list = campaigns.data?.campaigns ?? null;
+  // An unpaid promo older than the grace period is not "going live": it is hidden.
+  const list = useMemo(
+    () => (campaigns.data === null ? null : visibleCampaigns(campaigns.data.campaigns, new Date())),
+    [campaigns.data],
+  );
   const totals = useMemo(
     () => (list === null ? null : totalsFor(list, period, new Date())),
     [list, period],
