@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import {
   BUDGET_REQUEST_MAX_RETRIES,
   PaymentGatewayError,
+  PaymentRequestInProgressError,
+  STRIPE_KEY_IN_USE_CODE,
   StripePaymentGateway,
   WebhookSignatureError,
   paymentKindOf,
@@ -355,6 +357,71 @@ describe("StripePaymentGateway over Stripe's real client (fake HTTP layer)", () 
     ).rejects.toThrow(PaymentGatewayError);
     expect(purchase.sent).toHaveLength(3);
   }, 20_000);
+
+  it("reports a key in use by a request in progress apart, after one retry 0.5 s later", async () => {
+    // Stripe's answer to a second request with the key of one it is still processing.
+    const inUse = {
+      status: 409,
+      body: {
+        error: {
+          type: "idempotency_error",
+          code: "idempotency_key_in_use",
+          message:
+            "There is currently another in-progress request using this Idempotent Key (that probably means you submitted twice, and the other request is still going through): campaign_budget:c. Please try again later.",
+        },
+      },
+    };
+    const at: number[] = [];
+    const { gateway, sent } = stripeOverFakeHttp(() => {
+      at.push(performance.now());
+      return inUse;
+    });
+    const error: unknown = await gateway
+      .createBudgetPayment({ campaignId: "c", amount: 1_000_000_000n })
+      .then(
+        () => null,
+        (caught: unknown) => caught,
+      );
+    expect(error).toBeInstanceOf(PaymentRequestInProgressError);
+    // Still a gateway error for any caller with no use for the difference.
+    expect(error).toBeInstanceOf(PaymentGatewayError);
+    // What Stripe's client raised after its last retry: a 409 StripeAPIError with Stripe's code.
+    const cause = (error as Error).cause;
+    expect(cause).toBeInstanceOf(Stripe.errors.StripeAPIError);
+    expect(cause).toMatchObject({ statusCode: 409, code: STRIPE_KEY_IN_USE_CODE });
+    expect(sent).toHaveLength(1 + BUDGET_REQUEST_MAX_RETRIES);
+    expect(new Set(sent.map((r) => r.headers.get("idempotency-key")))).toEqual(
+      new Set(["campaign_budget:c"]),
+    );
+    // The client's delay before its retry is its initial delay, 0.5 s (never less).
+    const [first, second] = at as [number, number];
+    expect(second - first).toBeGreaterThanOrEqual(495);
+    expect(second - first).toBeLessThan(1_500);
+  });
+
+  it.each([
+    ["another 409", 409, { type: "invalid_request_error", code: "lock_timeout", message: "x" }],
+    [
+      "a key reused with other parameters",
+      400,
+      { type: "idempotency_error", message: "Keys for idempotent requests can only be used..." },
+    ],
+    ["an outage", 500, { type: "api_error", message: "unavailable" }],
+  ])("reports %s as a plain gateway error, not a request in progress", async (_l, status, err) => {
+    const { gateway } = stripeOverFakeHttp(() => ({
+      status,
+      body: { error: err },
+      headers: { "stripe-should-retry": "false" },
+    }));
+    const error: unknown = await gateway
+      .createBudgetPayment({ campaignId: "c", amount: 1_000_000_000n })
+      .then(
+        () => null,
+        (caught: unknown) => caught,
+      );
+    expect(error).toBeInstanceOf(PaymentGatewayError);
+    expect(error).not.toBeInstanceOf(PaymentRequestInProgressError);
+  });
 
   it("retrieves with the payment method and charge expanded, to read the payer e-mail", async () => {
     const { gateway, sent } = stripeOverFakeHttp(() => ({

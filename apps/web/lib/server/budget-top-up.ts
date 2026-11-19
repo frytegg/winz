@@ -131,7 +131,8 @@ interface CampaignRow {
 
 /**
  * Locks the merchant's own campaign for the rest of the transaction, as the pause route does:
- * 404 for an unknown id and for another merchant's campaign alike (its existence is not revealed).
+ * 404 for an unknown id and for another merchant's campaign alike (its existence is not revealed),
+ * and for the claim of a creation request whose payment is not recorded (no campaign yet).
  * The caller makes no call to the payment provider before the transaction ends.
  */
 async function lockOwnCampaign(
@@ -148,6 +149,8 @@ async function lockOwnCampaign(
                ) as close_requested
         from campaigns c
         where c.id = ${campaignId} and c.merchant_id = ${merchantId}
+          -- A creation request's claim whose payment is not recorded is not a campaign yet.
+          and not (c.request_id is not null and c.budget_pi is null)
         for update of c
       `
     : [];
