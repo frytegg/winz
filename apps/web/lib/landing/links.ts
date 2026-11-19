@@ -25,6 +25,13 @@ export interface LandingLinks {
   readonly teamLinks: readonly TeamLink[];
   /** What the "Add to Home Screen" entry of the footer opens (09-install-flow.md). */
   readonly appInstallUrl: string | null;
+  /**
+   * What the QR codes encode: the two baked into the illustrations (the merchant card of How and the
+   * CTA phone), and the install sheet's desktop panel. Absolute on purpose: a QR is scanned away from
+   * this site, so a path would lead nowhere. The images are re-exported when it changes (see
+   * winz-front-kit/landing/tools/build-assets.mjs), they do not read this file at runtime.
+   */
+  readonly appQrUrl: string | null;
 }
 
 /**
@@ -62,5 +69,6 @@ export function missingLinks(links: LandingLinks): MissingLink[] {
   check("devpostUrl", links.devpostUrl);
   for (const person of links.teamLinks) check(`teamLinks.${person.name}`, person.url);
   check("appInstallUrl", links.appInstallUrl);
+  check("appQrUrl", links.appQrUrl);
   return out;
 }
