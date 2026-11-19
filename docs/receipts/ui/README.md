@@ -4,7 +4,7 @@
 et ce fichier sont réécrits à chaque passage ; `measures.json` garde les mesures (une mesure qu'un
 passage partiel n'a pas refaite garde sa date d'origine, dans la dernière colonne).
 
-Dernier passage : 2026-11-19T21:50:12.549Z (UTC).
+Dernier passage : 2026-11-19T22:46:09.622Z (UTC).
 
 ## Mesures du dernier passage
 
@@ -17,11 +17,11 @@ de 30 secondes ») : une valeur égale à la limite est notée DÉPASSÉ.
 
 | Mesure | Valeur | Limite stricte (SPEC 17) | Détail | Mesurée le (UTC) |
 | --- | --- | --- | --- | --- |
-| Compilation des pages et des routes par `next dev` avant les parcours (non comptée dans les parcours) | 115 s | – | 15 pages, 15 routes d'API, une requête chacune | 2026-11-19T21:45:37.088Z |
-| Achat client, du scan (ouverture de C1) au ticket affiché | 5,7 s (tenu) | 30 s | navigation vers /c/joes-texas jusqu'à la jauge du ticket visible, hors prise des captures ; comprend 0,5 s d'autorisation simulée et le suivi du paiement (1 s) | 2026-11-19T21:45:54.560Z |
-| Achat client, C1 → C3 : taps | 2 taps | – | 1. tap « Buy with Apple Pay » (C1) · 2. tap the simulated payment (C2) | 2026-11-19T21:45:54.559Z |
-| Onboarding commerçant, M0 → M8 : durée | 11,4 s (tenu) | 120 s | de M0 affiché au QR de M8 affiché, hors prise des captures ; gestes d'un robot, un humain lit et tape plus lentement | 2026-11-19T21:47:09.388Z |
-| Onboarding commerçant, M0 → M8 : taps | 12 taps (tenu) | 15 taps | 1. tap « Start a promo » (M0) · 2. type the e-mail (M1) · 3. tap Continue (M1) · 4. type the 6-digit code (M1) · 5. type the business name (M2) · 6. tap the category « Bar » (M2) · 7. tap Continue (M2) · 8. tap the first game (M3) · 9. tap the recommended promo (M4) · 10. tap Continue (M5) · 11. tap « Review the promo » (M6) · 12. tap the simulated payment (M7) | 2026-11-19T21:47:09.387Z |
+| Compilation des pages et des routes par `next dev` avant les parcours (non comptée dans les parcours) | 131 s | – | 15 pages, 15 routes d'API, une requête chacune | 2026-11-19T22:40:41.004Z |
+| Achat client, du scan (ouverture de C1) au ticket affiché | 6 s (tenu) | 30 s | navigation vers /c/joes-texas jusqu'à la jauge du ticket visible, hors prise des captures ; comprend 0,5 s d'autorisation simulée et le suivi du paiement (1 s) | 2026-11-19T22:40:58.950Z |
+| Achat client, C1 → C3 : taps | 2 taps | – | 1. tap « Buy with Apple Pay » (C1) · 2. tap the simulated payment (C2) | 2026-11-19T22:40:58.949Z |
+| Onboarding commerçant, M0 → M8 : durée | 12,3 s (tenu) | 120 s | de M0 affiché au QR de M8 affiché, hors prise des captures ; gestes d'un robot, un humain lit et tape plus lentement | 2026-11-19T22:43:17.420Z |
+| Onboarding commerçant, M0 → M8 : taps | 12 taps (tenu) | 15 taps | 1. tap « Start a promo » (M0) · 2. type the e-mail (M1) · 3. tap Continue (M1) · 4. type the 6-digit code (M1) · 5. type the business name (M2) · 6. tap the category « Bar » (M2) · 7. tap Continue (M2) · 8. tap the first game (M3) · 9. tap the recommended promo (M4) · 10. tap Continue (M5) · 11. tap « Review the promo » (M6) · 12. tap the simulated payment (M7) | 2026-11-19T22:43:17.420Z |
 
 ## Les images
 
@@ -101,7 +101,6 @@ cette requête, comme toute requête qui sortirait de la machine.
 Chacun fait passer son test tant que le défaut existe, et le fait échouer le jour où il est corrigé :
 retirer alors le `test.fail`.
 
-- C3 before the game shows « 14% · CHANCE IT'S FREE », not SPEC 5.4's « 14 % chance this is free »: that sentence (copy.ticket.chanceTitle) is only the gauge's aria-label (components/ui/gauge.tsx:26, visible text gauge.tsx:67)
 
 ## Ce que ces reçus ne prouvent pas
 
