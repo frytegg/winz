@@ -26,3 +26,15 @@ export function wobble(baseBps: number, step: number): number {
   const swing = Math.sin(step * 0.9) * 90 + Math.sin(step * 0.37 + 1) * 60;
   return Math.min(9900, Math.max(100, Math.round(baseBps + swing)));
 }
+
+/**
+ * How long the feed may stay silent before the screen asks the API every two seconds again. Supabase
+ * says "subscribed" even when the table does not exist, is not published or hides its rows, so a
+ * subscription alone proves nothing: only a row that arrived does.
+ */
+export const FEED_SILENT_AFTER_MS = 15_000;
+
+/** The feed counts as live when it is subscribed and has pushed a row recently. */
+export function isFeedLive(subscribed: boolean, lastPushAt: number | null, nowMs: number): boolean {
+  return subscribed && lastPushAt !== null && nowMs - lastPushAt < FEED_SILENT_AFTER_MS;
+}
