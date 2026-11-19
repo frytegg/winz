@@ -226,16 +226,26 @@ describe("EngineLeader", () => {
     await delay(100);
     expect(log.running()).toEqual(["a"]);
     await stopping;
-    const released = await leaseRow();
-    expect(released?.holder).toBe("eng-a00000000000");
-    expect(released?.releasedAt).not.toBeNull();
+    // The release is read from A's own log line, which carries what the releasing statement
+    // returned (the holder, and the database's time of the release), not from the lease row
+    // afterwards: the standby polls every 50 ms, so by the time a read of the row returns B may
+    // already hold it (seen in CI: the row read here was B's).
+    const releasedLine = a.logs.find((entry) => entry.msg === "lease released");
+    expect(releasedLine).toMatchObject({ holder: "eng-a00000000000", released: true });
+    const releasedAtMs = Date.parse(String(releasedLine?.releasedAt));
+    expect(Number.isNaN(releasedAtMs)).toBe(false);
     // Services stopped (database time) before the release.
-    expect(a.stoppedAtDb[0]).toBeLessThanOrEqual(released?.releasedAt?.getTime() ?? 0);
+    expect(a.stoppedAtDb[0]).toBeLessThanOrEqual(releasedAtMs);
     const order = messages(a.logs);
     expect(order.indexOf("engine services stopped")).toBeLessThan(order.indexOf("lease released"));
 
     await until("b leading", () => b.leader.servicesRunning(), 2_000);
     expect(performance.now() - stopAt).toBeLessThan(2_000);
+    // The row is now B's, taken after A's release and not before.
+    const taken = await leaseRow();
+    expect(taken?.holder).toBe("eng-b00000000000");
+    expect(taken?.releasedAt).toBeNull();
+    expect(taken?.acquiredAt.getTime()).toBeGreaterThanOrEqual(releasedAtMs);
     log.assertAtMostOne();
   });
 
