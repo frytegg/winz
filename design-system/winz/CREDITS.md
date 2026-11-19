@@ -16,3 +16,12 @@
 - Still visible, small: the ball's maker mark, a shoe and wristband logo, and a "Gulf Coast" tag
   on the jersey hem. None is legible at phone size, none identifies a team. If one is wanted gone,
   repeat the same fill on it.
+
+## Sora, for the generated images (`apps/web/lib/og/fonts/`)
+
+- Source: the Sora project, https://github.com/sora-xor/sora-font (`fonts/ttf/Sora-Regular.ttf`,
+  `Sora-SemiBold.ttf`, version 2.000), unchanged.
+- Licence: SIL Open Font License 1.1 (free to use and embed, no attribution required, the font itself
+  cannot be sold on its own).
+- Why a copy in the repo: the app's screens get Sora from `next/font/google`, but the image renderer
+  behind the share preview and the poster needs the raw files, and it reads TTF, OTF or WOFF only.
