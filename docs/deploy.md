@@ -363,7 +363,11 @@ Avant cette étape : l'endpoint QuickNode (`docs/quicknode.md`, étapes 1 et 2 :
      espacé de 250 ms) en plus du flux WebSocket des carnets Gemini et d'un catalogue qui
      télécharge environ 1 400 événements par minute (point 5). Mesuré ici sur le vrai processus
      (trois démarrages courts) : 1,7 s de CPU pour démarrer, soit de l'ordre de 17 s à 0,1 CPU si
-     Render plafonne strictement (estimation, pas une mesure) ; l'état stable n'a pas été mesuré ;
+     Render plafonne strictement (estimation, pas une mesure). Une lecture du catalogue, mesurée
+     le 19 novembre à 14 h UTC avec le chargeur du moteur : 31 s, **2,8 s de CPU**, 190 Mo de
+     mémoire au plus (les 512 Mo suffisent), 0,1 s de blocage au plus. Une par minute, c'est
+     près de la moitié de 0,1 CPU pour le catalogue seul, un dixième de 0,5 CPU ; le reste de
+     l'état stable n'a pas été mesuré ;
    - **la clause de suspension** : « Render may suspend a Free web service that initiates an
      uncommonly high volume of traffic over the public internet », avec comme exemples
      « Accessing an external database » et « Invoking external APIs ». C'est exactement ce que
@@ -1123,6 +1127,12 @@ Cinq lignes `ok` attendues. Puis, sur les téléphones :
    gagne » se vend, « si Texas gagne » jamais** (il faudrait accepter un coût de plus de 92 % du
    prix). À l'écran M6, « Chance right now » doit être sous « Your promo pauses if … above P% » ;
    sinon l'écran dit « At today's odds this promo would be paused » : prendre un autre modèle.
+   Les écarts de points et les totaux de ce match n'avaient **aucun carnet** le 19 novembre à
+   14 h UTC : seul le vainqueur était coté (44 des 45 matchs universitaires de samedi étaient
+   alors sans aucun écart ni total coté).
+   Ces carnets s'ouvrent à l'approche du coup d'envoi (le même jour, le match NFL du soir avait
+   19 écarts cotés sur 26, ceux de dimanche 3 matchs sur 10) : un modèle « Texas gagne de plus
+   de N points » peut donc devenir vendable vendredi ou samedi, sans garantie.
 3. **Payer le budget** à l'écran M7 : Apple Pay si le bouton s'affiche (étape 5, point 4), sinon
    la carte `4242 4242 4242 4242`. La feuille par carte ne doit avoir qu'un onglet, Card.
 4. **La promo passe en ligne** (M8) en moins d'une minute.
