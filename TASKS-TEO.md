@@ -1,5 +1,26 @@
 # Tâches de Téo (front)
 
+> **19 novembre, 18 h UTC : des corrections du front sont en cours côté Alexandre, pour éviter les
+> doublons.** Décidé par Alexandre cet après-midi pendant que tu dormais : les points de la revue
+> sont en train d'être corrigés directement, dans des copies de travail, et arriveront sur cette
+> branche (`frytegg/modest-bohr-wipl43`) dans les heures qui viennent. **Pousse ce que tu as avant
+> de toucher à ces écrans, ou dis à Alexandre que tu les prends :**
+>
+> - l'assistant de création et le budget : `components/wizard`, `lib/wizard`, `lib/merchant/funding.ts`,
+>   `fund-budget.tsx`, `top-up-sheet.tsx`, `live-screen.tsx` (attente de M8), le formulaire du commerce
+>   (revue 1.1, 1.4, 2.3, 2.8, 2.9, M4 qui grise les promos invendables) ;
+> - le parcours du fan : `checkout-sheet.tsx`, `stripe-payment.tsx`, `campaign-page.tsx`,
+>   `ticket-screen.tsx`, `lib/fan`, `lib/stripe` (revue 1.2, 1.3, 2.1, 2.4, 2.5, 2.11) ;
+> - la connexion et l'accueil : `lib/auth`, `start-screen.tsx`, le flux de connexion (revue 2.2, 2.6,
+>   2.7), **et la page « My tickets » (U-09, `/tickets`) : ne la commence pas, elle est en cours** ;
+> - l'espace commerçant : `campaign-detail-screen.tsx`, `campaign-tabs.tsx`, `lib/merchant`, accueil et
+>   statistiques (revue 2.10, 2.4) ;
+> - ton panneau `/admin` n'est pas modifié : il reçoit seulement son test dans un navigateur
+>   (`e2e/ui/demo-admin.spec.ts`), avec la vérification du bandeau et du Hedge desk au format iPhone.
+>
+> Ce qui reste libre : U-10 (notifications et e-mails), et tout ce qui n'est pas dans cette liste.
+> Cette note sera retirée quand les corrections seront sur la branche.
+
 > **19 novembre, à lire avant de continuer : [`REVUE-FRONT-19-NOV.md`](REVUE-FRONT-19-NOV.md).**
 > Une revue de ta PR n°10 (fusionnée sur `main`) a confirmé trois défauts d'argent, à corriger avant
 > la démo : le `requestId` de « Fund » ne survit pas à un rechargement (seconde campagne, second
