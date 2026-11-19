@@ -35,22 +35,25 @@ import { copy } from "@/lib/copy";
 
 export const STATUS_POLL_MS = 1000;
 /**
- * How long the screen follows a purchase whose card is authorized before it stops and says so
- * (review 2.5). The status read completes an authorized payment by itself after 5 s, so a purchase
- * still on its way after a minute is waiting on the engine: the fan is told the card is only
- * authorized, and that this page picks the purchase up again when it is reopened.
+ * How long the screen follows a purchase before it stops and says so (review 2.5), after a tap or
+ * when the page picks one up. The status read completes an authorized payment by itself after 5 s,
+ * so a purchase still on its way after a minute is waiting on the engine, or on Stripe (a card the
+ * page never saw authorized, a 3-D Secure approval still open): the fan is told nothing is charged
+ * before the ticket exists, and that this page picks the purchase up again when it is reopened.
  */
 export const WAIT_LIMIT_SECONDS = 60;
 /**
  * When the page picks up a purchase whose authorization it never saw (the page was lost before
- * Stripe answered), how long it waits for the status read to find the card authorized (it asks
- * Stripe once every 5 s) before it lets the record go.
+ * Stripe answered), how long it follows the status read quietly (whose heal takes a card it finds
+ * authorized) before it asks the confirmation whether the card is unpaid. Only the confirmation's
+ * `requires_payment`, Stripe's own word, lets the record go: never the status read's, which answers
+ * the row when it cannot reach Stripe.
  */
 export const RESUME_UNSEEN_LIMIT_SECONDS = 15;
 /**
  * Past RESUME_UNSEEN_LIMIT_SECONDS, how often the pick-up asks the confirmation (which reads Stripe
- * on every call) whether an unseen card is really unpaid: about nine reads at most before the
- * minute's bound.
+ * on every call) whether an unseen card is really unpaid: nine calls at most, at 15, 20, … 55 s
+ * (none is started at or past WAIT_LIMIT_SECONDS), fewer when a call or a read is slow.
  */
 export const RESUME_VERIFY_EVERY_SECONDS = 5;
 
@@ -71,8 +74,9 @@ export type CheckoutOutcome =
   /** Refused before anything was created (409): the promo is paused or closed. */
   | { kind: "refused"; message: string }
   /**
-   * The card is authorized and the purchase still on its way after WAIT_LIMIT_SECONDS: the screen
-   * stops waiting. Nothing is charged until the ticket exists.
+   * The purchase is not settled after WAIT_LIMIT_SECONDS (on its way, or a card whose state could
+   * not be checked): the screen stops waiting and the payment is kept. Nothing is charged until the
+   * ticket exists.
    */
   | { kind: "unresolved" };
 
@@ -135,6 +139,60 @@ function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
     };
     signal.addEventListener("abort", onAbort, { once: true });
   });
+}
+
+/**
+ * Runs `call` with a signal of its own that aborts when `signal` does, or once `ms` have passed.
+ * Resolves with the call's answer, or `null` when the time ran out first (the call is aborted and
+ * counts as « no answer », never as an abort). Rejects with the call's own error, and with an
+ * `AbortError` as soon as `signal` aborts, even when the call ignores its signal: the bound holds
+ * whatever the call does. The timer and the listener are removed when it settles.
+ *
+ * A timer and a listener rather than `AbortSignal.any` / `AbortSignal.timeout`, which older iOS
+ * Safari lacks.
+ */
+export async function withinBound<T>(
+  call: (signal: AbortSignal) => Promise<T>,
+  signal: AbortSignal,
+  ms: number,
+): Promise<T | null> {
+  if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+  const child = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
+  type Ended = { kind: "answer"; value: T } | { kind: "error"; error: unknown };
+  const answered: Promise<Ended> = call(child.signal).then(
+    (value) => ({ kind: "answer", value }),
+    (error: unknown) => ({ kind: "error", error }),
+  );
+  const bound = new Promise<{ kind: "expired" } | { kind: "aborted" }>((resolve) => {
+    timer = setTimeout(() => resolve({ kind: "expired" }), ms);
+    onAbort = () => resolve({ kind: "aborted" });
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+  try {
+    const ended = await Promise.race([answered, bound]);
+    // The page left: that wins over anything the call answered meanwhile.
+    if (signal.aborted) {
+      throw ended.kind === "error" && isAbortError(ended.error)
+        ? ended.error
+        : new DOMException("Aborted", "AbortError");
+    }
+    if (ended.kind === "answer") return ended.value;
+    if (ended.kind === "error") throw ended.error;
+    // The time ran out first: no answer.
+    return null;
+  } finally {
+    clearTimeout(timer);
+    if (onAbort !== undefined) signal.removeEventListener("abort", onAbort);
+    // Whatever is still in flight (a call past its bound, or the page gone) is cancelled.
+    child.abort();
+  }
+}
+
+/** The API said it does not know this payment: a JSON 404 `not_found`, not any 404. */
+function isUnknownPayment(error: unknown): boolean {
+  return isApiError(error) && error.status === 404 && error.code === "not_found";
 }
 
 export const apiCheckoutDeps: CheckoutDeps = {
@@ -348,14 +406,25 @@ export interface ResumeInput {
  *   - `processing`, or `requires_payment` for a card this page saw authorized: the wait is shown
  *     (`onSecuring`) and followed as after a tap, up to WAIT_LIMIT_SECONDS (`unresolved`);
  *   - `requires_payment` for a card never seen authorized: followed quietly; past
- *     RESUME_UNSEEN_LIMIT_SECONDS the confirmation is asked, which reads Stripe itself, and only
- *     its `requires_payment` (Stripe said « not authorized ») lets the record go (`gone`). The
- *     status read's own `requires_payment` is not enough: it answers the row when it could not
- *     read Stripe. Reads that fail never let it go: without that answer by WAIT_LIMIT_SECONDS,
- *     `unresolved`, and the record stays;
+ *     RESUME_UNSEEN_LIMIT_SECONDS the confirmation is asked (`POST /api/checkout/:pi/confirm`, at
+ *     most once per RESUME_VERIFY_EVERY_SECONDS), which reads Stripe itself. Only its
+ *     `requires_payment` (Stripe said unpaid or over) lets the record go (`gone`), and so does any
+ *     other end it answers before a ticket. Its `processing` (authorized, or pending at Stripe:
+ *     a 3-D Secure approval still open) shows the wait. The status read's own `requires_payment`
+ *     is never enough: it answers the row when it could not read Stripe. A failed call (a 502
+ *     when Stripe cannot be read, the network) proves nothing and the record stays;
  *   - `cancelled_paused` or `failed`: the ending, when the wait was shown or the card was seen
  *     authorized; otherwise `gone` (a card declined, then the page left);
- *   - a payment the API does not know (404): `gone`.
+ *   - a payment the API does not know (a JSON 404 `not_found`, from the status read or the
+ *     confirmation): `gone`. Any other 404 (a broken deployment) is a failed call.
+ *
+ * The pick-up never outlives WAIT_LIMIT_SECONDS by more than a read: the bound is checked after
+ * every call in every branch, on the clock read after the call, and each call (status or
+ * confirmation) runs within the time left before it (`withinBound`, never less than
+ * STATUS_POLL_MS, so the last read still happens). A call cut by that bound is « no answer ». An
+ * answer that settles the purchase wins when it comes in time; otherwise, at the bound,
+ * `unresolved`, and the record stays: the next tap follows it instead of paying again. Rejects
+ * only when `signal` aborts.
  */
 export async function resumeCheckout({
   paymentIntentId,
@@ -367,6 +436,9 @@ export async function resumeCheckout({
 }: ResumeInput): Promise<ResumeOutcome> {
   const now = deps.now ?? Date.now;
   const startedAt = now();
+  const elapsedSeconds = (): number => Math.round((now() - startedAt) / 1000);
+  const timeLeftMs = (): number =>
+    Math.max(STATUS_POLL_MS, WAIT_LIMIT_SECONDS * 1000 - (now() - startedAt));
   let shown = false;
   const show = (): void => {
     if (shown) return;
@@ -380,11 +452,15 @@ export async function resumeCheckout({
     if (!first) await deps.sleep(STATUS_POLL_MS, signal);
     let response: CheckoutStatusResponse | null = null;
     try {
-      response = await deps.status(paymentIntentId, signal);
+      response = await withinBound(
+        (bounded) => deps.status(paymentIntentId, bounded),
+        signal,
+        timeLeftMs(),
+      );
     } catch (error: unknown) {
       if (isAbortError(error)) throw error;
-      if (isApiError(error) && error.status === 404) return { kind: "gone" };
-      // A dropped connection: ask again.
+      if (isUnknownPayment(error)) return { kind: "gone" };
+      // A dropped connection, a 5xx: ask again.
     }
     if (response !== null) {
       const outcome = outcomeOf(response);
@@ -394,38 +470,48 @@ export async function resumeCheckout({
       }
       if (response.status === "processing" || response.status === "ticketed") show();
     }
-    const seconds = Math.round((now() - startedAt) / 1000);
-    if (shown) {
-      if (seconds >= WAIT_LIMIT_SECONDS) return { kind: "unresolved" };
-      onWaiting?.(seconds);
-    } else if (
+    let seconds = elapsedSeconds();
+    if (
+      !shown &&
       response?.status === "requires_payment" &&
       seconds >= RESUME_UNSEEN_LIMIT_SECONDS &&
-      seconds >= nextVerifyAt
+      seconds >= nextVerifyAt &&
+      seconds < WAIT_LIMIT_SECONDS
     ) {
       // Only Stripe's own word lets an unseen card go. The status read cannot give it: when its
       // own read of Stripe fails, it answers the row, `requires_payment`, for a card that may be
       // authorized. The confirmation reads the payment at Stripe on every call and answers 502
-      // when it cannot: its `requires_payment` means Stripe said « not authorized ». Asked at
-      // most once per RESUME_VERIFY_EVERY_SECONDS; a failure proves nothing and the record stays.
+      // when it cannot (or cannot match it to its row): its `requires_payment` means Stripe said
+      // unpaid or over. Asked at most once per RESUME_VERIFY_EVERY_SECONDS; a failure proves
+      // nothing and the record stays.
       nextVerifyAt = seconds + RESUME_VERIFY_EVERY_SECONDS;
       let verified: CheckoutStatusResponse | null = null;
       try {
-        verified = await deps.confirm(paymentIntentId, signal);
+        verified = await withinBound(
+          (bounded) => deps.confirm(paymentIntentId, bounded),
+          signal,
+          timeLeftMs(),
+        );
       } catch (error: unknown) {
         if (isAbortError(error)) throw error;
-        if (isApiError(error) && error.status === 404) return { kind: "gone" };
+        if (isUnknownPayment(error)) return { kind: "gone" };
+        // A 502 (Stripe unreachable, or an intent it could not check), the network: no answer.
       }
       if (verified !== null) {
         const outcome = outcomeOf(verified);
+        // Over before any ticket, for a card never seen authorized: nothing to show.
         if (outcome !== null) return outcome.kind === "ticketed" ? outcome : { kind: "gone" };
         if (verified.status === "requires_payment") return { kind: "gone" };
+        // `processing`: authorized and handed over, or still pending at Stripe. Followed, shown.
         show();
       }
-    } else if (seconds >= WAIT_LIMIT_SECONDS) {
+      seconds = elapsedSeconds();
+    }
+    if (seconds >= WAIT_LIMIT_SECONDS) {
       // A minute without an answer that settles it: the record stays, and the next tap follows it
       // instead of paying again.
       return { kind: "unresolved" };
     }
+    if (shown) onWaiting?.(seconds);
   }
 }

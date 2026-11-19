@@ -22,6 +22,7 @@ import {
   paymentKindOf,
   type CreatedPaymentIntent,
   type PaymentGateway,
+  type PaymentIntentStatus,
   type PaymentIntentView,
 } from "./payments-gateway";
 import { ApiRouteError } from "./route";
@@ -164,18 +165,44 @@ export type PurchaseOutcome =
   | "unknown_payment"
   /** Stripe's intent does not match the row (kind, campaign, amount, currency) or is unknown. */
   | "mismatch"
-  /** The card is not authorized yet (or any more): nothing changed. */
+  /**
+   * The card is not authorized yet (or any more): nothing changed. `stripeStatus` says which: still
+   * unpaid or over, or pending at Stripe (see `PurchaseProcessing`).
+   */
   | "not_authorized"
   /** The payment already reached a final state: nothing changed. */
   | "final"
   /** The payment is `processing` and its purchase job exists (`created` says if this call made it). */
   | "enqueued";
 
-export interface PurchaseProcessing {
-  outcome: PurchaseOutcome;
-  /** True when this call inserted the purchase job. */
-  created: boolean;
-}
+export type PurchaseProcessing =
+  | {
+      outcome: Exclude<PurchaseOutcome, "not_authorized">;
+      /** True when this call inserted the purchase job. */
+      created: boolean;
+    }
+  | {
+      outcome: "not_authorized";
+      created: false;
+      /**
+       * Stripe's status of the intent, anything but `requires_capture`: the confirmation tells
+       * « unpaid or over » (`STRIPE_UNPAID_STATUSES`) from « not authorized yet » (`requires_action`,
+       * a 3-D Secure approval still open, or `processing`) with it.
+       */
+      stripeStatus: PaymentIntentStatus;
+    };
+
+/**
+ * The Stripe statuses that say a purchase's card is not authorized and will not be without the fan
+ * paying again: not paid yet or declined (`requires_payment_method`, `requires_confirmation`), or
+ * over (`canceled`). Any other status short of `requires_capture` is a purchase still pending at
+ * Stripe, which may be authorized without the page (a 3-D Secure approval in a bank app).
+ */
+export const STRIPE_UNPAID_STATUSES: readonly PaymentIntentStatus[] = [
+  "requires_payment_method",
+  "requires_confirmation",
+  "canceled",
+];
 
 interface PaymentRow {
   stripe_pi: string;
@@ -228,7 +255,9 @@ async function takeAuthorizedIntent(
   paymentIntentId: string,
   intent: PaymentIntentView,
 ): Promise<PurchaseProcessing> {
-  if (intent.status !== "requires_capture") return { outcome: "not_authorized", created: false };
+  if (intent.status !== "requires_capture") {
+    return { outcome: "not_authorized", created: false, stripeStatus: intent.status };
+  }
 
   const email = intent.payerEmail === null ? null : normalizeEmail(intent.payerEmail);
   if (email === null) {
@@ -449,20 +478,34 @@ export async function pollCheckoutStatus(
 }
 
 /**
- * POST /api/checkout/:pi/confirm: called by the front once the payment sheet confirmed. Runs
- * `processAuthorizedPurchase` (the same path as the webhook), then answers the current status.
+ * POST /api/checkout/:pi/confirm: called by the front once the payment sheet confirmed, and by the
+ * pick-up of a purchase whose card the page never saw authorized. Runs `processAuthorizedPurchase`
+ * (the same path as the webhook), which reads Stripe on every call, then answers the current
+ * status. Its `requires_payment` therefore means Stripe itself said the card is unpaid or the
+ * payment over (`STRIPE_UNPAID_STATUSES`), and the pick-up lets its record go on it:
+ *
+ * - Stripe cannot be read: 502 (`paymentUnavailable`);
+ * - Stripe does not know the intent (404), or it does not match its row (another account, another
+ *   mode, another purchase): 502 as well, logged. The row's `requires_payment` would say « not
+ *   authorized » for a payment nobody could check;
+ * - the card not authorized yet but pending at Stripe (`requires_action`, `processing`, or any
+ *   status outside `STRIPE_UNPAID_STATUSES`) while the row is `requires_payment`: `processing`.
+ *   The purchase may still be authorized without the page (a 3-D Secure approval in a bank app);
+ *   the status read's heal takes it once Stripe says `requires_capture`;
+ * - an unknown payment: 404 `not_found`.
  */
 export async function confirmCheckout(
   db: Db,
   payments: PaymentGateway,
   paymentIntentId: string,
 ): Promise<CheckoutStatusResponse> {
+  const log = serverLogger("checkout");
   let result: PurchaseProcessing;
   try {
     result = await processAuthorizedPurchase(db, payments, paymentIntentId);
   } catch (error: unknown) {
     if (error instanceof PaymentGatewayError) {
-      serverLogger("checkout").error({ err: error, paymentIntentId }, "confirmation failed");
+      log.error({ err: error, paymentIntentId }, "confirmation failed");
       throw paymentUnavailable();
     }
     throw error;
@@ -470,7 +513,26 @@ export async function confirmCheckout(
   if (result.outcome === "unknown_payment") {
     throw new ApiRouteError(404, "not_found", "Payment not found");
   }
-  return checkoutStatus(db, paymentIntentId);
+  if (result.outcome === "mismatch") {
+    log.error(
+      { paymentIntentId },
+      "confirmation could not check the payment at Stripe (unknown or mismatching intent): answered 502",
+    );
+    throw paymentUnavailable();
+  }
+  const current = await checkoutStatus(db, paymentIntentId);
+  if (
+    result.outcome === "not_authorized" &&
+    current.status === "requires_payment" &&
+    !STRIPE_UNPAID_STATUSES.includes(result.stripeStatus)
+  ) {
+    log.info(
+      { paymentIntentId, stripeStatus: result.stripeStatus },
+      "confirmation found the payment pending at Stripe: answered processing",
+    );
+    return { status: "processing", ticketToken: null, message: null };
+  }
+  return current;
 }
 
 /**

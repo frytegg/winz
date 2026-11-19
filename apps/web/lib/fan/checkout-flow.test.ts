@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/client";
 
 import {
+  WAIT_LIMIT_SECONDS,
+  createCheckoutMemory,
   outcomeOf,
   runCheckout,
   type Authorize,
@@ -159,6 +161,54 @@ describe("runCheckout", () => {
   it("carries on when the confirmation fails on the network: the webhook starts the same work", async () => {
     const d = deps({ confirm: vi.fn().mockRejectedValue(new ApiError(0, "network", "offline")) });
     expect(await run(d)).toEqual({ kind: "ticketed", token: "tkt_1" });
+  });
+
+  it("carries on when the confirmation answers 502: Stripe unreachable, or an intent it could not check", async () => {
+    // The server answers 502 both when it cannot read Stripe and when Stripe's intent is unknown or
+    // does not match its row: either way the purchase is followed, never failed for it.
+    const d = deps({
+      confirm: vi
+        .fn()
+        .mockRejectedValue(
+          new ApiError(
+            502,
+            "internal",
+            "The payment service is unavailable right now, please try again in a moment",
+          ),
+        ),
+    });
+    expect(await run(d)).toEqual({ kind: "ticketed", token: "tkt_1" });
+    expect(d.status).toHaveBeenCalled();
+    expect(d.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("follows a purchase the confirmation finds pending at Stripe, and keeps it at the wait's bound", async () => {
+    // The confirmation answers `processing` while Stripe says requires_action or processing; the
+    // row (and so the status read) still says requires_payment until Stripe authorizes the card.
+    let clock = 0;
+    const memory = createCheckoutMemory();
+    const d = deps({
+      status: vi.fn().mockResolvedValue({ ...processing, status: "requires_payment" }),
+      sleep: vi.fn().mockImplementation((ms: number) => {
+        clock += ms;
+        return Promise.resolve();
+      }),
+      now: () => clock,
+    });
+    const outcome = await runCheckout({
+      slug: "joes-texas",
+      qty: 2,
+      authorize: authorized,
+      signal: new AbortController().signal,
+      memory,
+      deps: d,
+    });
+    expect(outcome).toEqual({ kind: "unresolved" });
+    expect(clock).toBe(WAIT_LIMIT_SECONDS * 1000);
+    // Kept: the next tap follows this payment instead of paying again.
+    expect(memory.peek()).toEqual(CHECKOUT);
+    expect(d.confirm).toHaveBeenCalledTimes(1);
+    expect(d.create).toHaveBeenCalledTimes(1);
   });
 
   it("asks again after a poll that failed on the network, and never fails the purchase for it", async () => {

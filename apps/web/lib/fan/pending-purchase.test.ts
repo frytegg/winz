@@ -1,14 +1,18 @@
 import type { CheckoutStatusResponse } from "@winz/shared";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api/client";
 
 import {
   RESUME_UNSEEN_LIMIT_SECONDS,
   RESUME_VERIFY_EVERY_SECONDS,
+  STATUS_POLL_MS,
   WAIT_LIMIT_SECONDS,
+  apiCheckoutDeps,
   resumeCheckout,
+  withinBound,
   type CheckoutDeps,
+  type ResumeOutcome,
 } from "./checkout-flow";
 import {
   beforePaying,
@@ -125,13 +129,22 @@ function inTurn(
   };
 }
 
+/** More sleeps than any pick-up takes (about one a second for a minute): the loop never ended. */
+const RUNAWAY_SLEEPS = 500;
+
 /**
- * Deps whose clock moves with each sleep, and whose status answers `answers` in turn. The
- * confirmation (which reads Stripe itself) answers « still unpaid » unless a test says otherwise.
+ * Deps whose clock moves with each sleep (and with `advance`, for a call that takes time), and
+ * whose status answers `answers` in turn. The confirmation (which reads Stripe itself) answers
+ * « still unpaid » unless a test says otherwise. A pick-up that never ends fails the test instead
+ * of hanging the run: its every await resolves at once, so no timeout could stop it, and the
+ * sleep throws past RUNAWAY_SLEEPS.
  */
-function resumeDeps(...answers: (CheckoutStatusResponse | Error)[]): CheckoutDeps {
+function resumeDeps(
+  ...answers: (CheckoutStatusResponse | Error)[]
+): CheckoutDeps & { advance: (ms: number) => void } {
   let clock = 0;
   let index = 0;
+  let sleeps = 0;
   return {
     create: vi.fn(),
     confirm: vi.fn().mockImplementation(() => Promise.resolve(unpaid)),
@@ -141,11 +154,22 @@ function resumeDeps(...answers: (CheckoutStatusResponse | Error)[]): CheckoutDep
       return answer instanceof Error ? Promise.reject(answer) : Promise.resolve(answer);
     }),
     sleep: vi.fn().mockImplementation((ms: number) => {
+      sleeps += 1;
+      if (sleeps > RUNAWAY_SLEEPS) {
+        return Promise.reject(new Error(`runaway pick-up: still polling at ${clock / 1000} s`));
+      }
       clock += ms;
       return Promise.resolve();
     }),
     now: () => clock,
+    advance: (ms) => {
+      clock += ms;
+    },
   };
+}
+
+function callsOf(fn: unknown): number {
+  return (fn as ReturnType<typeof vi.fn>).mock.calls.length;
 }
 
 function resume(
@@ -287,15 +311,332 @@ describe("resumeCheckout: the page picks up a purchase it lost", () => {
   });
 
   it("lets go a payment the confirmation does not know", async () => {
+    // The status read keeps answering « unpaid », which alone never lets the record go: it is the
+    // confirmation's 404 `not_found`, at its first call past the bound, that does.
     const deps = resumeDeps(unpaid);
     deps.confirm = vi
       .fn()
       .mockImplementation(inTurn([new ApiError(404, "not_found", "Payment not found")]));
+    const { run, onSecuring } = resume(deps);
+    expect(await run).toEqual({ kind: "gone" });
+    expect(deps.confirm).toHaveBeenCalledTimes(1);
+    expect(deps.status).toHaveBeenCalledTimes(RESUME_UNSEEN_LIMIT_SECONDS + 1);
+    expect(onSecuring).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["failed", failed],
+    [
+      "cancelled_paused",
+      {
+        status: "cancelled_paused",
+        ticketToken: null,
+        message: "Promo just paused, you were not charged",
+      } satisfies CheckoutStatusResponse,
+    ],
+  ])(
+    "lets an unseen card go quietly when the confirmation answers %s: no ending is shown",
+    async (_name, ended) => {
+      // A payment over before its card was seen authorized (declined, then the page left): there
+      // is nothing to tell the fan, the record goes and the next tap is a new purchase.
+      const deps = resumeDeps(unpaid);
+      deps.confirm = vi.fn().mockImplementation(inTurn([ended]));
+      const { run, onSecuring } = resume(deps);
+      expect(await run).toEqual({ kind: "gone" });
+      expect(deps.confirm).toHaveBeenCalledTimes(1);
+      expect(onSecuring).not.toHaveBeenCalled();
+    },
+  );
+
+  it("shows the wait and keeps the record when the confirmation answers processing", async () => {
+    // Authorized and handed over, or pending at Stripe (a 3-D Secure approval left open in a bank
+    // app): the status read still says « unpaid » (its row), but the purchase may still come.
+    const deps = resumeDeps(unpaid);
+    deps.confirm = vi.fn().mockImplementation(inTurn([processing]));
+    const onWaiting = vi.fn();
+    const onSecuring = vi.fn();
+    const run = resumeCheckout({
+      paymentIntentId: "pi_1",
+      authorized: false,
+      signal: new AbortController().signal,
+      onSecuring,
+      onWaiting,
+      deps,
+    });
+    expect(await run).toEqual({ kind: "unresolved" });
+    expect(onSecuring).toHaveBeenCalledTimes(1);
+    expect(onWaiting).toHaveBeenCalled();
+    // Once shown, the purchase is followed: the confirmation is not asked again.
+    expect(deps.confirm).toHaveBeenCalledTimes(1);
+    expect(deps.create).not.toHaveBeenCalled();
+  });
+
+  it("does not let go a payment on a 404 that is not the API's « not found »", async () => {
+    // A non-JSON 404 (a broken deployment, a proxy) says nothing about the payment: the client
+    // reads it as `ApiError(404, "internal")`. Only the API's `not_found` lets the record go.
+    const broken = new ApiError(404, "internal", "Something went wrong. Try again.");
+    for (const authorized of [false, true]) {
+      const deps = resumeDeps(broken);
+      expect(await resume(deps, authorized).run).toEqual({ kind: "unresolved" });
+      expect(callsOf(deps.status)).toBeGreaterThan(1);
+    }
+    const deps = resumeDeps(unpaid);
+    deps.confirm = vi.fn().mockImplementation(inTurn([broken]));
+    expect(await resume(deps).run).toEqual({ kind: "unresolved" });
+    expect(callsOf(deps.confirm)).toBeGreaterThan(1);
+  });
+
+  it.each([4_000, 47_000])(
+    "ends at the minute's bound when each confirmation takes %i ms to answer 502",
+    async (ms) => {
+      // Stripe unreachable: every server read takes up to ~47 s (15 s × 3 tries) before its 502.
+      // A pass longer than RESUME_VERIFY_EVERY_SECONDS must not keep the pick-up from its bound.
+      const deps = resumeDeps(unpaid);
+      deps.confirm = vi.fn().mockImplementation(() => {
+        deps.advance(ms);
+        return Promise.reject(new ApiError(502, "internal", "Stripe is unreachable"));
+      });
+      const { run, onSecuring } = resume(deps);
+      expect(await run).toEqual({ kind: "unresolved" });
+      expect(onSecuring).not.toHaveBeenCalled();
+      expect(deps.create).not.toHaveBeenCalled();
+      expect(callsOf(deps.confirm)).toBeLessThanOrEqual(
+        Math.ceil(
+          (WAIT_LIMIT_SECONDS - RESUME_UNSEEN_LIMIT_SECONDS) / RESUME_VERIFY_EVERY_SECONDS,
+        ) + 1,
+      );
+      expect(callsOf(deps.sleep)).toBeLessThanOrEqual(WAIT_LIMIT_SECONDS);
+      if (ms >= (WAIT_LIMIT_SECONDS - RESUME_UNSEEN_LIMIT_SECONDS) * 1000) {
+        // The clock is read again after the confirmation: it ends there, with no further read.
+        expect(callsOf(deps.confirm)).toBe(1);
+        expect(callsOf(deps.status)).toBe(RESUME_UNSEEN_LIMIT_SECONDS + 1);
+      }
+    },
+  );
+
+  it("ends at the minute's bound when each status read takes 10 s", async () => {
+    const deps = resumeDeps();
+    deps.status = vi.fn().mockImplementation(() => {
+      deps.advance(10_000);
+      return Promise.resolve(unpaid);
+    });
+    deps.confirm = vi
+      .fn()
+      .mockImplementation(inTurn([new ApiError(502, "internal", "Stripe is unreachable")]));
+    const { run } = resume(deps);
+    expect(await run).toEqual({ kind: "unresolved" });
+    // About one read every 11 s: six or seven before the bound, never more.
+    expect(callsOf(deps.status)).toBeLessThanOrEqual(7);
+    expect(deps.create).not.toHaveBeenCalled();
+  });
+
+  it("still lets the answer that settles it win when it comes late", async () => {
+    // A slow confirmation whose answer is Stripe's « unpaid » lets the record go even past the
+    // minute: only « no answer » turns into `unresolved`.
+    const deps = resumeDeps(unpaid);
+    deps.confirm = vi.fn().mockImplementation(() => {
+      deps.advance(47_000);
+      return Promise.resolve(unpaid);
+    });
     expect(await resume(deps).run).toEqual({ kind: "gone" });
+    const ticketing = resumeDeps(unpaid);
+    ticketing.status = vi.fn().mockImplementation(() => {
+      ticketing.advance(70_000);
+      return Promise.resolve(ticketed);
+    });
+    expect(await resume(ticketing, true).run).toEqual({ kind: "ticketed", token: "tkt_1" });
   });
 
   it("waits no longer than the purchase's own bound", () => {
     expect(RESUME_UNSEEN_LIMIT_SECONDS).toBeLessThan(WAIT_LIMIT_SECONDS);
+  });
+});
+
+/** A call that answers nothing until its signal aborts, then rejects as `fetch` does. */
+function hanging(_pi: string, signal: AbortSignal): Promise<never> {
+  return new Promise((_resolve, reject) => {
+    signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), {
+      once: true,
+    });
+  });
+}
+
+/** A call that never settles, whatever its signal does. */
+function deaf(): Promise<never> {
+  return new Promise(() => undefined);
+}
+
+describe("resumeCheckout: the pick-up never outlives its bound (real clock and sleep, fake timers)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** The production sleep and `Date.now`, both on vitest's fake timers. */
+  function timedDeps(overrides: Partial<CheckoutDeps>): CheckoutDeps {
+    return {
+      create: vi.fn(),
+      confirm: vi.fn().mockResolvedValue(unpaid),
+      status: vi.fn().mockResolvedValue(unpaid),
+      sleep: apiCheckoutDeps.sleep,
+      ...overrides,
+    };
+  }
+
+  function start(
+    deps: CheckoutDeps,
+    controller: AbortController,
+  ): { settled: () => ResumeOutcome | unknown; onSecuring: ReturnType<typeof vi.fn> } {
+    let result: { value: ResumeOutcome | unknown } | null = null;
+    const onSecuring = vi.fn();
+    void resumeCheckout({
+      paymentIntentId: "pi_1",
+      authorized: false,
+      signal: controller.signal,
+      onSecuring,
+      deps,
+    }).then(
+      (value) => {
+        result = { value };
+      },
+      (error: unknown) => {
+        result = { value: error };
+      },
+    );
+    return { settled: () => (result === null ? undefined : result.value), onSecuring };
+  }
+
+  it.each([
+    ["confirmation", "confirm"],
+    ["status read", "status"],
+  ] as const)(
+    "a %s that never answers ends the pick-up unresolved at about 60 s",
+    async (_name, which) => {
+      const controller = new AbortController();
+      const call = vi.fn().mockImplementation(hanging);
+      const deps = timedDeps({ [which]: call });
+      const { settled, onSecuring } = start(deps, controller);
+      try {
+        await vi.advanceTimersByTimeAsync(WAIT_LIMIT_SECONDS * 1000 - STATUS_POLL_MS);
+        expect(settled()).toBeUndefined();
+        await vi.advanceTimersByTimeAsync(2 * STATUS_POLL_MS);
+        expect(settled()).toEqual({ kind: "unresolved" });
+        expect(onSecuring).not.toHaveBeenCalled();
+        expect(deps.create).not.toHaveBeenCalled();
+        // The call was cut by its own bound, not by the page.
+        const signal = call.mock.calls[0]?.[1] as AbortSignal;
+        expect(signal.aborted).toBe(true);
+        expect(controller.signal.aborted).toBe(false);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        controller.abort();
+      }
+    },
+  );
+
+  it.each([
+    ["answers only when its signal aborts", hanging],
+    ["ignores its signal", deaf],
+  ] as const)(
+    "the page's own abort during a confirmation that %s still rejects with the abort",
+    async (_name, confirm) => {
+      const controller = new AbortController();
+      const deps = timedDeps({ confirm: vi.fn().mockImplementation(confirm) });
+      const { settled } = start(deps, controller);
+      await vi.advanceTimersByTimeAsync((RESUME_UNSEEN_LIMIT_SECONDS + 5) * 1000);
+      expect(deps.confirm).toHaveBeenCalledTimes(1);
+      expect(settled()).toBeUndefined();
+      controller.abort();
+      await vi.advanceTimersByTimeAsync(0);
+      const error = settled();
+      expect(error).toBeInstanceOf(DOMException);
+      expect((error as DOMException).name).toBe("AbortError");
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+});
+
+describe("withinBound: one call of the pick-up, bounded in time", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("passes the call's answer and its error through, and cleans up", async () => {
+    const page = new AbortController();
+    const removed = vi.spyOn(page.signal, "removeEventListener");
+    expect(await withinBound(() => Promise.resolve(processing), page.signal, 5_000)).toBe(
+      processing,
+    );
+    const failure = new ApiError(502, "internal", "Stripe is unreachable");
+    await expect(withinBound(() => Promise.reject(failure), page.signal, 5_000)).rejects.toBe(
+      failure,
+    );
+    expect(removed).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("answers null once the time is up, and aborts the call's own signal only", async () => {
+    for (const call of [hanging, deaf]) {
+      const page = new AbortController();
+      let seen: AbortSignal | null = null;
+      const bounded = withinBound(
+        (signal) => {
+          seen = signal;
+          return call("pi_1", signal);
+        },
+        page.signal,
+        5_000,
+      );
+      let result: unknown = "pending";
+      void bounded.then((value) => {
+        result = value;
+      });
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(result).toBe("pending");
+      await vi.advanceTimersByTimeAsync(1);
+      expect(result).toBeNull();
+      expect(seen!.aborted).toBe(true);
+      expect(page.signal.aborted).toBe(false);
+      expect(vi.getTimerCount()).toBe(0);
+    }
+  });
+
+  it("rejects with the abort when the page aborts, even for a call that ignores its signal", async () => {
+    for (const call of [hanging, deaf]) {
+      const page = new AbortController();
+      let seen: AbortSignal | null = null;
+      const bounded = withinBound(
+        (signal) => {
+          seen = signal;
+          return call("pi_1", signal);
+        },
+        page.signal,
+        5_000,
+      );
+      const outcome = bounded.then(
+        () => null,
+        (error: unknown) => error,
+      );
+      await vi.advanceTimersByTimeAsync(1_000);
+      page.abort();
+      const error = await outcome;
+      expect(error).toBeInstanceOf(DOMException);
+      expect((error as DOMException).name).toBe("AbortError");
+      expect(seen!.aborted).toBe(true);
+      expect(vi.getTimerCount()).toBe(0);
+    }
+    const gone = new AbortController();
+    gone.abort();
+    const call = vi.fn();
+    await expect(withinBound(call, gone.signal, 5_000)).rejects.toMatchObject({
+      name: "AbortError",
+    });
+    expect(call).not.toHaveBeenCalled();
   });
 });
 

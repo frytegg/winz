@@ -402,17 +402,33 @@ et `lib/fan/pending-purchase.ts`, testées à côté) :
   visite suivante de la même promo, la page reprend le suivi (`GET /api/checkout/:pi`) et ouvre le
   ticket ; un paiement fini sans ticket est oublié. Un paiement dont la carte n'a pas été vue
   autorisée n'est oublié qu'après 15 s, et seulement si la confirmation (`POST /api/checkout/:pi/confirm`,
-  qui relit Stripe à chaque appel et répond 502 quand elle ne peut pas) répond encore
-  `requires_payment` : le `requires_payment` de la lecture du statut ne suffit pas, puisqu'elle
-  répond la ligne quand Stripe ne répond pas. Sans cette réponse, le paiement reste gardé et le tap
-  suivant le suit au lieu de payer. Le retour d'une redirection de paiement
+  demandée au plus une fois toutes les 5 s) répond `requires_payment`, ou une fin avant ticket. La
+  confirmation relit Stripe à chaque appel, et son `requires_payment` veut dire que Stripe dit
+  l'intent impayé ou fini (`requires_payment_method`, `requires_confirmation`, `canceled`). Elle
+  répond 502 quand elle ne peut pas lire Stripe, et aussi quand Stripe ne connaît pas l'intent ou
+  qu'il ne correspond pas à sa ligne (autre compte, autre mode) : rien n'est prouvé. Un intent encore
+  en attente chez Stripe (`requires_action`, une validation 3-D Secure ouverte dans l'app de la
+  banque, ou `processing`) répond `processing` : l'attente est affichée, et la lecture du statut le
+  prend dès que Stripe passe à `requires_capture`. Le `requires_payment` de la lecture du statut ne
+  suffit jamais, puisqu'elle répond la ligne quand Stripe ne répond pas, et un 404 ne fait oublier
+  le paiement que s'il porte le code `not_found` de l'API (pas un 404 d'un déploiement cassé). Sans
+  ces réponses, le paiement reste gardé et le tap suivant le suit au lieu de payer. Le retour d'une
+  redirection de paiement
   (3-D Secure, `?payment_intent=…&redirect_status=…` sur la page de la promo) est suivi de la même
   façon, même dans un navigateur qui n'a rien gardé. Aucun e-mail n'est envoyé : l'e-mail sert à
   retrouver ses tickets dans « My tickets ».
 - **L'attente a une fin.** Le suivi d'un achat en cours ne rappelle jamais la confirmation (la
   lecture du statut complète seule un paiement autorisé ; seule la reprise d'un paiement jamais vu
-  autorisé la demande, voir plus haut) et s'arrête après 60 s (`WAIT_LIMIT_SECONDS`) : la carte est
-  seulement autorisée, pas débitée, et rouvrir la promo sur ce téléphone reprend le suivi.
+  autorisé la demande, voir plus haut) et s'arrête après 60 s (`WAIT_LIMIT_SECONDS`). Pour la
+  reprise, c'est une borne dure : elle est vérifiée après chaque appel, dans tous les cas, sur
+  l'heure relue après l'appel, et chaque appel (lecture du statut ou confirmation) ne dispose que du
+  temps restant avant les 60 s (au moins une seconde, pour que la dernière lecture ait lieu ;
+  `withinBound`, un `AbortController` enfant et un `setTimeout`, sans `AbortSignal.any` que les
+  vieux Safari iOS n'ont pas). Un appel coupé par cette borne compte comme « pas de réponse », jamais
+  comme un abandon de la page, même quand Stripe met 47 s à répondre à chaque route. Une réponse qui
+  tranche gagne quand elle arrive ; sinon la reprise finit `unresolved` et le paiement reste gardé.
+  L'écran dit alors que rien n'est débité avant que le ticket existe, que rouvrir la promo sur ce
+  téléphone reprend le suivi, et que payer à nouveau vérifie d'abord cet achat.
 - **Une cote n'est jamais affichée comme fraîche quand elle ne l'est pas.** Sur C1 et le ticket,
   une relecture qui échoue affiche la chance comme inconnue (« Odds updating… »), et C1 ne vend
   plus tant que la dernière lecture réussie a plus de 10 s (`BOOK_STALE_AFTER_MS`, la règle de
