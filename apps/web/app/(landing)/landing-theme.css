@@ -11,13 +11,14 @@
  *
  * Values are measured on the mockups (winz-landing.png and the section PNGs, 1728 px wide), by the
  * most frequent pixel of a 9 x 9 window. 00-CONTEXTE.md gave approximations; these replace them
- * (hero ink #1C1B20 and not #1E1E21, chip #2E2E2E and not #2E2E31, cards #FAFAFA and not #F8F8F8).
+ * (hero ink #1C1B20 and not #1E1E21, chip #2E2E2E and not #2E2E31, cards #FAFAFA and not #F8F8F8),
+ * except the two grays of text, which are darkened for contrast (below).
  *
  * THE LIME. The mockup's lime is #CCF223 (measured on 9 surfaces: pill, tab, eyebrows, play button,
  * the lime word of the titles, all identical). The app's `--color-lime` is #D8FE35: 12, 12 and 18
  * levels brighter, ΔE 4.1. It is the same gap measured on the app mockups in U-02, still undecided.
- * The landing uses the app's token, as asked; the AVIF/WebP backgrounds and phones were drawn with
- * #CCF223, so the two sit side by side in the hero. Changing the token is Téo's call (JOURNAL §4).
+ * Decided: the landing keeps the app's token. The AVIF/WebP backgrounds and phones were drawn with
+ * #CCF223, so the two sit side by side in the hero. The token does not change (JOURNAL §4 and §18).
  */
 @theme {
   /* Dark sections (hero, demo): the top of the gradient the background images fade from. */
@@ -33,14 +34,16 @@
   --color-landing-track: #f0f1f5;
 
   /*
-   * The two grays of text on light surfaces, as the mockup has them. BOTH FAIL WCAG AA:
-   *   --color-landing-gray       #787878  4.42:1 on white, 4.23:1 on a card  (descriptions, 16 px)
-   *   --color-landing-gray-faint #BCBCBC  1.90:1 on white                    (section subtitles)
-   * Proposed, to decide: #6B6B70 (the app's `subtle`, 5.30:1 on white, 5.08:1 on a card) for the first,
-   * and #767676 (4.54:1 on white) for the second. Not applied: it is a visible change to the mockup.
+   * The two grays of text on light surfaces. The mockup has #787878 and #BCBCBC, which fail WCAG AA
+   * (4.42:1 and 1.90:1 on white); both are darkened, and the lighter one stays the lighter one:
+   *   --color-landing-gray       #6B6B70  5.30:1 on white, 5.08:1 on a card  (descriptions, 16 px)
+   *   --color-landing-gray-faint #767676  4.54:1 on white                    (section subtitles)
+   * The first is the app's own `subtle`. The faint one is at AA on white, which is where the How
+   * subtitle sits; on the pale lime the Features subtitle ends on it is 4.37:1 and on a card 4.35:1,
+   * a hair under. Do not put it on a card; if that subtitle must pass, give it the first gray.
    */
-  --color-landing-gray: #787878;
-  --color-landing-gray-faint: #bcbcbc;
+  --color-landing-gray: #6b6b70;
+  --color-landing-gray-faint: #767676;
 
   /* The soft lime the page ends on: Features fades white to --from, the CTA --from to --to. */
   --color-landing-lime-from: #f9fde5;
