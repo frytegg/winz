@@ -2,12 +2,9 @@
 
 import { useMemo } from "react";
 
-import { QR_LOGO_RATIO, buildQrMatrix, qrPath } from "@/lib/qr";
+import { QR_GLYPH_PATH, QR_LOGO_RATIO, buildQrMatrix, qrPath } from "@/lib/qr";
 import { cn } from "@/lib/utils";
 
-/** The mark of the Winz glyph (87 × 71), as one path, for the middle of the code. */
-const GLYPH_PATH =
-  "M30.0636 71L39.2173 22.0663H55.2364L65.8548 71H54.5041L43.6112 22.4356H50.1103L40.3158 71H30.0636ZM26.5852 71L26.4936 58.7204H36.5628L36.6543 71H26.5852ZM19.9944 71L0 0H13.0768L33.4505 71H19.9944ZM58.2572 71L58.3487 58.7204H68.4179V71H58.2572ZM62.3764 71L73.544 20.4044H87L74.917 71H62.3764Z";
 const QUIET_ZONE = 2;
 
 /**
@@ -51,7 +48,7 @@ export function QrCode({
         shapeRendering="geometricPrecision"
       />
       <path
-        d={GLYPH_PATH}
+        d={QR_GLYPH_PATH}
         className="fill-ink"
         shapeRendering="geometricPrecision"
         transform={`translate(${(start + (logo - glyphWidth) / 2).toString()} ${(start + (logo - 71 * glyphScale) / 2).toString()}) scale(${glyphScale.toString()})`}

@@ -35,18 +35,13 @@ export function qrPath(matrix: QrMatrix): string {
   return parts.join("");
 }
 
+/** The Winz glyph (87 × 71) as one path, for the middle of the code: on screen and in the PNG. */
+export const QR_GLYPH_PATH =
+  "M30.0636 71L39.2173 22.0663H55.2364L65.8548 71H54.5041L43.6112 22.4356H50.1103L40.3158 71H30.0636ZM26.5852 71L26.4936 58.7204H36.5628L36.6543 71H26.5852ZM19.9944 71L0 0H13.0768L33.4505 71H19.9944ZM58.2572 71L58.3487 58.7204H68.4179V71H58.2572ZM62.3764 71L73.544 20.4044H87L74.917 71H62.3764Z";
+
 /** The side of the Winz mark over the middle, as a share of the code. 22% stays well inside H. */
 export const QR_LOGO_RATIO = 0.22;
 const QUIET_ZONE_MODULES = 2;
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error(`Could not load ${src}`));
-    image.src = src;
-  });
-}
 
 /** A PNG of the code with the Winz mark in the middle, for "Download QR". */
 export async function renderQrPng(text: string, pixels = 1024): Promise<Blob> {
@@ -84,16 +79,16 @@ export async function renderQrPng(text: string, pixels = 1024): Promise<Blob> {
   context.beginPath();
   context.roundRect(x, x, logo, logo, radius);
   context.fill();
-  const glyph = await loadImage("/brand/icon-winz-dark.svg");
-  const glyphWidth = Math.round(logo * 0.62);
-  const glyphHeight = Math.round((glyphWidth * 71) / 87);
-  context.drawImage(
-    glyph,
-    x + Math.round((logo - glyphWidth) / 2),
-    x + Math.round((logo - glyphHeight) / 2),
-    glyphWidth,
-    glyphHeight,
-  );
+  // Drawn from the path, not loaded as an image: no network, so "Download QR" works at a counter
+  // with a bad signal, and nothing can finish after the picture is taken.
+  const glyphWidth = logo * 0.62;
+  const glyphScale = glyphWidth / 87;
+  context.save();
+  context.translate(x + (logo - glyphWidth) / 2, x + (logo - 71 * glyphScale) / 2);
+  context.scale(glyphScale, glyphScale);
+  context.fillStyle = "#131314";
+  context.fill(new Path2D(QR_GLYPH_PATH));
+  context.restore();
 
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {

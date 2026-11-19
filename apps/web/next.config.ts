@@ -19,6 +19,12 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@winz/shared", "@winz/pricing"],
   // Linting runs once for the whole monorepo (`pnpm lint`), not per build.
   eslint: { ignoreDuringBuilds: true },
+  // The generated images read their fonts and the wordmark from disk at render time. The file tracer
+  // cannot see a path built from `process.cwd()`, so without this a deployed function would not have
+  // them: the fonts would silently fall back to the renderer's default and the wordmark would vanish.
+  outputFileTracingIncludes: {
+    "/c/*/opengraph-image*": ["./lib/og/fonts/*", "./public/brand/logo-winz-lime.svg"],
+  },
 };
 
 export default withSerwist(nextConfig);
