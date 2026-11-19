@@ -5,7 +5,7 @@ import { PREVIEW_SIZES, layoutPromise } from "./promise-layout";
 describe("layoutPromise", () => {
   it("sets a typical promise in capitals, word by word", () => {
     const layout = layoutPromise("100% back if Texas wins by 14+", PREVIEW_SIZES);
-    expect(layout.words).toEqual(["100%", "BACK", "IF", "TEXAS", "WINS", "BY", "14+"]);
+    expect(layout.words).toEqual(["100%", "BACK", "IF", "TEXAS", "WINS", "BY\u00A014+"]);
     expect(layout.fontSize).toBe(88);
   });
 
@@ -16,6 +16,24 @@ describe("layoutPromise", () => {
       PREVIEW_SIZES,
     );
     expect(long.fontSize).toBe(60);
+  });
+
+  it("keeps a short last word with the one before it, so it is never alone on a line", () => {
+    expect(layoutPromise("Free pizza if we win", PREVIEW_SIZES).words).toEqual([
+      "FREE",
+      "PIZZA",
+      "IF",
+      "WE\u00A0WIN",
+    ]);
+    // Two words, or a last word that is a real word: left as they are.
+    expect(layoutPromise("Free if", PREVIEW_SIZES).words).toEqual(["FREE", "IF"]);
+    expect(layoutPromise("Half back if Texas wins", PREVIEW_SIZES).words).toEqual([
+      "HALF",
+      "BACK",
+      "IF",
+      "TEXAS",
+      "WINS",
+    ]);
   });
 
   it("never grows as the text gets longer", () => {
@@ -36,15 +54,14 @@ describe("layoutPromise", () => {
     expect(text.length).toBeLessThanOrEqual(PREVIEW_SIZES.maxCharacters + 1);
     expect(text.endsWith("…")).toBe(true);
     expect(text).not.toMatch(/\s…$/);
-    expect(text.startsWith("GET 100% OF YOUR MONEY BACK")).toBe(true);
+    expect(text.replaceAll("\u00A0", " ").startsWith("GET 100% OF YOUR MONEY BACK")).toBe(true);
   });
 
   it("collapses stray whitespace and survives an empty promise", () => {
     expect(layoutPromise("  free   if we\nwin ", PREVIEW_SIZES).words).toEqual([
       "FREE",
       "IF",
-      "WE",
-      "WIN",
+      "WE\u00A0WIN",
     ]);
     expect(layoutPromise("", PREVIEW_SIZES).words).toEqual([]);
   });

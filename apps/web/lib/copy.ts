@@ -276,6 +276,8 @@ export const copy = {
     share: "Share",
     downloadQr: "Download QR",
     downloadPoster: "Download poster",
+    posterSaved: "Poster saved",
+    posterFailed: "Couldn't save the poster. Try again.",
     dashboard: "Go to my dashboard",
     qrAlt: "QR code of your promo page",
     closeQr: "Close",
@@ -290,6 +292,15 @@ export const copy = {
     qrDownloaded: "QR code saved",
     qrFailed: "Couldn't save the QR code. Try again.",
     shareFailed: "Couldn't share. The link was copied instead.",
+  },
+
+  /** The poster a venue prints (U-08): everything on it is on the public promo page already. */
+  poster: {
+    tagline: "Scan. Pay. Maybe it's free.",
+    /** The picture's alternative text, for the rare client that shows it. */
+    alt: "Poster of the promo, with the code to scan",
+    notFound: "This promo doesn't exist.",
+    unavailable: "The poster isn't available right now. Try again in a moment.",
   },
 
   /** Merchant space (U-05) */

@@ -30,6 +30,10 @@ const FAN_FILES = [
   "lib/stripe",
   "lib/realtime",
   "lib/share.ts",
+  // What a link preview and a printed poster say: fans read them too.
+  "components/og",
+  "app/(merchant)/poster",
+  "lib/og/poster.ts",
 ];
 
 function sourceFiles(path: string): string[] {
