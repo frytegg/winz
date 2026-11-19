@@ -1,5 +1,17 @@
 export type ShareResult = "shared" | "copied" | "cancelled" | "failed";
 
+/** Hands a file to the browser as a download (the blob is released a second later). */
+export function downloadBlob(blob: Blob, filename: string): void {
+  const href = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 1000);
+}
+
 export async function copyText(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
