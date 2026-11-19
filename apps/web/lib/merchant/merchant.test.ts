@@ -15,10 +15,18 @@ function summary(overrides: Partial<CampaignSummary>): CampaignSummary {
     status: "live",
     saleState: "open",
     eventTitle: "Arkansas vs Texas",
+    event: {
+      sport: "football",
+      league: "NCAAF",
+      home: { name: "Texas", abbreviation: "TEX", logoUrl: null },
+      away: { name: "Arkansas", abbreviation: "ARK", logoUrl: null },
+    },
     startsAt: "2026-11-21T20:30:00.000Z",
     salesCloseAt: "2026-11-21T20:25:00.000Z",
     sales: 10,
     revenue: "200000000",
+    createdAt: "2026-11-18T18:00:00.000Z",
+    liveAt: "2026-11-18T18:01:00.000Z",
     ...overrides,
   };
 }
