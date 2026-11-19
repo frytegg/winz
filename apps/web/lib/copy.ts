@@ -562,7 +562,7 @@ export const copy = {
     securingSlow: "Still working on it. If you leave, open this promo again to see your ticket.",
     unresolvedTitle: "Your ticket is taking longer than usual",
     unresolvedBody:
-      "Your card is only authorized, not charged. Open this promo again on this phone later: your ticket opens as soon as it's ready.",
+      "You're only charged once your ticket exists. Open this promo again on this phone to see where it stands: paying again checks on this purchase first.",
     checkAgain: "Check again",
     stillOnItsWay:
       "Your last purchase here is still on its way. Paying checks on it first: you're never charged twice.",

@@ -204,9 +204,14 @@ describe("processAuthorizedPurchase and the status routes", () => {
     expect(await processAuthorizedPurchase(db, payments, pi)).toEqual({
       outcome: "not_authorized",
       created: false,
+      stripeStatus: "requires_payment_method",
     });
     payments.pay(pi, "requires_action", "fan@example.com");
-    expect((await processAuthorizedPurchase(db, payments, pi)).outcome).toBe("not_authorized");
+    expect(await processAuthorizedPurchase(db, payments, pi)).toEqual({
+      outcome: "not_authorized",
+      created: false,
+      stripeStatus: "requires_action",
+    });
     expect(await purchaseJobs(pi)).toEqual([]);
     expect(await paymentRows(id)).toMatchObject([{ status: "requires_payment", email: null }]);
   });
@@ -293,6 +298,72 @@ describe("processAuthorizedPurchase and the status routes", () => {
     };
     expect((await caught(confirmCheckout(db, payments, pi))).status).toBe(502);
   });
+
+  it("confirm answers 502, not the row's requires_payment, for an intent it cannot check", async () => {
+    // The pick-up of an unseen card lets its record go on the confirmation's requires_payment, so
+    // that answer must mean « Stripe said unpaid »: an intent Stripe does not know (its 404) or one
+    // that does not match its row (another account or mode) proves nothing about the card.
+    const { id, pi } = await authorized();
+    const intent = payments.intents.get(pi);
+    if (!intent) throw new Error("missing intent");
+    intent.amount = 1_000_000n;
+    const mismatching = await caught(confirmCheckout(db, payments, pi));
+    expect({ status: mismatching.status, code: mismatching.code }).toEqual({
+      status: 502,
+      code: "internal",
+    });
+    intent.amount = 20_000_000n;
+    intent.metadata = { ...intent.metadata, campaignId: (await liveCampaign()).id };
+    expect((await caught(confirmCheckout(db, payments, pi))).status).toBe(502);
+    payments.intents.delete(pi);
+    const unknownAtStripe = await caught(confirmCheckout(db, payments, pi));
+    expect(unknownAtStripe.status).toBe(502);
+    expect(cryptoWordsIn(unknownAtStripe.message)).toEqual([]);
+    expect(await purchaseJobs(pi)).toEqual([]);
+    expect(await paymentRows(id)).toMatchObject([{ status: "requires_payment" }]);
+  });
+
+  it.each(["requires_action", "processing"] as const)(
+    "confirm answers processing, not requires_payment, while Stripe says %s",
+    async (pending) => {
+      // A card not authorized yet but pending at Stripe (a 3-D Secure approval left open in a bank
+      // app after the page was lost): the purchase may still be authorized without the page, so the
+      // pick-up must keep its record. Nothing is taken until Stripe says requires_capture.
+      const { id, slug } = await liveCampaign();
+      const { paymentIntentId: pi } = await startCheckout(db, payments, { slug, qty: 1 }, now);
+      payments.pay(pi, pending, "fan@example.com");
+      const answer = await confirmCheckout(db, payments, pi);
+      expect(checkoutStatusResponseSchema.parse(answer)).toEqual({
+        status: "processing",
+        ticketToken: null,
+        message: null,
+      });
+      expect(await purchaseJobs(pi)).toEqual([]);
+      expect(await paymentRows(id)).toMatchObject([{ status: "requires_payment", email: null }]);
+
+      // Approved at last: the next confirmation (or the status read's heal) takes it, once.
+      payments.pay(pi, "requires_capture", "fan@example.com");
+      expect((await confirmCheckout(db, payments, pi)).status).toBe("processing");
+      expect(await purchaseJobs(pi)).toHaveLength(1);
+      expect(await paymentRows(id)).toMatchObject([{ status: "processing" }]);
+    },
+  );
+
+  it.each(["requires_payment_method", "requires_confirmation", "canceled"] as const)(
+    "confirm answers requires_payment when Stripe says %s: unpaid or over",
+    async (unpaid) => {
+      const { id, slug } = await liveCampaign();
+      const { paymentIntentId: pi } = await startCheckout(db, payments, { slug, qty: 1 }, now);
+      payments.pay(pi, unpaid, null);
+      expect(await confirmCheckout(db, payments, pi)).toEqual({
+        status: "requires_payment",
+        ticketToken: null,
+        message: null,
+      });
+      expect(await purchaseJobs(pi)).toEqual([]);
+      expect(await paymentRows(id)).toMatchObject([{ status: "requires_payment" }]);
+    },
+  );
 
   it("reports the ticket token once ticketed and the message on a failure", async () => {
     const { id, pi } = await authorized();
