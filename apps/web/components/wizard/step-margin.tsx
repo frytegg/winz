@@ -227,7 +227,24 @@ export function StepMargin(): React.JSX.Element | null {
           </div>
         ) : (
           <div className="flex flex-col gap-5">
-            {explanation === null ? null : (
+            {preview.market === "waiting" ? (
+              <p
+                role="status"
+                className="rounded-card-sm border border-white/20 px-4 py-3 text-body"
+              >
+                {copy.margin.marketOpening}
+              </p>
+            ) : preview.market === "gave_up" ? (
+              <div
+                role="status"
+                className="flex flex-col items-start gap-3 rounded-card-sm border border-danger/50 px-4 py-3 text-body"
+              >
+                {copy.margin.marketStillClosed}
+                <Button variant="dark" size="md" arrow={false} onClick={preview.reload}>
+                  {copy.margin.checkAgain}
+                </Button>
+              </div>
+            ) : explanation === null ? null : (
               <p
                 role="status"
                 className="rounded-card-sm border border-danger/50 px-4 py-3 text-body"
