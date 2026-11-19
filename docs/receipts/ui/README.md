@@ -4,7 +4,7 @@
 et ce fichier sont réécrits à chaque passage ; `measures.json` garde les mesures (une mesure qu'un
 passage partiel n'a pas refaite garde sa date d'origine, dans la dernière colonne).
 
-Dernier passage : 2026-11-19T20:00:04.087Z (UTC).
+Dernier passage : 2026-11-19T21:50:12.549Z (UTC).
 
 ## Mesures du dernier passage
 
@@ -17,11 +17,11 @@ de 30 secondes ») : une valeur égale à la limite est notée DÉPASSÉ.
 
 | Mesure | Valeur | Limite stricte (SPEC 17) | Détail | Mesurée le (UTC) |
 | --- | --- | --- | --- | --- |
-| Compilation des pages et des routes par `next dev` avant les parcours (non comptée dans les parcours) | 115,7 s | – | 15 pages, 15 routes d'API, une requête chacune | 2026-11-19T19:55:39.824Z |
-| Achat client, du scan (ouverture de C1) au ticket affiché | 5,9 s (tenu) | 30 s | navigation vers /c/joes-texas jusqu'à la jauge du ticket visible, hors prise des captures ; comprend 0,5 s d'autorisation simulée et le suivi du paiement (1 s) | 2026-11-19T19:55:59.950Z |
-| Achat client, C1 → C3 : taps | 2 taps | – | 1. tap « Buy with Apple Pay » (C1) · 2. tap the simulated payment (C2) | 2026-11-19T19:55:59.950Z |
-| Onboarding commerçant, M0 → M8 : durée | 13,4 s (tenu) | 120 s | de M0 affiché au QR de M8 affiché, hors prise des captures ; gestes d'un robot, un humain lit et tape plus lentement | 2026-11-19T19:57:13.263Z |
-| Onboarding commerçant, M0 → M8 : taps | 12 taps (tenu) | 15 taps | 1. tap « Start a promo » (M0) · 2. type the e-mail (M1) · 3. tap Continue (M1) · 4. type the 6-digit code (M1) · 5. type the business name (M2) · 6. tap the category « Bar » (M2) · 7. tap Continue (M2) · 8. tap the first game (M3) · 9. tap the recommended promo (M4) · 10. tap Continue (M5) · 11. tap « Review the promo » (M6) · 12. tap the simulated payment (M7) | 2026-11-19T19:57:13.262Z |
+| Compilation des pages et des routes par `next dev` avant les parcours (non comptée dans les parcours) | 115 s | – | 15 pages, 15 routes d'API, une requête chacune | 2026-11-19T21:45:37.088Z |
+| Achat client, du scan (ouverture de C1) au ticket affiché | 5,7 s (tenu) | 30 s | navigation vers /c/joes-texas jusqu'à la jauge du ticket visible, hors prise des captures ; comprend 0,5 s d'autorisation simulée et le suivi du paiement (1 s) | 2026-11-19T21:45:54.560Z |
+| Achat client, C1 → C3 : taps | 2 taps | – | 1. tap « Buy with Apple Pay » (C1) · 2. tap the simulated payment (C2) | 2026-11-19T21:45:54.559Z |
+| Onboarding commerçant, M0 → M8 : durée | 11,4 s (tenu) | 120 s | de M0 affiché au QR de M8 affiché, hors prise des captures ; gestes d'un robot, un humain lit et tape plus lentement | 2026-11-19T21:47:09.388Z |
+| Onboarding commerçant, M0 → M8 : taps | 12 taps (tenu) | 15 taps | 1. tap « Start a promo » (M0) · 2. type the e-mail (M1) · 3. tap Continue (M1) · 4. type the 6-digit code (M1) · 5. type the business name (M2) · 6. tap the category « Bar » (M2) · 7. tap Continue (M2) · 8. tap the first game (M3) · 9. tap the recommended promo (M4) · 10. tap Continue (M5) · 11. tap « Review the promo » (M6) · 12. tap the simulated payment (M7) | 2026-11-19T21:47:09.387Z |
 
 ## Les images
 
@@ -60,6 +60,12 @@ Pleine page, viewport de l'iPhone 15 (393 px de large) à l'échelle 2, sans vid
 | [`c3-ticket-not-this-time.png`](./c3-ticket-not-this-time.png) | C3, le ticket perdu : « Not this time… », « Find another promo ». |
 | [`c3-ticket-cancelled.png`](./c3-ticket-cancelled.png) | C3, le match annulé : « Game cancelled · your purchase stands ». |
 | [`c3-ticket-not-found.png`](./c3-ticket-not-found.png) | C3, un lien de ticket inconnu (404 renvoyé par le test lui-même). |
+| [`c4-sign-in.png`](./c4-sign-in.png) | C4, la connexion du fan (« Find your tickets »), ouverte depuis « My tickets ». |
+| [`c4-tickets.png`](./c4-tickets.png) | C4, « My tickets » : Live, Won, Not this time, le total remboursé (scénario `severalTickets`). |
+| [`c4-tickets-empty.png`](./c4-tickets-empty.png) | C4, aucun ticket : que faire (scénario `noTickets`). |
+| [`c4-tickets-error.png`](./c4-tickets-error.png) | C4, la liste n'a pas chargé : le message et « Try again » (refus `ticketsUnavailable`). |
+| [`c4-tickets-demo.png`](./c4-tickets-demo.png) | C4, un ticket de démo : le bandeau « DEMO MODE » (scénario `demoTicket`). |
+| [`id-unreachable.png`](./id-unreachable.png) | L'API ne répond pas à `GET /api/me` (refus `meUnavailable`, 503) : « Can't reach Winz », la session gardée. |
 | [`md-home.png`](./md-home.png) | Espace commerçant, l'accueil (solde, statistiques, promos actives). |
 | [`md-list-in-progress.png`](./md-list-in-progress.png) | Espace commerçant, la liste des promos, onglet « In progress ». |
 | [`md-list-closed.png`](./md-list-closed.png) | Espace commerçant, la liste des promos, onglet « Closed ». |
@@ -95,7 +101,6 @@ cette requête, comme toute requête qui sortirait de la machine.
 Chacun fait passer son test tant que le défaut existe, et le fait échouer le jour où il est corrigé :
 retirer alors le `test.fail`.
 
-- M0's fan link (« winz ▾ » → /TICKETS) opens /tickets, which has no page: 404 (components/winz/start-screen.tsx:69; no app/**/tickets/page.tsx, C4 « My tickets » is U-09). The link reads « winz /TICKETS » (start-screen.tsx:75), not SPEC M0's « I'm a fan »
 - C3 before the game shows « 14% · CHANCE IT'S FREE », not SPEC 5.4's « 14 % chance this is free »: that sentence (copy.ticket.chanceTitle) is only the gauge's aria-label (components/ui/gauge.tsx:26, visible text gauge.tsx:67)
 
 ## Ce que ces reçus ne prouvent pas
