@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, MapPin, Copy, Share2 } from "lucide-react";
+import { Download, MapPin, Copy, Printer, Share2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -130,7 +130,7 @@ export function LiveScreen({ campaignId }: { campaignId: string }): React.JSX.El
     { enabled: guarded, pollMs: POLL_MS, shouldPoll: (data) => data.status === "funding" },
   );
   const campaign = detail.data;
-  const { copyLink, share, downloadQr } = usePromoShare({
+  const { copyLink, share, downloadQr, downloadPoster, posterBusy } = usePromoShare({
     url: campaign?.url ?? null,
     slug: campaign?.slug ?? null,
     promise: campaign?.promise ?? "",
@@ -281,6 +281,15 @@ export function LiveScreen({ campaignId }: { campaignId: string }): React.JSX.El
               {copy.live.downloadQr}
             </Button>
           </div>
+          <Button
+            size="md"
+            variant="dark"
+            icon={Printer}
+            loading={posterBusy}
+            onClick={() => void downloadPoster()}
+          >
+            {copy.live.downloadPoster}
+          </Button>
           <Link
             href={HOME_PATH}
             className="mx-auto inline-flex h-11 items-center px-3 text-body text-muted underline underline-offset-4"
