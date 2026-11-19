@@ -1,6 +1,5 @@
 "use client";
 
-import type { CreateCampaignResponse } from "@winz/shared";
 import { CreditCard } from "lucide-react";
 import { useState } from "react";
 
@@ -9,29 +8,30 @@ import { errorMessage } from "@/lib/api/client";
 import { isMockApi } from "@/lib/api/mock-scenario";
 import { copy } from "@/lib/copy";
 import { centsToMicro, formatMoneyCompact } from "@/lib/format";
+import type { FundingPlan } from "@/lib/merchant/funding";
 
 export interface FundBudgetProps {
   /** What the merchant pays to fund the promo's coverage budget, in cents. */
   amountCents: number;
   /**
-   * Creates the campaign (`POST /api/campaigns`) and returns its payment. The caller keeps the
-   * answer, so a second tap after a refused payment pays the same campaign instead of creating
-   * another one (DEMANDES-ALEXANDRE, item 4: the route is not idempotent).
+   * Asks the back end for the campaign (or the top-up) and its payment: `POST /api/campaigns` with a
+   * `requestId`. Called again at every attempt, never cached: the same `requestId` answers the same
+   * payment, or a new one when Stripe cancelled the first, and only the last answer can be paid.
    */
-  createCampaign: () => Promise<CreateCampaignResponse>;
-  /** The budget is paid and the campaign is on its way live. */
+  prepare: () => Promise<FundingPlan>;
+  /** The budget is paid (or there was nothing left to pay) and the campaign is on its way live. */
   onFunded: (campaignId: string) => void;
   disabled?: boolean;
 }
 
 /**
  * The two payment buttons of M7. In simulated mode there is no Stripe: one "Simulate payment"
- * button creates the campaign and moves on. The real Apple Pay and card flow (Stripe Elements) is
+ * button asks for the campaign and moves on. The real Apple Pay and card flow (Stripe Elements) is
  * task U-04 and replaces the body of this component; its props stay the same.
  */
 export function FundBudget({
   amountCents,
-  createCampaign,
+  prepare,
   onFunded,
   disabled = false,
 }: FundBudgetProps): React.JSX.Element {
@@ -40,13 +40,13 @@ export function FundBudget({
   const amount = formatMoneyCompact(centsToMicro(amountCents));
 
   async function simulate(): Promise<void> {
-    // Locked from the first tap: a double tap must never create two campaigns.
+    // Locked from the first tap: a double tap is one request.
     if (busy) return;
     setBusy(true);
     setError(undefined);
     try {
-      const created = await createCampaign();
-      onFunded(created.campaignId);
+      const plan = await prepare();
+      onFunded(plan.campaignId);
     } catch (caught: unknown) {
       setError(errorMessage(caught, copy.common.genericError));
       setBusy(false);

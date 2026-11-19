@@ -21,7 +21,7 @@ import { useAsync } from "@/lib/api/use-async";
 import { setDemoMode } from "@/lib/demo/store";
 import { copy } from "@/lib/copy";
 import { totalMicro } from "@/lib/fan/amount";
-import { teamsFromTitle } from "@/lib/fan/teams";
+import { gameFromEvent, type FanTeam } from "@/lib/fan/teams";
 import { bpsToWholePercent } from "@/lib/format";
 import { useHydrated } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
@@ -40,10 +40,9 @@ function isPaused(state: PublicCampaign["saleState"]): boolean {
   return state !== "open" && state !== "closed";
 }
 
-function Teams({ title }: { title: string }): React.JSX.Element {
-  const teams = teamsFromTitle(title);
-  if (teams === null) return <p className="text-lead">{title}</p>;
-  const side = (team: NonNullable<typeof teams>["away"], tone: "a" | "b"): React.JSX.Element => (
+function Teams({ event }: { event: PublicCampaign["event"] }): React.JSX.Element {
+  const teams = gameFromEvent(event);
+  const side = (team: FanTeam, tone: "a" | "b"): React.JSX.Element => (
     <div className="flex w-28 flex-col items-center gap-1.5">
       <TeamBadge abbreviation={team.abbreviation} src={team.art} side={tone} size={72} />
       <span className="max-w-full truncate text-lead">{team.name}</span>
@@ -86,8 +85,12 @@ function Settled({ campaign }: { campaign: PublicCampaign }): React.JSX.Element 
   const yes = campaign.outcome === "yes";
   const voided = campaign.outcome === "void";
   const title = yes ? copy.campaign.won : voided ? copy.campaign.voided : copy.campaign.lost;
+  // `resultLabel` is the condition in the past tense ("Texas won by 14+"); the API leaves it out
+  // only for a void game, so a won promo without one simply has no second line.
   const body = yes
-    ? copy.campaign.wonBody(campaign.conditionLabel)
+    ? campaign.resultLabel === null
+      ? null
+      : copy.campaign.wonBody(campaign.resultLabel)
     : voided
       ? copy.campaign.voidedBody
       : copy.campaign.lostBody(campaign.merchant.name);
@@ -99,7 +102,9 @@ function Settled({ campaign }: { campaign: PublicCampaign }): React.JSX.Element 
       role="status"
     >
       <h2 className="text-promise">{title}</h2>
-      <p className={yes ? "mt-2 text-body text-ink" : "mt-2 text-body text-muted"}>{body}</p>
+      {body === null ? null : (
+        <p className={yes ? "mt-2 text-body text-ink" : "mt-2 text-body text-muted"}>{body}</p>
+      )}
     </Card>
   );
 }
@@ -221,7 +226,7 @@ export function CampaignPage({
             </div>
           )}
 
-          <Teams title={campaign.eventTitle} />
+          <Teams event={campaign.event} />
 
           {settled ? null : (
             <p

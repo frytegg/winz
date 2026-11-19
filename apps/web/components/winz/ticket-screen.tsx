@@ -279,7 +279,9 @@ function RefundedScreen({ ticket }: { ticket: Ticket }): React.JSX.Element {
               {copy.ticket.refunded}
             </h1>
             <Money micro={ticket.refundable} className="text-figure" />
-            <p className="text-lead">{copy.ticket.refundedHit(ticket.conditionLabel)}</p>
+            {ticket.resultLabel === null ? null : (
+              <p className="text-lead">{ticket.resultLabel}.</p>
+            )}
             <p className="text-body text-muted">{copy.ticket.refundedLine(ticket.merchant.name)}</p>
             {ticket.refundedAt === null ? null : (
               <p className="text-caption text-muted">
