@@ -59,10 +59,10 @@ html:has(.landing-menu[open]) {
 }
 
 /*
- * The logo strip's loop (02-logos.md). The track holds the list twice and moves by half of its own
- * width: exactly one list, which the second one replaces, so the end of the loop is the start of the
- * next. Linear, about 40 px/s (the duration is one list's width over 40: 32 s on a desktop, shorter
- * where the logos are smaller). A fade at both edges, as on the mockup.
+ * The logo strip's loop (02-logos.md). The track holds twelve lists and moves by half of its own width:
+ * exactly six lists, which the second half replaces, so the end of the loop is the start of the next (six
+ * because one list is narrower than a wide window: see MARQUEE_RUNS). Linear, about 40 px/s (the duration
+ * is six lists' width over 40: 122 s on a desktop, 76 s on a phone, where the logos are smaller). A fade at both edges, as on the mockup.
  */
 @keyframes landing-marquee {
   to {
@@ -71,13 +71,13 @@ html:has(.landing-menu[open]) {
 }
 
 .landing-marquee-track {
-  --marquee-duration: 20s;
+  --marquee-duration: 76s;
   animation: landing-marquee var(--marquee-duration) linear infinite;
 }
 
 @media (min-width: 1024px) {
   .landing-marquee-track {
-    --marquee-duration: 32s;
+    --marquee-duration: 122s;
   }
 }
 
