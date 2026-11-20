@@ -78,6 +78,13 @@ export interface HealthSources {
    * Empty, or absent, while no engine runs.
    */
   loops?: () => readonly LoopReport[];
+  /**
+   * Whether a stale or stopped loop makes the leader answer 503 (`APP_HEALTH_FAIL_ON_STALE_LOOPS`).
+   * Off, the loops are still reported (`loops`, `staleLoops`) and logged, but the answer stays 200:
+   * a platform health check that restarts the service on 503 is only pointed at the loops once
+   * they have been seen healthy in production. Defaults to true.
+   */
+  failOnStaleLoops?: boolean;
   /** Epoch milliseconds. Defaults to the system clock. */
   now?: () => number;
   /** How long the database and the node each get to answer. Default 2 000 ms. */
@@ -239,9 +246,11 @@ export function healthVerdict(sources: HealthSources, probe: HealthProbe): Healt
   }
   const loopReports = lease.role === "leader" ? (sources.loops?.() ?? []) : [];
   const staleLoops: string[] = [];
+  const failOnStaleLoops = sources.failOnStaleLoops ?? true;
   for (const loop of loopReports) {
     if (loop.state === "running") continue;
     staleLoops.push(loop.name);
+    if (!failOnStaleLoops) continue;
     problems.push(
       loop.state === "stopped"
         ? `leader: loop ${loop.name} stopped (${loop.detail ?? "its service ended"})`
@@ -369,6 +378,13 @@ export async function startHealthServer(options: HealthServerOptions): Promise<H
     }
     read()
       .then(({ httpStatus, report, problems }) => {
+        if (httpStatus === 200 && report.staleLoops !== undefined && report.staleLoops.length > 0) {
+          // APP_HEALTH_FAIL_ON_STALE_LOOPS off: answered 200, but never silent.
+          log.error(
+            { staleLoops: report.staleLoops },
+            "a loop of the engine no longer completes its passes (health check not failed: APP_HEALTH_FAIL_ON_STALE_LOOPS is off)",
+          );
+        }
         if (httpStatus !== 200) {
           // A loop that stopped working is an incident, not a passing hiccup of a dependency.
           if (report.staleLoops !== undefined && report.staleLoops.length > 0) {

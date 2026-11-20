@@ -327,6 +327,7 @@ async function main(): Promise<void> {
         chainId: env.ARC_CHAIN_ID,
         cursorName: defaultCursorName(env.ARC_ESCROW_ADDRESS as Hex),
         startedAt,
+        failOnStaleLoops: env.APP_HEALTH_FAIL_ON_STALE_LOOPS,
         services: () => {
           // Stopped as soon as a shutdown begins, not only once the services have stopped: an
           // engine on its way out must not be reported as working.
