@@ -6,7 +6,7 @@ import { CRYPTO_WORDS } from "../../lib/crypto-words";
 import { formatMoney } from "../../lib/format";
 
 import { CRITERIA, meetsLimit } from "./support/criteria";
-import { expect, test } from "./support/fixtures";
+import { expect, horizontalOverflow, test } from "./support/fixtures";
 import { recordMeasure, seconds } from "./support/measures";
 import type { ReceiptName } from "./support/receipts";
 import { TapCounter } from "./support/taps";
@@ -61,6 +61,28 @@ test.describe("C1, the campaign page, in every state the scenarios offer", () =>
     await expect(page.getByRole("button", { name: copy.campaign.payWithCard })).toBeEnabled();
     await expectNoCryptoWord(page, "C1 open");
     await screens.shot("c1-open");
+  });
+
+  test("the two teams are named in full at phone width, never cut (« Arkansas R… »)", async ({
+    page,
+  }) => {
+    await page.goto(`/c/${SLUG}?scenario=live`);
+    const { away, home } = CAMPAIGN.event;
+    const teams = page.getByRole("group", { name: copy.campaign.teams(away.name, home.name) });
+    await expect(teams, "C1 shows the game").toBeVisible();
+    for (const name of [away.name, home.name]) {
+      const label = teams.getByText(name, { exact: true });
+      await expect(label, `${name} is written out`).toBeVisible();
+      const fit = await label.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          cut: element.scrollWidth > element.clientWidth,
+          ellipsis: style.textOverflow === "ellipsis" && style.overflow !== "visible",
+        };
+      });
+      expect(fit, `${name} is not cut`).toEqual({ cut: false, ellipsis: false });
+    }
+    expect(await horizontalOverflow(page), "no sideways scroll at 393 px").toBeNull();
   });
 
   test("paused: says so, and nothing can be bought", async ({ page, screens }) => {
