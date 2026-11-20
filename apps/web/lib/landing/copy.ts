@@ -197,7 +197,6 @@ export const landingCopy = {
         emailLabel: "Email",
         emailPlaceholder: "Your email…",
         email: "alex@joespizza.com",
-        codeLabel: "Code",
         code: "428019",
       },
       /** Step 02: the first screen of the promo wizard. */

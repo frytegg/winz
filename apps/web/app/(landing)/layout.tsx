@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
 import "./landing.css";
+import "./process.css";
 import { landingLinks } from "./landing.config";
 
 /**

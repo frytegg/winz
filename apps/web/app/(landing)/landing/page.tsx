@@ -5,6 +5,7 @@ import { LandingFeatures } from "@/components/landing/landing-features";
 import { LandingHow } from "@/components/landing/landing-how";
 import { LandingHero } from "@/components/landing/landing-hero";
 import { LandingNav } from "@/components/landing/landing-nav";
+import { LandingProcess } from "@/components/landing/landing-process";
 import { LogoStrip } from "@/components/landing/logo-strip";
 import { landingCopy } from "@/lib/landing/copy";
 
@@ -37,7 +38,7 @@ export default function LandingPage(): React.JSX.Element {
         <LogoStrip />
         <LandingHow />
         <LandingDemo liveDemoUrl={landingLinks.liveDemoUrl} videoUrl={landingLinks.videoUrl} />
-        {/* Process (P4) goes here: the mockup has it between the Demo and Features. */}
+        <LandingProcess />
         <LandingFeatures />
       </main>
     </div>
