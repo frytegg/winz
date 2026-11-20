@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Tokens of /landing (colors only, none emitted unless a landing class uses it). */
+@import "./(landing)/landing-theme.css";
 
 /*
  * Winz design tokens (design-system/winz/MASTER.md). Dark only: there is no light theme in the MVP.

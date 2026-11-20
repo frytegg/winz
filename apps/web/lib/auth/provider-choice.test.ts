@@ -45,6 +45,11 @@ describe("isSignInFreePath", () => {
     expect(isSignInFreePath("/admin")).toBe(true);
   });
 
+  it("is true for the landing page: Privy must not load for a visitor who has not met the app", () => {
+    expect(isSignInFreePath("/landing")).toBe(true);
+    expect(isSignInFreePath("/landing/kit")).toBe(true);
+  });
+
   it("is false for everything that signs someone in or needs them signed in", () => {
     for (const path of ["/", "/start", "/business", "/new", "/home", "/tickets", "/campaigns/1"]) {
       expect(isSignInFreePath(path)).toBe(false);

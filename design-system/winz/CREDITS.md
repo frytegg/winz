@@ -25,3 +25,20 @@
   cannot be sold on its own).
 - Why a copy in the repo: the app's screens get Sora from `next/font/google`, but the image renderer
   behind the share preview and the poster needs the raw files, and it reads TTF, OTF or WOFF only.
+
+## Landing page (`apps/web/public/landing/`)
+
+- Logos (`logos/`: Stripe, Arc, Gemini, QuickNode): the marks of their owners, shown only to
+  say which technologies Winz is built with, with no suggestion that they endorse it. The files are the
+  designer's mockup assets, not the vendors' official files: all are bitmaps re-rendered at four times
+  their display size and wrapped in an SVG (the originals embedded images thousands of pixels wide), at
+  the 0.48 grey opacity of the mockup (QuickNode's file came at 0.67 and 74 KB with two embedded 2195 px
+  images: re-rendered, 5 KB). Replace them with the official SVGs from each
+  brand page if a vendor asks, or when a clean vector is wanted.
+- Illustrations (`hero/`, `cta/`, `how/`): drawn for the mockups by the designer. The hero and CTA phones
+  are exported from SVG files that wrap bitmaps (AVIF and WebP, the sources stay in the front kit).
+- **Open: the photo in the hero and CTA phones.** The middle phone shows the mockup's photo, a player in a
+  jersey reading "NEW YORK", with the league's ball marking. It is the photo the welcome screen replaced
+  (see above) because its licence is unknown, and it is baked into the exported images. Before the
+  landing is public, either find its licence or re-export the two images with the welcome-screen photo.
+- Feature icons (`features/`) and the merchant cards (`how/`): the designer's, optimised with SVGO.
