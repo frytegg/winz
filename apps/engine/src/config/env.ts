@@ -101,6 +101,7 @@ export const engineEnvSchema = z
     // for a host without a shell. Needs both sandbox keys; without them the run is recorded as
     // failed. See docs/gemini-sandbox.md.
     APP_VENUE_CHECK_ON_BOOT: booleanString.default(false),
+    APP_HEALTH_FAIL_ON_STALE_LOOPS: booleanString.default(false),
     // Let the check accept Gemini's latest Prediction Markets terms for the sandbox account.
     APP_VENUE_CHECK_ACCEPT_TERMS: booleanString.default(false),
     // A sandbox contract for the check, instead of the one it chooses.

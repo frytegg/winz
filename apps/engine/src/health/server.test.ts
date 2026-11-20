@@ -209,6 +209,24 @@ describe("GET /healthz", () => {
       expect(back.body).toMatchObject({ status: "ok", staleLoops: [] });
     });
 
+    it("with failOnStaleLoops off, a stale loop is reported and logged but the answer stays 200", async () => {
+      const { monitor, sales, jobs, setNow } = monitorWith(90_000);
+      setNow(NOW - 61_000);
+      sales.beat();
+      setNow(NOW - 1_000);
+      jobs.beat();
+      setNow(NOW);
+      const reading = await readHealth(
+        sources({ loops: () => monitor.report(), failOnStaleLoops: false }),
+      );
+      expect(reading.httpStatus).toBe(200);
+      expect(reading.problems).toEqual([]);
+      expect(reading.report).toMatchObject({ status: "ok", staleLoops: ["sale-states"] });
+      // The default still fails it.
+      const strict = await readHealth(sources({ loops: () => monitor.report() }));
+      expect(strict.httpStatus).toBe(503);
+    });
+
     it("503 at once when a loop's service stopped by itself", async () => {
       const { monitor, sales, jobs } = monitorWith(1_000);
       sales.beat();
