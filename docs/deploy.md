@@ -432,7 +432,7 @@ Avant cette étape : l'endpoint QuickNode (`docs/quicknode.md`, étapes 1 et 2 :
    | Docker Command (Advanced) | vide | Render lance alors le `CMD` du Dockerfile |
    | Compute plan | `0.5c-512mb` (Starter) ou `free`, point 1 | |
    | Environment Variables (Advanced) | point 3 | |
-   | Health Check Path (Advanced) | **`/healthz`** | sans lui, Render ne vérifie qu'une connexion TCP |
+   | Health Check Path (Advanced) | **`/healthz`** | sans lui, Render ne vérifie qu'une connexion TCP, et ne voit jamais une boucle du moteur gelée (point 4, « Contrôles de santé en continu ») |
    | Auto-Deploy (Settings, après la création) | **After CI Checks Pass** | voir sous le tableau |
    | Build Filters (Settings → Build & Deploy) | facultatif, voir sous le tableau | |
 
@@ -639,6 +639,18 @@ Avant cette étape : l'endpoint QuickNode (`docs/quicknode.md`, étapes 1 et 2 :
    does not answer` (code 1). Render suspend un service qui « repeatedly fails to start and
    become healthy over a 24-hour period » (page des notifications).
 
+   Le leader répond aussi 503 quand une de ses **boucles** n'a plus terminé un passage depuis
+   plus que sa borne : les états de vente au-delà de 60 s (un passage par seconde), les jobs au-delà
+   de 2 min, le règlement au-delà de 15 min, etc. (table complète dans `apps/engine/README.md`,
+   « Frozen loops »). Le corps les nomme dans `staleLoops`, et le log dit `health check failed: a
+   loop of the engine no longer completes its passes`. C'est ce qui a manqué la nuit du 19 au
+   20 novembre : les états de vente étaient gelés depuis 23 h 23 (UTC), `/healthz` répondait
+   200, et les promos 15 à 19 sont restées `live` après leur clôture des ventes jusqu'au
+   redéploiement de 1 h 02. Désormais un passage des états de vente est coupé au bout de 15 s
+   (log `sale state pass timed out`, avec ce qu'il attendait) et chaque requête à la base au bout
+   de 30 s ; si cela ne suffit pas, le 503 dure et Render redémarre l'instance au bout de 60 s.
+   Chaque boucle a toute sa borne pour son premier passage : pas de 503 au démarrage.
+
    **Sortie avec le code 1.** Le moteur sort avec le code 1 quand un arrêt sur bail perdu reste
    bloqué (README, « Self-fencing »), quand une variable manque, quand la base ne répond pas au
    démarrage, ou quand une vérification de démarrage échoue (point 8). Render inscrit un
@@ -747,7 +759,10 @@ Avant cette étape : l'endpoint QuickNode (`docs/quicknode.md`, étapes 1 et 2 :
    minutes, par exemple), le prendre. `/healthz` est public et ne coûte presque rien : une sonde
    (une requête à la base, un `eth_blockNumber`) sert toutes les requêtes pendant 2 s
    (`DEFAULT_HEALTH_CACHE_MS` dans `src/health/server.ts`). L'alerte du pinger sert aussi : un
-   503 qui dure, c'est le moteur malade (point 7).
+   503 qui dure, c'est le moteur malade (point 7). **Mot-clé d'un contrôle par mot-clé :
+   `"status":"ok"`** (guillemets compris), jamais `ok` seul : un 503 pour une boucle gelée
+   contient encore `"db":"ok"`, qu'un mot-clé `ok` prendrait pour un succès (sauf si le service
+   compte aussi le code HTTP, ce qui n'a pas été vérifié ici).
 
 7. **Vu de l'extérieur, et quoi faire.**
 
@@ -755,6 +770,7 @@ Avant cette étape : l'endpoint QuickNode (`docs/quicknode.md`, étapes 1 et 2 :
    | --- | --- | --- |
    | `/healthz` répond 200 avec un `startedAt` récent et un nouveau `lease.holder` | un redémarrage ou un déploiement : nouvelle instance, bail repris | rien ; page Events pour la cause (`Instance Failed` et son code, health checks) |
    | `/healthz` répond 503 en JSON | le moteur tourne mais `db`, `head`, `sender` ou le bail manquent | lire `db`/`chain.head`/`role`, puis la ligne `health check failed` des logs ; au-delà de 60 s, Render le redémarre seul |
+   | `/healthz` répond 503 avec `staleLoops` non vide (`db` `ok`, `sender` `running`) | une boucle du moteur ne termine plus ses passages (`loops.<nom>.sinceS` au-delà de `boundS`) ; pour `sale-states` : plus de clôture des ventes ni de pause automatique | logs : `sale state pass timed out` et son `waitingOn` ; Render redémarre l'instance au bout de 60 s ; sinon un redéploiement (**Manual Deploy → Deploy latest commit**), comme celui du 20 novembre à 1 h 02 |
    | `/healthz` répond 200 `"role":"standby"` et rien ne travaille | un autre moteur a le bail : le Mac, ou un moteur d'essai resté sur cette base | `lease.holder` le nomme ; l'arrêter (Ctrl-C) ; étape 1, point 1 |
    | la première requête attend environ une minute, puis 200 (Free) | il dormait : Render montre une page de chargement à un navigateur, et sa page de dépannage range ce réveil parmi les causes d'un 503 | le pinger s'est arrêté : le relancer ; pendant le sommeil, aucun moteur ne travaillait |
    | 503 qui ne vient pas du moteur (pas le JSON de `/healthz`), service marqué suspendu | suspension : heures Free épuisées, bande passante épuisée sans carte, clause de trafic, ou échecs de démarrage pendant 24 h | Compute → un plan payant (`0.5c-512mb`) rétablit le service pour la clause de trafic ; sinon lire la raison sur la page du service |
