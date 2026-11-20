@@ -174,7 +174,16 @@ export function StatsTab({
       ) : null}
 
       {open ? (
-        <p className="px-1 text-body text-muted">{t.moreSales(campaign.capacitySales)}</p>
+        <p className="px-1 text-body text-muted">
+          {/* "Up to N more sales" only while it sells: a paused promo sells none, and says why. */}
+          {campaign.saleState === "open"
+            ? t.moreSales(campaign.capacitySales)
+            : t.saleState(
+                campaign.saleState,
+                bpsToWholePercent(campaign.pauseThresholdBps),
+                campaign.subjectName,
+              )}
+        </p>
       ) : null}
     </div>
   );
