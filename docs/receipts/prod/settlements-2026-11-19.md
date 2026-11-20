@@ -86,6 +86,23 @@ Ticket 676 : 1 × payé 12.00 $, remboursable 6.00 $, statut `issued`.
 
 Le Stream (Arc testnet, jeu Logs, filtre sur l’adresse de l’escrow, destination `https://winz-nu.vercel.app/api/webhooks/quicknode`) a livré les événements des règlements. Huit d’entre eux ont été écrits par la livraison QuickNode avant le reçu du relayer (`source = streams` ci-dessus) : `select source, count(*) from chain_events group by source` donnait `streams 8, receipt 25, logs 2015` le 20 novembre à 04:45 UTC.
 
+Délai entre l'heure du bloc et l'écriture en base, par chemin, sur les événements des 6 heures précédant le 20 novembre 04:55 UTC (lecture seule) :
+
+```sql
+select source, count(*),
+       round(avg(extract(epoch from (created_at - block_time)))::numeric, 2) as avg_s,
+       round(min(extract(epoch from (created_at - block_time)))::numeric, 2) as min_s,
+       round(max(extract(epoch from (created_at - block_time)))::numeric, 2) as max_s
+from chain_events where block_time > now() - interval '6 hours' group by source;
+```
+
+| Chemin qui a écrit l'événement le premier | Événements | Moyenne | Min | Max |
+| --- | --- | --- | --- | --- |
+| `streams` (livraison QuickNode) | 8 | 1,04 s | 0,55 s | 1,58 s |
+| `receipt` (reçu du relayer) | 19 | 1,49 s | 0,59 s | 3,51 s |
+
+Chaque ligne ne compte que les événements que son chemin a gagnés : elle compare des gagnants, pas les deux chemins sur un même événement.
+
 ## Gemini sandbox : ordres réels (SPEC HE-10)
 
 Preuve exécutée au démarrage du moteur (`APP_VENUE_CHECK_ON_BOOT=true`), lue sur le Hedge desk : `outcome = proven`, `2026-11-20T04:15:08.921Z`, lieu `gemini-sandbox`.
