@@ -9,6 +9,7 @@ export function Splash(): React.JSX.Element {
     <div
       role="status"
       aria-live="polite"
+      data-splash=""
       className="relative grid min-h-dvh place-items-center overflow-hidden bg-ink"
     >
       <img

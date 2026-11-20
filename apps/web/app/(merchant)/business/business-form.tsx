@@ -2,7 +2,8 @@
 
 import { MERCHANT_CATEGORIES, type MerchantCategory } from "@winz/shared";
 import { Beer, Pizza, Plus, Sandwich, ShoppingBag, Store, X, type LucideIcon } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -11,6 +12,7 @@ import { Splash } from "@/components/ui/splash";
 import { WizardFrame } from "@/components/wizard/wizard-frame";
 import { apiFetch, errorMessage } from "@/lib/api/client";
 import { useAuth, useRouteGuard } from "@/lib/auth";
+import { WIZARD_PATH } from "@/lib/auth/route-guard";
 import { copy } from "@/lib/copy";
 import { journeyProgress } from "@/lib/journey";
 import { submitBusiness } from "@/lib/merchant/business-create";
@@ -41,6 +43,7 @@ function isHttpUrl(text: string): boolean {
 export function BusinessForm(): React.JSX.Element {
   const { adoptMerchant, refreshMe } = useAuth();
   const ready = useRouteGuard("signed-in");
+  const router = useRouter();
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState<MerchantCategory | null>(null);
@@ -49,7 +52,15 @@ export function BusinessForm(): React.JSX.Element {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
-  if (!ready) return <Splash />;
+  // M3 is where Continue leads: fetched now, it opens at once instead of behind the root `loading.tsx`.
+  useEffect(() => {
+    router.prefetch(WIZARD_PATH);
+  }, [router]);
+
+  // Once the business exists, the guard sends the user on to M3 and stops calling this screen ready.
+  // The screen stays as it is (Continue still spinning) until M3 replaces it: the splash in between
+  // was a flash of the full-screen logo between two steps of one flow.
+  if (!ready && !submitting) return <Splash />;
 
   const trimmedName = name.trim();
   const trimmedLogo = logoUrl.trim();

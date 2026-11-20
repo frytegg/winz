@@ -4,13 +4,13 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
 
+import { useHydrated } from "@/lib/hooks";
 import { EMPTY_DRAFT, parseDraft, type WizardDraft } from "@/lib/wizard/draft";
 
 const STORAGE_KEY = "winz.wizard";
@@ -48,14 +48,14 @@ function save(draft: WizardDraft): void {
  * pasting a step's link never loses them. Cleared when the promo is created.
  */
 export function WizardProvider({ children }: { children: ReactNode }): React.JSX.Element {
-  const [draft, setDraft] = useState<WizardDraft>(EMPTY_DRAFT);
-  const [ready, setReady] = useState(false);
+  // The saved draft is read as the provider is created (the server reads none: `readSaved` gives it the
+  // empty draft). Reached by a client navigation (M2's Continue, the "New promo" button), the wizard
+  // is then ready at its first render: before, it was ready one effect later and drew the splash for a
+  // frame between two screens of the same flow. On a page load the draft is not shown before hydration
+  // is over (`ready` is false until then), so the server's HTML and the first client render agree.
+  const [draft, setDraft] = useState<WizardDraft>(readSaved);
+  const ready = useHydrated();
   const pushes = useRef(0);
-
-  useEffect(() => {
-    setDraft(readSaved());
-    setReady(true);
-  }, []);
 
   const update = useCallback((patch: Partial<WizardDraft>): void => {
     setDraft((current) => {
