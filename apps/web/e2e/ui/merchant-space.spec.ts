@@ -1,4 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
+import { apiExamples } from "@winz/shared";
 
 import { copy } from "../../lib/copy";
 
@@ -162,6 +163,19 @@ test.describe("the merchant space (SPEC 5.2)", () => {
         page.getByText(status.badge, { exact: true }).first(),
         "the status is shown",
       ).toBeVisible();
+      if (status.scenario === "paused") {
+        // A paused promo sells nothing: its Stats tab says why, not « Up to 0 more sales ».
+        const paused = apiExamples.campaignDetailExamples.paused;
+        await expect(
+          page
+            .getByRole("tabpanel")
+            .getByText(copy.campaignDetail.saleState(paused.saleState, 18, paused.subjectName), {
+              exact: true,
+            }),
+          "the Stats tab says the promo is paused, and why",
+        ).toBeVisible();
+        await expect(page.getByText(/more sales$/)).toHaveCount(0);
+      }
       if (status.report !== null) {
         await expect(
           page.getByRole("heading", { name: copy.campaignDetail.report.title }),
