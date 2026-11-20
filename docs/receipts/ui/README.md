@@ -87,6 +87,7 @@ Pleine page, viewport de l'iPhone 15 (393 px de large) à l'échelle 2, sans vid
 | [`md-settings.png`](./md-settings.png) | Les réglages : profil, solde, informations techniques repliées, déconnexion. |
 | [`hd-desk.png`](./hd-desk.png) | Le Hedge desk public : lieu d'exécution en tête, totaux, limites, instruments. |
 | [`hd-desk-tripped.png`](./hd-desk-tripped.png) | Le Hedge desk, réponse servie par le test : coupe-circuit déclenché (carnet périmé), non couvert au-dessus de la limite. |
+| [`hd-venue-check.png`](./hd-venue-check.png) | Le Hedge desk, panneau « Real orders on Gemini sandbox » (scénario `venueCheckProven`) : les trois ordres relus chez Gemini. Valeurs d'exemple du mode simulé, pas la preuve réelle (docs/gemini-sandbox.md). |
 | [`admin-key.png`](./admin-key.png) | Le panneau démo, l'écran de la clé, bandeau « DEMO MODE » déjà affiché. |
 | [`admin-key-refused.png`](./admin-key-refused.png) | L'écran de la clé après une mauvaise clé (401 de l'API simulée) : redemandée. |
 | [`admin-result-confirm.png`](./admin-result-confirm.png) | « Force the result » : la confirmation qui nomme le choix et l'instrument, rien d'envoyé encore. |
