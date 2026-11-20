@@ -16,6 +16,7 @@ import {
   PaperVenue,
   createVenue,
   type ExecutionVenue,
+  type GeminiVenueWiring,
   type PaperVenueConfig,
   type VenueClock,
 } from "../../venues";
@@ -113,6 +114,11 @@ export interface HedgingServiceOptions {
   breakerParams?: Partial<BreakerParams>;
   /** Overrides of the paper venue's defaults. */
   paperVenueConfig?: Partial<PaperVenueConfig>;
+  /**
+   * The sandbox client and the order links of the real Gemini venue: required when `venueName`
+   * is "gemini-sandbox", unused otherwise.
+   */
+  geminiVenue?: GeminiVenueWiring;
   /** Testing seams. Never set in production. */
   testHooks?: HedgingTestHooks;
 }
@@ -217,6 +223,7 @@ export class HedgingService implements HedgeFinalizer {
       clock: this.clock,
       logger: this.logger.child({ component: "venue" }),
       config: options.paperVenueConfig,
+      ...(options.geminiVenue === undefined ? {} : { gemini: options.geminiVenue }),
     });
     this.sink = new PgPolicySink({
       db: this.db,
@@ -404,6 +411,11 @@ export class HedgingService implements HedgeFinalizer {
       }
     }
     while (this.inFlight.size > 0) await Promise.allSettled([...this.inFlight]);
+    try {
+      await this.venue.close?.();
+    } catch (error: unknown) {
+      this.safeLog("error", { err: describeError(error) }, "venue did not stop cleanly");
+    }
     try {
       await this.sink.retryPending({ force: true });
     } catch (error: unknown) {

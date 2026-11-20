@@ -18,16 +18,17 @@ export class VenueInputError extends VenueError {
   }
 }
 
-/** `createVenue` was asked for a venue whose adapter is not built yet. */
-export class VenueNotImplementedError extends VenueError {
-  constructor(
-    public readonly venue: string,
-    public readonly task: string,
-  ) {
+/**
+ * `createVenue` was asked for a venue this deployment must never use: Gemini production orders
+ * (real money). SPEC section 1, point 3: Gemini production is read-only; real orders go to the
+ * sandbox only.
+ */
+export class VenueNotAllowedError extends VenueError {
+  constructor(public readonly venue: string) {
     super(
-      `execution venue "${venue}" is not implemented yet: the real Gemini order adapter is task ${task}`,
+      `execution venue "${venue}" is refused on purpose: Gemini production is read-only (SPEC section 1); real orders go to "gemini-sandbox" only`,
     );
-    this.name = "VenueNotImplementedError";
+    this.name = "VenueNotAllowedError";
   }
 }
 

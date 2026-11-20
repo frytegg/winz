@@ -20,6 +20,7 @@ import { moduleLogger } from "./logger";
 import type { PaymentGateway } from "./payments";
 import { startSaleStates, type SaleBookSource, type SaleStatesOptions } from "./sales";
 import { startSettlement, type SettlementOptions } from "./settlement";
+import type { GeminiVenueWiring } from "./venues";
 
 /** What every subsystem returns: a promise that resolves once it has stopped. Never rejects. */
 export interface RunningService {
@@ -85,6 +86,8 @@ export interface EngineDeps {
   payments: PaymentGateway;
   identity: IdentityDirectory;
   venueName: ExecutionVenueName;
+  /** The real Gemini venue's client and order links: required when `venueName` is "gemini-sandbox". */
+  geminiVenue?: GeminiVenueWiring;
   /** Services running beside the core. Started last, stopped with the rest. */
   background?: readonly BackgroundService[];
   /** Aborting it stops the engine. */
@@ -234,6 +237,7 @@ export async function startEngine(deps: EngineDeps): Promise<Engine> {
       bookFeed: deps.bookFeed,
       txSender,
       venueName: deps.venueName,
+      ...(deps.geminiVenue === undefined ? {} : { geminiVenue: deps.geminiVenue }),
       escrowAddress: deps.escrowAddress,
       logger: moduleLogger(deps.logger, "hedging"),
       signal,

@@ -56,6 +56,18 @@ const bookRefSchema = z.discriminatedUnion("source", [
     orderRemainingQty: bigintSchema,
     makerFeeWaived: z.boolean(),
   }),
+  z.object({
+    source: z.literal("venue"),
+    instrumentSymbol: z.string(),
+    venueOrderId: z.string(),
+    limitPriceBps: bigintSchema,
+    orderRemainingQty: bigintSchema,
+    reportedFilledQty: bigintSchema,
+    reportedAvgPrice: z.string().nullable(),
+    observedAtMs: z.number(),
+    feeFromSchedule: z.boolean(),
+    makerFeeWaived: z.boolean(),
+  }),
 ]);
 
 /** A stored `fills.book_ref` (bigints as strings) back as a `FillBookRef`, or null. */

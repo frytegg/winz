@@ -52,8 +52,8 @@ export interface Hedging {
  * outbox; the reconciliation at sales close; the public Hedge desk. It never throws out of its
  * loops and leaves no timer running once the signal is aborted and `stopped` has resolved.
  *
- * Throws at once (`HedgingConfigError`, `VenueNotImplementedError`) only for an option it cannot
- * run with, such as a venue whose adapter does not exist yet.
+ * Throws at once (`HedgingConfigError`, `VenueInputError`, `VenueNotAllowedError`) only for an
+ * option it cannot run with: the sandbox venue without its client, or Gemini production.
  */
 export function startHedging(options: StartHedgingOptions): Hedging {
   const service = new HedgingService(options);

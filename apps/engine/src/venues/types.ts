@@ -44,6 +44,12 @@ export interface ExecutionVenue {
 
   /** Label and known limit shown on the Hedge desk. */
   describe(): VenueDescription;
+
+  /**
+   * Stops what the venue runs in the background (the real adapter reads its open orders back on
+   * a timer). Orders are left as they are. Optional: the paper venue runs nothing.
+   */
+  close?(): Promise<void>;
 }
 
 export const ORDER_SIDES = ["buy", "sell"] as const;
@@ -187,7 +193,30 @@ export interface TradePrintRef {
   makerFeeWaived: boolean;
 }
 
-export type FillBookRef = BookLevelsRef | TradePrintRef;
+/**
+ * A fill reported by a real venue (the Gemini adapter): the venue reports, per order, the filled
+ * quantity and the average execution price, and the fill is the increase seen between two
+ * answers. Not replayable from a book: it is what the venue said, kept as it said it.
+ */
+export interface VenueReportRef {
+  source: "venue";
+  instrumentSymbol: string;
+  /** The venue's own order id. */
+  venueOrderId: string;
+  limitPriceBps: Bps;
+  /** What the order still had to fill just before this fill. */
+  orderRemainingQty: MicroContracts;
+  /** The order's filled quantity in the answer that showed this fill. */
+  reportedFilledQty: MicroContracts;
+  /** The order's average execution price in that answer, as the venue wrote it, or null. */
+  reportedAvgPrice: string | null;
+  observedAtMs: number;
+  /** True: the venue reports no fee, the fee is computed from the published schedule. */
+  feeFromSchedule: boolean;
+  makerFeeWaived: boolean;
+}
+
+export type FillBookRef = BookLevelsRef | TradePrintRef | VenueReportRef;
 
 export type VenueEvent =
   | { type: "order"; order: VenueOrder }
