@@ -193,10 +193,22 @@ export async function runVenueCheck(
   const now = deps.now ?? Date.now;
   const sleep =
     deps.sleep ??
-    // Not unref'd: in the command, these waits are all that keeps the process alive.
+    // Not unref'd: in the command, these waits are all that keeps the process alive. Cut short
+    // by the stop signal, so that a shutdown does not wait for them.
     ((ms: number) =>
       new Promise<void>((resolve) => {
-        setTimeout(resolve, ms);
+        const signal = deps.signal;
+        if (signal?.aborted === true) {
+          resolve();
+          return;
+        }
+        const done = (): void => {
+          clearTimeout(timer);
+          signal?.removeEventListener("abort", done);
+          resolve();
+        };
+        const timer = setTimeout(done, ms);
+        signal?.addEventListener("abort", done, { once: true });
       }));
   const logger = deps.logger.child({ component: "venue-check" });
   const makerQty = options.makerQty ?? ONE_CONTRACT;
@@ -242,6 +254,7 @@ export async function runVenueCheck(
     let last: VenueOrder | null = null;
     let lastError: unknown = null;
     for (let attempt = 1; attempt <= readBackAttempts; attempt += 1) {
+      stopIfAborted();
       try {
         last = await venue.getOrder(clientOrderId);
         lastError = null;

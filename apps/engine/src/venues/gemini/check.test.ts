@@ -206,6 +206,29 @@ describe("venue:check, the full sequence on the simulated Gemini", () => {
     expect(sim.orders.filter((order) => order.status === "open")).toEqual([]);
   });
 
+  it("a stop while the maker rests ends the check at once, and the maker is cancelled", async () => {
+    sim = await simGemini();
+    const { logger } = capturedLogger();
+    const stop = new AbortController();
+    const report = await runVenueCheck(
+      {
+        api: simClient(sim, logger),
+        logger,
+        signal: stop.signal,
+        // The engine shuts down during the 3 s the maker must be seen resting.
+        sleep: (ms) => {
+          if (ms === 3_000) stop.abort();
+          return Promise.resolve();
+        },
+      },
+      { trigger: "boot" },
+    );
+    expect(report).toMatchObject({ outcome: "failed", failedStep: "placed_maker", orders: [] });
+    expect(report.failure).toContain("shutting down");
+    expect(sim.orders.map((order) => order.status)).toEqual(["cancelled"]);
+    expect(sim.privateRequests(CANCEL_PATH)).toHaveLength(1);
+  });
+
   it("terms not accepted: fails at preflight unless allowed to accept them", async () => {
     sim = await simGemini({ termsAccepted: false });
     const refused = await check(sim);
