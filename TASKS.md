@@ -163,15 +163,18 @@ Tous parallèles entre eux dès que F-05 est figé. Lot à lancer ensemble : C-0
   Passkey proposée après le premier achat, liée au compte existant.
 
 ### Écrans, sur l'API simulée
-- [ ] **U-01** · Qui : T · Dép. : F-04 · Section 2
+- [x] **U-01** · Qui : T · Dép. : F-04 · Section 2
   Direction visuelle et socle : jetons de couleur, typographie, composants de base, manifeste PWA, icône, `lib/copy.ts`.
   Fini quand : un écran témoin respecte la section 2 sur un viewport iPhone.
-- [ ] **U-02** · Qui : T, avec Agent · Dép. : U-01, F-06 · M0 à M8, CA-1, CA-2
+  Preuve : écran témoin `docs/receipts/ui/m0-home.png` (393 px, fond noir, un appel lime, la promesse) ; `apps/web/app/manifest.ts`, `apps/web/lib/copy.ts`, `apps/web/components/` ; test « the installed app's splash uses the design system's background » (`e2e/ui/identity.spec.ts`) ; suite Playwright `apps/web/e2e/ui` (iPhone 15, API simulée, 98 tests passés au passage du 20 nov. 00:05 UTC, commit 4070143, `docs/receipts/ui/README.md`). À revoir hors case : M8 (`m8-live.png`) montre plus d'un élément lime.
+- [x] **U-02** · Qui : T, avec Agent · Dép. : U-01, F-06 · M0 à M8, CA-1, CA-2
   Onboarding commerçant M0 à M8 sur l'API simulée, calculs de M6 par `packages/pricing`.
   Fini quand : le parcours va de M0 à M8 en moins de 15 taps sur données simulées.
-- [ ] **U-03** · Qui : T, avec Agent · Dép. : U-01, F-06 · C1 à C3, CO-1, LT-1
+  Preuve : `e2e/ui/merchant-onboarding.spec.ts` « M0 to M8 … in fewer than 15 taps and 2 minutes » : 12 taps et 12,2 s (`docs/receipts/ui/measures.json`, mesuré le 20 nov. 00:02 UTC), captures `m0-home.png` à `m8-live.png` ; M6 par `@winz/pricing` (`apps/web/lib/wizard/draft.ts`).
+- [x] **U-03** · Qui : T, avec Agent · Dép. : U-01, F-06 · C1 à C3, CO-1, LT-1
   Page de campagne, paiement, ticket vivant (les cinq phases de 5.4) sur l'API simulée.
   Fini quand : chaque phase du ticket s'affiche à partir d'un scénario simulé, sans aucun mot crypto.
+  Preuve : `e2e/ui/fan.spec.ts` passe `expectNoCryptoWord` (liste `apps/web/lib/crypto-words.ts`) sur C1, C2 et chacune des cinq phases du ticket ; captures `c3-ticket-pre-game`, `-in-game`, `-refunded`, `-not-this-time`, `-cancelled.png` ; du scan au ticket en 5,7 s (`measures.json`).
 
 ---
 
@@ -260,16 +263,20 @@ Lots parallèles : (H-03 → H-04 → H-05, H-06), (R-01 → R-02), (A-05, A-06,
   Corrigé le 19 nov. : le second de deux taps simultanés sur une recharge (même `requestId`, refusé par Stripe tant que le premier est en cours, `idempotency_key_in_use`) recevait un `502` alors que le premier réussissait. Il attend désormais le premier (pauses de 1 s, 8 au plus, les bornes de la création de campagne) et répond ce qu'il a obtenu ; au-delà, `503` `This top-up is still being created; try again in a moment`, rien d'enregistré ni d'annulé, et le même `requestId` renvoyé plus tard répond la recharge enregistrée. Un échec de Stripe survenu alors qu'un autre appel de la demande a enregistré la recharge répond celle-ci ; toute autre panne reste un `502`. Prouvé par `apps/web/lib/server/budget-top-up-double-tap.test.ts` avec le vrai client Stripe sur une couche HTTP simulée qui garde les clés comme Stripe ; pas rejoué contre le vrai Stripe.
 
 ### Écrans
-- [ ] **U-05** · Qui : T · Dép. : A-05 · MDB-1, MDB-2, 5.2
+- [x] **U-05** · Qui : T · Dép. : A-05 · MDB-1, MDB-2, 5.2
   Espace commerçant : liste, détail en direct, bilan ◇, réglages.
-- [ ] **U-06** · Qui : T · Dép. : A-05 · MDB-3
+  Preuve : `e2e/ui/merchant-space.spec.ts` (10 tests, dont « a sale shows within 3 seconds on polling alone ») ; captures `md-home`, `md-list-*`, `md-detail-*` (en ligne, en pause, réglée OUI et NON avec bilan, annulée, périmée), `md-settings.png` dans `docs/receipts/ui/`.
+- [x] **U-06** · Qui : T · Dép. : A-05 · MDB-3
   Hedge desk public : exposition, position, ordres, exécutions, économie maker, coupe-circuit, lieu d'exécution en clair, paramètres de risque.
-- [ ] **U-07** · Qui : T · Dép. : A-07 · MDB-4
+  Preuve : `e2e/ui/hedge-desk.spec.ts` (3 tests), captures `hd-desk.png` et `hd-desk-tripped.png` ; en production, `https://winz-nu.vercel.app/hedge-desk` répond 200 et `/api/hedge-desk` sert « PAPER · live Gemini book » avec exposition, ordres et exécutions réels (relevé du 20 nov.).
+- [x] **U-07** · Qui : T · Dép. : A-07 · MDB-4
   Panneau admin du mode démo et bandeau « DEMO MODE ».
+  Preuve : `e2e/ui/demo-admin.spec.ts` (10 tests : clé refusée puis acceptée, les quatre actions, refus 400, 404 et 409, bandeau sur C1, C3, le détail commerçant, le Hedge desk et le panneau) ; captures `admin-*.png` et `c4-tickets-demo.png`.
 - [ ] **U-08** · Qui : T, avec Agent · Dép. : A-02 · CA-3, CO-1
   Lien court, QR plein écran, partage natif ; affiche PNG ◇ ; aperçu Open Graph ◇.
-- [ ] **U-09** · Qui : T · Dép. : A-04 · LT-2, C4
+- [x] **U-09** · Qui : T · Dép. : A-04 · LT-2, C4
   « My tickets » ◇.
+  Preuve : `e2e/ui/tickets.spec.ts` (7 tests) ; captures `c4-sign-in`, `c4-tickets`, `c4-tickets-empty`, `c4-tickets-error`, `c4-tickets-demo.png` ; commits 4621d22 et 75b46bb.
 - [ ] **U-10** ◇ · Qui : T · Dép. : U-03 · LT-3, LT-4 (Should)
   Notifications push et e-mails de confirmation et de résultat.
 
