@@ -174,7 +174,7 @@ describe("the same requestId again", () => {
     expect(payments.createCalls).toBe(1);
     expect(payments.budgetIntents()).toHaveLength(1);
     expect(payments.cancelCalls).toEqual([]);
-    const rows = await campaignsOf(joe, body.requestId ?? "");
+    const rows = await campaignsOf(joe, body.requestId);
     expect(rows).toEqual([
       { id: first.campaignId, budget_pi: first.budgetPayment.paymentIntentId, status: "funding" },
     ]);
@@ -222,7 +222,7 @@ describe("the same requestId again", () => {
       expect(payments.createCalls).toBe(1);
       expect(payments.budgetIntents()).toHaveLength(1);
       expect(payments.cancelCalls).toEqual([]);
-      expect(await campaignsOf(joe, body.requestId ?? "")).toHaveLength(1);
+      expect(await campaignsOf(joe, body.requestId)).toHaveLength(1);
     },
   );
 
@@ -244,7 +244,7 @@ describe("the same requestId again", () => {
     });
     expect(payments.createCalls).toBe(1);
     expect(payments.cancelCalls).toEqual([]);
-    expect(await campaignsOf(joe, body.requestId ?? "")).toEqual([
+    expect(await campaignsOf(joe, body.requestId)).toEqual([
       { id: first.campaignId, budget_pi: first.budgetPayment.paymentIntentId, status: "funding" },
     ]);
   });
@@ -264,7 +264,7 @@ describe("the same requestId again", () => {
       createCampaign(db, payments, joe, { ...body, instrumentSymbol: other }, now),
     );
     expect(error.status).toBe(409);
-    expect(await campaignsOf(joe, body.requestId ?? "")).toHaveLength(1);
+    expect(await campaignsOf(joe, body.requestId)).toHaveLength(1);
   });
 
   it("lets another merchant use the same uuid: the uniqueness is per merchant", async () => {
@@ -273,8 +273,8 @@ describe("the same requestId again", () => {
     const anns = await createCampaign(db, payments, ann, body, now);
     expect(anns.campaignId).not.toBe(joes.campaignId);
     expect(anns.budgetPayment.paymentIntentId).not.toBe(joes.budgetPayment.paymentIntentId);
-    expect(await campaignsOf(joe, body.requestId ?? "")).toHaveLength(1);
-    expect(await campaignsOf(ann, body.requestId ?? "")).toHaveLength(1);
+    expect(await campaignsOf(joe, body.requestId)).toHaveLength(1);
+    expect(await campaignsOf(ann, body.requestId)).toHaveLength(1);
     // Each one's repeat still answers its own.
     expect(await createCampaign(db, payments, ann, body, now)).toEqual(anns);
     expect(await createCampaign(db, payments, joe, body, now)).toEqual(joes);
@@ -295,7 +295,7 @@ describe("a double tap", () => {
     gate.release();
     const [first, second] = await taps;
     expect(second).toEqual(first);
-    expect(await campaignsOf(joe, body.requestId ?? "")).toEqual([
+    expect(await campaignsOf(joe, body.requestId)).toEqual([
       { id: first.campaignId, budget_pi: first.budgetPayment.paymentIntentId, status: "funding" },
     ]);
     expect(payments.budgetIntents()).toHaveLength(1);
@@ -311,7 +311,7 @@ describe("a double tap", () => {
       Array.from({ length: 5 }, () => createCampaign(db, payments, joe, body, now)),
     );
     for (const answer of answers) expect(answer).toEqual(answers[0]);
-    expect(await campaignsOf(joe, body.requestId ?? "")).toHaveLength(1);
+    expect(await campaignsOf(joe, body.requestId)).toHaveLength(1);
     expect(payments.budgetIntents()).toHaveLength(1);
     expect(payments.cancelCalls).toEqual([]);
   });
@@ -348,18 +348,30 @@ async function idleTransactions(): Promise<number> {
 }
 
 describe("no call to the payment provider while a transaction or a lock is held", () => {
-  it("the legacy path without a requestId does hold one while the provider answers (control)", async () => {
-    const gate = new HeldAnswers();
-    payments.gate = gate;
-    const { requestId: _requestId, ...body } = request();
-    const pending = createCampaign(db, payments, joe, body, now);
+  it("a transaction left open while waiting is seen by the measure (control)", async () => {
+    // The creation without a requestId used to be this control (it held its transaction open
+    // across the provider's answer); the field is now required, so the control holds one itself.
+    let release: () => void = () => undefined;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let opened: () => void = () => undefined;
+    const isOpen = new Promise<void>((resolve) => {
+      opened = resolve;
+    });
+    const pending = db.begin(async (tx) => {
+      await tx`select id from campaigns limit 1`;
+      opened();
+      await released;
+    });
     try {
-      await gate.waiting(1);
-      expect(await idleTransactions()).toBe(1);
+      await isOpen;
+      await expect.poll(() => idleTransactions()).toBe(1);
     } finally {
-      gate.release();
+      release();
     }
     await pending;
+    expect(await idleTransactions()).toBe(0);
   });
 
   it("creating the payment: no transaction open, the claimed row lockable at once", async () => {
@@ -374,7 +386,7 @@ describe("no call to the payment provider while a transaction or a lock is held"
       const locked = await db.begin(
         (tx) => tx`
           select id from campaigns
-          where merchant_id = ${joe} and request_id = ${body.requestId ?? ""}
+          where merchant_id = ${joe} and request_id = ${body.requestId}
           for update nowait
         `,
       );
@@ -420,7 +432,7 @@ describe("no call to the payment provider while a transaction or a lock is held"
       await gate.waiting(1);
       expect(await idleTransactions()).toBe(0);
       // The claim was discarded before the cancel was sent.
-      expect(await campaignsOf(joe, body.requestId ?? "")).toEqual([]);
+      expect(await campaignsOf(joe, body.requestId)).toEqual([]);
     } finally {
       gate.release();
       await stopFailing();
@@ -446,7 +458,7 @@ describe("a payment created and then not recorded", () => {
     expect(withdrawn?.status).toBe("canceled");
     expect(payments.cancelCalls.map((call) => call.id)).toEqual([withdrawn?.id]);
     // Its campaign is gone with it: nothing was answered, nothing remains.
-    expect(await campaignsOf(joe, body.requestId ?? "")).toEqual([]);
+    expect(await campaignsOf(joe, body.requestId)).toEqual([]);
 
     const retried = await createCampaign(db, payments, joe, body, now);
     expect(retried.status).toBe("funding");
@@ -454,7 +466,7 @@ describe("a payment created and then not recorded", () => {
     expect(payments.intents.get(retried.budgetPayment.paymentIntentId)?.status).toBe(
       "requires_payment_method",
     );
-    expect(await campaignsOf(joe, body.requestId ?? "")).toEqual([
+    expect(await campaignsOf(joe, body.requestId)).toEqual([
       {
         id: retried.campaignId,
         budget_pi: retried.budgetPayment.paymentIntentId,
@@ -481,11 +493,11 @@ describe("a payment created and then not recorded", () => {
     const [orphan] = payments.budgetIntents();
     expect(payments.cancelCalls.map((call) => call.id)).toEqual([orphan?.id]);
     expect(orphan?.status).toBe("requires_payment_method");
-    expect(await campaignsOf(joe, body.requestId ?? "")).toEqual([]);
+    expect(await campaignsOf(joe, body.requestId)).toEqual([]);
 
     const retried = await createCampaign(db, payments, joe, body, now);
     expect(retried.budgetPayment.paymentIntentId).not.toBe(orphan?.id);
-    expect(await campaignsOf(joe, body.requestId ?? "")).toEqual([
+    expect(await campaignsOf(joe, body.requestId)).toEqual([
       {
         id: retried.campaignId,
         budget_pi: retried.budgetPayment.paymentIntentId,
@@ -502,7 +514,7 @@ describe("a payment created and then not recorded", () => {
     const [created] = payments.budgetIntents();
     expect(created).toBeDefined();
     // The request's campaign is kept, out of the merchant's list until its payment is recorded.
-    const [claim] = await campaignsOf(joe, body.requestId ?? "");
+    const [claim] = await campaignsOf(joe, body.requestId);
     expect(claim).toMatchObject({ budget_pi: null, status: "funding" });
     const listed = await listCampaigns(db, joe, now);
     expect(listed.campaigns.map((campaign) => campaign.id)).not.toContain(claim?.id);
@@ -527,7 +539,7 @@ describe("a payment created and then not recorded", () => {
     await refusal(createCampaign(db, payments, joe, body, now));
     const [stale] = payments.budgetIntents();
     await payments.cancelUnpaidPaymentIntent(stale?.id ?? "");
-    const [leftover] = await campaignsOf(joe, body.requestId ?? "");
+    const [leftover] = await campaignsOf(joe, body.requestId);
 
     const retried = await createCampaign(db, payments, joe, body, now);
     expect(retried.campaignId).not.toBe(leftover?.id);
@@ -535,7 +547,7 @@ describe("a payment created and then not recorded", () => {
     expect(payments.intents.get(retried.budgetPayment.paymentIntentId)?.status).toBe(
       "requires_payment_method",
     );
-    expect(await campaignsOf(joe, body.requestId ?? "")).toEqual([
+    expect(await campaignsOf(joe, body.requestId)).toEqual([
       {
         id: retried.campaignId,
         budget_pi: retried.budgetPayment.paymentIntentId,
@@ -551,24 +563,9 @@ describe("a payment created and then not recorded", () => {
     const retried = await createCampaign(db, payments, joe, body, now);
     expect(retried.campaignId).not.toBe(first.campaignId);
     expect(retried.budgetPayment.paymentIntentId).not.toBe(first.budgetPayment.paymentIntentId);
-    expect(await campaignsOf(joe, body.requestId ?? "")).toHaveLength(1);
+    expect(await campaignsOf(joe, body.requestId)).toHaveLength(1);
     // A cancelled payment is never answered: its client secret could not be paid.
     expect(await createCampaign(db, payments, joe, body, now)).toEqual(retried);
-  });
-});
-
-describe("without a requestId", () => {
-  it("behaves as before: every call creates a campaign and a payment", async () => {
-    const { requestId: _requestId, ...body } = request();
-    const first = await createCampaign(db, payments, joe, body, now);
-    const second = await createCampaign(db, payments, joe, body, now);
-    expect(second.campaignId).not.toBe(first.campaignId);
-    expect(payments.budgetIntents()).toHaveLength(2);
-    const rows = await db<{ request_id: string | null; budget_pi: string | null }[]>`
-      select request_id, budget_pi from campaigns where id in ${db([first.campaignId, second.campaignId])}
-    `;
-    expect(rows.map((row) => row.request_id)).toEqual([null, null]);
-    expect(rows.every((row) => row.budget_pi !== null)).toBe(true);
   });
 });
 
@@ -611,6 +608,19 @@ describe("POST /api/campaigns through its handler", () => {
     expect(apiErrorSchema.parse(await other.json()).error.message).toBe(
       CREATE_CAMPAIGN_CONFLICTS.usedElsewhere,
     );
+  });
+
+  it("refuses a body without a requestId (400 invalid_request) and creates nothing", async () => {
+    setServerDepsForTesting(serverDepsFor(db, identity, now, payments));
+    const { requestId: _requestId, ...body } = request({ product: "No request id" });
+    const response = await postCampaigns(post(body), noParams);
+    expect(response.status).toBe(400);
+    const { error } = apiErrorSchema.parse(await response.json());
+    expect(error.code).toBe("invalid_request");
+    expect(error.message).toMatch(/^Invalid body\.requestId: /);
+    expect(payments.createCalls).toBe(0);
+    const rows = await db`select id from campaigns where product = 'No request id'`;
+    expect(rows).toHaveLength(0);
   });
 
   it("refuses a requestId that is not a uuid (400) and creates nothing", async () => {

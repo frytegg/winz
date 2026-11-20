@@ -156,10 +156,8 @@ function campaignValues(
  * creates its budget payment, whose id is stored in `campaigns.budget_pi`. The creation job is
  * enqueued later, by the webhook, once the budget is paid.
  *
- * With a `requestId` the request is idempotent (`createCampaignOnce`). Without one it behaves as it
- * always did, logged as a warning: the insert and the payment happen in one transaction, so that
- * when the payment provider fails no campaign row remains, but a double tap creates two campaigns
- * and two payments.
+ * Always idempotent on the merchant's `requestId` (`createCampaignOnce`): the request schema makes
+ * it required, so a body without one never reaches this function (400 `invalid_request`).
  */
 export async function createCampaign(
   db: Db,
@@ -170,52 +168,8 @@ export async function createCampaign(
   options: CreateCampaignOptions = {},
 ): Promise<CreateCampaignResponse> {
   const terms = parseCampaignTerms(body);
-  if (body.requestId !== undefined) {
-    const pause = options.pause ?? sleep;
-    return createCampaignOnce(db, payments, merchantId, body.requestId, terms, now, pause);
-  }
-  serverLogger("campaign-writes").warn(
-    { merchantId, instrumentSymbol: terms.instrumentSymbol },
-    "campaign created without a requestId: a repeated request would create a second campaign",
-  );
-  const instrument = await openInstrument(db, terms.instrumentSymbol, now);
-  const { threshold, promise } = campaignValues(terms, instrument);
-
-  return db.begin(async (tx) => {
-    const [row] = await tx<{ id: string }[]>`
-      insert into campaigns (
-        merchant_id, instrument, event_ticker, product, condition_label, promise, unit_price,
-        refund_bps, usual_margin_bps, min_margin_bps, pause_threshold_bps, budget, sales_close,
-        status, sale_state
-      ) values (
-        ${merchantId}, ${instrument.symbol}, ${instrument.event_ticker}, ${terms.product},
-        ${instrument.label}, ${promise}, ${terms.unitPrice}, ${Number(terms.refundBps)},
-        ${Number(terms.usualMarginBps)}, ${Number(terms.minMarginBps)}, ${Number(threshold)},
-        ${terms.budget}, ${instrument.sales_close_at}, 'funding', 'closed'
-      )
-      returning id
-    `;
-    if (!row) throw new Error("campaigns insert returned no row");
-
-    let payment: CreatedPaymentIntent;
-    try {
-      payment = await payments.createBudgetPayment({ campaignId: row.id, amount: terms.budget });
-    } catch (error: unknown) {
-      // Rolls the campaign back: no draft without its payment.
-      if (error instanceof PaymentGatewayError) throw paymentUnavailable();
-      throw error;
-    }
-    await tx`update campaigns set budget_pi = ${payment.id} where id = ${row.id}`;
-    return {
-      campaignId: row.id,
-      status: "funding" as const,
-      budgetPayment: {
-        paymentIntentId: payment.id,
-        clientSecret: payment.clientSecret,
-        amount: digits(terms.budget),
-      },
-    };
-  });
+  const pause = options.pause ?? sleep;
+  return createCampaignOnce(db, payments, merchantId, body.requestId, terms, now, pause);
 }
 
 // ---------------------------------------------------------------------------------------------

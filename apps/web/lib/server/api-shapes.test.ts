@@ -1,6 +1,7 @@
 import {
   API_ROUTES,
   MOCK_SCENARIO_HEADER,
+  apiErrorSchema,
   campaignDetailSchema,
   campaignsResponseSchema,
   eventsResponseSchema,
@@ -431,7 +432,7 @@ describe("the mock API (APP_API_MOCK) serves the additions", () => {
   });
 
   it.each(Object.entries(API_ROUTES.createCampaign.examples))(
-    "createCampaign, scenario %s, with and without a requestId",
+    "createCampaign, scenario %s: answered with a requestId, refused 400 without one",
     async (scenario, example) => {
       const terms = {
         instrumentSymbol: "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX13",
@@ -442,8 +443,8 @@ describe("the mock API (APP_API_MOCK) serves the additions", () => {
         minMarginBps: 4500,
         budget: "1000000000",
       };
-      for (const sent of [terms, { ...terms, requestId: "6f1d1c3e-9b7a-4c55-8f3e-2a1b0c9d8e7f" }]) {
-        const response = await postCampaigns(
+      const send = (sent: object): Promise<Response> =>
+        postCampaigns(
           new Request("http://localhost/api/campaigns", {
             method: "POST",
             headers: { "content-type": "application/json", [MOCK_SCENARIO_HEADER]: scenario },
@@ -451,8 +452,16 @@ describe("the mock API (APP_API_MOCK) serves the additions", () => {
           }),
           params(),
         );
-        expect(await body(response)).toEqual(example);
-      }
+
+      const answered = await send({ ...terms, requestId: "6f1d1c3e-9b7a-4c55-8f3e-2a1b0c9d8e7f" });
+      expect(answered.status).toBe(200);
+      expect(await body(answered)).toEqual(example);
+
+      const refused = await send(terms);
+      expect(refused.status).toBe(400);
+      const { error } = apiErrorSchema.parse(await refused.json());
+      expect(error.code).toBe("invalid_request");
+      expect(error.message).toMatch(/^Invalid body\.requestId: /);
     },
   );
 });

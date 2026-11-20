@@ -102,13 +102,16 @@ réponse dans `packages/shared/src/api/schemas.ts`.
 
 ### Ajouté avant le gel des formes (F-05)
 
-Tout est additif : rien n'a été renommé ni retiré, et chaque scénario simulé porte déjà ces champs.
+Rien n'a été renommé ni retiré, et chaque scénario simulé porte déjà ces champs. Un seul ajout
+n'est pas facultatif : `requestId`, obligatoire depuis le 20 novembre.
 
 - `POST /api/campaigns` prend `requestId` (un `uuid` tiré une fois par appui sur « Fund » et
   renvoyé tel quel à chaque nouvelle tentative). Le même `requestId` rend la même campagne et le
-  même paiement, sans rien créer ; avec d'autres réglages, `409`. Optionnel jusqu'au gel, puis
-  obligatoire : sans lui, un double appui crée deux campagnes et deux paiements. Détail plus bas,
-  « Créer une campagne (M7) ».
+  même paiement, sans rien créer ; avec d'autres réglages, `409`. **Obligatoire** : un corps sans
+  lui répond `400 invalid_request`, `Invalid body.requestId: …`, et ne crée rien, y compris sur
+  l'API simulée (sans lui, un double appui créerait deux campagnes et deux paiements). Le front
+  l'envoie déjà (`components/wizard/step-review.tsx`, `/kit/pay`). Détail plus bas, « Créer une
+  campagne (M7) ».
 - `event: { sport, league, home, away }` (le match, équipes comme dans `GET /api/events`) sur
   `GET /api/campaigns`, `GET /api/campaigns/:id`, `GET /api/c/:slug`, `GET /api/t/:token` et
   `GET /api/tickets`. `eventTitle` reste.
@@ -281,11 +284,11 @@ est la campagne :
 | encore en création par un autre appel du même `requestId` | `503 internal`, `This promo is still being created; try again in a moment` : rien n'est annulé, renvoyer le **même** `requestId` un peu plus tard (comme après toute réponse `5xx` ou coupure réseau de cette route) |
 | mêmes `requestId`, autres réglages            | `409 conflict`, `This request was already used for another promo; make a new request to create one` |
 
-Un `requestId` qui n'est pas un `uuid` répond `400`. Si Stripe est en panne (`502`), le même
-`requestId` réessayé plus tard retrouve le paiement éventuellement créé, sans en créer un second.
-Sans `requestId`, la route crée comme avant une campagne et un paiement à chaque appel (et le dit
-dans les logs). Une campagne `funding` dont le budget n'est jamais payé n'est jamais expirée par le
-back : elle reste dans `GET /api/campaigns`, avec `liveAt: null`.
+Un corps sans `requestId`, ou dont le `requestId` n'est pas un `uuid`, répond `400
+invalid_request` (`Invalid body.requestId: …`) et ne crée rien. Si Stripe est en panne (`502`), le
+même `requestId` réessayé plus tard retrouve le paiement éventuellement créé, sans en créer un
+second. Une campagne `funding` dont le budget n'est jamais payé n'est jamais expirée par le back :
+elle reste dans `GET /api/campaigns`, avec `liveAt: null`.
 
 ### Pause, reprise, clôture
 

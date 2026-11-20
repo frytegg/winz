@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import {
   JOB_KINDS,
   apiErrorSchema,
@@ -55,6 +57,11 @@ const TERMS = {
   budget: "1000000000",
 };
 
+/** The body of one "Fund" tap: the terms under a fresh `requestId`, as the front sends them. */
+function fundTap(): typeof TERMS & { requestId: string } {
+  return { ...TERMS, requestId: randomUUID() };
+}
+
 let database: TestDatabase;
 let db: Db;
 let joeMerchant: string;
@@ -92,6 +99,14 @@ async function snapshot(): Promise<unknown> {
     db`select id, status, sale_state, budget_pi from campaigns order by id`,
   ]);
   return { jobs, paymentsRows, campaigns };
+}
+
+async function campaignsOfRequest(
+  requestId: string,
+): Promise<{ id: string; status: string; budget_pi: string | null }[]> {
+  return db<{ id: string; status: string; budget_pi: string | null }[]>`
+    select id, status, budget_pi from campaigns where request_id = ${requestId}
+  `;
 }
 
 async function jobsWithKey(key: string): Promise<number> {
@@ -137,7 +152,7 @@ afterAll(async () => {
 
 describe("campaign creation and its budget webhook", () => {
   it("creates the campaign, then enqueues its creation once when the budget is paid", async () => {
-    const response = await postCampaigns(post("/api/campaigns", TERMS, JOE), params());
+    const response = await postCampaigns(post("/api/campaigns", fundTap(), JOE), params());
     expect(response.status).toBe(200);
     const created = createCampaignResponseSchema.parse(await json(response));
     expect(created.status).toBe("funding");
@@ -165,9 +180,9 @@ describe("campaign creation and its budget webhook", () => {
   });
 
   it("ignores a budget payment that is not the campaign's own", async () => {
-    const response = await postCampaigns(post("/api/campaigns", TERMS, JOE), params());
+    const response = await postCampaigns(post("/api/campaigns", fundTap(), JOE), params());
     const created = createCampaignResponseSchema.parse(await json(response));
-    const other = await postCampaigns(post("/api/campaigns", TERMS, JOE), params());
+    const other = await postCampaigns(post("/api/campaigns", fundTap(), JOE), params());
     const otherCreated = createCampaignResponseSchema.parse(await json(other));
 
     // A paid intent of the second campaign, claiming to fund the first.
@@ -194,7 +209,7 @@ describe("campaign creation and its budget webhook", () => {
   });
 
   it("ignores a budget payment whose amount differs from the campaign budget", async () => {
-    const response = await postCampaigns(post("/api/campaigns", TERMS, JOE), params());
+    const response = await postCampaigns(post("/api/campaigns", fundTap(), JOE), params());
     const created = createCampaignResponseSchema.parse(await json(response));
     const pi = created.budgetPayment.paymentIntentId;
     payments.pay(pi, "succeeded", "joe@example.com");
@@ -225,7 +240,7 @@ describe("campaign creation and its budget webhook", () => {
     const before = await snapshot();
     const callsBefore = payments.createCalls;
     const response = await postCampaigns(
-      post("/api/campaigns", { ...TERMS, unitPrice: "20000001" }, JOE),
+      post("/api/campaigns", { ...fundTap(), unitPrice: "20000001" }, JOE),
       params(),
     );
     expect(response.status).toBe(400);
@@ -237,20 +252,36 @@ describe("campaign creation and its budget webhook", () => {
     expect(payments.createCalls).toBe(callsBefore);
   });
 
-  it("leaves no campaign when the gateway fails", async () => {
-    const before = await snapshot();
+  it("leaves no paid campaign and no job when the gateway fails, and its retry makes one", async () => {
+    const body = fundTap();
+    const before = await campaignsOfRequest(body.requestId);
     payments.failure = new Error("network down");
     try {
-      const response = await postCampaigns(post("/api/campaigns", TERMS, JOE), params());
+      const response = await postCampaigns(post("/api/campaigns", body, JOE), params());
       expect(response.status).toBe(500);
     } finally {
       payments.failure = null;
     }
-    expect(await snapshot()).toEqual(before);
+    expect(before).toEqual([]);
+    // Only the request's claim remains, without a payment, for its retry to find.
+    const claimed = await campaignsOfRequest(body.requestId);
+    expect(claimed).toEqual([{ id: claimed[0]?.id, status: "funding", budget_pi: null }]);
+    expect(await jobsWithKey(jobIdempotencyKey.createCampaign(claimed[0]?.id ?? ""))).toBe(0);
+
+    const retried = await postCampaigns(post("/api/campaigns", body, JOE), params());
+    expect(retried.status).toBe(200);
+    const created = createCampaignResponseSchema.parse(await json(retried));
+    expect(await campaignsOfRequest(body.requestId)).toEqual([
+      {
+        id: created.campaignId,
+        status: "funding",
+        budget_pi: created.budgetPayment.paymentIntentId,
+      },
+    ]);
   });
 
   it("needs a merchant", async () => {
-    const response = await postCampaigns(post("/api/campaigns", TERMS), params());
+    const response = await postCampaigns(post("/api/campaigns", fundTap()), params());
     expect(response.status).toBe(401);
   });
 });
