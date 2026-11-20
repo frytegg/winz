@@ -46,3 +46,37 @@ test("M8 offers the poster download (SPEC M8)", async ({ page }) => {
     timeout: 5_000,
   });
 });
+
+test("M8: « Share » and « Download QR » keep their whole label, clear of their round icon", async ({
+  page,
+}) => {
+  await signInAsMerchant(page);
+  await page.goto("/new/cmp_joes_texas/live");
+  await expect(page.getByRole("heading", { name: copy.live.title }), "M8 opens").toBeVisible();
+  for (const name of [copy.live.share, copy.live.downloadQr, copy.live.downloadPoster]) {
+    const button = page.getByRole("button", { name, exact: true });
+    await expect(button, `M8 shows « ${name} »`).toBeVisible();
+    const fit = await button.evaluate((element) => {
+      const label = element.firstElementChild;
+      const text = label?.lastElementChild;
+      const icon = element.lastElementChild;
+      if (
+        !(label instanceof HTMLElement) ||
+        !(text instanceof HTMLElement) ||
+        icon === null ||
+        icon === label
+      ) {
+        return null;
+      }
+      return {
+        text: text.textContent,
+        cut: text.scrollWidth > text.clientWidth,
+        gap: Math.round(icon.getBoundingClientRect().left - label.getBoundingClientRect().right),
+      };
+    });
+    expect(fit, `« ${name} » has a label and an icon`).not.toBeNull();
+    expect(fit?.text).toBe(name);
+    expect(fit?.cut, `« ${name} » is not cut`).toBe(false);
+    expect(fit?.gap ?? 0, `« ${name} » has room before its icon`).toBeGreaterThanOrEqual(8);
+  }
+});
