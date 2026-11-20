@@ -8,9 +8,12 @@ import {
   type SimServerOptions,
 } from "./sim-server";
 
-/** Made-up credentials of the simulated server. Never a real key. */
-export const SIM_KEY = "account-SimulatedKey0001";
-export const SIM_SECRET = "sim-secret-3f9c1e7a5b2d4c6e8f0a1b2c3d4e5f60";
+/**
+ * Made-up credentials of the simulated server, never a real key, kept low-entropy on purpose so a
+ * secret scanner does not take them for one.
+ */
+export const SIM_KEY = "account-sim-not-a-real-key";
+export const SIM_SECRET = "sim-secret-not-a-real-key";
 
 /** A crypto contract like the sandbox's (20 Nov 2026): bid 0.38, ask 0.57, two-sided. */
 export function cryptoContract(overrides: Partial<SimContract> = {}): SimContract {
