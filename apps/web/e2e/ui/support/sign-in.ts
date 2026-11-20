@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { apiExamples } from "@winz/shared";
 
 import { copy } from "../../../lib/copy";
 
@@ -11,7 +12,9 @@ import { expect } from "./fixtures";
  */
 export async function signInAsMerchant(page: Page): Promise<void> {
   await page.goto("/start");
-  await page.getByLabel(copy.signIn.emailLabel).fill("joe@example.com");
+  await page
+    .getByLabel(copy.signIn.emailLabel)
+    .fill(apiExamples.meExamples.merchant.user.email ?? "");
   await page.getByRole("button", { name: copy.common.continue }).tap();
   await page.getByLabel(copy.signIn.codeDigit(1)).fill("123456");
   await expect(page, "a merchant's sign-in ends on the merchant space").toHaveURL(/\/home$/);

@@ -21,8 +21,8 @@ import {
 
 const TERMS = {
   instrumentSymbol: "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX13",
-  product: "Large pizza",
-  unitPrice: "20000000",
+  product: "Smash burger",
+  unitPrice: "12000000",
   refundBps: 10_000,
   usualMarginBps: 6500,
   minMarginBps: 4500,

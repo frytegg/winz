@@ -44,7 +44,7 @@ export const RECEIPTS = {
   "c3-ticket-pre-game": "C3, le ticket avant le match (« … chance it's free », compte à rebours).",
   "c3-ticket-in-game": "C3, le ticket pendant le match (« Game on »).",
   "c3-ticket-refunded":
-    "C3, le ticket remboursé : écran lime, « Refunded » et le montant (20,00 $).",
+    "C3, le ticket remboursé : écran lime, « Refunded » et le montant (12,00 $).",
   "c3-ticket-not-this-time": "C3, le ticket perdu : « Not this time… », « Find another promo ».",
   "c3-ticket-cancelled": "C3, le match annulé : « Game cancelled · your purchase stands ».",
   "c3-ticket-not-found": "C3, un lien de ticket inconnu (404 renvoyé par le test lui-même).",

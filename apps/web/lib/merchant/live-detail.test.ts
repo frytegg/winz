@@ -14,25 +14,27 @@ import {
   shownChance,
 } from "./live-detail";
 
-/** The live example of the API: 12 sales, $240 of exposure, 66.67% covered, selling. */
+/** The live example of the API: 12 sales, $144 of exposure, 66.67% covered, selling. */
 const API: CampaignDetail = apiExamples.campaignDetailExamples.live;
 const API_AT = 1_000;
+/** The public slug of the example, which a pushed row must carry to be about this promo. */
+const SLUG = API.slug ?? "";
 /** Before the sales close of the example (2026-11-21T20:25Z). */
 const NOW = Date.parse("2026-11-21T19:00:00.000Z");
 
 function push(patch: Record<string, unknown>, receivedAt: number): PushedCampaign {
   const row = campaignRowFrom(
     {
-      slug: "joes-texas",
+      slug: SLUG,
       sale_state: "open",
       sales: 12,
-      exposure: 240000000,
+      exposure: 144000000,
       hedged_bps: 6667,
       outcome: null,
       updated_at: "2026-11-21T19:00:00+00:00",
       ...patch,
     },
-    typeof patch.slug === "string" ? patch.slug : "joes-texas",
+    typeof patch.slug === "string" ? patch.slug : SLUG,
   );
   if (row === null) throw new Error("fixture row refused");
   return { row, receivedAt };
@@ -41,14 +43,14 @@ function push(patch: Record<string, unknown>, receivedAt: number): PushedCampaig
 describe("mergeLiveCampaign", () => {
   it("takes sales, exposure, coverage and sale state from a newer pushed row", () => {
     const pushed = push(
-      { sales: 13, exposure: 260000000, hedged_bps: 6154, sale_state: "paused_price" },
+      { sales: 13, exposure: 156000000, hedged_bps: 6154, sale_state: "paused_price" },
       500,
     );
     const merged = mergeLiveCampaign(API, API_AT, pushed, NOW);
     expect(merged).toEqual({
       ...API,
       sales: 13,
-      exposure: "260000000",
+      exposure: "156000000",
       hedgedBps: 6154,
       saleState: "paused_price",
     });
@@ -62,7 +64,7 @@ describe("mergeLiveCampaign", () => {
 
   it("never shows a pushed row older than the API answer", () => {
     // Fewer sales than the API counted: the row was written before the API read.
-    const behind = push({ sales: 11, exposure: 220000000, hedged_bps: 9000 }, 5_000);
+    const behind = push({ sales: 11, exposure: 132000000, hedged_bps: 9000 }, 5_000);
     expect(pushIsNewer(API, API_AT, behind)).toBe(false);
     expect(mergeLiveCampaign(API, API_AT, behind, NOW)).toBe(API);
     expect(needsReread(API, API_AT, behind)).toBe(false);
@@ -85,7 +87,10 @@ describe("mergeLiveCampaign", () => {
   });
 
   it("drops the row of another campaign", () => {
-    const other = push({ slug: "joes-pitt", sales: 40, exposure: 800000000 }, 5_000);
+    const other = push(
+      { slug: "buzzballs-shop-pittsburgh-wins", sales: 40, exposure: 480000000 },
+      5_000,
+    );
     expect(pushIsNewer(API, API_AT, other)).toBe(false);
     expect(mergeLiveCampaign(API, API_AT, other, NOW)).toBe(API);
     expect(
@@ -95,7 +100,7 @@ describe("mergeLiveCampaign", () => {
 
   it("is the API answer alone when nothing was pushed (socket down, malformed rows dropped)", () => {
     expect(mergeLiveCampaign(API, API_AT, null, NOW)).toBe(API);
-    expect(campaignRowFrom({ slug: "joes-texas", sales: "13" }, "joes-texas")).toBeNull();
+    expect(campaignRowFrom({ slug: SLUG, sales: "13" }, SLUG)).toBeNull();
   });
 
   it("reads a result in the row as newer, and asks the API for the status and the report", () => {
@@ -107,7 +112,7 @@ describe("mergeLiveCampaign", () => {
   });
 
   it("reads the sale state as closed once sales close, as the API does", () => {
-    const pushed = push({ sales: 13, exposure: 260000000 }, 5_000);
+    const pushed = push({ sales: 13, exposure: 156000000 }, 5_000);
     const after = Date.parse(API.salesCloseAt);
     expect(mergeLiveCampaign(API, API_AT, pushed, after).saleState).toBe("closed");
   });

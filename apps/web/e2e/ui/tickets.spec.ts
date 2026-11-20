@@ -71,15 +71,15 @@ test.describe("C4, « My tickets »", () => {
     await expect(live.getByText(copy.ticket.phases.pre_game, { exact: true })).toBeVisible();
     await expect(live.getByText(copy.ticket.phases.in_game, { exact: true })).toBeVisible();
     await expect(live.getByText("14% chance it's free")).toBeVisible();
-    await expect(live.getByText("Large pizza × 2")).toBeVisible();
-    await expect(live.getByText("$40.00 paid")).toBeVisible();
+    await expect(live.getByText("Smash burger × 2")).toBeVisible();
+    await expect(live.getByText("$24.00 paid")).toBeVisible();
     await expect(won.getByText(copy.ticket.phases.refunded, { exact: true })).toBeVisible();
-    await expect(won.getByText("Refunded $10.00")).toBeVisible();
+    await expect(won.getByText("Refunded $6.00")).toBeVisible();
     await expect(lost.getByText(copy.ticket.phases.not_this_time, { exact: true })).toBeVisible();
     await expect(lost.getByText(copy.ticket.phases.cancelled, { exact: true })).toBeVisible();
 
     // `refundedTotal` as the API sends it, to the cent.
-    await expect(page.getByText("$10.00", { exact: true })).toBeVisible();
+    await expect(page.getByText("$6.00", { exact: true })).toBeVisible();
     await expect(page.getByText(copy.tickets.refundedSoFar)).toBeVisible();
 
     expect(await horizontalOverflow(page), "no sideways scroll at 393 px").toBeNull();

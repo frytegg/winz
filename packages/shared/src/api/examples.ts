@@ -2,6 +2,7 @@ import type {
   CampaignActionResponse,
   CampaignEvent,
   CampaignDetail,
+  CampaignPreviewRequest,
   CampaignPreviewResponse,
   CampaignsResponse,
   CampaignSummary,
@@ -23,8 +24,11 @@ import type {
  * One example answer per route, with a few scenarios. They are the payloads the mock API serves
  * (`APP_API_MOCK=true`) and each one is checked against its schema in tests.
  *
- * The running example is the one of SPEC section 4.3: Joe's Pizza sells a $20 pizza, 100 % back
- * if Texas wins by 14 or more, with the condition quoted at 12 %.
+ * The running example tells the story of the promos filmed for the demo video: the merchant
+ * « Buzzball’s shop » (with the typographic apostrophe, as it is stored in production) sells a $12
+ * smash burger, 100 % back if Texas wins by 14 or more, with the condition quoted at 12 % (SPEC
+ * section 4.3 tells the same promo with a $20 pizza). Every amount below follows from that price:
+ * 12 sales are $144 of gross sales and, at 100 % back, $144 of exposure.
  */
 
 const SYMBOL = "GEMI-NCAAF-2611212030-ARK-TEX-S-TEX13";
@@ -44,6 +48,15 @@ const ARKANSAS = { name: "Arkansas Razorbacks", abbreviation: "ARK", logoUrl: nu
 const PITT = { name: "Pittsburgh Panthers", abbreviation: "PITT", logoUrl: null };
 const VILLANOVA = { name: "Villanova Wildcats", abbreviation: "VILL", logoUrl: null };
 
+/** The merchant and the product of the running example. */
+const MERCHANT_NAME = "Buzzball’s shop";
+const PRODUCT = "Smash burger";
+/** $12.00, in micro-USDC. */
+const UNIT_PRICE = "12000000";
+/** The public slugs, as the engine builds them: merchant name, then the condition (`slug.ts`). */
+const SLUG = "buzzballs-shop-texas-wins-by-14";
+const PITT_SLUG = "buzzballs-shop-pittsburgh-wins";
+
 /** The game of the running example, as campaigns and tickets carry it. */
 const GAME: CampaignEvent = { sport: "football", league: "NCAAF", home: TEXAS, away: ARKANSAS };
 const PITT_GAME: CampaignEvent = {
@@ -55,8 +68,8 @@ const PITT_GAME: CampaignEvent = {
 
 export const merchantExample: Merchant = {
   id: "mer_joes",
-  name: "Joe's Pizza",
-  category: "pizza",
+  name: MERCHANT_NAME,
+  category: "burger",
   logoUrl: null,
   defaultUsualMarginBps: 6500,
 };
@@ -65,12 +78,14 @@ export const meExamples = {
   merchant: {
     user: {
       id: "usr_joe",
-      email: "joe@example.com",
+      email: "buzzball@example.com",
       roles: ["merchant"],
       walletAddress: "0x1111111111111111111111111111111111111111",
     },
     merchant: merchantExample,
-    balance: { available: "0", pending: "240000000" },
+    // Available: the Pitt promo, settled, paid every sale (31 × $12). Pending: the Texas promo,
+    // still on sale (12 × $12), paid after its game.
+    balance: { available: "372000000", pending: "144000000" },
   },
   newUser: {
     user: { id: "usr_new", email: "new@example.com", roles: [], walletAddress: null },
@@ -107,7 +122,7 @@ export const eventsExample: EventsResponse = {
           team: "home",
           refundBps: 10_000,
           probabilityBps: 1200,
-          costBps: 1274,
+          costBps: 1380,
           available: true,
           unavailableReason: null,
         },
@@ -185,15 +200,33 @@ export const eventsExample: EventsResponse = {
   ],
 };
 
+/**
+ * The terms M6 sends for the running example: the $12 smash burger, 100 % back if Texas wins by 14+,
+ * a usual margin of 65 %, a minimum of 45 % and a $1,000 budget.
+ */
+export const campaignPreviewRequestExample: CampaignPreviewRequest = {
+  instrumentSymbol: SYMBOL,
+  unitPrice: UNIT_PRICE,
+  refundBps: 10_000,
+  usualMarginBps: 6500,
+  minMarginBps: 4500,
+  budget: "1000000000",
+};
+
+/**
+ * The answers to `campaignPreviewRequestExample`. The simulated API computes them with the pricing
+ * function of the real route on its simulated books (apps/web/lib/server/mock-answers.ts), and a
+ * test checks that these examples are what it computes.
+ */
 export const campaignPreviewExamples = {
   open: {
     maxCostBps: 2000,
     pauseThresholdBps: 1800,
     currentProbabilityBps: 1200,
-    costPerSale: "2548000",
-    marginKeptPerSale: "10452000",
-    marginKeptBps: 5226,
-    capacity: { sales: 312, limitedBy: "depth" },
+    costPerSale: "1656000",
+    marginKeptPerSale: "6144000",
+    marginKeptBps: 5120,
+    capacity: { sales: 458, limitedBy: "depth" },
     saleState: "open",
     bookAsOf: "2026-11-17T15:00:00.000Z",
   },
@@ -201,9 +234,9 @@ export const campaignPreviewExamples = {
     maxCostBps: 2000,
     pauseThresholdBps: 1800,
     currentProbabilityBps: 2300,
-    costPerSale: "4848000",
-    marginKeptPerSale: "8152000",
-    marginKeptBps: 4076,
+    costPerSale: "3033600",
+    marginKeptPerSale: "4766400",
+    marginKeptBps: 3972,
     capacity: { sales: 0, limitedBy: "depth" },
     saleState: "paused_price",
     bookAsOf: "2026-11-17T15:00:00.000Z",
@@ -245,8 +278,8 @@ export const createCampaignExamples = {
 
 const summaryLive: CampaignSummary = {
   id: "cmp_joes_texas",
-  slug: "joes-texas",
-  product: "Large pizza",
+  slug: SLUG,
+  product: PRODUCT,
   promise: PROMISE,
   status: "live",
   saleState: "open",
@@ -255,7 +288,7 @@ const summaryLive: CampaignSummary = {
   startsAt: STARTS_AT,
   salesCloseAt: SALES_CLOSE_AT,
   sales: 12,
-  revenue: "240000000",
+  revenue: "144000000",
   createdAt: "2026-11-20T22:41:00.000Z",
   liveAt: "2026-11-20T22:42:10.000Z",
 };
@@ -266,23 +299,24 @@ const detailLive: CampaignDetail = {
   subjectName: SUBJECT,
   resultLabel: null,
   instrumentSymbol: SYMBOL,
-  unitPrice: "20000000",
+  unitPrice: UNIT_PRICE,
   refundBps: 10_000,
   usualMarginBps: 6500,
   minMarginBps: 4500,
   pauseThresholdBps: 1800,
   probabilityBps: 1200,
   budget: "1000000000",
-  hedgeSpent: "20160000",
-  hedgeReserved: "10992000",
-  budgetAvailable: "968848000",
-  exposure: "240000000",
+  // 96 of the 144 contracts are held, 48 are reserved: $1,000 − $12.096 − $6.5952 is available.
+  hedgeSpent: "12096000",
+  hedgeReserved: "6595200",
+  budgetAvailable: "981308800",
+  exposure: "144000000",
   hedgedBps: 6667,
   capacitySales: 300,
   received: "0",
-  pending: "240000000",
+  pending: "144000000",
   outcome: null,
-  url: "https://winz.app/c/joes-texas",
+  url: `https://winz.app/c/${SLUG}`,
   onchain: {
     campaignId: "1",
     escrowAddress: "0x2222222222222222222222222222222222222222",
@@ -307,23 +341,23 @@ export const campaignDetailExamples = {
     status: "settled_yes",
     saleState: "closed",
     probabilityBps: null,
-    hedgeSpent: "29880000",
+    hedgeSpent: "17928000",
     hedgeReserved: "0",
-    budgetAvailable: "970120000",
+    budgetAvailable: "982072000",
     hedgedBps: 10_000,
     capacitySales: 0,
-    received: "240000000",
+    received: "144000000",
     pending: "0",
     outcome: "yes",
     resultLabel: RESULT_YES,
     report: {
       sales: 12,
       newCustomers: 9,
-      hedgeCost: "29880000",
+      hedgeCost: "17928000",
       hedgeCostBps: 1245,
       equivalentDiscountBps: 1245,
-      refundsPaid: "240000000",
-      paidToMerchant: "240000000",
+      refundsPaid: "144000000",
+      paidToMerchant: "144000000",
     },
   },
   settledNo: {
@@ -331,23 +365,23 @@ export const campaignDetailExamples = {
     status: "settled_no",
     saleState: "closed",
     probabilityBps: null,
-    hedgeSpent: "29880000",
+    hedgeSpent: "17928000",
     hedgeReserved: "0",
-    budgetAvailable: "970120000",
+    budgetAvailable: "982072000",
     hedgedBps: 10_000,
     capacitySales: 0,
-    received: "240000000",
+    received: "144000000",
     pending: "0",
     outcome: "no",
     resultLabel: RESULT_NO,
     report: {
       sales: 12,
       newCustomers: 9,
-      hedgeCost: "29880000",
+      hedgeCost: "17928000",
       hedgeCostBps: 1245,
       equivalentDiscountBps: 1245,
       refundsPaid: "0",
-      paidToMerchant: "240000000",
+      paidToMerchant: "144000000",
     },
   },
   /**
@@ -360,12 +394,12 @@ export const campaignDetailExamples = {
     status: "void",
     saleState: "closed",
     probabilityBps: null,
-    hedgeSpent: "29880000",
+    hedgeSpent: "17928000",
     hedgeReserved: "0",
-    budgetAvailable: "970120000",
+    budgetAvailable: "982072000",
     hedgedBps: 10_000,
     capacitySales: 0,
-    received: "240000000",
+    received: "144000000",
     pending: "0",
     outcome: "void",
     resultLabel: null,
@@ -376,7 +410,7 @@ export const campaignDetailExamples = {
       hedgeCostBps: 0,
       equivalentDiscountBps: 0,
       refundsPaid: "0",
-      paidToMerchant: "240000000",
+      paidToMerchant: "144000000",
     },
   },
 } satisfies Record<string, CampaignDetail>;
@@ -387,7 +421,7 @@ export const campaignsExample: CampaignsResponse = {
     {
       ...summaryLive,
       id: "cmp_joes_pitt",
-      slug: "joes-pitt",
+      slug: PITT_SLUG,
       promise: "50% back if Pitt wins",
       status: "settled_no",
       saleState: "closed",
@@ -396,7 +430,7 @@ export const campaignsExample: CampaignsResponse = {
       startsAt: "2026-11-18T00:00:00.000Z",
       salesCloseAt: "2026-11-17T23:55:00.000Z",
       sales: 31,
-      revenue: "620000000",
+      revenue: "372000000",
       createdAt: "2026-11-17T21:02:00.000Z",
       liveAt: "2026-11-17T21:03:05.000Z",
     },
@@ -435,7 +469,7 @@ export const campaignsWithCancelledExample: CampaignsResponse = {
     {
       ...summaryLive,
       id: "cmp_joes_pitt_cancelled",
-      slug: "joes-pitt-cancelled",
+      slug: "buzzballs-shop-pittsburgh-wins-by-7",
       promise: "100% back if Pitt wins by 7+",
       status: "void",
       saleState: "closed",
@@ -444,7 +478,7 @@ export const campaignsWithCancelledExample: CampaignsResponse = {
       startsAt: "2026-11-11T00:00:00.000Z",
       salesCloseAt: "2026-11-10T23:55:00.000Z",
       sales: 5,
-      revenue: "100000000",
+      revenue: "60000000",
       createdAt: "2026-11-10T20:02:00.000Z",
       liveAt: "2026-11-10T20:03:05.000Z",
     },
@@ -458,10 +492,10 @@ export const campaignActionExamples = {
 } satisfies Record<string, CampaignActionResponse>;
 
 const publicLive: PublicCampaign = {
-  slug: "joes-texas",
-  merchant: { name: "Joe's Pizza", logoUrl: null, category: "pizza" },
-  product: "Large pizza",
-  unitPrice: "20000000",
+  slug: SLUG,
+  merchant: { name: MERCHANT_NAME, logoUrl: null, category: "burger" },
+  product: PRODUCT,
+  unitPrice: UNIT_PRICE,
   refundBps: 10_000,
   promise: PROMISE,
   conditionLabel: CONDITION,
@@ -501,7 +535,7 @@ export const publicCampaignExamples = {
 export const checkoutExample: CheckoutResponse = {
   paymentIntentId: "pi_example",
   clientSecret: "pi_example_secret_example",
-  amount: "20000000",
+  amount: UNIT_PRICE,
 };
 
 export const checkoutStatusExamples = {
@@ -521,12 +555,12 @@ export const checkoutStatusExamples = {
 
 const ticketPreGame: Ticket = {
   token: "tkt_example_joes_texas",
-  campaignSlug: "joes-texas",
-  merchant: { name: "Joe's Pizza", logoUrl: null },
-  product: "Large pizza",
+  campaignSlug: SLUG,
+  merchant: { name: MERCHANT_NAME, logoUrl: null },
+  product: PRODUCT,
   qty: 1,
-  paid: "20000000",
-  refundable: "20000000",
+  paid: UNIT_PRICE,
+  refundable: UNIT_PRICE,
   promise: PROMISE,
   conditionLabel: CONDITION,
   subjectName: SUBJECT,
@@ -568,14 +602,15 @@ export const ticketsExample: TicketsResponse = {
     {
       ...ticketPreGame,
       token: "tkt_example_joes_pitt",
-      campaignSlug: "joes-pitt",
+      campaignSlug: PITT_SLUG,
       promise: "50% back if Pitt wins",
       conditionLabel: "Pittsburgh wins",
       subjectName: "Pittsburgh",
       resultLabel: "Pittsburgh won",
       eventTitle: "Villanova vs Pittsburgh",
       event: PITT_GAME,
-      refundable: "10000000",
+      // 50 % back on $12.
+      refundable: "6000000",
       phase: "refunded",
       probabilityBps: null,
       startsAt: "2026-11-18T00:00:00.000Z",
@@ -584,7 +619,7 @@ export const ticketsExample: TicketsResponse = {
       instrumentSymbol: "GEMI-NCAAM-2611180000-VILL-PITT-M-PITT",
     },
   ],
-  refundedTotal: "10000000",
+  refundedTotal: "6000000",
 };
 
 const pittRefunded: Ticket = ticketsExample.tickets[1] ?? ticketPreGame;
@@ -601,8 +636,8 @@ export const ticketsExamples = {
         ...ticketPreGame,
         token: "tkt_example_joes_texas_two",
         qty: 2,
-        paid: "40000000",
-        refundable: "40000000",
+        paid: "24000000",
+        refundable: "24000000",
       },
       { ...ticketExamples.inGame, token: "tkt_example_joes_texas_live" },
       pittRefunded,
@@ -619,7 +654,7 @@ export const ticketsExamples = {
         purchasedAt: "2026-11-07T18:45:00.000Z",
       },
     ],
-    refundedTotal: "10000000",
+    refundedTotal: "6000000",
   },
   demoTicket: {
     tickets: [{ ...ticketPreGame, token: "tkt_example_demo", demo: true }],
@@ -649,10 +684,11 @@ export const hedgeDeskExample: HedgeDeskResponse = {
       askBps: 1300,
       bookAsOf: "2026-11-20T23:10:04.000Z",
       stale: false,
-      exposure: "240000000",
-      held: "160000000",
-      working: "80000000",
-      unhedgedNotional: "9600000",
+      // The live promo's exposure: 144 contracts, 96 held and 48 working at 12 %.
+      exposure: "144000000",
+      held: "96000000",
+      working: "48000000",
+      unhedgedNotional: "5760000",
       breaker: { active: false, reason: null },
       orders: [
         {
@@ -660,7 +696,7 @@ export const hedgeDeskExample: HedgeDeskResponse = {
           kind: "maker",
           side: "buy",
           priceBps: 1200,
-          qty: "80000000",
+          qty: "48000000",
           filledQty: "0",
           status: "working",
           at: "2026-11-20T23:10:01.000Z",
@@ -670,8 +706,8 @@ export const hedgeDeskExample: HedgeDeskResponse = {
           kind: "maker",
           side: "buy",
           priceBps: 1200,
-          qty: "100000000",
-          filledQty: "100000000",
+          qty: "60000000",
+          filledQty: "60000000",
           status: "filled",
           at: "2026-11-20T23:02:10.000Z",
         },
@@ -680,8 +716,8 @@ export const hedgeDeskExample: HedgeDeskResponse = {
           kind: "taker",
           side: "buy",
           priceBps: 1300,
-          qty: "60000000",
-          filledQty: "60000000",
+          qty: "36000000",
+          filledQty: "36000000",
           status: "filled",
           at: "2026-11-20T22:58:44.000Z",
         },
@@ -691,7 +727,7 @@ export const hedgeDeskExample: HedgeDeskResponse = {
           id: "fil_2",
           kind: "maker",
           priceBps: 1200,
-          qty: "100000000",
+          qty: "60000000",
           fee: "0",
           at: "2026-11-20T23:03:31.000Z",
         },
@@ -699,15 +735,17 @@ export const hedgeDeskExample: HedgeDeskResponse = {
           id: "fil_1",
           kind: "taker",
           priceBps: 1300,
-          qty: "60000000",
-          fee: "480000",
+          // The taker fee at 13 %: 0.80 % of a contract, on 36 contracts.
+          qty: "36000000",
+          fee: "288000",
           at: "2026-11-20T22:58:44.000Z",
         },
       ],
-      makerSavings: "1800000",
+      // 60 contracts bought at 12 % instead of 13 % plus the taker fee: 1.80 % of 60 contracts.
+      makerSavings: "1080000",
     },
   ],
-  totals: { makerSavings: "1800000", guaranteeLosses: "0", crossingGains: "0" },
+  totals: { makerSavings: "1080000", guaranteeLosses: "0", crossingGains: "0" },
   // Not proven yet: the default desk shows what production shows until the real run is done.
   venueCheck: null,
   demo: false,
@@ -797,7 +835,7 @@ export const demoExamples = {
 } satisfies Record<string, DemoResponse>;
 
 /**
- * POST /api/campaigns/:id/top-up: Joe adds $500 to the hedge budget of his running promo.
+ * POST /api/campaigns/:id/top-up: the merchant adds $500 to the hedge budget of the running promo.
  * `repeated` is the answer to the same `requestId` sent again: the same payment, nothing new;
  * `credited` the answer to it once the top-up is in the budget (nothing more to pay).
  */
