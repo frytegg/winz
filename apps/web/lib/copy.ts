@@ -365,7 +365,8 @@ export const copy = {
       live: "Live",
       paused: "Paused",
       sales_closed: "Sales closed",
-      settled_yes: "Won",
+      // The merchant's side of a promo that hit: his customers were refunded (the fan reads « Won »).
+      settled_yes: "Refunded",
       // The merchant's side of a promo that didn't hit: nobody was refunded, every sale is his.
       // Not "Lost": for the merchant it is the good outcome (the fan reads « Not this time »).
       settled_no: "No refunds",
@@ -463,7 +464,7 @@ export const copy = {
     },
     report: {
       title: "How it went",
-      won: "Won",
+      won: "Refunded",
       lost: "No refunds",
       wonBody: "The promo hit. Your customers got their money back, and you were covered.",
       lostBody: "The promo didn't hit. Nobody was refunded, and you kept every sale.",
@@ -474,8 +475,9 @@ export const copy = {
       newCustomers: "New customers",
       cost: "Real cost",
       costValue: (amount: string, percent: string): string => `${amount} · ${percent} of sales`,
-      /** The closing line when the promo didn't hit: the cost of a discount nobody got. */
-      sameAs: (percent: string): string => `Same as a ${percent} discount… but only when you win.`,
+      /** The closing line when the promo didn't hit: the cost of a discount, and every sale at full price. */
+      sameAs: (percent: string): string =>
+        `Same as a ${percent} discount, and every customer paid full price.`,
       /** The closing line when the promo hit: the refunds were covered, the cost stayed the same. */
       sameAsWon: (percent: string): string =>
         `Same as a ${percent} discount. The refunds cost you nothing more.`,

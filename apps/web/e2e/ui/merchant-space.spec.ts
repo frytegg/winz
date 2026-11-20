@@ -160,7 +160,7 @@ test.describe("the merchant space (SPEC 5.2)", () => {
       receipt: "md-detail-settled-no",
       badge: copy.campaigns.status.settled_no,
       report: copy.campaignDetail.report.lostBody,
-      closing: "Same as a 12.5% discount… but only when you win.",
+      closing: "Same as a 12.5% discount, and every customer paid full price.",
     },
   ];
 
