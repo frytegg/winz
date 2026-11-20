@@ -1,5 +1,21 @@
 # Winz
 
+[![CI](https://github.com/frytegg/winz/actions/workflows/ci.yml/badge.svg)](https://github.com/frytegg/winz/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-000000?logo=nextdotjs&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-5FA04E?logo=nodedotjs&logoColor=white)
+![Solidity](https://img.shields.io/badge/Solidity-363636?logo=solidity&logoColor=white)
+![Foundry](https://img.shields.io/badge/Foundry-tested-orange)
+![Arc testnet](https://img.shields.io/badge/Arc-testnet-6E56CF)
+![USDC](https://img.shields.io/badge/USDC-2775CA)
+![Gemini Prediction Markets](https://img.shields.io/badge/Gemini-Prediction%20Markets-00DCFA)
+![QuickNode Streams](https://img.shields.io/badge/QuickNode-Streams-1E40AF)
+![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?logo=supabase&logoColor=white)
+![Stripe](https://img.shields.io/badge/Stripe-635BFF?logo=stripe&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-000000?logo=vercel&logoColor=white)
+![Render](https://img.shields.io/badge/Render-46E3B7?logo=render&logoColor=black)
+
 Winz lets a shop run a game-night promo like "free if Texas wins" and know its cost before the
 first sale. The fan pays the normal price with Apple Pay and gets a live ticket showing the chance
 the condition comes true. As each sale is paid, Winz covers the refund the shop promised by buying
@@ -8,6 +24,8 @@ is locked in USDC in an escrow contract on Arc at the sale and paid by the contr
 Winz's treasury. Merchants sign in with an e-mail code, and neither they nor fans ever send a
 transaction: a relayer does, and pays the gas in USDC.
 
+**[Demo video](https://youtu.be/8Bb5QzolJtY)** ·
+**[Devpost](https://devpost.com/software/winz)** ·
 **[Live app](https://winz-nu.vercel.app)** ·
 **[Hedge desk](https://winz-nu.vercel.app/hedge-desk)** (every cover order, public) ·
 **[Production receipts](docs/receipts/prod/settlements-2026-11-19.md)** (in French) ·
@@ -103,7 +121,8 @@ promising 50 % back.
 | 18 | New York wins by 10+ | $12 | 1 | No | 17 s | [settled](https://explorer.testnet.arc.io/tx/0x60df923f45da36b8b5ca31896ef8b93a0f0e223cf4a94f3436d250035053bd65), [released to the merchant](https://explorer.testnet.arc.io/tx/0xd629b3ac0871be06c3a98967d7aadeb6032dfe37c5e2c86d23d436482234a571) |
 | 19 | Minnesota wins by 9+ | $12 | 1 | No | 15 s | [settled](https://explorer.testnet.arc.io/tx/0xb22ddd1af806f7f79b0702ea1e67ad4d2236ab5054ee7a8fa42500151ac5354b), [released to the merchant](https://explorer.testnet.arc.io/tx/0xd9903ec3ad126857b29ed10671dcc4ecbc6b129fb8cad0b6122c56655694b273) |
 
-The purchases were paid with Apple Pay on an iPhone, in Stripe test mode, and filmed.
+The purchases were paid with Apple Pay on an iPhone, in Stripe test mode, and filmed for the
+[demo video](https://youtu.be/8Bb5QzolJtY).
 
 The first sale, from its [receipt](docs/receipts/prod/g1-2026-11-19.md): card payment at
 23:40:00 UTC, `buyFor` mined at 23:40:03, cover filled at 23:40:10.8, `chargeHedge` mined at
@@ -400,3 +419,7 @@ and kinds of promises, and a plug-in for the point-of-sale systems bars already 
 - **Language.** The production and UI receipts, `apps/web/README.md`,
   `design-system/winz/MASTER.md`, `apps/engine/fixtures/quicknode/README.md` and three docs
   (`deploy.md`, `quicknode.md`, `gemini-sandbox.md`) are in French.
+
+## License
+
+[MIT](LICENSE).

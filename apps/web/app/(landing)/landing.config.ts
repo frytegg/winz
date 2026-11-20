@@ -11,9 +11,9 @@ import type { LandingLinks } from "../../lib/landing/links";
  */
 export const landingLinks: LandingLinks = {
   liveDemoUrl: "/",
-  videoUrl: null,
+  videoUrl: "https://youtu.be/8Bb5QzolJtY",
   githubUrl: "https://github.com/frytegg/winz",
-  devpostUrl: null,
+  devpostUrl: "https://devpost.com/software/winz",
   repoUrl: "https://github.com/frytegg/winz/",
   teamLinks: [
     { name: "Téo", url: "https://www.linkedin.com/in/t%C3%A9o-creativ/" },
