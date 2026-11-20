@@ -4,7 +4,7 @@ Winz lets a shop run a game-night promo like "free if Texas wins" and know its c
 first sale. Each sale is covered on the prediction market of Gemini, the exchange, as it is paid.
 
 **[Live app](https://winz-nu.vercel.app)** ·
-**[Hedge desk](https://winz-nu.vercel.app/hedge-desk)** ·
+**[Hedge desk](https://winz-nu.vercel.app/hedge-desk)** (every cover order, public) ·
 **[Production receipts](docs/receipts/prod/settlements-2026-11-19.md)** ·
 **[Escrow on Arc testnet](https://explorer.testnet.arc.io/address/0x81d2d4050E617184b2B832c30BE68f8811b37D2c)**
 
@@ -38,7 +38,8 @@ treasury would pay the shop's $5 from its own testnet USDC, not from a real Gemi
 ## How it works
 
 1. **The merchant launches a promo from a phone.** They pick a game from Gemini's catalogue, a
-   condition, the share refunded, the margin they keep on each sale and a budget, paid by card.
+   condition, the share refunded, the margin they want to keep on each sale after the cover's
+   cost, and a budget for the cover, paid by card.
    Before launch, the screen shows the cost per sale and the chance above which sales pause. The
    engine opens the campaign on the escrow (`createCampaignFor`).
 2. **The fan pays the normal price** with Apple Pay and gets a live ticket showing the chance the
@@ -66,7 +67,8 @@ WinzEscrow logs --QuickNode Stream--> web POST /api/webhooks/quicknode --> chain
 
 ## Proven in production on 19 and 20 November
 
-One merchant, Buzzball's shop, sold a Smash burger under five promos, each promising 50 % back.
+One merchant account we ran, Buzzball's shop, sold a Smash burger under five promos, each
+promising 50 % back.
 "Settled after" runs from Gemini's published result to the block of `CampaignSettled`. Source: [`settlements-2026-11-19.md`](docs/receipts/prod/settlements-2026-11-19.md).
 
 | Promo | Condition | Price | Burgers sold | Gemini result | Settled after | On-chain settlement |
@@ -81,7 +83,7 @@ Promo 15 was settled by the engine started at 01:02 UTC, the four NBA promos by 
 redeployed at 02:55 UTC; the receipt does not say why the first took longer. The purchases were
 paid with Apple Pay on an iPhone, in Stripe test mode, and filmed.
 
-The first sale, from the [G1 receipt](docs/receipts/prod/g1-2026-11-19.md): card payment at
+The first sale, from its [receipt](docs/receipts/prod/g1-2026-11-19.md): card payment at
 23:40:00 UTC, `buyFor` mined at 23:40:03, cover filled at 23:40:10.8, `chargeHedge` mined at
 23:40:14. The cover cost 1.881 USDC against a cap of 1.931 set by the quote.
 
@@ -144,13 +146,19 @@ each sale, and Gemini's result settles the promo.
   cancelled, taker order `145853902324436442` filled (buy 1 at 22 %). The panel "Real orders on
   Gemini sandbox" on the [Hedge desk](https://winz-nu.vercel.app/hedge-desk) shows them. The
   sandbox lists no sports market, so the proof uses a crypto contract through the same adapter.
+- The same two orders in the sandbox account's own order history: the $0.01 limit order canceled,
+  the $0.22 limit order filled 100 %. The page shows its own time zone and order ids; the seconds
+  (:05 and :08) are those of the proof.
+
+  <img src="docs/receipts/prod/gemini-sandbox-order-history-1.jpg" alt="Gemini sandbox order history: two GEMI-ETH buy limit orders at 0.22 and 0.01 USD" width="720">
+  <img src="docs/receipts/prod/gemini-sandbox-order-history-2.jpg" alt="Gemini sandbox order history, right side: the 0.22 order filled 100 %, the 0.01 order canceled" width="720">
 - Settled from Gemini's results in 12 to 17 s (NBA promos) and 192 s (NCAAM promo).
 
 ## QuickNode
 
 **What Winz uses, and why.** The engine must see every sale on the escrow to cover it. A QuickNode
 Stream pushes the escrow's events to the web app, a third path beside the relayer's transaction
-receipt and an `eth_getLogs` poll every 5 s (SPEC HE-1). The first path to arrive writes the event.
+receipt and an `eth_getLogs` poll every 5 s. The first path to arrive writes the event.
 
 **How it is built.**
 
@@ -194,11 +202,18 @@ receipt and an `eth_getLogs` poll every 5 s (SPEC HE-1). The first path to arriv
 
   Each row covers only the events its path won, so it compares winners, not both paths on one
   event.
+- The Stream in QuickNode's dashboard on 20 Nov: active and delivering, Arc testnet, Logs, batches
+  of 1, destination `winz-nu.vercel.app`; 25,399 blocks processed, 11 webhook requests sent (the
+  filter sends only blocks with an escrow event), 0 errors.
+
+  <img src="docs/receipts/prod/quicknode-stream-overview.jpg" alt="QuickNode Stream winz: Active, Delivering, Arc Testnet, Logs, destination winz-nu.vercel.app" width="720">
+  <img src="docs/receipts/prod/quicknode-stream-metrics.jpg" alt="QuickNode Stream metrics: 7.24 KB sent, 25,399 blocks processed, 11 webhook requests" width="720">
 
 ## Arc
 
 **What Winz uses, and why.** The escrow holds the money the promise depends on, in USDC, and the
-contract, not Winz's database, decides who gets paid. Gas on Arc is paid in USDC too, so the
+contract, not Winz's database, pays it out. The result itself is posted by Winz's oracle key
+(`settle` is oracle-only), copied from Gemini's published result. Gas on Arc is paid in USDC too, so the
 relayer and oracle hold one token. Fans and merchants never send a transaction; the relayer does.
 
 **How it is built.** [`WinzEscrow.sol`](packages/contracts/src/WinzEscrow.sol), interface
@@ -286,7 +301,10 @@ takes accounts and keys ([`docs/deploy.md`](docs/deploy.md)).
 - **Production cover is paper.** The engine fills its orders against Gemini's live production book
   without sending them. Real orders were proven on the sandbox only, on a crypto contract. Orders
   to Gemini's production venue are refused in code (`createVenue`).
-- **Small sample.** Five promos, six burgers, one Yes result.
+- **Small sample.** Five promos, six burgers, one Yes result, one merchant account we ran.
+- **The oracle is ours.** Winz's oracle key signs the quotes and posts the result Gemini published;
+  the contract bounds what it can do (caps, refunds locked at the sale, `emergencyClaim` after 7
+  days) but trusts it for the outcome.
 - **Open in TASKS.md.** `pnpm completion-check` on 20 Nov reports 15 of the 48 Must lines of its
   coverage table open. Among them:
   - Q-02, the browser suite against the real stack. `pnpm e2e:ui` runs on the simulated API in
