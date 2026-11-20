@@ -1,9 +1,0 @@
-# Shape of a fintech robots.txt seen in the FD19 survey: query strings and JSON files disallowed, two query
-# parameters allowed back.
-User-agent: *
-Disallow: *?*
-Allow: *?amount=
-Allow: *?amount-to=
-Disallow: /*.json$
-Disallow: /join/
-Sitemap: https://fixture.example/sitemap.xml

@@ -3,7 +3,8 @@ node_modules
 .next
 coverage
 pnpm-lock.yaml
-.claude
+/.*/
+!/.github/
 *.md
 packages/contracts/out
 packages/contracts/cache

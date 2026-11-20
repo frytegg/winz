@@ -1,4 +1,0 @@
-/*! tailwindcss v4.3.3 | MIT License | https://tailwindcss.com */
-@layer theme{:root,:host{--color-bg:oklch(.985 .004 250);--color-text:oklch(.22 .02 250);--font-body:"Fixture Sans",ui-sans-serif,system-ui,sans-serif;--default-transition-duration:160ms;--default-transition-timing-function:cubic-bezier(.23,1,.32,1)}}
-@layer utilities{.bg-bg{background-color:var(--color-bg)}.text-text{color:var(--color-text)}.duration-\(--duration-press\){--tw-duration:var(--duration-press);transition-duration:var(--duration-press)}.active\:scale-97:active{scale:97%}}
-:root{--color-bg:oklch(0.985 0.004 250);--color-text:oklch(0.22 0.02 250)}

@@ -1,6 +1,0 @@
-{
- "base": "base2.json",
- "note": "a run-level task on executor B",
- "ops": [],
- "expect": []
-}

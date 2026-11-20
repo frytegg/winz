@@ -1,6 +1,0 @@
-{
- "base": "base.json",
- "note": "a ui requirement covered by no FE-1x task",
- "ops": [],
- "expect": []
-}

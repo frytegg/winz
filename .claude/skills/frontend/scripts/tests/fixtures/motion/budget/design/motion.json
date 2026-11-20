@@ -1,5 +1,0 @@
-{
-  "animations": [
-    {"selector": ".explainer", "trigger": "load", "purpose": "explanation", "note": "shows the batch travelling from the queue to the chain"}
-  ]
-}

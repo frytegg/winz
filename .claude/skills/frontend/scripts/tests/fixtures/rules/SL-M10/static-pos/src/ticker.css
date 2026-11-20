@@ -1,9 +1,0 @@
-@keyframes scroll {
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-.track {
-  animation: scroll 30s linear infinite;
-}

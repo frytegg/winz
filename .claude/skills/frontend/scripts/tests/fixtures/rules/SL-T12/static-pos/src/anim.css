@@ -1,8 +1,0 @@
-.card {
-  animation: rise linear both;
-  animation-timeline: view();
-}
-
-@keyframes rise {
-  from { opacity: 0; }
-}

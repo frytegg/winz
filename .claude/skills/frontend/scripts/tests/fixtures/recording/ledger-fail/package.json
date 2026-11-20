@@ -1,7 +1,0 @@
-{
-  "name": "ledger-fail-fixture",
-  "private": true,
-  "dependencies": {
-    "@ledgerhq/device-management-kit": "0.9.0"
-  }
-}

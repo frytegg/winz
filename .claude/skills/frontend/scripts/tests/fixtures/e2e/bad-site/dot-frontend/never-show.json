@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "entries": [
-    {"id": "NS-SECURITY", "class": "undisclosed-security", "pattern": "batch replay window", "regex": false, "case_sensitive": false, "until_utc": null, "scope": "both", "source": "owner note of 2026-10-11 (fixture)"},
-    {"id": "NS-EMBARGO", "class": "embargo", "pattern": "Project Kestrel", "regex": false, "case_sensitive": false, "until_utc": "2999-01-01T00:00:00Z", "scope": "both", "source": "owner note of 2026-10-11 (fixture)"},
-    {"id": "NS-CLIENT", "class": "never-public", "pattern": "\\bpilot\\s+client\\b", "regex": true, "case_sensitive": false, "until_utc": null, "scope": "rendered", "source": "owner note of 2026-10-11 (fixture)"}
-  ]
-}

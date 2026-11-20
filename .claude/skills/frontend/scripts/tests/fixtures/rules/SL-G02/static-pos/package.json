@@ -1,7 +1,0 @@
-{
-  "name": "starter-leftovers",
-  "private": true,
-  "dependencies": {
-    "@fontsource-variable/geist": "5.2.6"
-  }
-}

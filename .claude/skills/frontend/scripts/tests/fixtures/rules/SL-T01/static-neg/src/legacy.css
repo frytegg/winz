@@ -1,9 +1,0 @@
-/* FD14-F22: defined, never used. SUI shipped this class with 0 uses. */
-.text-gradient-blue-purple {
-  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-}
-
-/* .hero { background: linear-gradient(90deg, #8b5cf6, #3b82f6); } */
-.panel {
-  background: linear-gradient(180deg, #111827, #0a0a0a);
-}

@@ -1,4 +1,0 @@
-/target
-/crates/*/target
-**/*.rs.bk
-/reports/

@@ -16,7 +16,8 @@ export default tseslint.config(
       // The service worker next build writes (git-ignored): generated, minified code.
       "apps/web/public/sw.js",
       "apps/web/public/swe-worker-*.js",
-      ".claude/**",
+      // Local dot-folders (editor and tool settings): nothing to lint there.
+      ".*/**",
     ],
   },
   js.configs.recommended,

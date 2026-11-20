@@ -1,6 +1,0 @@
-{
- "base": "base2.json",
- "note": "a decision owned by dev B",
- "ops": [],
- "expect": []
-}

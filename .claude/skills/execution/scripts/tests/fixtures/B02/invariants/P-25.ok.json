@@ -1,6 +1,0 @@
-{
- "base": "base.json",
- "note": "the validated spec, unchanged",
- "ops": [],
- "expect": []
-}

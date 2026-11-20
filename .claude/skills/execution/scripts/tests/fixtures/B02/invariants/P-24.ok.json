@@ -1,6 +1,0 @@
-{
- "base": "base.json",
- "note": "a submission deadline without DL-build-complete",
- "ops": [],
- "expect": []
-}

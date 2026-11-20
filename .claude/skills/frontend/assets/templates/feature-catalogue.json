@@ -1,7 +1,0 @@
-[
-  {"id": "FR-001", "group": "G1", "title": "See where a withdrawal stands in the queue", "priority": "P1", "status_expected": "testnet"},
-  {"id": "FR-002", "group": "G1", "title": "Estimate when a withdrawal will be claimable", "priority": "P1", "status_expected": "simulated"},
-  {"id": "FR-003", "group": "G2", "title": "Request a withdrawal", "priority": "P1", "status_expected": "testnet"},
-  {"id": "FR-004", "group": "G2", "title": "Claim a finalised withdrawal", "priority": "P2", "status_expected": "testnet"},
-  {"id": "FR-005", "group": "G3", "title": "Check the proof behind every figure", "priority": "P2", "status_expected": "planned"}
-]

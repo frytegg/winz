@@ -1,6 +1,0 @@
-{
-  "assets": [
-    {"path": "public/partners/partner-northwind.svg", "kind": "logo", "source": "Saved from the customer's website", "license": "unknown", "ai": "none"},
-    {"path": "public/deniedchain-logo.svg", "kind": "logo", "source": "Deniedchain press kit", "license": "all rights reserved"}
-  ]
-}

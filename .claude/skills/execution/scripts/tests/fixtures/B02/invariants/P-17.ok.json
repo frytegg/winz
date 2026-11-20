@@ -1,6 +1,0 @@
-{
- "base": "base.json",
- "note": "FE-21 without the harden-review task as an ancestor",
- "ops": [],
- "expect": []
-}

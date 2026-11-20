@@ -1,7 +1,0 @@
-{
- "base": "base2.json",
- "note": "cross-executor dependencies are allowed and listed",
- "ops": [],
- "expect": [],
- "expect_cross_deps": true
-}

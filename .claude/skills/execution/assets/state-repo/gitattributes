@@ -1,4 +1,0 @@
-* text=auto eol=lf
-events.jsonl merge=union
-decisions.md merge=union
-public-values.jsonl merge=union

@@ -1,6 +1,0 @@
-{
- "base": "base.json",
- "note": "an irrecoverable deadline with no anchored or due task",
- "ops": [],
- "expect": []
-}

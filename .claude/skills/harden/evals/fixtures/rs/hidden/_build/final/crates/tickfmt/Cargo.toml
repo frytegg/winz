@@ -1,9 +1,0 @@
-[package]
-name = "tickfmt"
-version = "0.1.0"
-edition = "2021"
-description = "Formatting helpers for scaled integer amounts"
-license = "MIT"
-publish = false
-
-[dependencies]

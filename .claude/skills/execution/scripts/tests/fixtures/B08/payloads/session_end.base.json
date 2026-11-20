@@ -1,7 +1,0 @@
-{
-  "session_id": "sess-orch-1",
-  "transcript_path": "C:/tmp/exec-test/t.jsonl",
-  "cwd": "<REPO>",
-  "hook_event_name": "SessionEnd",
-  "reason": "clear"
-}
