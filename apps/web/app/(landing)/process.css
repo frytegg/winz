@@ -140,6 +140,9 @@
   border-radius: calc(42 * var(--p)) calc(42 * var(--p)) 0 0;
   background: var(--color-ink, #131314);
   color: #fff;
+  /* What the screens inherit: their own lines must not be taller than their text. */
+  font-size: calc(14 * var(--p));
+  line-height: 1.2;
 }
 
 .process-top {
@@ -297,11 +300,11 @@
   }
 
   /* After a change of step the pictures are rebuilt, and their own animations start once that is done. */
-  .process[data-moved="true"] .process-box {
+  [data-process][data-moved="true"] .process-box {
     --loop-delay: calc(var(--p-lead) + 4 * var(--p-step) + var(--p-in));
   }
 
-  .process[data-moved="true"] .process-box .process-screen[data-state="active"] .pb {
+  [data-process][data-moved="true"] .process-box .process-screen[data-state="active"] .pb {
     animation: process-build var(--p-in) var(--p-ease)
       calc(var(--p-lead) + var(--i, 0) * var(--p-step)) backwards;
   }
@@ -474,7 +477,7 @@
 }
 
 .ps-code {
-  margin-top: calc(13 * var(--p));
+  margin-top: calc(10 * var(--p));
 }
 
 .pe-code {
@@ -483,10 +486,10 @@
 
 .ps-code-row {
   position: relative;
-  height: calc(40 * var(--p));
+  height: calc(34 * var(--p));
   width: calc(314 * var(--p));
   overflow: hidden;
-  font-size: calc(20 * var(--p));
+  font-size: calc(18 * var(--p));
   font-weight: 600;
 }
 
@@ -546,7 +549,7 @@
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  height: calc(86 * var(--p));
+  height: calc(80 * var(--p));
   padding: 0 calc(16 * var(--p));
   border: calc(1.5 * var(--p)) solid var(--color-lime, #d8fe35);
   border-radius: calc(16 * var(--p));
@@ -589,7 +592,8 @@
 }
 
 .ps-chips {
-  margin-top: calc(12 * var(--p));
+  display: flex;
+  margin-top: calc(11 * var(--p));
 }
 
 .ps-chip {
