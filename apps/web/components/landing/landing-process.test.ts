@@ -50,7 +50,7 @@ describe("LandingProcess", () => {
 
   it("draws step 01 as the mockup does, ending on the typed e-mail and the code", () => {
     expect(html).toContain("Let&#x27;s get you set up");
-    expect(html).toContain("alex@joespizza.com");
+    expect(html).toContain("alex@buzzballs.com");
     expect(html).toContain("Your email…");
   });
 
@@ -63,14 +63,29 @@ describe("LandingProcess", () => {
       "Link copied",
       "Download poster",
       "Pay with Apple Pay",
-      "$20.00",
+      "$12.00",
       "Refunded",
-      "+$20.00",
+      "+$12.00",
     ]) {
       expect(html.toLowerCase()).toContain(words.toLowerCase());
     }
-    expect(html).toContain("PIT");
-    expect(html).toContain("Final · 24 – 17");
+    const text = html.replace(/<!-- -->/g, "");
+    expect(text).toContain("Buzzball’s shop");
+    expect(text).toContain("Texas");
+    expect(text).toContain("Arkansas");
+    expect(text).toContain("TEX");
+    expect(text).toContain("ARK");
+    expect(text).toContain("Live · 17 – 17");
+    expect(text).toContain("Final · 31 – 17");
+    // The promise is the copy's, its figure lit, on the fan's page and on the ticket: each screen is
+    // drawn twice (beside its step and in the sticky card), so four times.
+    expect(text.match(/<span class="ps-pct">100%<\/span> back if Texas wins!/g)).toHaveLength(4);
+  });
+
+  it("tells no other example than the demo video's", () => {
+    expect(html).not.toMatch(/pittsburgh|philadelphia|joe[’']?s|pizza|\bPIT\b|\bPHI\b|\$20\.00/i);
+    expect(html).toContain("/landing/how/helmet-tex.webp");
+    expect(html).toContain("/landing/how/helmet-ark.webp");
   });
 
   it("draws the live demo's address as the QR, and shows its host in the chip", () => {

@@ -1,20 +1,13 @@
-import Image from "next/image";
 import type { ReactNode } from "react";
 
 import { landingCopy } from "@/lib/landing/copy";
 
 import { HowCard } from "./how-card";
 import { FollowYourTicketScene, MoneyBackScene, ScanAndPayScene } from "./how-fan-scenes";
+import { FundScene, PickGameScene, ShareScene } from "./how-merchant-scenes";
 import { HowTabs } from "./how-tabs";
 
 const { how } = landingCopy;
-
-/** The Merchant illustrations: the mockup's, optimized (`public/landing/how/`, 340 x 295). */
-const MERCHANT_ART = [
-  "/landing/how/merchant-01.svg",
-  "/landing/how/merchant-02.svg",
-  "/landing/how/merchant-03.svg",
-] as const;
 
 /**
  * The mockup breaks "Put it on the counter or / send the link." earlier than the card's width does
@@ -37,27 +30,22 @@ function HowGrid({ children }: { children: ReactNode }): React.JSX.Element {
  * hero's; the cards are not scaled (see `HowCard`). `id="how"` is where the navigation lands.
  */
 export function LandingHow(): React.JSX.Element {
+  const merchantScenes = [PickGameScene, FundScene, ShareScene] as const;
   const merchant = (
     <HowGrid>
-      {how.merchant.map((card, index) => (
-        <HowCard
-          key={card.title}
-          index={index}
-          title={card.title}
-          body={card.body}
-          bodyMaxWidth={MERCHANT_BODY_WIDTH[index]}
-          art={
-            <Image
-              src={MERCHANT_ART[index] ?? MERCHANT_ART[0]}
-              alt={card.alt}
-              width={340}
-              height={295}
-              unoptimized
-              className="block h-[295px] w-[340px] max-w-none"
-            />
-          }
-        />
-      ))}
+      {how.merchant.map((card, index) => {
+        const Scene = merchantScenes[index] ?? PickGameScene;
+        return (
+          <HowCard
+            key={card.title}
+            index={index}
+            title={card.title}
+            body={card.body}
+            bodyMaxWidth={MERCHANT_BODY_WIDTH[index]}
+            art={<Scene label={card.alt} />}
+          />
+        );
+      })}
     </HowGrid>
   );
 

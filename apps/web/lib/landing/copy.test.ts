@@ -174,3 +174,58 @@ describe("landingCopy.install", () => {
     }
   });
 });
+
+describe("landingCopy.example", () => {
+  const { example } = landingCopy;
+
+  it("is the demo video's: Buzzball’s shop, a $12.00 smash burger, 100% back if Texas wins", () => {
+    expect(example.merchant).toBe("Buzzball’s shop");
+    expect(example.item).toBe("Smash burger");
+    expect(example.price).toBe("$12.00");
+    expect(example.promise).toBe("100% back if Texas wins!");
+    // 100% back: the refund is the whole price.
+    expect(example.refund).toBe(`+${example.price}`);
+  });
+
+  it("is Arkansas at Texas, Saturday November 21, 2:30 PM, with the app's names and chances", () => {
+    expect(example.home).toEqual({ name: "Texas", abbreviation: "TEX", chance: 91 });
+    expect(example.away).toEqual({ name: "Arkansas", abbreviation: "ARK", chance: 9 });
+    expect(example.home.chance + example.away.chance).toBe(100);
+    expect(example.kickoff).toEqual({ time: "2:30", meridiem: "PM", date: "Nov 21" });
+    expect(example.scoreLive).toEqual({ home: 17, away: 17 });
+    expect(example.scoreFinal).toEqual({ home: 31, away: 17 });
+    // Texas wins: the promise is kept.
+    expect(example.scoreFinal.home).toBeGreaterThan(example.scoreFinal.away);
+  });
+
+  it("links to the production host, with the slug the engine builds from the shop and the condition", () => {
+    // `campaignSlugBase("Buzzball’s shop", "Texas wins")` in apps/engine/src/jobs/handlers/slug.ts.
+    expect(example.link).toBe("winz-nu.vercel.app/c/buzzballs-shop-texas-wins");
+    expect(example.link.split("/c/")[1]).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+  });
+
+  it("types an e-mail of 18 characters, the steps of process.css's typing", () => {
+    expect(example.email).toBe("alex@buzzballs.com");
+    expect(example.email).toHaveLength(18);
+  });
+
+  it("is the example both How it works and the Process section tell", () => {
+    const { how, process } = landingCopy;
+    expect(how.scene.promise).toBe(example.promise);
+    expect(how.scene.merchant).toBe(example.merchant);
+    expect(how.scene.amount).toBe(example.refund);
+    expect(how.merchantScene.link).toBe(example.link);
+    expect(process.scene.fan.promise).toBe(example.promise);
+    expect(process.scene.fan.merchant).toBe(example.merchant);
+    expect(process.scene.fan.amount).toBe(example.price);
+    expect(process.scene.fan.refund).toBe(example.refund);
+    expect(process.scene.onboarding.email).toBe(example.email);
+    expect([process.scene.pick.home, process.scene.pick.away]).toEqual(["Texas", "Arkansas"]);
+  });
+
+  it("is the one example of the whole landing copy", () => {
+    expect(JSON.stringify(landingCopy)).not.toMatch(
+      /pittsburgh|philadelphia|joe[’']?s|pizza|\bPIT\b|\bPHI\b|\$20\.00|Nov 22|November 22/i,
+    );
+  });
+});
