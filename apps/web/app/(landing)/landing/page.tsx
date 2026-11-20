@@ -8,6 +8,7 @@ import { LandingNav } from "@/components/landing/landing-nav";
 import { LandingProcess } from "@/components/landing/landing-process";
 import { LogoStrip } from "@/components/landing/logo-strip";
 import { landingCopy } from "@/lib/landing/copy";
+import { qrTarget } from "@/lib/landing/qr-target";
 
 import { landingLinks } from "../landing.config";
 
@@ -38,7 +39,7 @@ export default function LandingPage(): React.JSX.Element {
         <LogoStrip />
         <LandingHow />
         <LandingDemo liveDemoUrl={landingLinks.liveDemoUrl} videoUrl={landingLinks.videoUrl} />
-        <LandingProcess />
+        <LandingProcess qrUrl={qrTarget(landingLinks.liveDemoUrl, landingLinks.appQrUrl)} />
         <LandingFeatures />
       </main>
     </div>
