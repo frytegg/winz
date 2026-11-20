@@ -185,4 +185,68 @@ describe("loadEngineEnv", () => {
       "ARC_RPC_HEAVY_METHODS",
     );
   });
+
+  it("leaves the sandbox off by default: paper venue, no check at boot, incremental nonces", () => {
+    const env = loadEngineEnv(valid);
+    expect(env.APP_EXECUTION_VENUE).toBe("paper");
+    expect(env.APP_VENUE_CHECK_ON_BOOT).toBe(false);
+    expect(env.APP_VENUE_CHECK_ACCEPT_TERMS).toBe(false);
+    expect(env.GEMINI_SANDBOX_NONCE_MODE).toBe("incremental");
+    expect(env.GEMINI_SANDBOX_API_URL).toBe("https://api.sandbox.gemini.com");
+    expect(env.GEMINI_SANDBOX_CHECK_SYMBOL).toBeUndefined();
+  });
+
+  it("reads the venue check's settings", () => {
+    const env = loadEngineEnv({
+      ...valid,
+      APP_VENUE_CHECK_ON_BOOT: "true",
+      APP_VENUE_CHECK_ACCEPT_TERMS: "true",
+      GEMINI_SANDBOX_NONCE_MODE: "time",
+      GEMINI_SANDBOX_CHECK_SYMBOL: "GEMI-BTC2611202200-HI91000",
+      GEMINI_SANDBOX_API_KEY: "account-abc",
+      GEMINI_SANDBOX_API_SECRET: "secret",
+    });
+    expect(env.APP_VENUE_CHECK_ON_BOOT).toBe(true);
+    expect(env.APP_VENUE_CHECK_ACCEPT_TERMS).toBe(true);
+    expect(env.GEMINI_SANDBOX_NONCE_MODE).toBe("time");
+    expect(env.GEMINI_SANDBOX_CHECK_SYMBOL).toBe("GEMI-BTC2611202200-HI91000");
+    expect(
+      issuesOf(() => loadEngineEnv({ ...valid, GEMINI_SANDBOX_NONCE_MODE: "seconds" })),
+    ).toContain("GEMINI_SANDBOX_NONCE_MODE");
+    expect(issuesOf(() => loadEngineEnv({ ...valid, APP_VENUE_CHECK_ON_BOOT: "yes" }))).toContain(
+      "APP_VENUE_CHECK_ON_BOOT",
+    );
+  });
+
+  it("the boot check flag does not require the keys: a missing key is recorded, not a refusal to start", () => {
+    expect(
+      loadEngineEnv({ ...valid, APP_VENUE_CHECK_ON_BOOT: "true" }).APP_VENUE_CHECK_ON_BOOT,
+    ).toBe(true);
+  });
+
+  it("sending hedge orders to the sandbox requires both sandbox keys", () => {
+    expect(
+      issuesOf(() => loadEngineEnv({ ...valid, APP_EXECUTION_VENUE: "gemini-sandbox" })),
+    ).toContain("GEMINI_SANDBOX_API_KEY");
+    expect(
+      issuesOf(() =>
+        loadEngineEnv({
+          ...valid,
+          APP_EXECUTION_VENUE: "gemini-sandbox",
+          GEMINI_SANDBOX_API_KEY: "account-abc",
+        }),
+      ),
+    ).toContain("GEMINI_SANDBOX_API_SECRET");
+    const env = loadEngineEnv({
+      ...valid,
+      APP_EXECUTION_VENUE: "gemini-sandbox",
+      GEMINI_SANDBOX_API_KEY: "account-abc",
+      GEMINI_SANDBOX_API_SECRET: "secret",
+    });
+    expect(env.APP_EXECUTION_VENUE).toBe("gemini-sandbox");
+    // Gemini production orders are not a value of the setting at all.
+    expect(issuesOf(() => loadEngineEnv({ ...valid, APP_EXECUTION_VENUE: "gemini" }))).toContain(
+      "APP_EXECUTION_VENUE",
+    );
+  });
 });

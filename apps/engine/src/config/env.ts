@@ -8,6 +8,7 @@ import {
   LEASE_BOUNDS,
   leaseSettingsProblems,
 } from "../leader/settings";
+import { NONCE_MODES } from "../venues/gemini/nonce";
 
 const hexAddress = z.string().regex(/^0x[0-9a-fA-F]{40}$/, "must be a 20-byte hex address");
 const privateKey = z.string().regex(/^0x[0-9a-fA-F]{64}$/, "must be a 32-byte hex private key");
@@ -92,6 +93,18 @@ export const engineEnvSchema = z
     APP_PROXY_CA_FILE: z.string().min(1).optional(),
     GEMINI_SANDBOX_API_KEY: z.string().min(1).optional(),
     GEMINI_SANDBOX_API_SECRET: z.string().min(1).optional(),
+    // How the sandbox key checks its nonce, as chosen when the key was created: "incremental"
+    // (each nonce above the previous; the engine sends epoch milliseconds) or "time" (epoch
+    // seconds within 30 s of Gemini's clock). See docs/gemini-sandbox.md.
+    GEMINI_SANDBOX_NONCE_MODE: z.enum(NONCE_MODES).default("incremental"),
+    // The real-order proof (SPEC HE-10) once at boot, beside the engine and never blocking it:
+    // for a host without a shell. Needs both sandbox keys; without them the run is recorded as
+    // failed. See docs/gemini-sandbox.md.
+    APP_VENUE_CHECK_ON_BOOT: booleanString.default(false),
+    // Let the check accept Gemini's latest Prediction Markets terms for the sandbox account.
+    APP_VENUE_CHECK_ACCEPT_TERMS: booleanString.default(false),
+    // A sandbox contract for the check, instead of the one it chooses.
+    GEMINI_SANDBOX_CHECK_SYMBOL: z.string().min(1).optional(),
 
     // Card payments. Without a key the engine can only sell the sales replayed by the demo mode
     // (payments whose id starts with pi_demo_), and refuses any other payment.
@@ -122,6 +135,21 @@ export const engineEnvSchema = z
           problem.includes("standby") ? "ENGINE_LEASE_STANDBY_POLL_MS" : "ENGINE_LEASE_RENEW_MS",
         ],
         message: problem,
+      });
+    }
+    if (
+      env.APP_EXECUTION_VENUE === "gemini-sandbox" &&
+      (env.GEMINI_SANDBOX_API_KEY === undefined || env.GEMINI_SANDBOX_API_SECRET === undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: [
+          env.GEMINI_SANDBOX_API_KEY === undefined
+            ? "GEMINI_SANDBOX_API_KEY"
+            : "GEMINI_SANDBOX_API_SECRET",
+        ],
+        message:
+          'required when APP_EXECUTION_VENUE is "gemini-sandbox": hedge orders then go to the sandbox',
       });
     }
     const privyId = env.NEXT_PUBLIC_PRIVY_APP_ID !== undefined;
