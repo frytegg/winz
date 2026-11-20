@@ -18,8 +18,7 @@ const ORDER: readonly HowTabId[] = ["merchant", "fan"];
  * hidden` (out of the accessibility tree, the tab order and the pointer's reach). The panels arrive
  * already rendered, by the server: this component only holds which one is on.
  *
- * The sliding pill is three layers moved by `transform` only (`landing.css`, `.how-pill-*`), driven by
- * `data-tab`; the buttons have fixed widths so that nothing has to be measured, and the page is right
+ * The sliding pill is one element (`landing.css`, `.how-pill`), driven by `data-tab`; the buttons have fixed widths so that nothing has to be measured, and the page is right
  * before any script has run.
  */
 export function HowTabs({
@@ -66,9 +65,7 @@ export function HowTabs({
         onKeyDown={onKeyDown}
         className="how-tabs relative mt-[calc(48*var(--u))] flex h-[46px] w-[234px] shrink-0 items-center rounded-full bg-landing-track p-[3px] max-lg:mt-8"
       >
-        <span aria-hidden="true" className="how-pill how-pill-left" />
-        <span aria-hidden="true" className="how-pill how-pill-mid" />
-        <span aria-hidden="true" className="how-pill how-pill-right" />
+        <span aria-hidden="true" className="how-pill" />
         {ORDER.map((id) => (
           <button
             key={id}
