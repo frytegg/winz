@@ -20,6 +20,7 @@ import {
   type HealthServer,
   type ServiceState,
 } from "./health/server";
+import { LoopMonitor } from "./health/loops";
 import { DemoIdentityDirectory, PrivyIdentityDirectory, type IdentityDirectory } from "./identity";
 import { EngineLeader, FENCE_MARGIN_MS, newHolderId, PgEngineLease } from "./leader";
 import { createLogger, moduleLogger } from "./logger";
@@ -205,6 +206,9 @@ async function main(): Promise<void> {
     );
   }
 
+  // When each of the leader's loops last completed a pass: the engine writes it, /healthz reads it.
+  const loops = new LoopMonitor();
+
   /** The engine's services, started each time this process takes the lease. */
   const startServices = (signal: AbortSignal): Promise<Engine> => {
     // Live order books of the instruments in use: WebSocket first, REST as fallback (SPEC MD-2).
@@ -229,6 +233,7 @@ async function main(): Promise<void> {
       escrowAddress: env.ARC_ESCROW_ADDRESS as Hex,
       escrowDeployBlock: env.ARC_ESCROW_DEPLOY_BLOCK,
       bookFeed,
+      loops,
       payments,
       identity: identity.directory,
       venueName: env.APP_EXECUTION_VENUE,
@@ -329,6 +334,7 @@ async function main(): Promise<void> {
           return { sender: state, jobs: state };
         },
         lease: () => leader.view(),
+        loops: () => loops.report(),
       });
       // A stop that began while it was binding has already passed the point where it closes it.
       if (stopping) await health.close();

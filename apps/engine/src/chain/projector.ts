@@ -553,7 +553,7 @@ export class ChainProjector {
   }
 
   /** One pass over every unprocessed event. Never throws for one event; a query error throws. */
-  async runPass(signal?: AbortSignal): Promise<ProjectorPassResult> {
+  async runPass(signal?: AbortSignal, onProgress?: () => void): Promise<ProjectorPassResult> {
     const result: ProjectorPassResult = { applied: 0, ignored: 0, deferred: 0, failed: 0 };
     const blocked = new Set<bigint>();
     let after: { blockNumber: bigint; logIndex: number } | null = null;
@@ -645,6 +645,7 @@ export class ChainProjector {
           }
         }
       }
+      onProgress?.();
       const last = rows[rows.length - 1];
       if (rows.length < this.batchSize || last === undefined) break;
       after = { blockNumber: last.block_number, logIndex: last.log_index };

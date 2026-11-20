@@ -301,12 +301,27 @@ export interface StoreQueryOptions {
    * query stuck behind a lock would freeze every sale state, `open` included, with no error.
    */
   statementTimeoutMs?: number;
+  /**
+   * Ends the call when it aborts, wherever it is: a query waiting for its connection is never
+   * sent, a running one is cancelled (and its connection closed if the server does not answer the
+   * cancel, see `ENGINE_DB_TIMEOUTS`), and the transaction is rolled back. The sale states pass
+   * the signal of their pass, so that a pass ended by its time limit leaves no write behind it.
+   */
+  signal?: AbortSignal;
+}
+
+/** Throws the abort reason when `signal` has aborted. */
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted === true) {
+    throw signal.reason instanceof Error ? signal.reason : new Error("aborted");
+  }
 }
 
 /** Sets `statement_timeout` and `lock_timeout` for the rest of the transaction. */
 async function limitStatementTime(
   tx: TransactionSql,
   timeoutMs: number | undefined,
+  signal: AbortSignal | undefined,
 ): Promise<void> {
   const ms = timeoutMs ?? DEFAULT_STATEMENT_TIMEOUT_MS;
   if (!Number.isSafeInteger(ms) || ms <= 0) {
@@ -317,7 +332,7 @@ async function limitStatementTime(
   const value = `${String(ms)}ms`;
   await tx`
     select set_config('statement_timeout', ${value}, true), set_config('lock_timeout', ${value}, true)
-  `;
+  `.signal(signal);
 }
 
 /**
@@ -338,8 +353,11 @@ export async function loadCampaignSaleRows(
   instruments?: readonly string[],
   options: StoreQueryOptions = {},
 ): Promise<{ rows: CampaignSaleRow[]; errors: SaleStateRowError[] }> {
+  throwIfAborted(options.signal);
   const raw = await db.begin(async (tx) => {
-    await limitStatementTime(tx, options.statementTimeoutMs);
+    // Granted a connection after the pass was ended: nothing is sent.
+    throwIfAborted(options.signal);
+    await limitStatementTime(tx, options.statementTimeoutMs, options.signal);
     const filter = instruments === undefined ? tx`` : tx`and c.instrument in ${tx(instruments)}`;
     return tx`
     select
@@ -381,7 +399,7 @@ export async function loadCampaignSaleRows(
     ${pauseJoins(tx)}
     where (c.status in ('live', 'paused') or c.sale_state <> 'closed') ${filter}
     order by c.id
-  `;
+  `.signal(options.signal);
   });
   const rows: CampaignSaleRow[] = [];
   const errors: SaleStateRowError[] = [];
@@ -432,11 +450,14 @@ export async function writeSaleState(
   write: SaleStateWrite,
   options: StoreQueryOptions = {},
 ): Promise<SaleStateWriteResult> {
+  const { signal } = options;
+  throwIfAborted(signal);
   return db.begin(async (tx) => {
-    await limitStatementTime(tx, options.statementTimeoutMs);
+    throwIfAborted(signal);
+    await limitStatementTime(tx, options.statementTimeoutMs, signal);
     const [current] = await tx<{ sale_state: string; status: string; slug: string | null }[]>`
       select sale_state, status, slug from campaigns where id = ${write.campaignId} for update
-    `;
+    `.signal(signal);
     if (current === undefined || current.sale_state !== write.expectedState) {
       return { applied: false, rowsWritten: 0, statusClosed: false };
     }
@@ -444,14 +465,16 @@ export async function writeSaleState(
     let statusClosed = false;
     const state = write.state ?? write.expectedState;
     if (write.state !== null && write.state !== current.sale_state) {
-      await tx`update campaigns set sale_state = ${write.state} where id = ${write.campaignId}`;
+      await tx`update campaigns set sale_state = ${write.state} where id = ${write.campaignId}`.signal(
+        signal,
+      );
       rowsWritten += 1;
     }
     if (write.closeStatus && (current.status === "live" || current.status === "paused")) {
       await tx`
         update campaigns set status = 'sales_closed'
         where id = ${write.campaignId} and status in ('live', 'paused')
-      `;
+      `.signal(signal);
       rowsWritten += 1;
       statusClosed = true;
     }
@@ -474,9 +497,11 @@ export async function writeSaleState(
           set sale_state = excluded.sale_state
           where live_campaigns.sale_state is distinct from excluded.sale_state
         returning slug
-      `;
+      `.signal(signal);
       rowsWritten += rows.length;
     }
+    // Ended while the last statement ran: roll back rather than commit a decision the pass gave up.
+    throwIfAborted(signal);
     return { applied: true, rowsWritten, statusClosed };
   });
 }

@@ -5,8 +5,9 @@ import type { Book, SaleState } from "@winz/shared";
 import { abortableSleep } from "../chain/clock";
 import { summarizeError } from "../chain/error-summary";
 import type { Db } from "../db";
+import type { LoopHeartbeat } from "../health/loops";
 import type { BookFeedListener } from "../market-data";
-import { SaleStateConfigError } from "./errors";
+import { SaleStateConfigError, SaleStatePassAbortedError } from "./errors";
 import {
   evaluateSaleStateWithGrace,
   failedEvaluation,
@@ -87,6 +88,13 @@ interface RowOutcome {
   errors: unknown[];
 }
 
+/** Throws the reason of `signal` when it has aborted. */
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted === true) {
+    throw signal.reason instanceof Error ? signal.reason : new Error("sale state pass aborted");
+  }
+}
+
 /** Calls the logger without letting a failing logger stop the service. */
 function safeLog(write: () => void): void {
   try {
@@ -114,6 +122,8 @@ export class SaleStateRunner {
   private readonly memory = new Map<string, SaleStateMemory>();
   /** Last error logged per campaign, so a campaign failing every second is logged once. */
   private readonly lastError = new Map<string, string>();
+  /** What the pass in flight awaits right now, for the log of a pass that runs out of time. */
+  private waiting: string | null = null;
   private tracked = new Set<string>();
   private readonly startupGraceMs: number;
   private readonly startedAtMs: number;
@@ -197,18 +207,46 @@ export class SaleStateRunner {
     return this.tracked.has(symbol);
   }
 
+  /**
+   * What the pass in flight is waiting on ("reading the campaigns", "writing the sale state of
+   * campaign …"), or null between passes.
+   */
+  waitingOn(): string | null {
+    return this.waiting;
+  }
+
   /** The hysteresis memory of a campaign, for inspection. */
   memoryOf(campaignId: string): SaleStateMemory | null {
     return this.memory.get(campaignId) ?? null;
   }
 
   /**
-   * Evaluates every candidate campaign, or only those on `instruments`. Throws only when the
-   * campaigns cannot be read at all; a campaign that fails is logged and counted in `failures`.
+   * Evaluates every candidate campaign, or only those on `instruments`. Throws when the campaigns
+   * cannot be read at all, and when `signal` aborts (its reason); a campaign that fails is logged
+   * and counted in `failures`.
+   *
+   * `signal` ends the pass wherever it is: the database call in flight is cancelled (see
+   * `StoreQueryOptions.signal`) and nothing of the runner's memory is changed after it aborted,
+   * except forgetting the timings of a campaign whose write was in flight (the safe side: that
+   * campaign starts over from what is stored), so a pass ended by `startSaleStates` cannot touch
+   * the state of the passes after it.
    */
-  async runPass(instruments?: readonly string[]): Promise<SaleStatePassResult> {
+  async runPass(
+    instruments?: readonly string[],
+    signal?: AbortSignal,
+  ): Promise<SaleStatePassResult> {
     const full = instruments === undefined;
-    const { rows, errors } = await loadCampaignSaleRows(this.db, instruments, this.storeOptions);
+    const storeOptions: StoreQueryOptions =
+      signal === undefined ? this.storeOptions : { ...this.storeOptions, signal };
+    this.waiting = "reading the campaigns";
+    let loaded: Awaited<ReturnType<typeof loadCampaignSaleRows>>;
+    try {
+      loaded = await loadCampaignSaleRows(this.db, instruments, storeOptions);
+    } finally {
+      this.waiting = null;
+    }
+    throwIfAborted(signal);
+    const { rows, errors } = loaded;
     const result: SaleStatePassResult = {
       evaluated: 0,
       transitions: 0,
@@ -227,8 +265,9 @@ export class SaleStateRunner {
     }
 
     for (const row of rows) {
+      throwIfAborted(signal);
       try {
-        const outcome = await this.evaluateRow(row, result);
+        const outcome = await this.evaluateRow(row, result, storeOptions, signal);
         const [firstError] = outcome.errors;
         if (firstError !== undefined) {
           result.failures += 1;
@@ -246,6 +285,8 @@ export class SaleStateRunner {
           );
         }
       } catch (error: unknown) {
+        // The pass was ended: it stops here, with nothing more written or remembered.
+        throwIfAborted(signal);
         result.failures += 1;
         // Forget the timings: the campaign starts over from its stored state and waits the full
         // delay again (the safe side), keeping the one-tick margin a price refusal required.
@@ -324,6 +365,8 @@ export class SaleStateRunner {
   private async evaluateRow(
     row: CampaignSaleRow,
     result: SaleStatePassResult,
+    storeOptions: StoreQueryOptions,
+    signal: AbortSignal | undefined,
   ): Promise<RowOutcome> {
     const nowMs = this.clock();
     const { decision, errors } = this.decide(row, nowMs);
@@ -338,17 +381,32 @@ export class SaleStateRunner {
       return { errors };
     }
 
-    const written = await writeSaleState(
-      this.db,
-      {
-        campaignId: row.id,
-        expectedState: row.storedState,
-        state: changed ? decision.state : null,
-        syncLive,
-        closeStatus,
-      },
-      this.storeOptions,
-    );
+    this.waiting = `writing the sale state of campaign ${row.id}`;
+    let written: Awaited<ReturnType<typeof writeSaleState>>;
+    try {
+      written = await writeSaleState(
+        this.db,
+        {
+          campaignId: row.id,
+          expectedState: row.storedState,
+          state: changed ? decision.state : null,
+          syncLive,
+          closeStatus,
+        },
+        storeOptions,
+      );
+    } catch (error: unknown) {
+      // Whether the write landed is unknown: the campaign starts over from what is stored.
+      if (signal?.aborted === true) this.memory.delete(row.id);
+      throw error;
+    } finally {
+      this.waiting = null;
+    }
+    if (signal?.aborted === true) {
+      // Written, but the pass was ended meanwhile: the passes after it own the memory now.
+      this.memory.delete(row.id);
+      throwIfAborted(signal);
+    }
     if (!written.applied) {
       // The web API changed the sale state since it was read (a manual pause, an early close):
       // its write stands, and the next pass decides again from it with no history.
@@ -406,7 +464,7 @@ export class SaleStateRunner {
 }
 
 export interface SaleStatesOptions extends SaleStateRunnerOptions {
-  /** Aborting it stops the service; the pass in flight finishes first. */
+  /** Aborting it stops the service: the pass in flight is ended (see `passTimeoutMs`). */
   signal: AbortSignal;
   /** Time between two full passes. Default 1 000. */
   intervalMs?: number;
@@ -414,11 +472,28 @@ export interface SaleStatesOptions extends SaleStateRunnerOptions {
   retryMaxMs?: number;
   /**
    * A pass still running after this long is logged at error level: every sale state is frozen
-   * until it ends (passes never overlap). The statement timeout normally ends it before; this
-   * catches what that cannot, such as a connection that stopped answering. Default 10 000.
+   * until it ends (passes never overlap). Default 10 000.
    */
   slowPassMs?: number;
+  /**
+   * A pass still running after this long is ended: its database call is cancelled, it is logged
+   * at error level with what it was waiting on ("sale state pass timed out"), counted as a failed
+   * pass, and the next pass runs. Must be above `slowPassMs`. Default `DEFAULT_PASS_TIMEOUT_MS`.
+   */
+  passTimeoutMs?: number;
+  /** Told of every full pass that ran to its end (`/healthz` reads it, see `health/loops.ts`). */
+  heartbeat?: LoopHeartbeat;
 }
+
+/**
+ * Default `passTimeoutMs`. A full pass is one read and one short transaction per campaign whose
+ * state changes, each statement capped at 5 s on the server (`DEFAULT_STATEMENT_TIMEOUT_MS`):
+ * milliseconds normally, and three statements at their cap make 15 s. Past that the pass is not
+ * slow, it is stuck, and every sale state, the automatic pauses included, waits behind it. With the
+ * retry delays (2 s, then 4 s, 8 s…) three passes stuck in a row stay under the 60 s after which
+ * `/healthz` reports the sale states stale.
+ */
+export const DEFAULT_PASS_TIMEOUT_MS = 15_000;
 
 export interface SaleStates {
   /** Resolves once the service has stopped: aborted, no pass in flight, no timer left. */
@@ -446,43 +521,113 @@ function positive(value: number, name: string): number {
  * purchase job prices every sale again on the book of its instant and refuses it on a missing or
  * stale book (`jobs/handlers/purchase.ts`).
  *
- * Never throws out of its loop; stops on abort with no timer left.
+ * No pass runs longer than `passTimeoutMs` (15 s): one stuck database call froze every sale state
+ * for about 98 minutes on 19-20 November 2026 (see `service.freeze.test.ts`). Every full pass that
+ * runs to its end beats `heartbeat`, which `/healthz` reads.
+ *
+ * Never throws out of its loop; stops on abort, ending the pass in flight, with no timer left.
  */
 export function startSaleStates(options: SaleStatesOptions): SaleStates {
   const { signal, logger } = options;
   const intervalMs = positive(options.intervalMs ?? 1_000, "intervalMs");
   const retryMaxMs = positive(options.retryMaxMs ?? 30_000, "retryMaxMs");
   const slowPassMs = positive(options.slowPassMs ?? 10_000, "slowPassMs");
+  const passTimeoutMs = positive(options.passTimeoutMs ?? DEFAULT_PASS_TIMEOUT_MS, "passTimeoutMs");
+  if (passTimeoutMs <= slowPassMs) {
+    throw new SaleStateConfigError("startSaleStates: passTimeoutMs must be above slowPassMs");
+  }
   const runner = new SaleStateRunner(options);
+  const { heartbeat } = options;
 
   let pendingFull = false;
   const pendingInstruments = new Set<string>();
   let draining: Promise<void> | null = null;
   let failures = 0;
 
+  /**
+   * One pass, bounded: it ends when the runner is done, when it has run `passTimeoutMs`, or when
+   * the service stops, whichever comes first. A pass ended early is left to finish its cancelled
+   * database call on its own (its promise is never left unhandled) and can no longer write or
+   * remember anything (`runPass`), so the next pass starts at once on a clean footing. Never
+   * rejects.
+   */
   const runOne = async (instruments?: readonly string[]): Promise<void> => {
     const startedAt = Date.now();
+    const pass = new AbortController();
+    const end = (reason: "timeout" | "stopping"): void => {
+      if (pass.signal.aborted) return;
+      pass.abort(new SaleStatePassAbortedError(reason, runner.waitingOn(), passTimeoutMs));
+    };
+    const onStop = (): void => end("stopping");
+    signal.addEventListener("abort", onStop, { once: true });
     const watchdog = setTimeout(() => {
       safeLog(() =>
         logger.error(
-          { elapsedMs: Date.now() - startedAt, instruments: instruments ?? null },
+          {
+            elapsedMs: Date.now() - startedAt,
+            instruments: instruments ?? null,
+            waitingOn: runner.waitingOn(),
+            passTimeoutMs,
+          },
           "sale state pass is overrunning: every sale state is frozen until it ends",
         ),
       );
     }, slowPassMs);
+    const deadline = setTimeout(() => end("timeout"), passTimeoutMs);
+    let ended: () => void = () => undefined;
+    const endedEarly = new Promise<"ended">((resolve) => {
+      ended = () => resolve("ended");
+      pass.signal.addEventListener("abort", ended, { once: true });
+    });
     try {
-      await runner.runPass(instruments);
+      const running = runner.runPass(instruments, pass.signal);
+      // Once the race below is lost, nobody awaits it any more: its rejection is expected.
+      running.catch(() => undefined);
+      if (signal.aborted) end("stopping");
+      if ((await Promise.race([running, endedEarly])) === "ended") {
+        throw pass.signal.reason;
+      }
       if (failures > 0) {
         safeLog(() => logger.info({ failures }, "sale states recovered"));
       }
       failures = 0;
+      if (instruments === undefined) {
+        safeLog(() => heartbeat?.beat());
+      }
     } catch (error: unknown) {
+      if (error instanceof SaleStatePassAbortedError && error.reason === "stopping") {
+        safeLog(() =>
+          logger.info(
+            { elapsedMs: Date.now() - startedAt, waitingOn: error.waitingOn },
+            "sale state pass ended: the service is stopping",
+          ),
+        );
+        return;
+      }
       failures += 1;
+      if (error instanceof SaleStatePassAbortedError) {
+        safeLog(() =>
+          logger.error(
+            {
+              elapsedMs: Date.now() - startedAt,
+              timeoutMs: error.timeoutMs,
+              waitingOn: error.waitingOn,
+              instruments: instruments ?? null,
+              failures,
+            },
+            "sale state pass timed out",
+          ),
+        );
+        return;
+      }
       safeLog(() =>
         logger.error({ error: summarizeError(error), failures }, "sale state pass failed"),
       );
     } finally {
       clearTimeout(watchdog);
+      clearTimeout(deadline);
+      signal.removeEventListener("abort", onStop);
+      pass.signal.removeEventListener("abort", ended);
     }
   };
 
@@ -519,9 +664,21 @@ export function startSaleStates(options: SaleStatesOptions): SaleStates {
     void request(symbol);
   });
 
+  // Nothing in an iteration throws by construction (`runOne` never rejects); the guard is there so
+  // that a mistake in that guarantee costs one iteration, logged, and never ends the loop.
   const loop = async (): Promise<void> => {
     while (!signal.aborted) {
-      await request();
+      try {
+        await request();
+      } catch (error: unknown) {
+        failures += 1;
+        safeLog(() =>
+          logger.error(
+            { error: summarizeError(error), failures },
+            "sale state loop iteration failed, the loop goes on",
+          ),
+        );
+      }
       const delayMs =
         failures === 0
           ? intervalMs

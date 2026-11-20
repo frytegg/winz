@@ -13,6 +13,14 @@ import {
   type TxSenderConfig,
 } from "./chain";
 import type { Db } from "./db";
+import {
+  LOOP_STALE_AFTER_MS,
+  LoopMonitor,
+  watchServiceEnd,
+  type EngineLoopName,
+  type LoopHandle,
+  type LoopHeartbeat,
+} from "./health/loops";
 import { startHedging, type HedgeBookSource, type StartHedgingOptions } from "./hedging/runtime";
 import type { IdentityDirectory } from "./identity";
 import { startJobs, type BookSource, type JobHandlerOptions, type JobWorkerConfig } from "./jobs";
@@ -29,7 +37,8 @@ export interface RunningService {
 
 /** The live order books, as each subsystem reads them. The engine's `BookFeed` satisfies it. */
 export interface EngineBookFeed extends HedgeBookSource, SaleBookSource, BookSource {
-  start(options: { signal: AbortSignal }): RunningService;
+  /** `heartbeat`: told of every completed refresh of the instruments it follows. */
+  start(options: { signal: AbortSignal; heartbeat?: LoopHeartbeat }): RunningService;
 }
 
 /**
@@ -48,19 +57,34 @@ export interface EngineTuning {
   txSender?: Omit<TxSenderConfig, "chainId" | "escrowAddress">;
   chainIngest?: Tuning<
     ChainIngestOptions,
-    "db" | "publicClient" | "escrowAddress" | "fromBlock" | "logger" | "signal"
+    "db" | "publicClient" | "escrowAddress" | "fromBlock" | "logger" | "signal" | "heartbeats"
   >;
   hedging?: Tuning<
     StartHedgingOptions,
-    "db" | "bookFeed" | "txSender" | "venueName" | "escrowAddress" | "logger" | "signal" | "clock"
+    | "db"
+    | "bookFeed"
+    | "txSender"
+    | "venueName"
+    | "escrowAddress"
+    | "logger"
+    | "signal"
+    | "clock"
+    | "heartbeats"
   >;
   saleStates?: Tuning<
     SaleStatesOptions,
-    "db" | "bookFeed" | "breakerStatus" | "logger" | "signal" | "clock"
+    "db" | "bookFeed" | "breakerStatus" | "logger" | "signal" | "clock" | "heartbeat"
   >;
   settlement?: Tuning<
     SettlementOptions,
-    "db" | "txSender" | "publicClient" | "escrowAddress" | "hedgeFinalizer" | "logger" | "signal"
+    | "db"
+    | "txSender"
+    | "publicClient"
+    | "escrowAddress"
+    | "hedgeFinalizer"
+    | "logger"
+    | "signal"
+    | "heartbeat"
   >;
   jobs?: { options?: JobHandlerOptions; worker?: Partial<JobWorkerConfig> };
 }
@@ -92,6 +116,12 @@ export interface EngineDeps {
   background?: readonly BackgroundService[];
   /** Aborting it stops the engine. */
   signal: AbortSignal;
+  /**
+   * Where the long-running loops report each pass they complete, for `/healthz`. `index.ts`
+   * passes the one its health listener reads; the engine clears it and registers its loops at
+   * each start, and clears it once they have stopped. Default: a monitor nobody reads.
+   */
+  loops?: LoopMonitor;
   /**
    * Current time, epoch milliseconds. Prices, quote expiries, sales close and the hedging timers
    * are read against it. Defaults to the system clock; tests align it with their chain's time.
@@ -193,9 +223,43 @@ export async function startEngine(deps: EngineDeps): Promise<Engine> {
     throw error;
   }
 
+  // Every loop has its whole bound to complete its first pass, counted from here.
+  const loops = deps.loops ?? new LoopMonitor(now);
+  loops.clear();
+  const loop = (name: EngineLoopName): LoopHandle =>
+    loops.register(name, LOOP_STALE_AFTER_MS[name]);
+  const handles = {
+    feedRefresh: loop("feed-refresh"),
+    chainLogs: loop("chain-logs"),
+    chainProjector: loop("chain-projector"),
+    hedgingExposure: loop("hedging-exposure"),
+    hedgingTick: loop("hedging-tick"),
+    hedgingCharge: loop("hedging-charge"),
+    saleStates: loop("sale-states"),
+    settlement: loop("settlement"),
+    jobs: loop("jobs"),
+  };
+
   const services: { name: string; stopped: Promise<void> }[] = [];
-  const run = (name: string, service: RunningService): void => {
+  /**
+   * Records a started service. A service ends only when the engine's signal aborts: one whose
+   * `stopped` settles before that has stopped by itself, its loops with it. That is logged at
+   * error level and its loops are reported stopped at once (`/healthz` answers 503), instead of the
+   * engine going on without them and nobody knowing.
+   */
+  const run = (name: string, service: RunningService, owned: readonly LoopHandle[] = []): void => {
     services.push({ name, stopped: service.stopped });
+    watchServiceEnd({
+      name,
+      stopped: service.stopped,
+      loops: owned,
+      signal,
+      onEnd: (error: unknown) =>
+        log.error(
+          { service: name, ...(error === undefined ? {} : { err: error }) },
+          "a service stopped by itself while the engine runs: its loops no longer run",
+        ),
+    });
   };
 
   const stopAll = async (): Promise<void> => {
@@ -213,7 +277,9 @@ export async function startEngine(deps: EngineDeps): Promise<Engine> {
   };
 
   try {
-    run("book-feed", deps.bookFeed.start({ signal }));
+    run("book-feed", deps.bookFeed.start({ signal, heartbeat: handles.feedRefresh }), [
+      handles.feedRefresh,
+    ]);
 
     // The escrow's events, projected into tickets, lots and exposure (SPEC HE-1). The contract
     // is the source of truth of the money; the database follows it.
@@ -227,7 +293,9 @@ export async function startEngine(deps: EngineDeps): Promise<Engine> {
         fromBlock: deps.escrowDeployBlock,
         logger: moduleLogger(deps.logger, "chain-ingest"),
         signal,
+        heartbeats: { logs: handles.chainLogs, projector: handles.chainProjector },
       }),
+      [handles.chainLogs, handles.chainProjector],
     );
 
     // One policy runner per instrument with something to hedge (SPEC HE-2 to HE-6).
@@ -242,8 +310,13 @@ export async function startEngine(deps: EngineDeps): Promise<Engine> {
       logger: moduleLogger(deps.logger, "hedging"),
       signal,
       clock: { now: () => new Date(now()) },
+      heartbeats: {
+        exposure: handles.hedgingExposure,
+        tick: handles.hedgingTick,
+        charge: handles.hedgingCharge,
+      },
     });
-    run("hedging", hedging);
+    run("hedging", hedging, [handles.hedgingExposure, handles.hedgingTick, handles.hedgingCharge]);
 
     // Whether each campaign can sell right now, and why not (SPEC CA-4, CA-5).
     run(
@@ -256,7 +329,9 @@ export async function startEngine(deps: EngineDeps): Promise<Engine> {
         logger: moduleLogger(deps.logger, "sale-states"),
         signal,
         clock: now,
+        heartbeat: handles.saleStates,
       }),
+      [handles.saleStates],
     );
 
     // Settles a campaign once its game is decided, then pushes refunds and payouts (SPEC ST-1
@@ -272,7 +347,9 @@ export async function startEngine(deps: EngineDeps): Promise<Engine> {
         hedgeFinalizer: hedging.finalizer,
         logger: moduleLogger(deps.logger, "settlement"),
         signal,
+        heartbeat: handles.settlement,
       }),
+      [handles.settlement],
     );
 
     // The work the web app enqueues: create a campaign, sell a ticket, pause, close sales.
@@ -293,7 +370,9 @@ export async function startEngine(deps: EngineDeps): Promise<Engine> {
         options: tuning.jobs?.options,
         worker: tuning.jobs?.worker,
         signal,
+        heartbeat: handles.jobs,
       }),
+      [handles.jobs],
     );
 
     for (const service of deps.background ?? []) run(service.name, service.start(signal));
@@ -301,6 +380,7 @@ export async function startEngine(deps: EngineDeps): Promise<Engine> {
     deps.signal.removeEventListener("abort", forward);
     internal.abort();
     await stopAll();
+    loops.clear();
     throw error;
   }
 
@@ -319,6 +399,7 @@ export async function startEngine(deps: EngineDeps): Promise<Engine> {
   const stopped = aborted(signal).then(async () => {
     log.info("engine stopping");
     await stopAll();
+    loops.clear();
     log.info("engine stopped");
   });
   return { stopped };

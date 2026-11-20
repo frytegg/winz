@@ -10,6 +10,7 @@ import {
   topUpBudgetJobSchema,
 } from "@winz/shared";
 
+import type { LoopHeartbeat } from "../../health/loops";
 import { defaultBackoff } from "../backoff";
 import { JobConfigError } from "../errors";
 import { JobWorker, type JobWorkerConfig } from "../worker";
@@ -40,6 +41,8 @@ export interface StartJobsOptions extends JobHandlerDeps {
   signal: AbortSignal;
   /** Overrides of the worker's configuration (defaults below). */
   worker?: Partial<JobWorkerConfig>;
+  /** Told of every poll of the worker that ran to its end (`/healthz`, `health/loops.ts`). */
+  heartbeat?: LoopHeartbeat;
 }
 
 export interface JobsService {
@@ -70,7 +73,7 @@ const DEFAULT_WORKER_CONFIG = {
  * above the concurrency (the engine's default pool of 10 leaves 6 connections at concurrency 4).
  */
 export function startJobs(options: StartJobsOptions): JobsService {
-  const { signal, worker: overrides, ...deps } = options;
+  const { signal, worker: overrides, heartbeat, ...deps } = options;
   const config: JobWorkerConfig = {
     ...DEFAULT_WORKER_CONFIG,
     workerId: `engine-${hostname()}-${process.pid.toString()}-${randomUUID().slice(0, 8)}`,
@@ -84,7 +87,13 @@ export function startJobs(options: StartJobsOptions): JobsService {
         `${poolSize.toString()}: each running handler holds a connection for its lock`,
     );
   }
-  const worker = new JobWorker({ db: deps.db, logger: deps.logger, clock: deps.clock, config });
+  const worker = new JobWorker({
+    db: deps.db,
+    logger: deps.logger,
+    clock: deps.clock,
+    config,
+    ...(heartbeat === undefined ? {} : { heartbeat }),
+  });
   registerJobHandlers(worker, deps);
   if (signal.aborted) return { stopped: Promise.resolve() };
   worker.start();

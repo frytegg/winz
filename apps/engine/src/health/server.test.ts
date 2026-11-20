@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createDb, type Db } from "../db";
 import { EngineLeader, PgEngineLease, type LeaseView } from "../leader";
 import { createTestDatabase, type TestDatabase } from "../testing/postgres";
+import { LoopMonitor, type LoopHandle } from "./loops";
 import {
   createHealthReader,
   HealthConfigError,
@@ -119,9 +120,129 @@ describe("GET /healthz", () => {
       sender: "running",
       jobs: "running",
       lease: { holder: "eng-0123456789ab", heldForS: 42, renewedAgoMs: 1_250 },
+      loops: {},
+      staleLoops: [],
     };
     expect(body).toStrictEqual(expected);
     expect(healthReportSchema.safeParse(body).success).toBe(true);
+  });
+
+  describe("the leader's loops", () => {
+    const NOW = Date.parse("2026-11-18T10:01:05.900Z");
+
+    /** A monitor at `NOW` with the sale states registered `registeredAgoMs` ago, and the jobs. */
+    function monitorWith(registeredAgoMs: number): {
+      monitor: LoopMonitor;
+      sales: LoopHandle;
+      jobs: LoopHandle;
+      setNow: (ms: number) => void;
+    } {
+      let nowMs = NOW - registeredAgoMs;
+      const monitor = new LoopMonitor(() => nowMs);
+      const sales = monitor.register("sale-states", 60_000);
+      const jobs = monitor.register("jobs", 120_000);
+      nowMs = NOW;
+      return { monitor, sales, jobs, setNow: (ms) => (nowMs = ms) };
+    }
+
+    it("200 with every loop running, each with the time since its last pass and its bound", async () => {
+      const { monitor, sales, jobs, setNow } = monitorWith(90_000);
+      setNow(NOW - 900);
+      sales.beat();
+      setNow(NOW - 2_000);
+      jobs.beat();
+      setNow(NOW);
+      const { status, body } = await get({ loops: () => monitor.report() });
+      expect(status).toBe(200);
+      expect(healthReportSchema.safeParse(body).success).toBe(true);
+      expect(body).toMatchObject({
+        status: "ok",
+        loops: {
+          jobs: { state: "running", sinceS: 2, boundS: 120 },
+          "sale-states": { state: "running", sinceS: 0, boundS: 60 },
+        },
+        staleLoops: [],
+      });
+    });
+
+    it("200 during the start-up grace: a loop gets its whole bound to complete its first pass", async () => {
+      const { monitor } = monitorWith(59_000);
+      const { status, body } = await get({ loops: () => monitor.report() });
+      expect(status).toBe(200);
+      expect(body).toMatchObject({
+        loops: { "sale-states": { state: "running", sinceS: 59, boundS: 60 } },
+        staleLoops: [],
+      });
+    });
+
+    it("503 naming the sale states once they go past 60 s without a completed pass, 200 again after one", async () => {
+      const { monitor, sales, jobs, setNow } = monitorWith(300_000);
+      setNow(NOW - 61_000);
+      sales.beat();
+      setNow(NOW - 1_000);
+      jobs.beat();
+      setNow(NOW);
+      const stale = await get({ loops: () => monitor.report() });
+      expect(stale.status).toBe(503);
+      expect(healthReportSchema.safeParse(stale.body).success).toBe(true);
+      expect(stale.body).toMatchObject({
+        status: "unavailable",
+        role: "leader",
+        db: "ok",
+        loops: {
+          "sale-states": { state: "stale", sinceS: 61, boundS: 60 },
+          jobs: { state: "running" },
+        },
+        staleLoops: ["sale-states"],
+      });
+      const reading = await readHealth(sources({ loops: () => monitor.report() }));
+      expect(reading.problems).toEqual([
+        "leader: loop sale-states has not completed a pass for 61 s (bound 60 s)",
+      ]);
+
+      // Positive control: one completed pass and the same engine is healthy again.
+      sales.beat();
+      await server?.close();
+      server = undefined;
+      const back = await get({ loops: () => monitor.report() });
+      expect(back.status).toBe(200);
+      expect(back.body).toMatchObject({ status: "ok", staleLoops: [] });
+    });
+
+    it("503 at once when a loop's service stopped by itself", async () => {
+      const { monitor, sales, jobs } = monitorWith(1_000);
+      sales.beat();
+      jobs.beat();
+      jobs.stopped("the jobs service stopped by itself");
+      const { status, body } = await get({ loops: () => monitor.report() });
+      expect(status).toBe(503);
+      expect(body).toMatchObject({
+        loops: { jobs: { state: "stopped" }, "sale-states": { state: "running" } },
+        staleLoops: ["jobs"],
+      });
+    });
+
+    it("a standby is not judged on loops (it runs none), and reports none", async () => {
+      const { monitor } = monitorWith(600_000);
+      const { status, body } = await get({
+        services: () => ({ sender: "stopped", jobs: "stopped" }),
+        lease: () => STANDING_BY,
+        loops: () => monitor.report(),
+      });
+      expect(status).toBe(200);
+      expect(body).toMatchObject({ role: "standby", loops: {}, staleLoops: [] });
+    });
+
+    it('a 503 for a stale loop contains the keyword `"status":"ok"` nowhere, a 200 does', async () => {
+      const { monitor } = monitorWith(600_000);
+      const stale = await get({ loops: () => monitor.report() });
+      expect(stale.status).toBe(503);
+      expect(JSON.stringify(stale.body)).not.toContain('"status":"ok"');
+      await server?.close();
+      server = undefined;
+      const healthy = await get({});
+      expect(JSON.stringify(healthy.body)).toContain('"status":"ok"');
+    });
   });
 
   it("reports a null cursor before the event reader stored one", async () => {

@@ -2,6 +2,7 @@ import type { Logger } from "pino";
 import { prettifyError, type ZodType } from "zod";
 
 import type { Db } from "../db";
+import type { LoopHeartbeat } from "../health/loops";
 import type { BackoffFn } from "./backoff";
 import {
   describeJobError,
@@ -61,6 +62,8 @@ export interface JobWorkerOptions {
   /** Default: the system clock. */
   clock?: Clock;
   config: JobWorkerConfig;
+  /** Told of every poll that ran to its end without failing (`/healthz`, `health/loops.ts`). */
+  heartbeat?: LoopHeartbeat;
 }
 
 interface Registration {
@@ -124,6 +127,7 @@ export class JobWorker {
   private readonly config: Required<JobWorkerConfig>;
   private readonly registrations = new Map<string, Registration>();
   private readonly inFlight = new Map<string, InFlight>();
+  private readonly loopHeartbeat: LoopHeartbeat | undefined;
 
   private loopDone: Promise<void> | undefined;
   private stopDone: Promise<void> | undefined;
@@ -153,6 +157,7 @@ export class JobWorker {
     this.clock = options.clock ?? Date.now;
     this.config = { ...config, shutdownGraceMs };
     this.logger = options.logger.child({ module: "jobs", workerId: config.workerId });
+    this.loopHeartbeat = options.heartbeat;
   }
 
   /** Registers the handler of a job kind. The payload reaches the handler as stored. */
@@ -275,6 +280,7 @@ export class JobWorker {
       try {
         if (reap) await this.recoverAbandoned();
         await this.claimAndRun();
+        this.beat();
       } catch (error: unknown) {
         // Typically the database is unreachable: keep polling, it is a recoverable condition.
         this.logger.error({ err: error }, "job worker tick failed; retrying at the next poll");
@@ -282,6 +288,14 @@ export class JobWorker {
       if (this.stopping) break;
       // Abandoned jobs are looked for at the polling pace, not each time a handler ends.
       reap = (await this.idle()) === "timeout";
+    }
+  }
+
+  private beat(): void {
+    try {
+      this.loopHeartbeat?.beat();
+    } catch {
+      // The health report must never stop the worker.
     }
   }
 
