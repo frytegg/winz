@@ -1,0 +1,51 @@
+/*
+ * Landing tokens (`/landing`). Imported by app/globals.css, which owns the Tailwind entry: a `@theme`
+ * block only produces utilities from the file that imports Tailwind. A variable that no class uses is
+ * not emitted, so the app's CSS does not grow.
+ *
+ * Only what the landing needs and the app does not have. Everything else is the app's token:
+ * lime (`bg-lime`), ink text (`text-ink`, #131314, which the mockup uses for its titles), white,
+ * `lime-dim` for the inactive button. Colors only: font sizes and radii stay out of this file on
+ * purpose, because lib/utils.ts must list every `--text-*` and `--radius-*` of globals.css for
+ * tailwind-merge, and the landing's type is fluid (clamp) anyway.
+ *
+ * Values are measured on the mockups (winz-landing.png and the section PNGs, 1728 px wide), by the
+ * most frequent pixel of a 9 x 9 window. 00-CONTEXTE.md gave approximations; these replace them
+ * (hero ink #1C1B20 and not #1E1E21, chip #2E2E2E and not #2E2E31, cards #FAFAFA and not #F8F8F8),
+ * except the two grays of text, which are darkened for contrast (below).
+ *
+ * THE LIME. The mockup's lime is #CCF223 (measured on 9 surfaces: pill, tab, eyebrows, play button,
+ * the lime word of the titles, all identical). The app's `--color-lime` is #D8FE35: 12, 12 and 18
+ * levels brighter, ΔE 4.1. It is the same gap measured on the app mockups in U-02, still undecided.
+ * Decided: the landing keeps the app's token. The AVIF/WebP backgrounds and phones were drawn with
+ * #CCF223, so the two sit side by side in the hero. The token does not change (JOURNAL §4 and §18).
+ */
+@theme {
+  /* Dark sections (hero, demo): the top of the gradient the background images fade from. */
+  --color-landing-ink: #1c1b20;
+  /* Dark pill (eyebrow on dark) and the dark cards inside the illustrations. */
+  --color-landing-chip: #2e2e2e;
+
+  /* Light sections. */
+  --color-landing-card: #fafafa;
+  /* The 1 px border of a card (#ececec on the mockup's edge pixel). */
+  --color-landing-line: #ececec;
+  /* The track of the Merchant / Fan tabs. */
+  --color-landing-track: #f0f1f5;
+
+  /*
+   * The two grays of text on light surfaces. The mockup has #787878 and #BCBCBC, which fail WCAG AA
+   * (4.42:1 and 1.90:1 on white); both are darkened, and the lighter one stays the lighter one:
+   *   --color-landing-gray       #6B6B70  5.30:1 on white, 5.08:1 on a card  (descriptions, 16 px)
+   *   --color-landing-gray-faint #767676  4.54:1 on white                    (section subtitles)
+   * The first is the app's own `subtle`. The faint one is at AA on white, which is where the How
+   * subtitle sits; on the pale lime the Features subtitle ends on it is 4.37:1 and on a card 4.35:1,
+   * a hair under. Do not put it on a card; if that subtitle must pass, give it the first gray.
+   */
+  --color-landing-gray: #6b6b70;
+  --color-landing-gray-faint: #767676;
+
+  /* The soft lime the page ends on: Features fades white to --from, the CTA --from to --to. */
+  --color-landing-lime-from: #f9fde5;
+  --color-landing-lime-to: #f1fbc3;
+}

@@ -16,6 +16,7 @@
     "db:seed": "psql \"$DB_URL\" -v ON_ERROR_STOP=1 -f supabase/seed.sql",
     "db:test": "bash supabase/tests/run.sh",
     "completion-check": "node scripts/completion-check.mjs",
+    "landing-check": "tsx scripts/landing-check.mjs",
     "env:check": "tsx scripts/env-check.mjs",
     "smoke": "tsx scripts/smoke.mjs",
     "e2e:ui": "pnpm --filter @winz/web e2e:ui",

@@ -34,10 +34,10 @@ export function chooseAuthProvider(env: AuthEnvironment): AuthProviderChoice {
 
 /**
  * Pages that never ask for a sign-in: what a fan opens from a shared link or a QR code (SPEC, C1 to C3),
- * the public Hedge desk the jury opens (MDB-3), and the demo panel, which has its own admin key and
- * no account (U-07).
+ * the public Hedge desk the jury opens (MDB-3), the demo panel, which has its own admin key and
+ * no account (U-07), and the landing page, a visitor's first stop, which signs nobody in.
  */
-const SIGN_IN_FREE_PREFIXES = ["/c/", "/t/", "/hedge-desk", "/admin"] as const;
+const SIGN_IN_FREE_PREFIXES = ["/c/", "/t/", "/hedge-desk", "/admin", "/landing"] as const;
 
 /**
  * True for the pages that need no sign-in at all. The Privy SDK is not even loaded there: a fan

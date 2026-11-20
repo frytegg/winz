@@ -1,0 +1,1981 @@
+/*
+ * The "Test it in three minutes" section (`sections/05-process.md`, `process/process.png`). Scoped by the
+ * `process-` / `ps-` / `pe-` / `pb` prefixes, like landing.css's `how-` and `features-`.
+ *
+ * THE UNITS. `--u` is one pixel of the 1728 px mockup at the page's width (the page sets it, as for every
+ * section). It is NOT used inside a size container: `--u` holds `cqw`, which is resolved where it is used,
+ * so below a container it would measure the container, not the page. The card is such a container
+ * (`.process-art`, `.process-box`), so inside it everything is `--p`: one pixel of the mockup at the CARD's
+ * width, which is `--u` on the sticky card (634 px of the mockup) and the width of a phone's card under 1024.
+ * Both are written as the mockup's measure times the unit: `calc(26 * var(--p))` is 26 px at 1728.
+ *
+ * THE RHYTHM, measured on the reference recording (30 fps, the ink of the card frame by frame): the old
+ * picture fades for ~450 ms, the card stays empty ~600 ms, the new one is rebuilt from the top down in ~600 ms,
+ * the groups a little over 100 ms apart. The four numbers below are those, and the only ones to change to
+ * change the rhythm (`ProcessScroll` reads `--p-out` too).
+ *
+ * MOTION. Only opacity and transform move (stroke-dashoffset to draw a tick). A picture that is not on does not
+ * run: `ProcessScroll` sets `data-anim` ("run", "hold" or none) and `data-state` (active, leaving, idle) on each
+ * screen, and nothing here animates without them. No script, or prefers-reduced-motion: no attribute, so every
+ * screen is the end of its animation.
+ */
+.process {
+  --p-out: 450ms;
+  --p-hold: 600ms;
+  --p-step: 110ms;
+  --p-in: 380ms;
+  --p-lead: calc(var(--p-out) + var(--p-hold));
+  --p-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* A block of text is this tall; the card's own height is 400 of the mockup's pixels. */
+  --process-h: max(73svh, calc(480 * var(--u)));
+  --process-card-h: calc(400 * var(--u));
+}
+
+/* ------------------------------------------------------------------------------------------------ text */
+
+.process-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.process-block {
+  text-align: left;
+}
+
+.process-label {
+  font-size: 13px;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-ink, #131314);
+}
+
+.process-title {
+  margin-top: 8px;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--color-ink, #131314);
+}
+
+.process-body {
+  margin-top: 8px;
+  max-width: 34em;
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--color-landing-gray, #6b6b70);
+}
+
+/* Without the stage, a step is its picture above its text, one column. */
+.process-step {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-bottom: 56px;
+}
+
+.process-step:last-child {
+  padding-bottom: 0;
+}
+
+.process-art {
+  order: -1;
+  width: 100%;
+  max-width: 440px;
+  container-type: inline-size;
+}
+
+.process-stage {
+  display: none;
+}
+
+/* A step comes in as it scrolls into view (cards mode): out of sight and 24 px low while it is "armed". */
+.process-step[data-reveal="armed"] {
+  opacity: 0;
+  transform: translateY(24px);
+}
+
+.process-step[data-reveal="in"] {
+  animation: process-step-in 520ms var(--p-ease) backwards;
+}
+
+@keyframes process-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
+/* ------------------------------------------------------------------------------------------------ card */
+
+/*
+ * The card and its phone, in `--p`. `--card-u` is the card's width in the mockup's pixels: the real 634 beside
+ * a column of text, and 400 (a card as tall as it is wide, the phone almost filling it) when it is alone.
+ */
+.process-art,
+.process-box {
+  --card-u: 400;
+}
+
+.process-card {
+  --p: calc(100cqw / var(--card-u));
+  --fill: 0.26;
+  position: relative;
+  overflow: hidden;
+  height: calc(400 * var(--p));
+  border: 1px solid var(--color-landing-line, #ececec);
+  border-radius: calc(32 * var(--p));
+  background: var(--color-landing-card, #fafafa);
+  font-family: var(--font-sora), system-ui, sans-serif;
+}
+
+.process-phone {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: calc(355 * var(--p));
+  height: calc(340 * var(--p));
+  margin-left: calc(-177.5 * var(--p));
+  border-radius: calc(42 * var(--p)) calc(42 * var(--p)) 0 0;
+  background: var(--color-ink, #131314);
+  color: #fff;
+  /* What the screens inherit: their own lines must not be taller than their text. */
+  font-size: calc(14 * var(--p));
+  line-height: 1.2;
+}
+
+.process-top {
+  position: absolute;
+  top: calc(29 * var(--p));
+  right: calc(18 * var(--p));
+  left: calc(22 * var(--p));
+  display: flex;
+  align-items: center;
+  gap: calc(17 * var(--p));
+}
+
+.process-back {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: calc(44 * var(--p));
+  height: calc(44 * var(--p));
+  border: calc(1.5 * var(--p)) solid var(--color-lime, #d8fe35);
+  border-radius: 50%;
+}
+
+.process-back svg {
+  width: calc(22 * var(--p));
+  height: calc(22 * var(--p));
+  fill: none;
+  stroke: var(--color-lime, #d8fe35);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.process-bar {
+  position: relative;
+  flex: 1;
+  height: calc(10 * var(--p));
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-landing-chip, #2e2e2e);
+}
+
+.process-bar-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--color-lime, #d8fe35);
+  transform: scaleX(var(--fill));
+  transform-origin: 0 50%;
+  transition: transform 700ms var(--p-ease);
+}
+
+/* The screens sit one over another under the bar: 113 px from the top of the phone, as the mockup's title. */
+.process-screens {
+  position: absolute;
+  inset: calc(113 * var(--p)) calc(21 * var(--p)) 0 calc(19 * var(--p));
+}
+
+.process-screen {
+  position: absolute;
+  inset: 0;
+}
+
+/* Before the script has run, the first screen alone. */
+.process-box .process-screen:not([data-state]):not(:first-child) {
+  visibility: hidden;
+}
+
+/* ------------------------------------------------------------------------------------------------ the sticky card (desktop) */
+
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  .process-grid {
+    display: grid;
+    grid-template-columns: calc(634 * var(--u)) minmax(0, 1fr);
+    column-gap: calc(104 * var(--u));
+  }
+
+  .process-list {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .process-stage {
+    display: block;
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .process-sticky {
+    position: sticky;
+    top: max(16px, calc((100svh - var(--process-card-h)) / 2));
+  }
+
+  .process-box {
+    --card-u: 634;
+    container-type: inline-size;
+  }
+
+  .process-art {
+    display: none;
+  }
+
+  /* A step is a block of text now, as tall as the window allows: one title at a time. */
+  .process-step {
+    display: block;
+    padding-bottom: 0;
+  }
+
+  .process-block {
+    min-height: var(--process-h);
+    padding-top: calc((var(--process-h) - var(--process-card-h)) / 2 + 45 * var(--u));
+    border-top: 1px solid var(--color-landing-line, #ececec);
+  }
+
+  /* The first block starts at the card's top, so that at rest it is the mockup: the label 45 below the top. */
+  .process-step:first-child .process-block {
+    min-height: calc((var(--process-h) + var(--process-card-h)) / 2);
+    padding-top: calc(45 * var(--u));
+    border-top: 0;
+  }
+
+  .process-label {
+    font-size: max(13px, calc(18 * var(--u)));
+    line-height: calc(23 * var(--u));
+  }
+
+  .process-title {
+    margin-top: calc(129 * var(--u));
+    font-size: max(24px, calc(42 * var(--u)));
+    line-height: 1.2;
+  }
+
+  .process-body {
+    margin-top: calc(11 * var(--u));
+    max-width: calc(380 * var(--u));
+    font-size: max(15px, calc(18 * var(--u)));
+    line-height: calc(24 / 18);
+  }
+
+  /* Each screen of the sticky card: the one that is on is shown, the one that was is fading out. */
+  .process-box .process-screen[data-state="idle"] {
+    visibility: hidden;
+    opacity: 0;
+    transition:
+      opacity var(--p-out) ease,
+      visibility 0s linear var(--p-out);
+  }
+
+  .process-box .process-screen[data-state="leaving"] {
+    opacity: 0;
+    transition: opacity var(--p-out) ease;
+  }
+
+  .process-box .process-screen[data-state="active"] {
+    opacity: 1;
+  }
+
+  /* After a change of step the pictures are rebuilt, and their own animations start once that is done. */
+  [data-process][data-moved="true"] .process-box {
+    --loop-delay: calc(var(--p-lead) + 4 * var(--p-step) + var(--p-in));
+  }
+
+  [data-process][data-moved="true"] .process-box .process-screen[data-state="active"] .pb {
+    animation: process-build var(--p-in) var(--p-ease)
+      calc(var(--p-lead) + var(--i, 0) * var(--p-step)) backwards;
+  }
+}
+
+@keyframes process-build {
+  from {
+    opacity: 0;
+    transform: translateY(calc(8 * var(--p)));
+  }
+}
+
+/* Reduced motion on a wide window: a row per step, the picture beside its text, nothing sticky, nothing moving. */
+@media (min-width: 1024px) and (prefers-reduced-motion: reduce) {
+  .process-step {
+    flex-direction: row;
+    align-items: center;
+    gap: calc(104 * var(--u));
+    padding-bottom: calc(96 * var(--u));
+  }
+
+  .process-art {
+    flex: none;
+    width: calc(634 * var(--u));
+    max-width: none;
+    --card-u: 634;
+  }
+
+  .process-block {
+    min-width: 0;
+  }
+
+  .process-label {
+    font-size: max(13px, calc(18 * var(--u)));
+  }
+
+  .process-title {
+    font-size: max(24px, calc(42 * var(--u)));
+  }
+
+  .process-body {
+    font-size: max(15px, calc(18 * var(--u)));
+  }
+}
+
+/* ------------------------------------------------------------------------------------------------ screens: step 01 */
+
+.pb {
+  position: relative;
+}
+
+.ps-title {
+  margin: 0;
+  padding-top: calc(1 * var(--p));
+  font-size: calc(26.4 * var(--p));
+  font-weight: 600;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
+.ps-sub {
+  margin: calc(8 * var(--p)) 0 0;
+  padding-left: calc(4 * var(--p));
+  max-width: calc(300 * var(--p));
+  text-wrap: balance;
+  font-size: calc(14 * var(--p));
+  line-height: calc(18 * var(--p));
+  color: #8e8e93;
+}
+
+.ps-form {
+  margin-top: calc(25 * var(--p));
+}
+
+.ps-label {
+  margin: 0;
+  font-size: calc(14 * var(--p));
+  line-height: calc(17 * var(--p));
+  text-transform: uppercase;
+}
+
+.ps-field {
+  position: relative;
+  height: calc(43 * var(--p));
+  margin-top: calc(11 * var(--p));
+  border: calc(1.3 * var(--p)) solid #515152;
+  border-radius: 999px;
+  font-size: calc(15 * var(--p));
+  white-space: nowrap;
+}
+
+.ps-hint {
+  position: absolute;
+  top: 50%;
+  left: calc(18 * var(--p));
+  font-size: calc(13 * var(--p));
+  line-height: 1;
+  color: #8e8e93;
+  /* The end state is the typed e-mail: the hint is gone. */
+  opacity: 0;
+  transform: translateY(-50%);
+}
+
+.ps-live {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 calc(18 * var(--p));
+}
+
+.ps-typed {
+  position: relative;
+  display: inline-block;
+  /* Room for the caret to rest after the last letter. */
+  padding-right: calc(6 * var(--p));
+  overflow: hidden;
+}
+
+.ps-typed-text {
+  display: block;
+}
+
+/* A cover the colour of the screen, which slides off whatever it hides. At rest: slid away (the end state). */
+.ps-cover {
+  position: absolute;
+  inset: 0;
+  background: var(--color-ink, #131314);
+  transform: translateX(100%);
+}
+
+.pe-type {
+  right: calc(6 * var(--p));
+}
+
+.ps-caret {
+  position: absolute;
+  top: 18%;
+  bottom: 18%;
+  left: 0;
+  width: calc(1.5 * var(--p));
+  background: var(--color-lime, #d8fe35);
+  /* Only while typing. */
+  opacity: 0;
+}
+
+.ps-ring {
+  position: absolute;
+  inset: calc(-1.3 * var(--p));
+  border: calc(1.5 * var(--p)) solid var(--color-lime, #d8fe35);
+  border-radius: 999px;
+}
+
+.ps-tick {
+  position: absolute;
+  right: calc(14 * var(--p));
+  width: calc(18 * var(--p));
+  height: calc(18 * var(--p));
+  fill: none;
+  stroke: var(--color-lime, #d8fe35);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pe-tick {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+.ps-code {
+  margin-top: calc(10 * var(--p));
+}
+
+.pe-code {
+  position: relative;
+}
+
+.ps-code-row {
+  position: relative;
+  height: calc(34 * var(--p));
+  width: calc(314 * var(--p));
+  overflow: hidden;
+  font-size: calc(18 * var(--p));
+  font-weight: 600;
+}
+
+.ps-digits,
+.ps-boxes {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(6, calc(44 * var(--p)));
+  column-gap: calc(10 * var(--p));
+}
+
+.ps-digits span {
+  display: grid;
+  place-items: center;
+}
+
+.ps-boxes i {
+  border: calc(1.3 * var(--p)) solid #515152;
+  border-radius: calc(10 * var(--p));
+}
+
+/* The same six outlines in lime, over the grey ones, once the code is in. */
+.ps-boxes-ok i {
+  border-color: var(--color-lime, #d8fe35);
+}
+
+.ps-ok {
+  position: absolute;
+  top: calc(-8 * var(--p));
+  right: calc(-6 * var(--p));
+  display: grid;
+  place-items: center;
+  width: calc(22 * var(--p));
+  height: calc(22 * var(--p));
+  border-radius: 50%;
+  background: var(--color-lime, #d8fe35);
+}
+
+.ps-ok svg {
+  width: calc(13 * var(--p));
+  height: calc(13 * var(--p));
+  fill: none;
+  stroke: var(--color-ink, #131314);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ------------------------------------------------------------------------------------------------ screens: step 02 */
+
+.ps-match {
+  margin-top: calc(14 * var(--p));
+}
+
+.ps-match-card {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: calc(80 * var(--p));
+  padding: 0 calc(16 * var(--p));
+  border: calc(1.5 * var(--p)) solid #3a3a3d;
+  border-radius: calc(16 * var(--p));
+  background: var(--color-card-raised, #2a2a2d);
+}
+
+/* Picked: a lime ring over the card's grey one. */
+.ps-match-card {
+  position: relative;
+}
+
+.ps-match-ring {
+  position: absolute;
+  inset: calc(-1.5 * var(--p));
+  border: calc(1.5 * var(--p)) solid var(--color-lime, #d8fe35);
+  border-radius: calc(16 * var(--p));
+}
+
+.ps-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(3 * var(--p));
+}
+
+.ps-team img {
+  width: calc(42 * var(--p));
+  height: calc(42 * var(--p));
+  object-fit: contain;
+}
+
+.ps-team-away img {
+  transform: scaleX(-1);
+}
+
+.ps-team b {
+  font-size: calc(11 * var(--p));
+  font-weight: 400;
+  color: #a1a1aa;
+}
+
+.ps-vs {
+  display: grid;
+  place-items: center;
+  width: calc(32 * var(--p));
+  height: calc(32 * var(--p));
+  border-radius: 50%;
+  background: var(--color-lime, #d8fe35);
+  color: var(--color-ink, #131314);
+  font-size: calc(12 * var(--p));
+  font-weight: 600;
+}
+
+.ps-chips {
+  display: flex;
+  margin-top: calc(11 * var(--p));
+}
+
+.ps-chip {
+  display: inline-block;
+  padding: calc(6 * var(--p)) calc(14 * var(--p));
+  border-radius: 999px;
+  background: var(--color-lime, #d8fe35);
+  color: var(--color-ink, #131314);
+  font-size: calc(13 * var(--p));
+  font-weight: 600;
+}
+
+.ps-budget {
+  position: relative;
+  margin-top: calc(14 * var(--p));
+}
+
+.ps-budget p {
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
+  font-size: calc(13 * var(--p));
+}
+
+/* The amount counts up with the slider: a counter fed by an animated integer, which is $250 at rest. */
+@property --pe-amt {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 250;
+}
+
+.ps-amount {
+  font-weight: 600;
+  color: var(--color-lime, #d8fe35);
+  counter-reset: pe-amt var(--pe-amt, 250);
+}
+
+.ps-amount::before {
+  content: "$" counter(pe-amt);
+}
+
+.ps-knob {
+  position: absolute;
+  top: calc(24 * var(--p));
+  left: calc(-6 * var(--p));
+  width: calc(12 * var(--p));
+  height: calc(12 * var(--p));
+  border-radius: 50%;
+  background: #fff;
+  transform: translateX(calc(195 * var(--p)));
+}
+
+.ps-slider {
+  position: relative;
+  display: block;
+  height: calc(6 * var(--p));
+  margin-top: calc(10 * var(--p));
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-landing-chip, #2e2e2e);
+}
+
+.ps-slider-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--color-lime, #d8fe35);
+  transform: scaleX(0.62);
+  transform-origin: 0 50%;
+}
+
+/* ------------------------------------------------------------------------------------------------ step 01's animation */
+
+/*
+ * One loop of 6.4 s: the mockup's empty screen, the e-mail typed one letter per step, the field validated, the
+ * code that was sent, its six digits, a tick; then everything fades and the loop starts again. The percentages
+ * are of the loop. A loop is only applied to a screen that has `data-anim`, and it runs only when that is "run".
+ */
+.process-screen[data-anim] {
+  --pe-loop: 6.4s;
+}
+
+.process-screen[data-anim] .pe-ph,
+.process-screen[data-anim] .pe-live,
+.process-screen[data-anim] .pe-type,
+.process-screen[data-anim] .pe-caret,
+.process-screen[data-anim] .pe-ring,
+.process-screen[data-anim] .pe-tick,
+.process-screen[data-anim] .pe-code,
+.process-screen[data-anim] .pe-codecover,
+.process-screen[data-anim] .pe-codeok,
+.process-screen[data-anim] .pe-ok {
+  animation-duration: var(--pe-loop);
+  animation-timing-function: linear;
+  animation-delay: var(--loop-delay, 0s);
+  animation-iteration-count: infinite;
+  animation-fill-mode: backwards;
+  animation-play-state: paused;
+}
+
+.process-screen[data-anim="run"] .pe-ph,
+.process-screen[data-anim="run"] .pe-live,
+.process-screen[data-anim="run"] .pe-type,
+.process-screen[data-anim="run"] .pe-caret,
+.process-screen[data-anim="run"] .pe-ring,
+.process-screen[data-anim="run"] .pe-tick,
+.process-screen[data-anim="run"] .pe-code,
+.process-screen[data-anim="run"] .pe-codecover,
+.process-screen[data-anim="run"] .pe-codeok,
+.process-screen[data-anim="run"] .pe-ok {
+  animation-play-state: running;
+}
+
+.process-screen[data-anim] .pe-ph {
+  animation-name: pe-ph;
+}
+.process-screen[data-anim] .pe-live {
+  animation-name: pe-live;
+}
+.process-screen[data-anim] .pe-type {
+  animation-name: pe-type;
+}
+.process-screen[data-anim] .pe-caret {
+  animation-name: pe-caret;
+}
+.process-screen[data-anim] .pe-ring {
+  animation-name: pe-ring;
+}
+.process-screen[data-anim] .pe-tick {
+  animation-name: pe-tick;
+}
+.process-screen[data-anim] .pe-code {
+  animation-name: pe-code;
+}
+.process-screen[data-anim] .pe-codecover {
+  animation-name: pe-codecover;
+}
+.process-screen[data-anim] .pe-codeok {
+  animation-name: pe-codeok;
+}
+.process-screen[data-anim] .pe-ok {
+  animation-name: pe-ok;
+}
+
+/* The mockup's hint, until the first letter; it comes back as the loop starts over. */
+@keyframes pe-ph {
+  0%,
+  6% {
+    opacity: 1;
+  }
+  9%,
+  93% {
+    opacity: 0;
+  }
+  98%,
+  100% {
+    opacity: 1;
+  }
+}
+
+/* What the typing leaves (the letters, the ring, the tick) fades together, then is reset out of sight. */
+@keyframes pe-live {
+  0%,
+  88% {
+    opacity: 1;
+  }
+  92%,
+  99.9% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* One step per letter of "alex@joespizza.com" (18). */
+@keyframes pe-type {
+  0%,
+  8% {
+    transform: translateX(0);
+    animation-timing-function: steps(18, end);
+  }
+  30%,
+  92% {
+    transform: translateX(100%);
+  }
+  92.1%,
+  100% {
+    transform: translateX(0);
+  }
+}
+
+/* The caret is there while the letters come. */
+@keyframes pe-caret {
+  0%,
+  7% {
+    opacity: 0;
+  }
+  8%,
+  31% {
+    opacity: 1;
+  }
+  33%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes pe-ring {
+  0%,
+  31% {
+    opacity: 0;
+  }
+  34%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes pe-tick {
+  0%,
+  32% {
+    stroke-dashoffset: 1;
+  }
+  37%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* The code appears under the field, then fades with the rest. */
+@keyframes pe-code {
+  0%,
+  37% {
+    opacity: 0;
+    transform: translateY(calc(6 * var(--p)));
+  }
+  41%,
+  88% {
+    opacity: 1;
+    transform: none;
+  }
+  92%,
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+/* One step per digit (6). */
+@keyframes pe-codecover {
+  0%,
+  43% {
+    transform: translateX(0);
+    animation-timing-function: steps(6, end);
+  }
+  58%,
+  92% {
+    transform: translateX(100%);
+  }
+  92.1%,
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes pe-codeok {
+  0%,
+  59% {
+    opacity: 0;
+  }
+  62%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes pe-ok {
+  0%,
+  61% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  68%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ------------------------------------------------------------------------------------------------ screens: step 03 */
+
+.ps-form-tight {
+  margin-top: calc(14 * var(--p));
+}
+
+/* The number: four groups in four equal columns, so that a cover moving in four steps shows a group at a time. */
+.ps-card-digits {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  column-gap: calc(10 * var(--p));
+  width: 100%;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+/* The button, the progress and the badge share one place: what is not on is clear. */
+.ps-fund {
+  display: grid;
+  place-items: center;
+  height: calc(44 * var(--p));
+  margin-top: calc(14 * var(--p));
+}
+
+.ps-fund > * {
+  grid-area: 1 / 1;
+}
+
+.ps-btn {
+  display: grid;
+  place-items: center;
+  align-self: start;
+  justify-self: stretch;
+  height: calc(42 * var(--p));
+  border-radius: 999px;
+  background: var(--color-lime, #d8fe35);
+  color: var(--color-ink, #131314);
+  font-size: calc(15 * var(--p));
+  font-weight: 600;
+  /* The end state is the live badge. */
+  opacity: 0;
+}
+
+.ps-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(9 * var(--p));
+  font-size: calc(13 * var(--p));
+  color: #d4d4d8;
+  opacity: 0;
+}
+
+.ps-indeterminate {
+  position: relative;
+  display: block;
+  width: calc(170 * var(--p));
+  height: calc(4 * var(--p));
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-landing-chip, #2e2e2e);
+}
+
+.ps-indeterminate i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  border-radius: 999px;
+  background: var(--color-lime, #d8fe35);
+  transform: translateX(250%);
+}
+
+.ps-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(7 * var(--p));
+  padding: calc(9 * var(--p)) calc(22 * var(--p));
+  border-radius: 999px;
+  background: var(--color-lime, #d8fe35);
+  color: var(--color-ink, #131314);
+  font-size: calc(15 * var(--p));
+  font-weight: 600;
+}
+
+.ps-dot {
+  width: calc(7 * var(--p));
+  height: calc(7 * var(--p));
+  border-radius: 50%;
+  background: var(--color-lime, #d8fe35);
+}
+
+.ps-live-badge .ps-dot {
+  background: var(--color-ink, #131314);
+}
+
+/* ------------------------------------------------------------------------------------------------ screens: step 04 */
+
+.ps-share {
+  display: flex;
+  justify-content: center;
+}
+
+.ps-qr {
+  position: relative;
+  width: calc(128 * var(--p));
+  height: calc(128 * var(--p));
+  padding: calc(5 * var(--p));
+  border-radius: calc(14 * var(--p));
+  background: #fff;
+}
+
+.ps-qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: var(--color-ink, #131314);
+}
+
+.ps-qr-cover {
+  position: absolute;
+  inset: 0;
+  border-radius: calc(14 * var(--p));
+  background: #fff;
+  transform: scaleY(0);
+  transform-origin: 50% 100%;
+}
+
+.ps-share-row {
+  display: flex;
+  gap: calc(10 * var(--p));
+  height: calc(30 * var(--p));
+  margin-top: calc(14 * var(--p));
+}
+
+.ps-link {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  min-width: 0;
+  padding: 0 calc(12 * var(--p));
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-card-raised, #2a2a2d);
+  font-size: calc(12 * var(--p));
+  color: #d4d4d8;
+  white-space: nowrap;
+}
+
+.ps-poster {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(6 * var(--p));
+  padding: 0 calc(12 * var(--p));
+  border: calc(1.3 * var(--p)) solid #515152;
+  border-radius: 999px;
+  font-size: calc(12 * var(--p));
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ps-poster svg,
+.ps-toast svg {
+  width: calc(13 * var(--p));
+  height: calc(13 * var(--p));
+  fill: none;
+  stroke: var(--color-lime, #d8fe35);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ps-toast {
+  position: absolute;
+  right: 0;
+  bottom: calc(10 * var(--p));
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: calc(6 * var(--p));
+  width: max-content;
+  margin: 0 auto;
+  padding: calc(8 * var(--p)) calc(14 * var(--p));
+  border: calc(1 * var(--p)) solid #3a3a3d;
+  border-radius: 999px;
+  background: var(--color-card-raised, #2a2a2d);
+  font-size: calc(12 * var(--p));
+  /* The end state is the screen without its toast. */
+  opacity: 0;
+  transform: translateY(140%);
+}
+
+/* ------------------------------------------------------------------------------------------------ screens: steps 05 and 06 */
+
+.ps-buy {
+  position: relative;
+  height: calc(130 * var(--p));
+  margin-top: calc(10 * var(--p));
+}
+
+.ps-buy-page,
+.ps-buy-ticket {
+  position: absolute;
+  inset: 0;
+}
+
+/* The end state is the ticket. */
+.ps-buy-page {
+  opacity: 0;
+}
+
+.ps-promo {
+  display: flex;
+  align-items: center;
+  height: calc(64 * var(--p));
+  padding: 0 calc(16 * var(--p));
+  border: calc(1.3 * var(--p)) solid #3a3a3d;
+  border-radius: calc(16 * var(--p));
+  background: var(--color-card-raised, #2a2a2d);
+  font-size: calc(15 * var(--p));
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.ps-pct {
+  color: var(--color-lime, #d8fe35);
+}
+
+.ps-pay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(7 * var(--p));
+  height: calc(40 * var(--p));
+  margin-top: calc(12 * var(--p));
+  border-radius: 999px;
+  background: #fff;
+  color: #000;
+  font-size: calc(14 * var(--p));
+  font-weight: 600;
+}
+
+.ps-pay svg,
+.ps-sheet svg {
+  width: calc(14 * var(--p));
+  height: calc(14 * var(--p));
+}
+
+/* The ticket: a card, a dashed tear, and a notch of the screen's colour at each end of the tear. */
+.ps-ticket {
+  position: relative;
+  border: calc(1.3 * var(--p)) solid #3a3a3d;
+  border-radius: calc(16 * var(--p));
+  background: var(--color-card-raised, #2a2a2d);
+}
+
+.ps-ticket-top,
+.ps-ticket-bottom {
+  padding: calc(10 * var(--p)) calc(14 * var(--p));
+}
+
+.ps-ticket-tear {
+  position: relative;
+  height: 0;
+  margin: 0 calc(10 * var(--p));
+  border-top: calc(1.5 * var(--p)) dashed #4a4a4d;
+}
+
+.ps-ticket-tear::before,
+.ps-ticket-tear::after {
+  content: "";
+  position: absolute;
+  top: calc(-7 * var(--p));
+  width: calc(12 * var(--p));
+  height: calc(12 * var(--p));
+  border-radius: 50%;
+  background: var(--color-ink, #131314);
+}
+
+.ps-ticket-tear::before {
+  left: calc(-16 * var(--p));
+}
+
+.ps-ticket-tear::after {
+  right: calc(-16 * var(--p));
+}
+
+.ps-helmets {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+
+.ps-ticket .ps-team img {
+  width: calc(34 * var(--p));
+  height: calc(34 * var(--p));
+}
+
+.ps-gauge-row {
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--p));
+  font-size: calc(12 * var(--p));
+  color: #a1a1aa;
+}
+
+.ps-gauge {
+  position: relative;
+  flex: 1;
+  height: calc(6 * var(--p));
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-landing-chip, #2e2e2e);
+}
+
+.ps-gauge i {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--color-lime, #d8fe35);
+  transform: scaleX(0.64);
+  transform-origin: 0 50%;
+}
+
+/* The Apple Pay sheet: from the bottom of the screen, over the whole width of the phone. */
+.ps-sheet {
+  position: absolute;
+  right: calc(-21 * var(--p));
+  bottom: 0;
+  left: calc(-19 * var(--p));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(6 * var(--p));
+  height: calc(122 * var(--p));
+  padding: calc(14 * var(--p)) calc(18 * var(--p));
+  border-top: calc(1.3 * var(--p)) solid #333;
+  border-radius: calc(20 * var(--p)) calc(20 * var(--p)) 0 0;
+  background: #000;
+  /* The end state is the screen without its sheet. */
+  transform: translateY(105%);
+}
+
+.ps-sheet p {
+  display: flex;
+  align-items: center;
+  gap: calc(6 * var(--p));
+  margin: 0;
+  font-size: calc(13 * var(--p));
+}
+
+.ps-sheet b {
+  font-size: calc(22 * var(--p));
+  font-weight: 600;
+}
+
+.ps-faceid {
+  display: grid;
+  place-items: center;
+  width: calc(34 * var(--p));
+  height: calc(34 * var(--p));
+  border: calc(1.5 * var(--p)) solid #fff;
+  border-radius: 50%;
+}
+
+.ps-faceid svg {
+  width: calc(18 * var(--p));
+  height: calc(18 * var(--p));
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ps-faceid path,
+.ps-refund-chip path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+.ps-refund {
+  margin-top: calc(10 * var(--p));
+}
+
+.ps-score {
+  display: grid;
+  place-items: center;
+  min-width: calc(96 * var(--p));
+  font-size: calc(12 * var(--p));
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ps-score > span {
+  grid-area: 1 / 1;
+}
+
+/* The end state is the final score. */
+.ps-score-a {
+  opacity: 0;
+}
+
+.ps-promise {
+  margin: 0;
+  font-size: calc(11 * var(--p));
+  line-height: 1.3;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.ps-refund-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: calc(30 * var(--p));
+  margin-top: calc(12 * var(--p));
+}
+
+.ps-statuses {
+  display: grid;
+}
+
+.ps-statuses > span {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(6 * var(--p));
+  padding: calc(6 * var(--p)) calc(14 * var(--p));
+  border-radius: 999px;
+  font-size: calc(13 * var(--p));
+  font-weight: 600;
+}
+
+.ps-status-live {
+  background: var(--color-card-raised, #2a2a2d);
+  opacity: 0;
+}
+
+.ps-status-ref {
+  background: var(--color-lime, #d8fe35);
+  color: var(--color-ink, #131314);
+}
+
+.ps-refund-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(6 * var(--p));
+  padding: calc(6 * var(--p)) calc(12 * var(--p));
+  border: calc(1.3 * var(--p)) solid var(--color-lime, #d8fe35);
+  border-radius: 999px;
+  color: var(--color-lime, #d8fe35);
+  font-size: calc(13 * var(--p));
+  font-weight: 600;
+}
+
+.ps-refund-chip svg {
+  width: calc(13 * var(--p));
+  height: calc(13 * var(--p));
+  fill: none;
+  stroke: var(--color-lime, #d8fe35);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ------------------------------------------------------------------------------------------------ steps 02 to 06's animations */
+
+/*
+ * An element with `pa` moves with the keyframes its `p<step>-...` class names (`--an`), over the loop of its
+ * screen (`--pe-loop`, `--pa-dur` for a pulse of its own). Frame 0 of each is the picture the loop starts from
+ * and its end is the same frame, so that the loop closes on itself; the element's own style is the end state
+ * a visitor with no motion sees. Every loop fades the lot out, resets it out of sight, and starts again.
+ */
+.process-screen[data-anim][data-index="1"] {
+  --pe-loop: 6s;
+}
+
+.process-screen[data-anim][data-index="2"] {
+  --pe-loop: 7s;
+}
+
+.process-screen[data-anim][data-index="4"] {
+  --pe-loop: 6.8s;
+}
+
+.process-screen[data-anim][data-index="5"] {
+  --pe-loop: 6s;
+}
+
+.process-screen[data-anim] .pa {
+  animation-name: var(--an);
+  animation-duration: var(--pa-dur, var(--pe-loop));
+  animation-timing-function: linear;
+  animation-delay: var(--loop-delay, 0s);
+  animation-iteration-count: infinite;
+  animation-fill-mode: backwards;
+  animation-play-state: paused;
+}
+
+.process-screen[data-anim="run"] .pa {
+  animation-play-state: running;
+}
+
+.pe-live-loop {
+  --an: pe-live;
+}
+.p2-ring {
+  --an: p2-ring;
+}
+.p2-vs {
+  --an: p2-vs;
+}
+.p2-chip {
+  --an: p2-chip;
+}
+.p2-fill {
+  --an: p2-fill;
+}
+.p2-knob {
+  --an: p2-knob;
+}
+.p2-amount {
+  --an: p2-amount;
+}
+.p3-cover {
+  --an: p3-cover;
+}
+.p3-btn {
+  --an: p3-btn;
+}
+.p3-status {
+  --an: p3-status;
+}
+.p3-bar {
+  --an: p3-bar;
+}
+.p3-badge {
+  --an: p3-badge;
+}
+.p3-dot {
+  --an: p3-dot;
+  --pa-dur: 1.6s;
+}
+.p4-cover {
+  --an: p4-cover;
+}
+.p4-link {
+  --an: p4-link;
+}
+.p4-download {
+  --an: p4-download;
+}
+.p4-toast {
+  --an: p4-toast;
+}
+.p5-page {
+  --an: p5-page;
+}
+.p5-pay {
+  --an: p5-pay;
+}
+.p5-sheet {
+  --an: p5-sheet;
+}
+.p5-check {
+  --an: p5-check;
+}
+.p5-ticket {
+  --an: p5-ticket;
+}
+.p5-gauge {
+  --an: p5-gauge;
+}
+.p6-before {
+  --an: p6-before;
+}
+.p6-after {
+  --an: p6-after;
+}
+.p6-live {
+  --an: p6-live;
+}
+.p6-refunded {
+  --an: p6-refunded;
+}
+.p6-chip {
+  --an: p6-chip;
+}
+.p6-check {
+  --an: p6-check;
+}
+
+/* Step 02: the card is picked, the promise lit, the budget counted up to $250. */
+@keyframes p2-ring {
+  0%,
+  10% {
+    opacity: 0;
+  }
+  14%,
+  90% {
+    opacity: 1;
+  }
+  96%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes p2-vs {
+  0%,
+  12% {
+    transform: scale(1);
+  }
+  16% {
+    transform: scale(1.18);
+  }
+  20%,
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes p2-chip {
+  0%,
+  22% {
+    opacity: 0.3;
+    transform: scale(0.96);
+  }
+  27% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  31%,
+  90% {
+    opacity: 1;
+    transform: none;
+  }
+  96%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes p2-fill {
+  0%,
+  34% {
+    transform: scaleX(0);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  62%,
+  90% {
+    transform: scaleX(0.62);
+  }
+  97%,
+  100% {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes p2-knob {
+  0%,
+  34% {
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  62%,
+  90% {
+    transform: translateX(calc(195 * var(--p)));
+  }
+  97%,
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes p2-amount {
+  0%,
+  34% {
+    --pe-amt: 0;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  62%,
+  90% {
+    --pe-amt: 250;
+  }
+  97%,
+  100% {
+    --pe-amt: 0;
+  }
+}
+
+/* Step 03: the number by groups, the button pressed, "Putting your promo live…", the badge. */
+@keyframes p3-cover {
+  0%,
+  8% {
+    transform: translateX(0);
+    animation-timing-function: steps(4, end);
+  }
+  26%,
+  92% {
+    transform: translateX(100%);
+  }
+  92.1%,
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes p3-btn {
+  0%,
+  30% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  34% {
+    opacity: 1;
+    transform: scale(0.95);
+  }
+  38% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  42%,
+  90% {
+    opacity: 0;
+    transform: scale(1);
+  }
+  96%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes p3-status {
+  0%,
+  40% {
+    opacity: 0;
+  }
+  44%,
+  60% {
+    opacity: 1;
+  }
+  64%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* The bar of the wait sweeps twice. */
+@keyframes p3-bar {
+  0%,
+  43% {
+    transform: translateX(-100%);
+  }
+  52% {
+    transform: translateX(250%);
+  }
+  52.1% {
+    transform: translateX(-100%);
+  }
+  61%,
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+@keyframes p3-badge {
+  0%,
+  62% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  67% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  70%,
+  88% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  92%,
+  100% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes p3-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+
+/* Step 04: the code drawn from the top down, the link pressed and "Link copied", the poster's icon. */
+@keyframes p4-cover {
+  0%,
+  8% {
+    transform: scaleY(1);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  30%,
+  92% {
+    transform: scaleY(0);
+  }
+  92.1%,
+  100% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes p4-link {
+  0%,
+  36% {
+    transform: scale(1);
+  }
+  39% {
+    transform: scale(0.95);
+  }
+  43%,
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes p4-toast {
+  0%,
+  38% {
+    opacity: 0;
+    transform: translateY(140%);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  44%,
+  66% {
+    opacity: 1;
+    transform: none;
+  }
+  72%,
+  100% {
+    opacity: 0;
+    transform: translateY(140%);
+  }
+}
+
+@keyframes p4-download {
+  0%,
+  76% {
+    transform: translateY(0);
+  }
+  80% {
+    transform: translateY(calc(3 * var(--p)));
+  }
+  84% {
+    transform: translateY(calc(-1.5 * var(--p)));
+  }
+  88%,
+  100% {
+    transform: translateY(0);
+  }
+}
+
+/* Step 05: Pay, the sheet up, the tick drawn, the sheet down, the ticket lands and its gauge fills. */
+@keyframes p5-page {
+  0%,
+  40% {
+    opacity: 1;
+  }
+  46%,
+  92% {
+    opacity: 0;
+  }
+  98%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes p5-pay {
+  0%,
+  5% {
+    transform: scale(1);
+  }
+  8% {
+    transform: scale(0.95);
+  }
+  11%,
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes p5-sheet {
+  0%,
+  10% {
+    transform: translateY(105%);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  17%,
+  36% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0);
+  }
+  43%,
+  100% {
+    transform: translateY(105%);
+  }
+}
+
+@keyframes p5-check {
+  0%,
+  20% {
+    stroke-dashoffset: 1;
+  }
+  28%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes p5-ticket {
+  0%,
+  44% {
+    opacity: 0;
+    transform: translateY(calc(8 * var(--p)));
+  }
+  50%,
+  90% {
+    opacity: 1;
+    transform: none;
+  }
+  95%,
+  100% {
+    opacity: 0;
+    transform: translateY(calc(8 * var(--p)));
+  }
+}
+
+@keyframes p5-gauge {
+  0%,
+  50% {
+    transform: scaleX(0);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  64%,
+  90% {
+    transform: scaleX(0.64);
+  }
+  95%,
+  100% {
+    transform: scaleX(0);
+  }
+}
+
+/* Step 06: the score is final, the ticket turns refunded, "+$20.00" lands with its tick. */
+@keyframes p6-before {
+  0%,
+  26% {
+    opacity: 1;
+  }
+  30%,
+  94% {
+    opacity: 0;
+  }
+  99%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes p6-after {
+  0%,
+  30% {
+    opacity: 0;
+  }
+  34%,
+  90% {
+    opacity: 1;
+  }
+  94%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes p6-live {
+  0%,
+  32% {
+    opacity: 1;
+  }
+  36%,
+  94% {
+    opacity: 0;
+  }
+  99%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes p6-refunded {
+  0%,
+  36% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  41% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  45%,
+  90% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  94%,
+  100% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes p6-chip {
+  0%,
+  46% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  52% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  56%,
+  90% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  96%,
+  100% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+
+@keyframes p6-check {
+  0%,
+  50% {
+    stroke-dashoffset: 1;
+  }
+  58%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Whoever asked for less motion: nothing moves, the end state, and no fade between steps. */
+@media (prefers-reduced-motion: reduce) {
+  .process-step,
+  .process-step[data-reveal],
+  .process-screen,
+  .process-screen *,
+  .process-bar-fill {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .process-step[data-reveal] {
+    opacity: 1;
+    transform: none;
+  }
+}

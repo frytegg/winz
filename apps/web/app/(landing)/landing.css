@@ -1,0 +1,478 @@
+/*
+ * Rules that belong to the page and not to a component. Scoped with :has(.landing): Next keeps a
+ * layout's CSS loaded after a client-side navigation away from the page, and the app must not
+ * inherit any of this.
+ */
+
+/* The app is dark only (`color-scheme: dark` on :root); the landing is mostly white. */
+html:has(.landing) {
+  color-scheme: light;
+  background: var(--color-white-pill);
+  /* Smooth anchors, below the navigation. The global reduced-motion rule turns the smoothness off. */
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+
+/*
+ * The hero's entrance (01-nav-hero.md): the eyebrow, the title, the subtitle and the button rise 12 px
+ * while they fade in, 60 ms after one another (--rise-step). The phones rise 40 px from the edge of the
+ * hero (which clips them) and DO NOT fade: they are the page's LCP, and Chrome does not report an image
+ * that starts at opacity 0 as the LCP (measured: with the fade the phones were not the LCP at all, with
+ * it removed they are, at ~90 ms). The brief asks for both a fade and "no fade that delays the image";
+ * the second is the one a score measures, so the fade goes. Only opacity and transform move. Whoever
+ * asks for less motion gets the final state at once, and the global reduced-motion rule (globals.css)
+ * is not trusted to do that: it shortens an animation to 1 ms, it does not remove it.
+ */
+@keyframes landing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@keyframes landing-rise-phones {
+  from {
+    transform: translateY(40px);
+  }
+}
+
+.landing-rise {
+  animation: landing-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--rise-step, 0) * 60ms);
+}
+
+.landing-rise-phones {
+  animation: landing-rise-phones 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 150ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-rise,
+  .landing-rise-phones {
+    animation: none;
+  }
+}
+
+/* The menu is a modal dialog: the page behind it must not scroll under a thumb. */
+html:has(.landing-menu[open]) {
+  overflow: hidden;
+}
+
+/*
+ * The logo strip's loop (02-logos.md). The track holds twelve lists and moves by half of its own width:
+ * exactly six lists, which the second half replaces, so the end of the loop is the start of the next (six
+ * because one list is narrower than a wide window: see MARQUEE_RUNS). Linear, about 40 px/s (the duration
+ * is six lists' width over 40: 122 s on a desktop, 76 s on a phone, where the logos are smaller). A fade at both edges, as on the mockup.
+ */
+@keyframes landing-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.landing-marquee-track {
+  --marquee-duration: 76s;
+  animation: landing-marquee var(--marquee-duration) linear infinite;
+}
+
+@media (min-width: 1024px) {
+  .landing-marquee-track {
+    --marquee-duration: 122s;
+  }
+}
+
+.landing-marquee-mask {
+  mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);
+}
+
+/* Stopped under the pointer, and while the pause checkbox has focus or is checked. */
+.landing-marquee:hover .landing-marquee-track,
+.landing-marquee:focus-within .landing-marquee-track,
+.landing-marquee-pause:checked ~ .landing-marquee-track {
+  animation-play-state: paused;
+}
+
+/* The global reduced-motion rule shortens an animation to 1 ms, which for this one means a jump. */
+@media (prefers-reduced-motion: reduce) {
+  .landing-marquee-track {
+    animation: none;
+    transform: none;
+  }
+
+  .landing-marquee-mask {
+    mask-image: none;
+  }
+}
+
+/*
+ * How it works (03-how.md). The cards are a fixed 340 x 413; their frame is a fixed 340 x 295 canvas that
+ * a card narrower than itself (a phone under 340 px) steps down, by container query on the card. The
+ * thresholds are the card's CONTENT width (its border box minus the 1 px border on each side): 337 is a
+ * 339 px card and down, and each step keeps the frame inside the card (340 x .94 = 320, .88 = 299, .8 = 272).
+ */
+.how-frame {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 340px;
+  height: 295px;
+  margin-left: -170px;
+  transform-origin: 50% 0;
+  text-align: left;
+}
+
+@container (max-width: 337px) {
+  .how-frame {
+    transform: scale(0.94);
+  }
+}
+
+@container (max-width: 317px) {
+  .how-frame {
+    transform: scale(0.88);
+  }
+}
+
+@container (max-width: 297px) {
+  .how-frame {
+    transform: scale(0.8);
+  }
+}
+
+/*
+ * The tab change. The panel that is not selected is out (visibility, so out of the accessibility tree and the
+ * tab order too), its cards at rest 8 px low and clear; the selected one's cards come in, fading and rising
+ * 8 px, 60 ms after one another (--i is the card's position). Leaving is immediate: the new cards are the
+ * motion. Only opacity and transform move.
+ */
+.how-panel {
+  grid-area: 1 / 1;
+  width: 100%;
+  visibility: hidden;
+}
+
+.how-panel[data-active="true"] {
+  visibility: visible;
+}
+
+.how-card {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.how-panel[data-active="true"] .how-card {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--i, 0) * 60ms);
+}
+
+/*
+ * The pill under the selected tab: ONE element, as wide as the selected button (Merchant 142 px, Fan 86) and
+ * as high as the track's inside (40), with a full radius. It slides by `transform` and follows the width of
+ * the button by `width`; both are written out per state, with no `calc()` and no custom property inside
+ * a transform.
+ *
+ * It used to be three layers (a disc at each end and a 1 px bar stretched between them by `scaleX`), which
+ * only looks like a pill while the three layers are rasterised, snapped and scaled in agreement. A 1 px
+ * layer stretched a hundred times is the part a browser may draw differently (blur at the seams, a bar that
+ * does not meet its discs), and a single element has no seam to show. `width` is the one thing animated
+ * besides `transform`: an absolutely positioned 40 px box, nothing else on the page depends on it.
+ */
+.how-pill {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 142px;
+  height: 40px;
+  border-radius: 9999px;
+  background: var(--color-lime);
+  transform: translateX(0);
+  transition:
+    transform 340ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 340ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.how-tabs[data-tab="fan"] .how-pill {
+  width: 86px;
+  transform: translateX(142px);
+}
+
+/*
+ * The Fan illustrations' own motion. It runs only while the Fan tab is the selected one, and starts over each
+ * time it is selected again (the `animation` property is on the selector `data-active="true"`, so it is
+ * removed, and applied afresh, as the tab changes). All of it stops under prefers-reduced-motion.
+ */
+@property --how-pct {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 64;
+}
+
+/* Card 1: the Apple Pay button, pressed once and let go (0.96 then 1). */
+@keyframes how-press {
+  35% {
+    transform: scale(0.96);
+  }
+}
+
+.how-panel[data-active="true"] .how-press {
+  animation: how-press 380ms cubic-bezier(0.22, 1, 0.36, 1) 900ms both;
+}
+
+/*
+ * Card 2: the win chance swings between 58 and 66 around 64 on a 4 s loop. The bar is a transform; the number
+ * is a counter that reads the same animated value, so both are on the same clock and agree at every frame.
+ * With no motion, or no @property, it sits at 64.
+ */
+@keyframes how-swing-bar {
+  0%,
+  100% {
+    transform: scaleX(0.64);
+  }
+  30% {
+    transform: scaleX(0.58);
+  }
+  70% {
+    transform: scaleX(0.66);
+  }
+}
+
+@keyframes how-swing-number {
+  0%,
+  100% {
+    --how-pct: 64;
+  }
+  30% {
+    --how-pct: 58;
+  }
+  70% {
+    --how-pct: 66;
+  }
+}
+
+.how-gauge {
+  transform: scaleX(0.64);
+}
+
+.how-pct {
+  counter-reset: how-pct var(--how-pct, 64);
+}
+
+.how-pct::before {
+  content: counter(how-pct) "%";
+}
+
+.how-panel[data-active="true"] .how-gauge {
+  animation: how-swing-bar 4s ease-in-out infinite;
+}
+
+.how-panel[data-active="true"] .how-pct {
+  animation: how-swing-number 4s ease-in-out infinite;
+}
+
+/* The pulsing dots stand still while their tab is out of sight. */
+.how-panel:not([data-active="true"]) * {
+  animation-play-state: paused !important;
+}
+
+@keyframes how-live-dot {
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+
+.how-panel[data-active="true"] .how-live-dot {
+  animation: how-live-dot 2s cubic-bezier(0.77, 0, 0.175, 1) infinite;
+}
+
+/* Card 3: the Refunded chip appears (0.9 then 1) and its tick is drawn, once. */
+@keyframes how-refunded {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes how-check {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+.how-check {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+.how-panel[data-active="true"] .how-refunded {
+  animation: how-refunded 360ms cubic-bezier(0.22, 1, 0.36, 1) 1000ms both;
+}
+
+.how-panel[data-active="true"] .how-check {
+  animation: how-check 420ms cubic-bezier(0.65, 0, 0.35, 1) 1250ms both;
+}
+
+/* The global reduced-motion rule shortens a transition to 150 ms and an animation to 1 ms; here there is none. */
+@media (prefers-reduced-motion: reduce) {
+  .how-card,
+  .how-panel[data-active="true"] .how-card,
+  .how-pill {
+    transition: none !important;
+  }
+
+  .how-panel[data-active="true"] .how-press,
+  .how-panel[data-active="true"] .how-gauge,
+  .how-panel[data-active="true"] .how-pct,
+  .how-panel[data-active="true"] .how-live-dot,
+  .how-panel[data-active="true"] .how-refunded,
+  .how-panel[data-active="true"] .how-check {
+    animation: none;
+  }
+}
+
+/*
+ * The cards of a tab: one column on a phone (at most 400 px wide), two columns of 340 with the third card
+ * centered under them on a tablet, three of 340 from 1110 px (3 x 340 + 2 x 20 = the mockup's 1060).
+ * Written here and not as utilities: Tailwind sorts an arbitrary min-[1110px] before md, so the two
+ * would have fought.
+ */
+.how-grid {
+  display: grid;
+  width: 100%;
+  max-width: 400px;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+@media (min-width: 768px) {
+  .how-grid {
+    max-width: none;
+    grid-template-columns: repeat(2, 340px);
+    justify-content: center;
+  }
+
+  .how-grid > :nth-child(3) {
+    grid-column: span 2;
+    justify-self: center;
+  }
+}
+
+@media (min-width: 1110px) {
+  .how-grid {
+    grid-template-columns: repeat(3, 340px);
+  }
+
+  .how-grid > :nth-child(3) {
+    grid-column: auto;
+    justify-self: stretch;
+  }
+}
+
+/*
+ * Features (06-features.md). The cards of the grid: one column on a phone (at most 400 px wide), two columns of
+ * 340 on a tablet, three of 340 from 1110 px (3 x 340 + 2 x 20 = the mockup's 1060, as How's grid). No card is
+ * special-cased, unlike How's third.
+ */
+.features-grid {
+  display: grid;
+  width: 100%;
+  max-width: 400px;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+@media (min-width: 768px) {
+  .features-grid {
+    max-width: none;
+    grid-template-columns: repeat(2, 340px);
+    justify-content: center;
+  }
+}
+
+@media (min-width: 1110px) {
+  .features-grid {
+    grid-template-columns: repeat(3, 340px);
+  }
+}
+
+/*
+ * The cards come in as the section scrolls into view (RevealOnScroll): out of sight at rest 16 px low while the
+ * group is "armed", then each rises and fades in, 60 ms after the one before (--i is its position), once. It is an
+ * animation with a `backwards` fill and no forward one, so that when it ends the card is simply its own style and
+ * the hover (`translate`, a property of its own) is free. Only opacity and transform move.
+ */
+@keyframes landing-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+[data-reveal="armed"] .reveal-card {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+[data-reveal="in"] .reveal-card {
+  animation: landing-reveal 520ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+/* The global reduced-motion rule shortens an animation to 1 ms, which still hides a card for its delay. */
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] .reveal-card {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+}
+
+/*
+ * The closing call to action (07-cta.md): the title and then the button fade in and rise 12 px, 120 ms after
+ * one another (--i); the phones rise 40 px from the edge of the section, which clips them, and do not fade (as
+ * the hero's: they are the largest image of the section). Held back by RevealOnScroll only when the section
+ * is below the first screen, so nothing is ever hidden on the strength of a script that may not arrive.
+ */
+@keyframes landing-cta-fade {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@keyframes landing-cta-rise {
+  from {
+    transform: translateY(40px);
+  }
+}
+
+[data-reveal="armed"] .cta-fade {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+[data-reveal="armed"] .cta-rise {
+  transform: translateY(40px);
+}
+
+[data-reveal="in"] .cta-fade {
+  animation: landing-cta-fade 520ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 120ms);
+}
+
+[data-reveal="in"] .cta-rise {
+  animation: landing-cta-rise 650ms cubic-bezier(0.22, 1, 0.36, 1) 240ms backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] .cta-fade,
+  [data-reveal] .cta-rise {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+}
