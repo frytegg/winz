@@ -40,6 +40,15 @@ import { HedgeFinalizeError, HedgeNotReconciledError } from "./errors";
 import { startHedging, type Hedging, type StartHedgingOptions } from "./index";
 import { CONTRACT, HandBookSource, OffsetClock, waitFor } from "./test-support";
 
+/**
+ * The finalizer's deadline is armed with `Date.now()` and waited with `setTimeout`, which runs on
+ * the monotonic clock rounded to whole milliseconds: measured on the wall clock, giving up exactly
+ * at the deadline can read 1 ms short (1 499 ms for 1 500 ms, seen on CI). The lower bounds
+ * allow two milliseconds for that rounding and nothing else: they still fail a finalizer that
+ * gives up before its deadline.
+ */
+const CLOCK_SLACK_MS = 2;
+
 const QUIET = { bid: 4000n, ask: 4600n } as const;
 const ESCROW = "0x00000000000000000000000000000000000e5c00" as const;
 const STALE_READ_LOG = "exposure read older than what the runner has: ignored";
@@ -419,7 +428,7 @@ describe("finalize has one deadline", () => {
     // database round. The bound, 3 000 ms, leaves 1 000 ms above the deadline for that poll and
     // rounds slowed by the other test files sharing the cluster, and fails 500 ms (600 ms
     // measured) below what two deadlines take.
-    expect(elapsedMs).toBeGreaterThanOrEqual(finalizeTimeoutMs);
+    expect(elapsedMs).toBeGreaterThanOrEqual(finalizeTimeoutMs - CLOCK_SLACK_MS);
     expect(elapsedMs).toBeLessThan(3_000);
   });
 
@@ -470,7 +479,7 @@ describe("finalize has one deadline", () => {
     // Capped at the finalize deadline (1.5 s) plus a reconciliation poll (100 ms) and a database
     // round; a reconciliation that ignored `notAfter` would wait reconcileTimeoutMs (8 s). The
     // bound, 4 000 ms, leaves 2 500 ms above the deadline and fails 4 000 ms below 8 s.
-    expect(elapsedMs).toBeGreaterThanOrEqual(finalizeTimeoutMs);
+    expect(elapsedMs).toBeGreaterThanOrEqual(finalizeTimeoutMs - CLOCK_SLACK_MS);
     expect(elapsedMs).toBeLessThan(4_000);
   });
 
@@ -531,7 +540,7 @@ describe("finalize has one deadline", () => {
       // Gave up at its deadline (1.5 s) plus a timer's lateness; a wait with no bound would last
       // until the held reconciliation ends (8 s here, the gate's own limit). The bound, 3 000 ms,
       // leaves 1 500 ms above the deadline and fails 5 000 ms below 8 s.
-      expect(elapsedMs).toBeGreaterThanOrEqual(finalizeTimeoutMs);
+      expect(elapsedMs).toBeGreaterThanOrEqual(finalizeTimeoutMs - CLOCK_SLACK_MS);
       expect(elapsedMs).toBeLessThan(3_000);
 
       // The held reconciliation goes on unharmed and ends cleanly once let go.
