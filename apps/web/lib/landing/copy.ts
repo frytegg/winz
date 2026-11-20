@@ -126,4 +126,70 @@ export const landingCopy = {
       chance: 64,
     },
   },
+
+  /**
+   * The Demo's H2 (COPY.md section 4), in the runs it is set in: `highlight` is lime, and the line breaks
+   * before `second`. The page reads it the way it reads `heroTitle`.
+   */
+  demoTitle: {
+    before: "Watch ",
+    highlight: "a promo",
+    second: "go live and settle.",
+  },
+
+  /**
+   * Demo (COPY.md section 4). `play` is the accessible name of the play button, `soon` what is said under
+   * it while there is no video, `frameTitle` the title of the iframe that replaces it, and `external` the
+   * name of the button when the video is somewhere a page cannot embed (a link in a new tab).
+   */
+  demo: {
+    eyebrow: "Demo",
+    cta: "Try the live demo",
+    play: "Play the Winz demo video",
+    soon: "Demo video coming soon.",
+    frameTitle: "Winz demo video",
+    external: "Watch the Winz demo video (opens in a new tab)",
+  },
+
+  /**
+   * Features (COPY.md section 6). `icon` is the file of `public/landing/features/`. The icons are
+   * decoration (the title says it all): icon-01 and icon-06 are the same file, as on the mockup.
+   */
+  features: {
+    eyebrow: "Features",
+    title: "Designed to be adopted.",
+    subtitle: "Everything a promo needs. Nothing a fan has to learn.",
+    items: [
+      {
+        icon: "icon-01",
+        title: "One-tap payment",
+        body: "Apple Pay or a card. No app to install, no wallet to set up.",
+      },
+      {
+        icon: "icon-02",
+        title: "A ticket that stays live",
+        body: "The ticket and its gauge update in real time, with no refresh.",
+      },
+      {
+        icon: "icon-03",
+        title: "Share by scan",
+        body: "A short link, a full-screen QR, native share and a printable poster.",
+      },
+      {
+        icon: "icon-04",
+        title: "Set a budget",
+        body: "Automatic pause when it runs out, or when the hedge gets too expensive.",
+      },
+      {
+        icon: "icon-05",
+        title: "Transparent hedge desk",
+        body: "See what is covered, at what price, on which book.",
+      },
+      {
+        icon: "icon-06",
+        title: "Payments that behave",
+        body: "A declined card gets a clear message.",
+      },
+    ],
+  },
 } as const;
