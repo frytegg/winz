@@ -350,7 +350,7 @@ export const landingCopy = {
     inApp: "Open this page in Safari (or Chrome) to install Winz.",
     copyLink: "Copy link",
     linkCopied: "Link copied",
-    copyFailed: "Copying is not allowed here. Select the address below and copy it.",
+    copyFailed: "Copying is not allowed here. Select the address above and copy it.",
     desktop: "Scan with your phone to open Winz.",
     openInBrowser: "Open in browser instead",
     bestOnPhone: "Best on your phone",

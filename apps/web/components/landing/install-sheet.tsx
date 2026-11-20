@@ -159,7 +159,7 @@ export function InstallSheet({
                 id={titleId}
                 ref={titleRef}
                 tabIndex={-1}
-                className="text-xl font-semibold leading-tight text-ink outline-none"
+                className="text-lg font-semibold leading-tight text-ink outline-none sm:text-xl"
               >
                 {install.title}
               </h2>
@@ -290,10 +290,18 @@ function IosSteps({ ipad }: { ipad: boolean }): React.JSX.Element {
           );
         })}
       </ol>
-      <p className="mt-4 flex items-center justify-center gap-2 text-sm text-landing-gray">
-        <Arrow className="install-arrow size-4" strokeWidth={2} aria-hidden="true" />
-        {ipad ? install.iosArrowIpad : install.iosArrowIphone}
-      </p>
+      {/* The arrow points at the toolbar of Safari (down on an iPhone, up on an iPad) and nudges toward it. */}
+      <div className="mt-5 flex flex-col items-center gap-2 text-center">
+        <span
+          aria-hidden="true"
+          className="grid size-10 place-items-center rounded-full bg-lime text-ink"
+        >
+          <Arrow className="install-arrow size-5" strokeWidth={2.25} />
+        </span>
+        <p className="max-w-[18em] text-sm leading-5 text-landing-gray">
+          {ipad ? install.iosArrowIpad : install.iosArrowIphone}
+        </p>
+      </div>
     </div>
   );
 }
