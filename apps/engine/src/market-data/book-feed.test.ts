@@ -431,7 +431,46 @@ describe("BookFeed", () => {
     });
   });
 
-  it("follows live and paused campaigns plus unexpired tracked_instruments", async () => {
+  it("keeps following an instrument once its campaign's sales close, during the game, until it settles", async () => {
+    // Production, 20 Nov 01:03 UTC: the engine woke up during NBA games; the sale-state pass moved
+    // their campaigns from 'live' to 'sales_closed' (sales close at kick-off) and the next tracked
+    // refresh dropped the instruments, froze live_instruments and flagged it stale for the rest of
+    // the game, while the tickets, the merchant dashboard and the hedge reconciliation needed it.
+    const h = await setup({ campaigns: [[NYK, "live"]], socketUp: true });
+    await waitTracked(h, [NYK]);
+    h.sockets.latest().receive(snapshot(NYK, 1, [["0.2000", "1.00"]], [["0.2300", "1.00"]]));
+    await vi.waitFor(async () => {
+      expect(await liveInstrumentRow(h.db, NYK)).toMatchObject({ stale: false, bid_bps: 2000 });
+    });
+
+    await h.db`update campaigns set status = 'sales_closed' where instrument = ${NYK}`;
+    for (let second = 1; second <= 15; second += 1) {
+      await h.scheduler.advance(1_000);
+      h.sockets
+        .latest()
+        .receive(snapshot(NYK, 1 + second, [["0.2100", "1.00"]], [["0.2400", "1.00"]]));
+    }
+    expect(h.feed.trackedSymbols()).toEqual([NYK]);
+    expect(h.feed.isStale(NYK)).toBe(false);
+    expect(h.sockets.latest().unsubscribedStreams()).toEqual([]);
+    const lastBookAtMs = h.scheduler.now();
+    await vi.waitFor(async () => {
+      const row = await liveInstrumentRow(h.db, NYK);
+      expect(row).toMatchObject({ stale: false, bid_bps: 2100, ask_bps: 2400 });
+      expect(row?.observed_at.getTime()).toBe(lastBookAtMs);
+    });
+    expect(h.log.messages()).not.toContain("instrument untracked");
+
+    // Settled: nothing is left to show or hedge, the instrument leaves the set.
+    await h.db`update campaigns set status = 'settled_yes' where instrument = ${NYK}`;
+    await h.scheduler.advance(3_000);
+    await waitTracked(h, []);
+    await vi.waitFor(async () => {
+      expect((await liveInstrumentRow(h.db, NYK))?.stale).toBe(true);
+    });
+  });
+
+  it("follows live, paused and sales-closed campaigns plus unexpired tracked_instruments", async () => {
     const h = await setup({
       campaigns: [
         [NYK, "live"],
@@ -458,8 +497,8 @@ describe("BookFeed", () => {
       expect((await liveInstrumentRow(h.db, HOU))?.stale).toBe(false);
     });
 
-    // The tracked row expires and the paused campaign closes: both leave the set.
-    await h.db`update campaigns set status = 'sales_closed' where instrument = ${MURR}`;
+    // The tracked row expires and the paused campaign settles: both leave the set.
+    await h.db`update campaigns set status = 'settled_no' where instrument = ${MURR}`;
     await h.scheduler.advance(3_000);
     await waitTracked(h, [NYK]);
     expect(

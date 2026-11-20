@@ -93,8 +93,8 @@ interface WriteState {
 }
 
 /**
- * MD-2: live books of every instrument a campaign (live or paused) or the web app
- * (tracked_instruments) needs.
+ * MD-2: live books of every instrument a campaign (live, paused, or sales closed and not settled
+ * yet: the game is on) or the web app (tracked_instruments) needs.
  *
  * Books come from the WebSocket when it is up and from REST polling otherwise, or for instruments
  * the socket has been silent on for `wsGapMs`. Every accepted book is held in memory (`getBook`,
