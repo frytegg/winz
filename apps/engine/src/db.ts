@@ -96,18 +96,89 @@ export function databaseSsl(
   return databaseHosts(url, env).every(isLocalDatabaseHost) ? undefined : "require";
 }
 
+// ---------------------------------------------------------------------------------------------
+// Time bounds of the client. Postgres.js 4.1.1 has none by default (`query_timeout` and
+// `queue_timeout` 0): a query sent on a connection that goes silent (a pooler that stops answering
+// on one connection, a network path that drops packets without a reset) waits for as long as TCP
+// takes to notice, and forever when the peer still acknowledges at the TCP level. That froze every
+// sale state for about 98 minutes on 19-20 November 2026 while the other connections of the pool
+// kept working. A server-side `statement_timeout` cannot help there: the server never got, or never
+// answered, the statement.
+// ---------------------------------------------------------------------------------------------
+
+/** The client's time bounds, in seconds (Postgres.js's units). */
+export interface DbTimeouts {
+  /**
+   * Longest time one query may take, waiting for a connection and running together (inside a
+   * transaction: from the moment it is sent, `begin` and `commit` included). Past it the client
+   * asks the server to cancel it and rejects it with `QUERY_TIMEOUT`.
+   */
+  queryTimeoutS: number;
+  /** Longest wait for a connection of a query, a transaction or a reserved connection. */
+  queueTimeoutS: number;
+  /**
+   * Longest wait for the server to answer a cancel. Past it the connection is closed (its queries
+   * reject with `CONNECTION_DESTROYED`, whether they ran being unknown, as on a lost connection)
+   * and the pool connects again for the next query: what gets rid of a silent connection.
+   */
+  cancelTimeoutS: number;
+  /**
+   * An idle connection is closed after this long, so that a connection a NAT or the pooler may
+   * have dropped silently while it sat unused is not the one the next query is sent on.
+   */
+  idleTimeoutS: number;
+  /** TCP keep-alive of every connection (Postgres.js's default, written down). */
+  keepAliveS: number;
+}
+
+/**
+ * The engine's bounds. The longest legitimate statement of the engine is a few seconds: every
+ * transaction it runs is database work only (none awaits the chain, Gemini or Stripe while it holds
+ * a lock; `withExclusiveLock`'s transaction stays open while its handler runs, but idle, which no
+ * bound here counts), the sale states cap their own statements at 5 s on the server
+ * (`sales/store.ts`), and the largest writes, the catalogue's upserts, go by batches of at most
+ * 1 000 rows (`market-data/pg-catalog-store.ts`).
+ * 30 s is six times the sale states' own server-side limit and far above any of them, and short
+ * enough that a dead connection is closed (30 s, then 5 s for the cancel) within the 60 s after
+ * which `/healthz` reports the sale states stale. The connection wait gets the same 30 s: the job
+ * worker keeps connections free by construction (`startJobs` refuses a concurrency at the pool's
+ * size), so a longer wait means a pool held by stuck work, and failing fast lets the caller retry.
+ */
+export const ENGINE_DB_TIMEOUTS: DbTimeouts = {
+  queryTimeoutS: 30,
+  queueTimeoutS: 30,
+  cancelTimeoutS: 5,
+  idleTimeoutS: 120,
+  keepAliveS: 60,
+};
+
 /**
  * Postgres client of the engine. `bigint` columns (money, quantities, on-chain ids) come back as
  * JavaScript `bigint`, never as `number`. Prepared statements are off so the client also works
  * through Supabase's transaction pooler. TLS is required for any host that is not local
- * (`databaseSsl`); the local test databases are reached as before.
+ * (`databaseSsl`); the local test databases are reached as before. Every query, transaction and
+ * connection wait is bounded (`ENGINE_DB_TIMEOUTS`; tests pass shorter ones).
  */
-export function createDb(url: string, options: { max?: number } = {}): Db {
+export function createDb(url: string, options: { max?: number } & Partial<DbTimeouts> = {}): Db {
+  const bounds: DbTimeouts = { ...ENGINE_DB_TIMEOUTS };
+  for (const key of Object.keys(ENGINE_DB_TIMEOUTS) as (keyof DbTimeouts)[]) {
+    const value = options[key];
+    if (value === undefined) continue;
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new RangeError(`createDb: ${key} must be a positive number of seconds`);
+    }
+    bounds[key] = value;
+  }
   return postgres(url, {
     max: options.max ?? 10,
     prepare: false,
     types: { bigint: postgres.BigInt },
     onnotice: () => undefined,
     ssl: databaseSsl(url),
+    query_timeout: bounds.queryTimeoutS,
+    queue_timeout: bounds.queueTimeoutS,
+    cancel_timeout: bounds.cancelTimeoutS,
+    idle_timeout: bounds.idleTimeoutS,
+    keep_alive: bounds.keepAliveS,
   });
 }

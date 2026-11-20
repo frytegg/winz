@@ -139,6 +139,28 @@ export class TcpProxy {
   }
 
   /**
+   * Silences the connections open now, and only them: each stays open on the client's side and
+   * nothing comes back on it any more (its database side is closed, which releases what it held),
+   * while a connection opened afterwards is forwarded as usual. What a pooler or a network path
+   * that stops answering on one connection does to a pool whose database is otherwise fine: a
+   * query sent on a silenced connection hangs, a query on a new connection is answered.
+   */
+  silenceOpen(): void {
+    for (const [client, upstream] of this.pairs) {
+      client.unpipe(upstream);
+      upstream.unpipe(client);
+      this.hold(client);
+      upstream.destroy();
+    }
+    this.pairs.clear();
+  }
+
+  /** Connections forwarded right now (silenced ones excluded). */
+  get forwarding(): number {
+    return this.pairs.size;
+  }
+
+  /**
    * The database is reachable again for new connections. A connection held by a stall is dead for
    * good: it is closed, so that the query waiting on it fails and its pool opens another.
    */
