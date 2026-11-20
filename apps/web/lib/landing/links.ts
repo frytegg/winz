@@ -21,6 +21,12 @@ export interface LandingLinks {
   /** The code, for "View the code" and the footer. */
   readonly githubUrl: string | null;
   readonly devpostUrl: string | null;
+  /**
+   * The repository's address, for the secondary "View on GitHub" of the CTA and the "GitHub" of the footer's
+   * Winz column. Its own entry on purpose: `githubUrl` still commands the primary "View the code" and the
+   * footer's Project column, which wait for the repository to be public (00-CONTEXTE.md).
+   */
+  readonly repoUrl: string | null;
   /** The footer's people, one entry each. */
   readonly teamLinks: readonly TeamLink[];
   /** What the "Add to Home Screen" entry of the footer opens (09-install-flow.md). */
@@ -67,6 +73,7 @@ export function missingLinks(links: LandingLinks): MissingLink[] {
   check("videoUrl", links.videoUrl);
   check("githubUrl", links.githubUrl);
   check("devpostUrl", links.devpostUrl);
+  check("repoUrl", links.repoUrl);
   for (const person of links.teamLinks) check(`teamLinks.${person.name}`, person.url);
   check("appInstallUrl", links.appInstallUrl);
   check("appQrUrl", links.appQrUrl);

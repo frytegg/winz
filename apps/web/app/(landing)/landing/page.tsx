@@ -55,7 +55,7 @@ export default function LandingPage(): React.JSX.Element {
           <LandingDemo liveDemoUrl={landingLinks.liveDemoUrl} videoUrl={landingLinks.videoUrl} />
           <LandingProcess qrUrl={qrTarget(landingLinks.liveDemoUrl, landingLinks.appQrUrl)} />
           <LandingFeatures />
-          <LandingCta githubUrl={landingLinks.githubUrl} />
+          <LandingCta githubUrl={landingLinks.githubUrl} repoUrl={landingLinks.repoUrl} />
         </main>
         <LandingFooter links={landingLinks} />
       </div>
