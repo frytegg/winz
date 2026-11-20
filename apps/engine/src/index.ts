@@ -25,6 +25,8 @@ import { EngineLeader, FENCE_MARGIN_MS, newHolderId, PgEngineLease } from "./lea
 import { createLogger, moduleLogger } from "./logger";
 import { GeminiRestClient, PgCatalogStore, createBookFeed, startCatalogSync } from "./market-data";
 import { DemoPaymentGateway, RoutingPaymentGateway, StripePaymentGateway } from "./payments";
+import { PgOrderLinkStore, type GeminiVenueWiring } from "./venues";
+import { runBootVenueCheck, sandboxClient, type SandboxSettings } from "./venues/gemini/run";
 
 /** How long subsystems get to finish what they are doing before the process exits anyway. */
 const SHUTDOWN_GRACE_MS = 15_000;
@@ -126,6 +128,34 @@ async function main(): Promise<void> {
     log.warn("Privy is not configured: buyers get demo wallets derived from the demo seed");
   }
 
+  // The sandbox (real orders with test funds): the venue of the hedge orders when
+  // APP_EXECUTION_VENUE=gemini-sandbox (production stays on paper), and the real-order proof of
+  // SPEC HE-10 once at boot when APP_VENUE_CHECK_ON_BOOT=true.
+  const sandbox: SandboxSettings = {
+    baseUrl: env.GEMINI_SANDBOX_API_URL,
+    apiKey: env.GEMINI_SANDBOX_API_KEY,
+    apiSecret: env.GEMINI_SANDBOX_API_SECRET,
+    nonceMode: env.GEMINI_SANDBOX_NONCE_MODE,
+    symbol: env.GEMINI_SANDBOX_CHECK_SYMBOL,
+    acceptTerms: env.APP_VENUE_CHECK_ACCEPT_TERMS,
+  };
+  let geminiVenue: GeminiVenueWiring | undefined;
+  if (env.APP_EXECUTION_VENUE === "gemini-sandbox") {
+    // The environment schema requires both keys for this venue.
+    const client = sandboxClient(sandbox, moduleLogger(root, "gemini-sandbox"));
+    if (client !== null) geminiVenue = { client, links: new PgOrderLinkStore(db) };
+    log.warn(
+      { baseUrl: env.GEMINI_SANDBOX_API_URL },
+      "hedge orders go to the Gemini sandbox (APP_EXECUTION_VENUE=gemini-sandbox): real orders, test funds",
+    );
+  }
+  // One process, one check: it runs beside the engine whatever the lease, never blocks it, and is
+  // stopped by a shutdown.
+  const bootCheckStop = new AbortController();
+  const bootCheck: Promise<void> = env.APP_VENUE_CHECK_ON_BOOT
+    ? runBootVenueCheck({ settings: sandbox, db, logger: root, signal: bootCheckStop.signal })
+    : Promise.resolve();
+
   // Every request to the node goes through one limiter (ARC_RPC_* variables), shared by every
   // service through this one client.
   const arc = createArcClients(env, { logger: moduleLogger(root, "rpc") });
@@ -202,6 +232,7 @@ async function main(): Promise<void> {
       payments,
       identity: identity.directory,
       venueName: env.APP_EXECUTION_VENUE,
+      ...(geminiVenue === undefined ? {} : { geminiVenue }),
       // ARC_TX_MAX_IN_FLIGHT: how many independent transactions of one signer fly together.
       tuning:
         env.ARC_TX_MAX_IN_FLIGHT === undefined
@@ -253,6 +284,7 @@ async function main(): Promise<void> {
       process.exit(exitCode === 0 ? 1 : exitCode);
     }, SHUTDOWN_GRACE_MS);
     forced.unref();
+    bootCheckStop.abort();
     arc.limiter?.closeAfter(RPC_LIMITER_RELEASE_MS);
     // A leader stops its services (the probe answers 503 meanwhile), then releases the lease; a
     // standby stops at once.
@@ -264,6 +296,8 @@ async function main(): Promise<void> {
         // The probe closes after the services, before the pool.
         return health?.close();
       })
+      // A boot check still running finishes its request in flight, then stops (it never rejects).
+      .then(() => bootCheck)
       .then(() => db.end({ timeout: 5 }))
       .catch((error: unknown) => log.error({ err: error }, "error while stopping"))
       .finally(() => process.exit(exitCode));
