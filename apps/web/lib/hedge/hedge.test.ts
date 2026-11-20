@@ -11,9 +11,17 @@ import {
   shareOfBps,
   wholePercentOfShare,
 } from "./format";
-import { exposureBar, newestFirst, proofSteps, sortInstruments, unhedgedMeter } from "./view";
+import {
+  exposureBar,
+  newestFirst,
+  proofSteps,
+  proofVerdict,
+  sortInstruments,
+  unhedgedMeter,
+} from "./view";
 
 const hedgeDeskExample = apiExamples.hedgeDeskExample;
+const hedgeDeskVenueCheckProven = apiExamples.hedgeDeskVenueCheckProven;
 
 describe("formatQty", () => {
   it("writes micro-contracts with two decimals", () => {
@@ -134,13 +142,39 @@ describe("proofSteps", () => {
     expect(proofSteps(null).map((step) => step.done)).toEqual([null, null, null]);
   });
 
+  const proven = hedgeDeskVenueCheckProven.venueCheck;
+  if (proven === null) throw new Error("the proven scenario carries a check");
+  /** A run recorded before runs existed: two of the three steps, no outcome. */
+  const legacyPartial = {
+    ...proven,
+    venue: null,
+    outcome: null,
+    orders: proven.orders.filter((order) => order.action !== "filled"),
+  };
+
   it("marks the steps the check has shown", () => {
-    const steps = proofSteps(hedgeDeskExample.venueCheck);
+    const steps = proofSteps(legacyPartial);
     expect(steps.map((step) => [step.action, step.done !== null])).toEqual([
       ["placed_maker", true],
       ["cancelled", true],
       ["filled", false],
     ]);
+    expect(proofSteps(proven).every((step) => step.done !== null)).toBe(true);
+  });
+
+  it("says in one word what the check proves", () => {
+    expect(proofVerdict(null)).toBe("none");
+    expect(proofVerdict(proven)).toBe("proven");
+    expect(
+      proofVerdict({ ...proven, outcome: "failed", failedStep: "cancelled", failure: "x" }),
+    ).toBe("failed");
+    // Without an outcome, the steps decide: all three are a proof, fewer are not.
+    expect(proofVerdict(legacyPartial)).toBe("partial");
+    expect(proofVerdict({ ...legacyPartial, orders: proven.orders })).toBe("proven");
+  });
+
+  it("the default desk has no check: production shows « Not proven yet » until the real run", () => {
+    expect(hedgeDeskExample.venueCheck).toBeNull();
   });
 });
 

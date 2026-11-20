@@ -109,9 +109,8 @@ test.describe("at the iPhone 15's full screen, 393 × 852", () => {
     }
 
     const proof = page.getByRole("region", { name: T.proof });
-    for (const order of DESK.venueCheck?.orders ?? []) {
-      await expect(proof, "HE-10: the sandbox order ids").toContainText(order.venueOrderId);
-    }
+    expect(DESK.venueCheck, "the default desk has no sandbox check").toBeNull();
+    await expect(proof, "HE-10 not proven yet, said plainly").toContainText(T.notProven);
 
     const card = page.getByRole("region", { name: instrument.eventTitle });
     await expect(card).toContainText(instrument.label);
@@ -220,4 +219,128 @@ test("a tripped breaker and an unhedged amount over the limit are said in words"
   await expect(card).toContainText(T.instruments.overLimit);
   await expect(card).toContainText(formatMoney("312000000"));
   await screens.shot("hd-desk-tripped");
+});
+
+/**
+ * SPEC HE-10, TASKS H-07 (« les identifiants des ordres du sandbox sont affichés sur le Hedge desk »):
+ * the panel « Real orders on Gemini sandbox » at 393 × 852, from `GET /api/hedge-desk`. Scenario
+ * `venueCheckProven` of the simulated API (illustrative ids, not the real run): the time of the run,
+ * the venue in plain words, « Proven », and for each of the three steps Gemini's order id, the
+ * order's terms and the status Gemini gave when read back. Without a run it says « Not proven yet »;
+ * a failed run says where it stopped and why.
+ */
+/**
+ * A time as the browser writes it: `lib/format/date.ts`'s formats, in the browser's time zone
+ * (the config's `timezoneId`), which is not this Node process's.
+ */
+function browserTime(iso: string, withDate: boolean): string {
+  const timeZone = test.info().project.use.timezoneId;
+  if (timeZone === undefined) throw new Error("the browser's time zone is set in the config");
+  const date = new Date(iso);
+  const time = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone,
+  }).format(date);
+  if (!withDate) return time;
+  const day = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone }).format(
+    date,
+  );
+  return `${day}, ${time}`;
+}
+
+test.describe("the real-order proof (HE-10) at 393 × 852", () => {
+  test.use({ viewport: { width: PHONE_WIDTH, height: 852 } });
+
+  const PROVEN = apiExamples.hedgeDeskVenueCheckProven;
+  const check = PROVEN.venueCheck;
+
+  test("a proven run: when, where, and the three sandbox orders as Gemini read them back", async ({
+    page,
+    screens,
+  }) => {
+    if (check === null) throw new Error("the scenario carries a check");
+    await page.goto("/hedge-desk?scenario=venueCheckProven");
+    const proof = page.getByRole("region", { name: T.proof });
+    await expect(proof.getByRole("heading", { name: T.proof })).toBeVisible();
+    await expect(proof, "when it ran").toContainText(T.proofRanAt(browserTime(check.ranAt, true)));
+    await expect(proof, "the venue in plain words").toContainText(
+      `${T.proofVenue}: ${T.proofVenues["gemini-sandbox"]}`,
+    );
+    await expect(proof.getByTestId("proof-verdict"), "the verdict").toContainText(T.proofProven);
+    await expect(proof).not.toContainText(T.notProven);
+
+    const steps = proof.getByRole("listitem");
+    await expect(steps, "the three steps of HE-10").toHaveCount(3);
+    for (const [index, action] of (["placed_maker", "cancelled", "filled"] as const).entries()) {
+      const order = check.orders.find((candidate) => candidate.action === action);
+      if (order === undefined) throw new Error(`the scenario shows ${action}`);
+      const step = steps.nth(index);
+      await expect(step).toContainText(T.proofSteps[action]);
+      await expect(step, "Gemini's order id").toContainText(order.venueOrderId);
+      await expect(step, "the contract").toContainText(order.instrumentSymbol);
+      await expect(step, "the time of the step").toContainText(browserTime(order.at, false));
+      if (order.side === null || order.qty === null || order.priceBps === null) {
+        throw new Error("the scenario carries the order's terms");
+      }
+      await expect(step, "side, quantity and price").toContainText(
+        T.proofOrderTerms(
+          T.proofSide[order.side],
+          formatQty(order.qty),
+          formatPriceBps(order.priceBps),
+        ),
+      );
+      await expect(step, "the status read back from Gemini").toContainText(
+        T.proofReadBack(order.status ?? ""),
+      );
+    }
+
+    const box = await proof.boundingBox();
+    expect(
+      box !== null && box.x >= 0 && box.x + box.width <= PHONE_WIDTH,
+      "the panel fits 393 px",
+    ).toBe(true);
+    await proof.scrollIntoViewIfNeeded();
+    await screens.shot("hd-venue-check");
+  });
+
+  test("a failed run says at which step it stopped and why", async ({ page }) => {
+    if (check === null) throw new Error("the scenario carries a check");
+    const failed: HedgeDeskResponse = {
+      ...PROVEN,
+      venueCheck: {
+        ...check,
+        outcome: "failed",
+        failedStep: "cancelled",
+        failure: "the maker order filled before it could be cancelled",
+        orders: check.orders.filter((order) => order.action === "placed_maker"),
+      },
+    };
+    await page.route("**/api/hedge-desk", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(failed) }),
+    );
+    await page.goto("/hedge-desk");
+    const proof = page.getByRole("region", { name: T.proof });
+    const verdict = proof.getByTestId("proof-verdict");
+    await expect(verdict).toContainText(T.proofFailed);
+    await expect(verdict).toContainText(T.proofFailedAt(T.proofStepNames.cancelled));
+    await expect(verdict).toContainText("the maker order filled before it could be cancelled");
+    const steps = proof.getByRole("listitem");
+    await expect(steps.nth(0)).toContainText(check.orders[0]?.venueOrderId ?? "missing");
+    await expect(steps.nth(1), "a step the run did not show").toContainText(T.proofNotYet);
+    await expect(steps.nth(2)).toContainText(T.proofNotYet);
+  });
+
+  test("no run yet: « Not proven yet », plainly, and no order id", async ({ page }) => {
+    await page.goto("/hedge-desk");
+    const proof = page.getByRole("region", { name: T.proof });
+    await expect(proof.getByTestId("proof-verdict")).toContainText(T.notProven);
+    await expect(proof.getByTestId("proof-verdict")).toContainText(T.notProvenBody);
+    await expect(proof).not.toContainText(T.proofOrderId);
+    await expect(proof.getByRole("listitem")).toHaveCount(3);
+    for (const index of [0, 1, 2]) {
+      await expect(proof.getByRole("listitem").nth(index)).toContainText(T.proofNotYet);
+    }
+  });
 });

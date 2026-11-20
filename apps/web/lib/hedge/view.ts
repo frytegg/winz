@@ -90,6 +90,19 @@ export interface ProofStep {
   done: ProofOrder | null;
 }
 
+/**
+ * What the check proves, in one word: `none` (it never ran), `proven`, `failed`, or `partial` (rows
+ * recorded before runs existed that do not show the three steps). Old rows that show all three are
+ * `proven`.
+ */
+export type ProofVerdict = "none" | "proven" | "failed" | "partial";
+
+export function proofVerdict(venueCheck: HedgeDeskResponse["venueCheck"]): ProofVerdict {
+  if (venueCheck === null) return "none";
+  if (venueCheck.outcome !== null) return venueCheck.outcome;
+  return proofSteps(venueCheck).every((step) => step.done !== null) ? "proven" : "partial";
+}
+
 /** Which of the three steps the check has shown. A step seen twice shows its latest. */
 export function proofSteps(venueCheck: HedgeDeskResponse["venueCheck"]): ProofStep[] {
   const orders = venueCheck === null ? [] : newestFirst(venueCheck.orders);

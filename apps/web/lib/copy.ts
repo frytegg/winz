@@ -768,10 +768,30 @@ export const copy = {
     },
     showAll: (n: number): string => `Show all ${n.toString()}`,
     showLess: "Show fewer",
-    proof: "Real-order proof",
-    proofLead: "Real orders placed on the Gemini sandbox, to prove the order adapter works.",
+    proof: "Real orders on Gemini sandbox",
+    proofLead:
+      "Real orders sent to Gemini's sandbox with test funds, each read back from Gemini, to prove the order adapter works.",
     proofRanAt: (when: string): string => `Last check ${when}`,
-    notRun: "Not run yet",
+    notProven: "Not proven yet",
+    notProvenBody: "No real order has been placed on the sandbox yet.",
+    proofVenue: "Venue",
+    proofVenues: {
+      "gemini-sandbox": "Gemini sandbox, test funds",
+      paper: "Paper, no order sent",
+      gemini: "Gemini, real money",
+    },
+    proofVenueUnknown: "Gemini sandbox",
+    proofProven: "Proven",
+    proofFailed: "Failed",
+    proofFailedAt: (step: string): string => `Stopped at: ${step}`,
+    proofPartial: "Not every step shown",
+    proofStepNames: {
+      preflight: "the key and the terms",
+      instrument: "choosing a market",
+      placed_maker: "the maker order",
+      cancelled: "the cancel",
+      filled: "the filled order",
+    },
     proofSteps: {
       placed_maker: "Maker order placed",
       cancelled: "Order cancelled",
@@ -779,6 +799,10 @@ export const copy = {
     },
     proofNotYet: "Not yet",
     proofOrderId: "Sandbox order",
+    proofOrderTerms: (side: string, qty: string, price: string): string =>
+      `${side} ${qty} @ ${price}`,
+    proofReadBack: (status: string): string => `Gemini says: ${status}`,
+    proofSide: { buy: "Buy", sell: "Sell" },
   },
   /**
    * The demo panel (U-07), for the team running a demo. Every success line says only what the
