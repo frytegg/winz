@@ -12,7 +12,8 @@ import { cn } from "@/lib/utils";
  */
 export const button = cva(
   [
-    "group relative inline-flex w-full items-center rounded-full font-normal",
+    // `gap-3`: the label never runs into the round arrow, whatever its length (M8's « Download QR »).
+    "group relative inline-flex w-full items-center gap-3 rounded-full font-normal",
     "transition-[transform,background-color,color] duration-150 ease-out",
     "active:scale-[0.98] disabled:pointer-events-none aria-disabled:pointer-events-none",
   ],

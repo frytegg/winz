@@ -62,11 +62,24 @@ export function CampaignShareSheet({
               <Copy className="size-5" strokeWidth={1.5} aria-hidden="true" />
             </button>
           </div>
+          {/* « Share » takes its own width, « Download QR » the rest: both labels fit at 393 px. */}
           <div className="flex gap-3">
-            <Button size="md" variant="dark" icon={Share} onClick={() => void share()}>
+            <Button
+              size="md"
+              variant="dark"
+              icon={Share}
+              className="w-auto shrink-0"
+              onClick={() => void share()}
+            >
               {copy.live.share}
             </Button>
-            <Button size="md" variant="dark" icon={Download} onClick={() => void downloadQr()}>
+            <Button
+              size="md"
+              variant="dark"
+              icon={Download}
+              className="min-w-0 flex-1"
+              onClick={() => void downloadQr()}
+            >
               {copy.live.downloadQr}
             </Button>
           </div>
