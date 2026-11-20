@@ -271,24 +271,39 @@ export interface FollowInput {
   onWaiting?: (seconds: number) => void;
   /** A first answer already in hand (the confirmation's): no poll when it is final. */
   first?: CheckoutStatusResponse | null;
+  /**
+   * When the wait began on `deps.now`, so that the time the confirmation took counts toward the
+   * minute; now when left out.
+   */
+  startedAt?: number;
   deps?: CheckoutDeps;
 }
 
 /**
  * Polls `GET /api/checkout/:pi` every second until the purchase ends, or until WAIT_LIMIT_SECONDS
  * (`unresolved`). A poll that fails on the network is tried again, never turned into a failure.
+ * Each poll runs within the time left before that bound (`withinBound`): a read that hangs is cut
+ * and counts as no answer, so the wait ends on time whatever the network does.
  */
 export async function followCheckout(
   paymentIntentId: string,
-  { signal, onWaiting, first = null, deps = apiCheckoutDeps }: FollowInput,
+  { signal, onWaiting, first = null, startedAt: since, deps = apiCheckoutDeps }: FollowInput,
 ): Promise<CheckoutOutcome> {
   const now = deps.now ?? Date.now;
   let outcome = first === null ? null : outcomeOf(first);
-  const startedAt = now();
+  const startedAt = since ?? now();
+  const deadline = startedAt + WAIT_LIMIT_SECONDS * 1000;
   while (outcome === null) {
     await deps.sleep(STATUS_POLL_MS, signal);
     try {
-      outcome = outcomeOf(await deps.status(paymentIntentId, signal));
+      // Within the time left before the minute: a read that hangs is no answer, not a wait
+      // without end on « Securing your promo… ».
+      const read = await withinBound(
+        (bound) => deps.status(paymentIntentId, bound),
+        signal,
+        Math.max(STATUS_POLL_MS, deadline - now()),
+      );
+      if (read !== null) outcome = outcomeOf(read);
     } catch (error: unknown) {
       if (isAbortError(error)) throw error;
       // A dropped connection: ask again.
@@ -358,9 +373,16 @@ export async function runCheckout({
   if (!authorized.ok) return { kind: "failed", message: authorized.message };
   onSecuring?.();
 
+  // The minute of the wait starts here: a confirmation that hangs is cut at its end, and the time
+  // it took counts toward it.
+  const securingSince = (deps.now ?? Date.now)();
   let latest: CheckoutStatusResponse | null = null;
   try {
-    latest = await deps.confirm(checkout.paymentIntentId, signal);
+    latest = await withinBound(
+      (bound) => deps.confirm(checkout.paymentIntentId, bound),
+      signal,
+      WAIT_LIMIT_SECONDS * 1000,
+    );
   } catch (error: unknown) {
     if (isAbortError(error)) throw error;
     // Not fatal: the Stripe webhook starts the same processing, and the status read below completes
@@ -371,6 +393,7 @@ export async function runCheckout({
     signal,
     onWaiting,
     first: latest,
+    startedAt: securingSince,
     deps,
   });
   // A purchase still on its way stays this sheet's: the next tap follows it instead of paying again.

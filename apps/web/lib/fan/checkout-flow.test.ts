@@ -1,10 +1,12 @@
 import type { CheckoutResponse, CheckoutStatusResponse } from "@winz/shared";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api/client";
 
 import {
+  STATUS_POLL_MS,
   WAIT_LIMIT_SECONDS,
+  apiCheckoutDeps,
   createCheckoutMemory,
   outcomeOf,
   runCheckout,
@@ -237,5 +239,135 @@ describe("runCheckout", () => {
         deps: d,
       }),
     ).rejects.toThrow("Aborted");
+  });
+});
+
+describe("the wait after a tap ends on time whatever the network does", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const unpaid: CheckoutStatusResponse = { ...processing, status: "requires_payment" };
+
+  /** Answers only when its signal aborts, as a fetch that hangs does. */
+  function hanging(_pi: string, signal: AbortSignal): Promise<never> {
+    return new Promise((_resolve, reject) => {
+      signal.addEventListener("abort", () => {
+        reject(new DOMException("Aborted", "AbortError"));
+      });
+    });
+  }
+
+  /** The production sleep and `Date.now`, both on vitest's fake timers. */
+  function timedDeps(overrides: Partial<CheckoutDeps>): CheckoutDeps {
+    return {
+      create: vi.fn().mockResolvedValue(CHECKOUT),
+      confirm: vi.fn().mockResolvedValue(processing),
+      status: vi.fn().mockResolvedValue(processing),
+      sleep: apiCheckoutDeps.sleep,
+      ...overrides,
+    };
+  }
+
+  function start(
+    d: CheckoutDeps,
+    controller: AbortController,
+  ): { settled: () => CheckoutOutcome | unknown; memory: ReturnType<typeof createCheckoutMemory> } {
+    let result: { value: CheckoutOutcome | unknown } | null = null;
+    const memory = createCheckoutMemory();
+    void runCheckout({
+      slug: "joes-texas",
+      qty: 2,
+      authorize: authorized,
+      signal: controller.signal,
+      memory,
+      deps: d,
+    }).then(
+      (value) => {
+        result = { value };
+      },
+      (error: unknown) => {
+        result = { value: error };
+      },
+    );
+    return { settled: () => (result === null ? undefined : result.value), memory };
+  }
+
+  it("a status read that hangs is cut at the minute: unresolved, the payment kept", async () => {
+    const controller = new AbortController();
+    const status = vi.fn().mockImplementation(hanging);
+    const d = timedDeps({ status });
+    const { settled, memory } = start(d, controller);
+    try {
+      await vi.advanceTimersByTimeAsync(WAIT_LIMIT_SECONDS * 1000 - STATUS_POLL_MS);
+      expect(settled()).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(2 * STATUS_POLL_MS);
+      expect(settled()).toEqual({ kind: "unresolved" });
+      expect(memory.peek()).toEqual(CHECKOUT);
+      // Cut by its own bound, not by the page.
+      expect((status.mock.calls[0]?.[1] as AbortSignal).aborted).toBe(true);
+      expect(controller.signal.aborted).toBe(false);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      controller.abort();
+    }
+  });
+
+  it("a confirmation that hangs is cut at the minute, and the wait ends right after", async () => {
+    const controller = new AbortController();
+    const confirm = vi.fn().mockImplementation(hanging);
+    const d = timedDeps({ confirm, status: vi.fn().mockResolvedValue(unpaid) });
+    const { settled, memory } = start(d, controller);
+    try {
+      await vi.advanceTimersByTimeAsync(WAIT_LIMIT_SECONDS * 1000 - STATUS_POLL_MS);
+      expect(settled()).toBeUndefined();
+      expect(d.status).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(3 * STATUS_POLL_MS);
+      expect(settled()).toEqual({ kind: "unresolved" });
+      expect(memory.peek()).toEqual(CHECKOUT);
+      expect(d.status).toHaveBeenCalledTimes(1);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      controller.abort();
+    }
+  });
+
+  it("the time the confirmation took counts toward the minute", async () => {
+    const controller = new AbortController();
+    const confirm = vi.fn().mockImplementation(
+      () =>
+        new Promise<CheckoutStatusResponse>((resolve) => {
+          setTimeout(() => {
+            resolve(processing);
+          }, 30_000);
+        }),
+    );
+    const d = timedDeps({ confirm, status: vi.fn().mockResolvedValue(processing) });
+    const { settled } = start(d, controller);
+    try {
+      await vi.advanceTimersByTimeAsync(WAIT_LIMIT_SECONDS * 1000 - STATUS_POLL_MS);
+      expect(settled()).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(2 * STATUS_POLL_MS);
+      expect(settled()).toEqual({ kind: "unresolved" });
+    } finally {
+      controller.abort();
+    }
+  });
+
+  it("the shopper leaving during a confirmation that hangs still rejects with the abort", async () => {
+    const controller = new AbortController();
+    const d = timedDeps({ confirm: vi.fn().mockImplementation(hanging) });
+    const { settled } = start(d, controller);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(settled()).toBeUndefined();
+    controller.abort();
+    await vi.advanceTimersByTimeAsync(0);
+    const error = settled();
+    expect(error).toBeInstanceOf(DOMException);
+    expect((error as DOMException).name).toBe("AbortError");
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
