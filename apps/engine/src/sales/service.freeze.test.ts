@@ -426,3 +426,95 @@ describe("sale states: what the loop does around a pass that fails or is ended",
     expect(runner.memoryOf(campaign)).not.toBeNull();
   });
 });
+
+describe("sale states: books that never stop arriving", () => {
+  /** A book source that emits a book for `symbol` every `everyMs`, as Gemini's socket does at ~10 Hz. */
+  class StreamingBooks implements SaleBookSource {
+    private timer: ReturnType<typeof setInterval> | null = null;
+    constructor(
+      private readonly symbol: string,
+      private readonly everyMs: number,
+    ) {}
+    getBook(): null {
+      return null;
+    }
+    isStale(): boolean {
+      return false;
+    }
+    subscribe(listener: BookFeedListener): () => void {
+      this.timer = setInterval(() => {
+        listener({
+          kind: "book",
+          book: { instrumentSymbol: this.symbol, bids: [], asks: [], observedAtMs: Date.now() },
+          source: "ws",
+        });
+      }, this.everyMs);
+      return () => {
+        if (this.timer !== null) clearInterval(this.timer);
+        this.timer = null;
+      };
+    }
+  }
+
+  it("full passes keep coming while a followed book streams, so a campaign without books still closes", async () => {
+    // Production, 20 Nov 04:15 UTC: with the socket streaming books, /healthz showed sale-states
+    // 73 s without a full pass while every other loop ran. Each book requests a pass for its
+    // instrument; the 1 s loop awaited the whole drain, which never empties while books stream,
+    // so after the first full pass no other one was ever asked for.
+    const streamed = await seedLiveCampaign();
+    // A second campaign on an instrument nobody streams: only a full pass ever looks at it.
+    const quiet = await seedLiveCampaign();
+    await db`
+      insert into instruments (symbol, event_ticker, label, type, onchain_id)
+      values ('KXQUIET-YES', 'KXFREEZE', 'KXQUIET-YES', 'moneyline', ${`0x${"cd".repeat(32)}`})
+      on conflict (symbol) do nothing
+    `;
+    await db`update campaigns set instrument = 'KXQUIET-YES' where id = ${quiet}`;
+    let beats = 0;
+    let nowMs = T0;
+    const stop = new AbortController();
+    const books = new StreamingBooks(SYMBOL, 2);
+    // Production's database is a pooler round trip away: a pass takes longer than the gap
+    // between two books, so a book is always waiting when a pass ends.
+    const slowDb = new Proxy(db, {
+      get: (target, property, receiver): unknown => {
+        const value: unknown = Reflect.get(target, property, receiver);
+        if (property !== "begin" || typeof value !== "function") return value;
+        return async (...args: unknown[]): Promise<unknown> => {
+          await new Promise((resolve) => setTimeout(resolve, 15));
+          return (value as (...a: unknown[]) => Promise<unknown>).apply(target, args);
+        };
+      },
+    });
+    const service = startSaleStates({
+      db: slowDb,
+      bookFeed: books,
+      logger: capture().logger,
+      signal: stop.signal,
+      intervalMs: 10,
+      retryMaxMs: 20,
+      startupGraceMs: 0,
+      clock: () => nowMs,
+      heartbeat: {
+        beat: () => {
+          beats += 1;
+        },
+      },
+    });
+    cleanups.push(async () => {
+      stop.abort();
+      await service.stopped;
+    });
+
+    expect(await waitFor(() => Promise.resolve(beats >= 1), 3_000)).toBe(true);
+    const afterFirst = beats;
+    // Full passes go on although the streamed instrument's passes never let the queue empty.
+    expect(await waitFor(() => Promise.resolve(beats >= afterFirst + 5), 3_000)).toBe(true);
+    // And the campaign nobody streams closes at its sales close.
+    nowMs = SALES_CLOSE + 1_000;
+    expect(await waitFor(async () => (await stateOf(quiet)).status === "sales_closed", 3_000)).toBe(
+      true,
+    );
+    expect((await stateOf(streamed)).status).toBe("sales_closed");
+  });
+});

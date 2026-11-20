@@ -542,6 +542,13 @@ export function startSaleStates(options: SaleStatesOptions): SaleStates {
   let pendingFull = false;
   const pendingInstruments = new Set<string>();
   let draining: Promise<void> | null = null;
+  /**
+   * Who waits on the next full pass (the 1 s loop). Each is released once a full pass that started
+   * after it asked has run, not once the queue is empty: while books stream, a pass for their
+   * instruments is always waiting, the queue never empties, and a loop that awaited the whole
+   * drain never asked for another full pass (production, 20 Nov: 73 s without one).
+   */
+  let fullWaiters: (() => void)[] = [];
   let failures = 0;
 
   /**
@@ -636,22 +643,39 @@ export function startSaleStates(options: SaleStatesOptions): SaleStates {
   const drain = async (): Promise<void> => {
     try {
       while (!signal.aborted && (pendingFull || pendingInstruments.size > 0)) {
-        const instruments = pendingFull ? undefined : [...pendingInstruments].sort();
+        const full = pendingFull;
+        const instruments = full ? undefined : [...pendingInstruments].sort();
+        const released = full ? fullWaiters : [];
+        if (full) fullWaiters = [];
         pendingFull = false;
         pendingInstruments.clear();
         await runOne(instruments);
+        for (const release of released) release();
       }
     } finally {
       draining = null;
+      // Stopping leaves no one waiting on a full pass that will never run.
+      if (signal.aborted) {
+        for (const release of fullWaiters.splice(0)) release();
+      }
     }
   };
 
+  /**
+   * Asks for a pass. Without an instrument, a full pass, and the promise settles once a full pass
+   * started after this call has run; with one, a pass for it, and the promise is the drain's.
+   */
   const request = (instrument?: string): Promise<void> => {
     if (signal.aborted) return draining ?? Promise.resolve();
-    if (instrument === undefined) pendingFull = true;
-    else pendingInstruments.add(instrument);
+    let fullDone: Promise<void> | null = null;
+    if (instrument === undefined) {
+      pendingFull = true;
+      fullDone = new Promise<void>((resolve) => fullWaiters.push(resolve));
+    } else {
+      pendingInstruments.add(instrument);
+    }
     draining ??= drain();
-    return draining;
+    return fullDone ?? draining;
   };
 
   const unsubscribe = options.bookFeed.subscribe((event) => {
