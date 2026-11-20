@@ -42,7 +42,15 @@ export const API_ROUTES = {
     path: "/api/me",
     auth: "user",
     response: schemas.meResponseSchema,
-    examples: { default: examples.meExamples.merchant, ...examples.meExamples },
+    examples: {
+      default: examples.meExamples.merchant,
+      ...examples.meExamples,
+      // The scenarios of « My tickets » are a fan's visit: who is signed in is that fan.
+      noTickets: examples.meExamples.fan,
+      severalTickets: examples.meExamples.fan,
+      demoTicket: examples.meExamples.fan,
+      ticketsUnavailable: examples.meExamples.fan,
+    },
   },
   createMerchant: {
     method: "POST",

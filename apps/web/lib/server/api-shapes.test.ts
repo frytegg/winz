@@ -9,6 +9,7 @@ import {
   ticketSchema,
   ticketsResponseSchema,
   type CampaignEvent,
+  type EventsResponse,
 } from "@winz/shared";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -74,6 +75,23 @@ function params(values: Record<string, string> = {}): {
   params: Promise<Record<string, string>>;
 } {
   return { params: Promise.resolve(values) };
+}
+
+/**
+ * `example` (a `GET /api/events` answer) with the start and close times of `served`: the only
+ * fields the mock computes for that route, which mock-answers.test.ts checks on their own.
+ */
+function withDatesOf(example: unknown, served: unknown): unknown {
+  const times = (served as EventsResponse).events.map(({ startsAt, salesCloseAt }) => ({
+    startsAt,
+    salesCloseAt,
+  }));
+  return {
+    events: (example as EventsResponse).events.map((event, index) => ({
+      ...event,
+      ...times[index],
+    })),
+  };
 }
 
 async function body(response: Response): Promise<unknown> {
@@ -389,8 +407,8 @@ describe("the mock API (APP_API_MOCK) serves the additions", () => {
     [
       "ticketByToken",
       getTicket,
-      "/api/t/tkt_example",
-      { token: "tkt_example" },
+      "/api/t/tkt_example_joes_texas",
+      { token: "tkt_example_joes_texas" },
       API_ROUTES.ticketByToken.examples,
     ],
     ["tickets", getTickets, "/api/tickets", {}, API_ROUTES.tickets.examples],
@@ -405,7 +423,8 @@ describe("the mock API (APP_API_MOCK) serves the additions", () => {
   it.each(cases)("%s, scenario %s", async (name, scenario, handler, path, values, example) => {
     const response = await handler(get(path, { [MOCK_SCENARIO_HEADER]: scenario }), params(values));
     const served = await body(response);
-    expect(served).toEqual(example);
+    // The games other than the running example's are dated from the clock (mock-answers.ts).
+    expect(served).toEqual(name === "events" ? withDatesOf(example, served) : example);
     // Each of the additions is present in what is served (a key, possibly null).
     const text = JSON.stringify(served);
     const expected: Record<string, readonly string[]> = {

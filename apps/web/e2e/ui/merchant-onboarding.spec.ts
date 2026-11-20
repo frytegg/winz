@@ -9,6 +9,7 @@ import { DEFAULT_BUDGET_CENTS } from "../../lib/wizard/draft";
 import { CRITERIA, meetsLimit } from "./support/criteria";
 import { expect, test } from "./support/fixtures";
 import {
+  followPreviews,
   fundButton,
   isCreateCampaign,
   loseAnswer,
@@ -24,8 +25,6 @@ import { TapCounter } from "./support/taps";
 /** SPEC section 17, criterion 1: strictly fewer than 15 taps and 2 minutes. */
 const MAX_TAPS = CRITERIA.onboardingTaps;
 const MAX_SECONDS = CRITERIA.onboardingSeconds;
-/** What the simulated `POST /api/campaigns/preview` answers by default, shown in M6 and M7. */
-const PREVIEW = apiExamples.campaignPreviewExamples.open;
 /** M6's budget is left at its default: M7 funds exactly that. */
 const BUDGET = formatMoneyCompact(centsToMicro(DEFAULT_BUDGET_CENTS));
 
@@ -38,6 +37,8 @@ test("M0 to M8: a new merchant puts a promo live in fewer than 15 taps and 2 min
   screens,
 }) => {
   const taps = new TapCounter();
+  // What M6 and M7 must show: the preview the simulated API computed for the terms sent.
+  const lastPreview = followPreviews(page);
 
   // M0
   await page.goto("/?scenario=newUser");
@@ -130,8 +131,9 @@ test("M0 to M8: a new merchant puts a promo live in fewer than 15 taps and 2 min
   const review = page.getByRole("button", { name: copy.margin.reviewCta });
   await expect(review, "M6 can go on once the preview has answered").toBeEnabled();
   await expect(page.getByText(copy.margin.costLabel), "M6 shows the cost per sale").toBeVisible();
+  const preview = await lastPreview();
   await expect(
-    page.getByText(copy.margin.capacity(PREVIEW.capacity.sales), { exact: true }),
+    page.getByText(copy.margin.capacity(preview.capacity.sales), { exact: true }),
     "M6 shows the capacity the preview answered",
   ).toBeVisible();
   await screens.shot("m6-margin");
@@ -151,12 +153,13 @@ test("M0 to M8: a new merchant puts a promo live in fewer than 15 taps and 2 min
     page.getByLabel(BUDGET, { exact: true }),
     "M7 shows the budget chosen in M6",
   ).toBeVisible();
+  const reviewed = await lastPreview();
   await expect(
-    page.getByLabel(formatMoney(PREVIEW.costPerSale), { exact: true }),
+    page.getByLabel(formatMoney(reviewed.costPerSale ?? ""), { exact: true }),
     "M7 shows the cost per sale the preview answered",
   ).toBeVisible();
   await expect(
-    page.getByLabel(formatMoney(PREVIEW.marginKeptPerSale), { exact: true }),
+    page.getByLabel(formatMoney(reviewed.marginKeptPerSale ?? ""), { exact: true }),
     "M7 shows the margin kept per sale the preview answered",
   ).toBeVisible();
   await screens.shot("m7-review");
@@ -339,6 +342,7 @@ test.describe("M7: a Fund request is one campaign, whatever happens to its answe
 test("M7: when the review's numbers cannot be computed, it says so and offers to try again (review 2.8)", async ({
   page,
 }) => {
+  const lastPreview = followPreviews(page);
   await signInAsMerchant(page);
   await reachMargin(page);
   // M6's own preview answers first: only M7's is cut.
@@ -366,8 +370,9 @@ test("M7: when the review's numbers cannot be computed, it says so and offers to
     .toBeGreaterThan(before);
 
   await page.unroute(isPreview);
+  const preview = await lastPreview();
   await expect(
-    page.getByLabel(formatMoney(PREVIEW.costPerSale), { exact: true }),
+    page.getByLabel(formatMoney(preview.costPerSale ?? ""), { exact: true }),
     "once the preview answers, M7 shows its numbers",
   ).toBeVisible();
   await expect(fundButton(page)).toBeEnabled();
