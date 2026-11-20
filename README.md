@@ -1,17 +1,40 @@
 # Winz
 
 Winz lets a shop run a game-night promo like "free if Texas wins" and know its cost before the
-first sale. Each sale is covered on the prediction market of Gemini, the exchange, as it is paid.
+first sale. The fan pays the normal price with Apple Pay and gets a live ticket showing the chance
+the condition comes true. As each sale is paid, Winz covers the refund the shop promised by buying
+YES contracts on Gemini's prediction market, each worth $1 if the condition comes true. The refund
+is locked in USDC in an escrow contract on Arc at the sale and paid by the contract, never out of
+Winz's treasury. Merchants sign in with an e-mail code, and neither they nor fans ever send a
+transaction: a relayer does, and pays the gas in USDC.
 
 **[Live app](https://winz-nu.vercel.app)** ·
 **[Hedge desk](https://winz-nu.vercel.app/hedge-desk)** (every cover order, public) ·
-**[Production receipts](docs/receipts/prod/settlements-2026-11-19.md)** ·
+**[Production receipts](docs/receipts/prod/settlements-2026-11-19.md)** (in French) ·
 **[Escrow on Arc testnet](https://explorer.testnet.arc.io/address/0x81d2d4050E617184b2B832c30BE68f8811b37D2c)**
 
 Status on 20 November 2026: deployed and used on Arc testnet with test money only (testnet USDC,
-cards in Stripe test mode). Five promos were sold, covered and settled there. The cover runs as
-paper fills against Gemini's live order book; real orders were placed on Gemini's sandbox only.
+cards in Stripe test mode). Five promos were sold, covered and settled there. The cover is simulated:
+paper fills against Gemini's live order book, never sent to it. Real signed orders were placed on
+Gemini's sandbox only.
 What is not done is under [Limits](#limits).
+
+Submitted to the Consumer Applications track, with Best use of Arc and the Gemini Prediction
+Markets and QuickNode Streams bounties.
+
+- **[Arc](#arc):** escrow `0x81d2d4050E617184b2B832c30BE68f8811b37D2c` on Arc testnet, source
+  verified, built with Foundry. It holds refunds and promo budgets in Arc's USDC
+  `0x3600000000000000000000000000000000000000`, which also pays the gas.
+- **[Gemini](#gemini):** catalogue, live order book and results in production; signed orders on
+  the sandbox.
+- **[QuickNode](#quicknode):** a Stream on Arc testnet's Logs dataset, filtered to the escrow's
+  logs, pushes them to a webhook on the app (11 webhook requests, 0 errors on 20 Nov).
+
+<img src="docs/screens/merchant-cost-per-sale.png" alt="Merchant screen before launch: cost per sale $1.65, keep $6.14 per sale, up to 458 sales, sales pause if Texas' chances go above 18%" width="240"> <img src="docs/screens/fan-live-ticket.png" alt="Fan's live ticket during the game: Smash burger $12 paid, free if Texas wins by 14+, 31% chance it's free" width="240">
+
+Left, the merchant's screen before launch: cost per sale, what they keep on each one, how many
+sales the budget covers, and the chance at which sales pause. Right, a fan's live ticket during the
+game. Both are the app's screens on its simulated API (demo data).
 
 ## One sale, in numbers
 
@@ -62,10 +85,11 @@ fan phone ------Apple Pay (Stripe test)--> web --job--> engine
 engine <--catalogue, order book, results-- Gemini
 engine --orders--> paper venue on Gemini's live book | Gemini sandbox (proof run)
 engine --createCampaignFor, buyFor, chargeHedge, settle, refundBatch, payMerchant, release--> WinzEscrow (Arc testnet)
-WinzEscrow logs --QuickNode Stream--> web POST /api/webhooks/quicknode --> chain_events <-- engine (receipt, eth_getLogs)
+WinzEscrow logs --QuickNode Stream (Arc testnet, Logs, escrow filter)--> web POST /api/webhooks/quicknode --> chain_events
+engine --relayer receipt, eth_getLogs every 5 s--> chain_events   (first write wins: on conflict do nothing)
 ```
 
-## Proven in production on 19 and 20 November
+## Five promos settled on Arc testnet, 19 and 20 November
 
 One merchant account we ran, Buzzball's shop, sold a Smash burger under five promos, each
 promising 50 % back.
@@ -79,9 +103,7 @@ promising 50 % back.
 | 18 | New York wins by 10+ | $12 | 1 | No | 17 s | [settled](https://explorer.testnet.arc.io/tx/0x60df923f45da36b8b5ca31896ef8b93a0f0e223cf4a94f3436d250035053bd65), [released to the merchant](https://explorer.testnet.arc.io/tx/0xd629b3ac0871be06c3a98967d7aadeb6032dfe37c5e2c86d23d436482234a571) |
 | 19 | Minnesota wins by 9+ | $12 | 1 | No | 15 s | [settled](https://explorer.testnet.arc.io/tx/0xb22ddd1af806f7f79b0702ea1e67ad4d2236ab5054ee7a8fa42500151ac5354b), [released to the merchant](https://explorer.testnet.arc.io/tx/0xd9903ec3ad126857b29ed10671dcc4ecbc6b129fb8cad0b6122c56655694b273) |
 
-Promo 15 was settled by the engine started at 01:02 UTC, the four NBA promos by the engine
-redeployed at 02:55 UTC; the receipt does not say why the first took longer. The purchases were
-paid with Apple Pay on an iPhone, in Stripe test mode, and filmed.
+The purchases were paid with Apple Pay on an iPhone, in Stripe test mode, and filmed.
 
 The first sale, from its [receipt](docs/receipts/prod/g1-2026-11-19.md): card payment at
 23:40:00 UTC, `buyFor` mined at 23:40:03, cover filled at 23:40:10.8, `chargeHedge` mined at
@@ -98,11 +120,18 @@ catalogue lists the games and conditions a merchant can choose. Its live book pr
 pauses a promo when the chance passes what the margin can pay. YES contracts on that market cover
 each sale, and Gemini's result settles the promo.
 
+| Gemini API | Used for | Where it ran |
+| --- | --- | --- |
+| Catalogue (REST) | games and conditions a merchant can pick | production |
+| Order book: `wss://ws.gemini.com`, REST book as fallback | price of each sale, pause threshold | production |
+| Results | settling the promo: yes, no or void | production |
+| `/v1/prediction-markets/` order, cancel, order history, signed HMAC-SHA384 | buying YES contracts | sandbox, 2 real orders on 20 Nov; production uses paper fills on the live book |
+
 **How it is built.**
 
 - Catalogue: [`gemini-rest-client.ts`](apps/engine/src/market-data/gemini-rest-client.ts) and
-  [`catalog-leagues.ts`](apps/engine/src/market-data/catalog-leagues.ts). Gemini's listing stops
-  near 1,000 events, so the engine reads one per league ([engine README](apps/engine/README.md)).
+  [`catalog-leagues.ts`](apps/engine/src/market-data/catalog-leagues.ts). Gemini's event listing stops
+  near 1,000 events, so the engine reads the catalogue league by league ([engine README](apps/engine/README.md)).
 - Live book: [`ws-book-transport.ts`](apps/engine/src/market-data/ws-book-transport.ts) subscribes
   to `wss://ws.gemini.com` and reconnects with exponential backoff.
   [`book-feed.ts`](apps/engine/src/market-data/book-feed.ts) falls back to the REST book
@@ -147,8 +176,8 @@ each sale, and Gemini's result settles the promo.
   Gemini sandbox" on the [Hedge desk](https://winz-nu.vercel.app/hedge-desk) shows them. The
   sandbox lists no sports market, so the proof uses a crypto contract through the same adapter.
 - The same two orders in the sandbox account's own order history: the $0.01 limit order canceled,
-  the $0.22 limit order filled 100 %. The page shows its own time zone and order ids; the seconds
-  (:05 and :08) are those of the proof.
+  the $0.22 limit order filled 100 %. The page shows times in its own time zone and its own order ids; the
+  seconds (:05 and :08) match the proof run.
 
   <img src="docs/receipts/prod/gemini-sandbox-order-history-1.jpg" alt="Gemini sandbox order history: two GEMI-ETH buy limit orders at 0.22 and 0.01 USD" width="720">
   <img src="docs/receipts/prod/gemini-sandbox-order-history-2.jpg" alt="Gemini sandbox order history, right side: the 0.22 order filled 100 %, the 0.01 order canceled" width="720">
@@ -156,14 +185,47 @@ each sale, and Gemini's result settles the promo.
 
 ## QuickNode
 
-**What Winz uses, and why.** The engine must see every sale on the escrow to cover it. A QuickNode
-Stream pushes the escrow's events to the web app, a third path beside the relayer's transaction
-receipt and an `eth_getLogs` poll every 5 s. The first path to arrive writes the event.
+**What Winz uses, and why.** Every escrow event must be written once to `chain_events`. A QuickNode
+Stream pushes the escrow's logs to the web app. Two paths run beside it, the relayer's own
+transaction receipt and an `eth_getLogs` poll every 5 s, and the first to arrive writes the event.
+The Stream and the poll see every escrow event, including those the relayer did not send (a ticket
+holder's `emergencyClaim`); the receipt only covers the relayer's own transactions. In production,
+the events the Stream wrote first reached the database 1.04 s after their block, on average.
 
 **How it is built.**
 
-- The Stream reads Arc testnet's Logs dataset through a filter that keeps the escrow's logs only
-  (code and settings in [`docs/quicknode.md`](docs/quicknode.md)).
+- Stream settings:
+
+  | Setting | Value |
+  | --- | --- |
+  | Network | Arc testnet |
+  | Dataset | Logs |
+  | Filter | keeps only the logs of the escrow `0x81d2d4050E617184b2B832c30BE68f8811b37D2c`; a block with no escrow event sends nothing (25,399 blocks processed, 11 webhook requests) |
+  | Batch | 1 block per delivery |
+  | Destination | webhook `POST https://winz-nu.vercel.app/api/webhooks/quicknode` |
+
+  The filter, as configured on the Stream:
+
+  ```js
+  function main(stream) {
+    const escrow = "0x81d2d4050e617184b2b832c30be68f8811b37d2c";
+    const kept = [];
+    const visit = (node) => {
+      if (Array.isArray(node)) {
+        node.forEach(visit);
+      } else if (node && typeof node.address === "string" && node.address.toLowerCase() === escrow) {
+        kept.push(node);
+      }
+    };
+    visit(stream.data);
+    return kept.length === 0 ? null : kept;
+  }
+  ```
+
+  It keeps the escrow's logs at any depth of the payload and returns `null` for a block without
+  one, so QuickNode sends nothing. Why a filter on the address only: every escrow event matters
+  to the engine, and the webhook decodes the topics itself. Setup notes in
+  [`docs/quicknode.md`](docs/quicknode.md) (in French).
 - Its destination is `POST /api/webhooks/quicknode`
   ([`route.ts`](apps/web/app/api/webhooks/quicknode/route.ts),
   [`quicknode-webhook.ts`](apps/web/lib/server/quicknode-webhook.ts)). Each delivery is verified on
@@ -214,7 +276,9 @@ receipt and an `eth_getLogs` poll every 5 s. The first path to arrive writes the
 **What Winz uses, and why.** The escrow holds the money the promise depends on, in USDC, and the
 contract, not Winz's database, pays it out. The result itself is posted by Winz's oracle key
 (`settle` is oracle-only), copied from Gemini's published result. Gas on Arc is paid in USDC too, so the
-relayer and oracle hold one token. Fans and merchants never send a transaction; the relayer does.
+relayer and oracle hold one token. Fans and merchants never send a transaction; the relayer does. Each fan gets an embedded wallet
+(Privy) created from the e-mail of the payment sheet, with no seed phrase: the ticket is bought for
+that address, and the refund lands there in USDC.
 
 **How it is built.** [`WinzEscrow.sol`](packages/contracts/src/WinzEscrow.sol), interface
 [`IWinzEscrow.sol`](packages/contracts/src/interfaces/IWinzEscrow.sol), Foundry, Solidity 0.8.28.
@@ -232,6 +296,9 @@ relayer and oracle hold one token. Fans and merchants never send a transaction; 
   The token is Arc's USDC ERC-20 interface `0x3600000000000000000000000000000000000000`
   ([`deployments/5042002.json`](packages/contracts/deployments/5042002.json)). The deployment cost
   about 0.076 USDC of gas ([`docs/arc-testnet.md`](docs/arc-testnet.md)).
+- Gas, measured on the five production promos: a sale costs under 0.008 USDC (`buyFor` 0.0050 to
+  0.0057, `chargeHedge` 0.0018 to 0.0021), settling a promo about 0.003 (`settle` plus `release`),
+  and a refund batch of one ticket 0.0020. Fees stay in the same token as the money, and stay below a cent.
 
 **How it is verified.** `pnpm --filter @winz/contracts test` ran 203 tests in 13 suites, all
 passing, on 20 Nov, then checked that the committed ABI matches the compiler's output.
@@ -302,6 +369,8 @@ takes accounts and keys ([`docs/deploy.md`](docs/deploy.md)).
   without sending them. Real orders were proven on the sandbox only, on a crypto contract. Orders
   to Gemini's production venue are refused in code (`createVenue`).
 - **Small sample.** Five promos, six burgers, one Yes result, one merchant account we ran.
+- **No Circle tools yet.** Sign-in and wallets use Privy, Winz's relayer sends every transaction,
+  and the USDC that enters the escrow comes from Winz's treasury.
 - **The oracle is ours.** Winz's oracle key signs the quotes and posts the result Gemini published;
   the contract bounds what it can do (caps, refunds locked at the sale, `emergencyClaim` after 7
   days) but trusts it for the outcome.
