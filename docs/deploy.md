@@ -15,7 +15,10 @@ le moteur sur Render (`https://winz-kfwm.onrender.com`, `/healthz` en `leader`, 
 (`supabase_migrations.schema_migrations`, de `20261117000000` à `20261119020000`). Une vraie promo
 y a été créée puis achetée le soir même (campagne on-chain 15, budget payé, ticket émis par
 `buyFor`, couverture papier facturée par `chargeHedge`), et `pnpm smoke` passe ses 6 contrôles
-contre la production : reçu `docs/receipts/prod/g1-2026-11-19.md`. Rien dans le dépôt ne prouve
+contre la production : reçu `docs/receipts/prod/g1-2026-11-19.md`. Le Stream QuickNode livre en
+production depuis le 20 novembre (`docs/receipts/prod/settlements-2026-11-19.md`, section
+« QuickNode Streams ») ; aucune de ses livraisons n'est encore gardée comme fichier d'exemple
+(`docs/quicknode.md`, étape 5). Rien dans le dépôt ne prouve
 encore, au 20 novembre : la vérification Realtime et RLS avec la clé publique (étape 1, point 6),
 le domaine de paiement Apple Pay noté `active` (étape 5), et les preuves du premier essai que la
 base ne garde pas (le ticket affiché sur un téléphone, la livraison Stripe lue dans son journal,
@@ -31,8 +34,8 @@ fichiers aux valeurs factices : `web` est complet avec `STRIPE_WEBHOOK_SECRET=wh
 (étape 4), et `engine` sans Privy ni graine répond `MISSING APP_DEMO_WALLET_SEED` (étape 2,
 point 3 : la réponse est Privy, pas la graine). Les changements du code du 19 novembre (TLS vers
 la base, attente des connexions inactives côté web, vérifications de démarrage du moteur,
-catalogue par ligue) ont été testés en local par leurs auteurs ; ils n'ont pas été refaits pour
-cette page.
+catalogue par ligue) sont couverts par leurs tests ; ils n'ont pas été rejoués contre la
+production pour cette page.
 
 Exécuté le 18 novembre, en local : l'image du moteur (`apps/engine/Dockerfile`, Docker 29,
 contexte = racine du dépôt) contre un Postgres 16 local (les 7 migrations d'alors et le seed) et
@@ -171,7 +174,7 @@ Entrée), et de même pour `PRIVY_APP_SECRET`.
      certificat n'est pas vérifié (comme `sslmode=require`, le mode que Supabase documente pour son
      pooler). Un `sslmode=` dans `DB_URL` l'emporte : `sslmode=disable` couperait TLS, ne pas
      l'écrire. Vérifier aussi le certificat demanderait `sslmode=verify-full&sslrootcert=<fichier>`
-     avec le certificat racine de Supabase présent sur l'hôte : pas fait ici. Supabase accepte par
+     avec le certificat racine de Supabase présent sur l'hôte : non configuré. Supabase accepte par
      défaut les connexions sans TLS ; **Database → Settings → SSL Configuration → « Enforce SSL on
      incoming connections »** les refuse, pour le pooler partagé aussi (sur ses deux tronçons).
      L'activer est facultatif et sans danger pour ces deux services ; Supabase prévient que
@@ -326,14 +329,12 @@ Avant cette étape : l'endpoint QuickNode (`docs/quicknode.md`, étapes 1 et 2 :
    | Mise en veille | jamais | après 15 min sans trafic **entrant** |
    | Redémarrage imposé | aucune clause ; une instance malade peut être remplacée | « Render might restart a Free web service at any time » |
 
-   **Recommandé pour une démo jugée : Starter.** Coût du jeudi 19 novembre au samedi 21 au
-   soir : le prix est 7 $ par mois « prorated by the second », et la page des prix ne dit pas sur
-   quelle durée de mois elle divise. Sur les 720 heures de novembre : créé jeudi 19 à 8 h,
-   supprimé samedi 21 à 22 h, c'est 62 h, soit 7 × 62 / 720 = **0,60 $** ; trois jours entiers
-   (72 h) font 7 × 72 / 720 = **0,70 $** au plus (0,68 $ sur un mois de 744 h). L'espace de
-   travail Hobby coûte 0 $ par mois en plus de ce calcul. La facture court tant que le service
-   existe : après la démo, le supprimer ou repasser son compute plan à `free` (page Compute),
-   sinon c'est 7 $ par mois.
+   **Recommandé pour une démo : Starter.** Le prix est 7 $ par mois « prorated by the second », et
+   la page des prix ne dit pas sur quelle durée de mois elle divise. Sur les 720 heures de
+   novembre, trois jours entiers (72 h) font 7 × 72 / 720 = **0,70 $** au plus (0,68 $ sur un mois
+   de 744 h). L'espace de travail Hobby coûte 0 $ par mois en plus de ce calcul. La facture court
+   tant que le service existe : quand il ne sert plus, le supprimer ou repasser son compute plan à
+   `free` (page Compute), sinon c'est 7 $ par mois.
    Si une carte est ajoutée, Render la vérifie par une transaction de 1 $ remboursée (FAQ de la
    page des prix).
 
@@ -349,7 +350,7 @@ Avant cette étape : l'endpoint QuickNode (`docs/quicknode.md`, étapes 1 et 2 :
    - **0,1 CPU** pour un moteur dont les minuteries tournent toutes les 100 à 250 ms (sonde des
      ordres de couverture toutes les 100 ms, chargeur toutes les 200 ms, lecteur d'événements
      espacé de 250 ms) en plus du flux WebSocket des carnets Gemini et d'un catalogue qui
-     télécharge environ 1 400 événements par minute (point 5). Mesuré ici sur le vrai processus
+     télécharge environ 1 400 événements par minute (point 5). Mesuré sur le vrai processus
      (trois démarrages courts) : 1,7 s de CPU pour démarrer, soit de l'ordre de 17 s à 0,1 CPU si
      Render plafonne strictement (estimation, pas une mesure). Une lecture du catalogue, mesurée
      le 19 novembre à 14 h UTC avec le chargeur du moteur : 31 s, **2,8 s de CPU**, 190 Mo de
@@ -730,7 +731,7 @@ Avant cette étape : l'endpoint QuickNode (`docs/quicknode.md`, étapes 1 et 2 :
 
 6. **Le pinger, seulement pour une instance Free.** Créer chez un service de surveillance
    extérieur (la page « Best Practices for Maximizing Uptime » de Render en cite deux, Better
-   Stack et HeyOnCall ; leurs offres gratuites n'ont pas été vérifiées ici) un contrôle HTTP
+   Stack et HeyOnCall ; leurs offres gratuites ne sont pas vérifiées) un contrôle HTTP
    `GET https://<moteur>.onrender.com/healthz` **toutes les 5 minutes**. Pourquoi 5 : Render
    endort après 15 minutes sans trafic entrant, donc trois appels par fenêtre : un appel perdu
    est toléré (10 minutes sans trafic) ; deux de suite font exactement les 15 minutes du seuil,
@@ -741,7 +742,7 @@ Avant cette étape : l'endpoint QuickNode (`docs/quicknode.md`, étapes 1 et 2 :
    503 qui dure, c'est le moteur malade (point 7). **Mot-clé d'un contrôle par mot-clé :
    `"status":"ok"`** (guillemets compris), jamais `ok` seul : un 503 pour une boucle gelée
    contient encore `"db":"ok"`, qu'un mot-clé `ok` prendrait pour un succès (sauf si le service
-   compte aussi le code HTTP, ce qui n'a pas été vérifié ici).
+   compte aussi le code HTTP, ce qui n'est pas vérifié).
 
 7. **Vu de l'extérieur, et quoi faire.**
 
@@ -823,7 +824,7 @@ peuvent différer, et chaque réglage a sa preuve.
      jamais un cookie ; le front obtient le jeton par `getAccessToken`. Avec les cookies HttpOnly,
      chaque `/api/me` serait un 401 et la personne serait déconnectée aussitôt ;
    - (f) un **compte de test à code fixe** pour la démo, si le tableau de bord le
-     propose : pas nécessaire ce matin ;
+     propose : facultatif ;
    - (g) **protection anti-robot / captcha désactivée.** L'écran M1 envoie le code sans
      l'interface de Privy (`sendCode`), et le SDK sait passer un jeton de captcha que notre
      écran ne demande jamais. Preuve : le code arrive par e-mail au point 5.
@@ -1109,7 +1110,7 @@ est en place, la création du Stream est dans `docs/quicknode.md`. Le moteur lit
 Ce qui est déjà prouvé ailleurs, et ce qui ne l'est pas : `pnpm e2e:ui` (Playwright,
 `apps/web/README.md`) parcourt tous les écrans au format d'un iPhone 15, taps comptés, sur l'API
 **simulée** et dans **Chromium** : il prouve la mise en page et les parcours, pas Safari, ni
-Privy, ni Stripe, ni Apple Pay, ni le moteur, ni la chaîne. C'est ce que cette porte prouve.
+Privy, ni Stripe, ni Apple Pay, ni le moteur, ni la chaîne. C'est ce que cette étape prouve.
 
 ```bash
 pnpm smoke https://<domaine> --engine https://<moteur>.onrender.com
@@ -1212,7 +1213,7 @@ Livraisons Stripe : Developers → Webhooks → l'endpoint.
 Pages lues le 19 novembre 2026 (téléchargées en entier, jamais des extraits de moteur de
 recherche), pour ce que cette version ajoute ou corrige :
 
-- Supabase : [CLI reference](https://supabase.com/llms/cli.txt) (link, `db push --remote`,
+- Supabase : [CLI reference](https://supabase.com/docs/reference/cli/introduction) (link, `db push --remote`,
   `--dry-run`, `db reset --remote`, `config.toml` demandé par `start`) ·
   [CLI : supabase db push](https://supabase.com/docs/reference/cli/supabase-db-push) (drapeaux
   `--dry-run`, `--include-seed`) ·

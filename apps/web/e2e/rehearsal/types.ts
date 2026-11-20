@@ -3,7 +3,7 @@ import type { Address, Hex } from "viem";
 import type { Outcome } from "@winz/shared";
 
 /**
- * Types of the rehearsal (gate G2, tasks A-07, Q-03, Q-04): what it is asked to play, and the
+ * Types of the rehearsal: what it is asked to play, and the
  * receipt it leaves. Money is micro-USDC (`bigint`), prices basis points, quantities units.
  */
 

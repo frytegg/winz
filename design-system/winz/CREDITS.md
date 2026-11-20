@@ -36,9 +36,8 @@
   images: re-rendered, 5 KB). Replace them with the official SVGs from each
   brand page if a vendor asks, or when a clean vector is wanted.
 - Illustrations (`hero/`, `cta/`, `how/`): drawn for the mockups by the designer. The hero and CTA phones
-  are exported from SVG files that wrap bitmaps (AVIF and WebP, the sources stay in the front kit).
-- **Open: the photo in the hero and CTA phones.** The middle phone shows the mockup's photo, a player in a
-  jersey reading "NEW YORK", with the league's ball marking. It is the photo the welcome screen replaced
-  (see above) because its licence is unknown, and it is baked into the exported images. Before the
-  landing is public, either find its licence or re-export the two images with the welcome-screen photo.
+  are exported from SVG files that wrap bitmaps (AVIF and WebP; the sources stay with the designer).
+- The photo in the hero and CTA phones: the middle phone shows the mockup's photo, a player in a jersey
+  reading "NEW YORK", with the league's ball marking, baked into the exported images. It is the photo
+  the welcome screen replaced (see above); its licence is not confirmed.
 - Feature icons (`features/`) and the merchant cards (`how/`): the designer's, optimised with SVGO.

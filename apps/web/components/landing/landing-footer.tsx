@@ -18,7 +18,7 @@ const LINK =
  * the reference (a statement in two tones on the left, quiet columns of links under it, an action block on the
  * right) in Winz's own voice (Sora, black on white, no certification badges, no "Ask AI").
  *
- * A link that is not decided is NOT rendered (00-CONTEXTE.md): the Project column shows only the links that
+ * A link that is not decided is NOT rendered: the Project column shows only the links that
  * exist, and not at all while there are none; a team member is a link only when they have one.
  *
  * Sizes at 1728 px are the page's pixels times `--u`, as in the other sections: the content is 1290 px wide,

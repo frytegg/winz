@@ -3,7 +3,7 @@
  * so that `scripts/landing-check.mjs` (run by tsx, outside Next) can load it.
  *
  * A link is either `null` (not decided yet) or a string the page may put in an `href`. The rule of the
- * page (00-CONTEXTE.md): a `null` is never rendered as a dead link, `#`, `[placeholder]` or a note to
+ * page: a `null` is never rendered as a dead link, `#`, `[placeholder]` or a note to
  * self: the button is hidden or shown inactive with an honest label.
  */
 
@@ -24,7 +24,7 @@ export interface LandingLinks {
   /**
    * The repository's address, for the secondary "View on GitHub" of the CTA and the "GitHub" of the footer's
    * Winz column. Its own entry on purpose: `githubUrl` still commands the primary "View the code" and the
-   * footer's Project column, which wait for the repository to be public (00-CONTEXTE.md).
+   * footer's Project column, which wait for the repository to be public.
    */
   readonly repoUrl: string | null;
   /** The footer's people, one entry each. */
@@ -34,8 +34,8 @@ export interface LandingLinks {
   /**
    * What the QR codes encode: the two baked into the illustrations (the merchant card of How and the
    * CTA phone), and the install sheet's desktop panel. Absolute on purpose: a QR is scanned away from
-   * this site, so a path would lead nowhere. The images are re-exported when it changes (see
-   * winz-front-kit/landing/tools/build-assets.mjs), they do not read this file at runtime.
+   * this site, so a path would lead nowhere. The images are re-exported when it changes (with
+   * the designer's asset kit, kept outside this repository), they do not read this file at runtime.
    */
   readonly appQrUrl: string | null;
 }

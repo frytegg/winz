@@ -12,8 +12,8 @@ import { IdentityResponseError, normalizeEmail, type IdentityDirectory } from ".
 // NOT YET EXERCISED AGAINST THE LIVE PRIVY SERVICE.
 //
 // Written against the types of the installed `@privy-io/node` (0.40.0), mirroring the web app's
-// apps/web/lib/server/privy.ts; it type-checks, but no call has reached Privy. The human probe of
-// task S-02 must confirm, with a real app id and secret, that `users().getByEmailAddress`,
+// apps/web/lib/server/privy.ts; it type-checks, but no call has reached Privy. A probe against the
+// live service, with a real app id and secret, is what confirms that `users().getByEmailAddress`,
 // `users().create` and `users().pregenerateWallets` behave as their types say (shapes, 404 and
 // 409 answers), and that the embedded wallet of a pre-generated user is the one the user sees
 // after an OTP login. Tests never use this file: they inject a fake `IdentityDirectory`.
@@ -85,7 +85,7 @@ export class PrivyIdentityDirectory implements IdentityDirectory {
       // embedded wallet (a double tap, two tabs, a first purchase racing a first sign-in) both
       // read "no wallet" above and both pre-generate one. The advisory lock of the users row
       // (users.ts) is taken only after this call returns, so it does not serialise them. What
-      // happens next depends on Privy and must be probed against the live service (task S-02):
+      // happens next depends on Privy and must be probed against the live service:
       // does a second `pregenerateWallets` for a user who now has an Ethereum embedded wallet
       // fail (which error, 409?), return the user with the wallet the first call created, or
       // create a second embedded wallet (and then which one does `linked_accounts` list first,

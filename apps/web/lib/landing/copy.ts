@@ -28,8 +28,8 @@ const example = {
 } as const;
 
 /**
- * The landing page's own text. The only source of it is `winz-front-kit/landing/_integration/COPY.md`
- * (and the owner's decisions after it); the page's sections add their strings here, as they land. It
+ * The landing page's own text. It comes from the design team's copy deck; the page's
+ * sections add their strings here. It
  * is not `lib/copy.ts`: that file is the app's, and its tests forbid words (USDC, hedge) that the
  * landing is allowed to use.
  */

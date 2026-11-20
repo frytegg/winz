@@ -16,7 +16,7 @@ import {
 } from "../domain";
 
 /**
- * Wire format of the HTTP API (SPEC section 10). Frozen after gate G0: the front and the back
+ * Wire format of the HTTP API (SPEC section 10). Frozen early: the front and the back
  * both build against these shapes.
  *
  * JSON conventions:

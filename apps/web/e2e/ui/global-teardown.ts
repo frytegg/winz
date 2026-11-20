@@ -73,6 +73,25 @@ function readme(measures: Record<string, Measure>, at: string): string {
     (name) => `| [\`${name}.png\`](./${name}.png) | ${cell(RECEIPTS[name])} |`,
   );
   const defects = Object.values(KNOWN_DEFECTS).map((defect) => `- ${defect.reason}`);
+  const stripeNote = [
+    "en mode simulé, les pages qui importent Stripe chargent quand même `https://js.stripe.com`",
+    "(`lib/stripe/client.ts:1`) ; la suite bloque cette requête, comme toute requête qui sortirait de la",
+    "machine.",
+  ];
+  const defectSection =
+    defects.length === 0
+      ? ["## Constat", "", `Sans effet sur le résultat de la suite : ${stripeNote.join("\n")}`, ""]
+      : [
+          "## Défauts trouvés, gardés en attentes `test.fail`",
+          "",
+          `Plus un constat qui ne fait pas échouer la suite : ${stripeNote.join("\n")}`,
+          "",
+          "Chacun fait passer son test tant que le défaut existe, et le fait échouer le jour où il est corrigé :",
+          "retirer alors le `test.fail`.",
+          "",
+          ...defects,
+          "",
+        ];
 
   return [
     "# Reçus des écrans : Playwright, iPhone 15, API simulée",
@@ -104,20 +123,10 @@ function readme(measures: Record<string, Measure>, at: string): string {
     "| --- | --- |",
     ...imageRows,
     "",
-    "## Défauts trouvés, gardés en attentes `test.fail`",
-    "",
-    "Plus un constat qui ne fait pas échouer la suite : en mode simulé, les pages qui importent",
-    "Stripe chargent quand même `https://js.stripe.com` (`lib/stripe/client.ts:1`) ; la suite bloque",
-    "cette requête, comme toute requête qui sortirait de la machine.",
-    "",
-    "Chacun fait passer son test tant que le défaut existe, et le fait échouer le jour où il est corrigé :",
-    "retirer alors le `test.fail`.",
-    "",
-    ...defects,
-    "",
+    ...defectSection,
     "## Ce que ces reçus ne prouvent pas",
     "",
-    "- **Safari.** WebKit n'est pas installé ici : le profil iPhone 15 de Playwright (taille, user agent,",
+    "- **Safari.** WebKit n'est pas installé sur la machine du passage : le profil iPhone 15 de Playwright (taille, user agent,",
     "  échelle, tactile, mobile) tourne sur Chromium. La mise en page et les parcours à cette taille sont",
     "  prouvés, pas le rendu de Safari ni ses particularités (barre d'adresse, `dvh`, feuille de partage).",
     "- **La vraie police.** Rien ne sort de la machine, serveur compris : `next/font/google` reçoit",

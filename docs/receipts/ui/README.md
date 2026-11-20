@@ -94,19 +94,15 @@ Pleine page, viewport de l'iPhone 15 (393 px de large) à l'échelle 2, sans vid
 | [`admin-panel.png`](./admin-panel.png) | Le panneau après les quatre actions (carnet piloté, résultat forcé, deux ventes rejouées, remise à zéro) et leur journal. |
 | [`admin-refusals.png`](./admin-refusals.png) | Le panneau après un 400 (carnet), un 404 (résultat) et un 409 (vente) : les mots de l'API. |
 
-## Défauts trouvés, gardés en attentes `test.fail`
+## Constat
 
-Plus un constat qui ne fait pas échouer la suite : en mode simulé, les pages qui importent
-Stripe chargent quand même `https://js.stripe.com` (`lib/stripe/client.ts:1`) ; la suite bloque
-cette requête, comme toute requête qui sortirait de la machine.
-
-Chacun fait passer son test tant que le défaut existe, et le fait échouer le jour où il est corrigé :
-retirer alors le `test.fail`.
-
+Sans effet sur le résultat de la suite : en mode simulé, les pages qui importent Stripe chargent quand même `https://js.stripe.com`
+(`lib/stripe/client.ts:1`) ; la suite bloque cette requête, comme toute requête qui sortirait de la
+machine.
 
 ## Ce que ces reçus ne prouvent pas
 
-- **Safari.** WebKit n'est pas installé ici : le profil iPhone 15 de Playwright (taille, user agent,
+- **Safari.** WebKit n'est pas installé sur la machine du passage : le profil iPhone 15 de Playwright (taille, user agent,
   échelle, tactile, mobile) tourne sur Chromium. La mise en page et les parcours à cette taille sont
   prouvés, pas le rendu de Safari ni ses particularités (barre d'adresse, `dvh`, feuille de partage).
 - **La vraie police.** Rien ne sort de la machine, serveur compris : `next/font/google` reçoit
