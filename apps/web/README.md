@@ -419,8 +419,11 @@ et `lib/fan/pending-purchase.ts`, testées à côté) :
   retrouver ses tickets dans « My tickets ».
 - **L'attente a une fin.** Le suivi d'un achat en cours ne rappelle jamais la confirmation (la
   lecture du statut complète seule un paiement autorisé ; seule la reprise d'un paiement jamais vu
-  autorisé la demande, voir plus haut) et s'arrête après 60 s (`WAIT_LIMIT_SECONDS`). Pour la
-  reprise, c'est une borne dure : elle est vérifiée après chaque appel, dans tous les cas, sur
+  autorisé la demande, voir plus haut) et s'arrête après 60 s (`WAIT_LIMIT_SECONDS`). Après un tap,
+  la minute part de « Securing your promo… » : le temps de la confirmation compte, une
+  confirmation qui ne répond pas est coupée au bout de la minute, et chaque lecture du statut ne
+  dispose que du temps restant. Pour la
+  reprise, c'est la même borne dure : elle est vérifiée après chaque appel, dans tous les cas, sur
   l'heure relue après l'appel, et chaque appel (lecture du statut ou confirmation) ne dispose que du
   temps restant avant les 60 s (au moins une seconde, pour que la dernière lecture ait lieu ;
   `withinBound`, un `AbortController` enfant et un `setTimeout`, sans `AbortSignal.any` que les
