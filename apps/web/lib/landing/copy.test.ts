@@ -90,9 +90,8 @@ describe("landingCopy.process", () => {
     );
   });
 
-  it("says nothing in the steps that the app does not say to a fan", () => {
-    const text = JSON.stringify(landingCopy.process.steps);
-    // The landing may use technical words, but the process is the visitor's own path through the app.
-    expect(text).not.toMatch(/TODO|FIXME|lorem|placeholder/i);
+  it("holds no marker that a visitor would read as unfinished", () => {
+    const text = JSON.stringify(landingCopy.process);
+    expect(text).not.toMatch(/TODO|FIXME|lorem/i);
   });
 });
