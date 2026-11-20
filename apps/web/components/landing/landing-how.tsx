@@ -29,12 +29,16 @@ function HowGrid({ children }: { children: ReactNode }): React.JSX.Element {
  * Vertical spacing and the type are in the mockup's pixels times `--u` (set once by the page), as the
  * hero's; the cards are not scaled (see `HowCard`). `id="how"` is where the navigation lands.
  */
-export function LandingHow(): React.JSX.Element {
-  const merchantScenes = [PickGameScene, FundScene, ShareScene] as const;
+export function LandingHow({ qrUrl }: { qrUrl: string | null }): React.JSX.Element {
+  const merchantScenes = [
+    (label: string) => <PickGameScene label={label} />,
+    (label: string) => <FundScene label={label} />,
+    (label: string) => <ShareScene label={label} qrUrl={qrUrl} />,
+  ] as const;
   const merchant = (
     <HowGrid>
       {how.merchant.map((card, index) => {
-        const Scene = merchantScenes[index] ?? PickGameScene;
+        const drawScene = merchantScenes[index] ?? merchantScenes[0];
         return (
           <HowCard
             key={card.title}
@@ -42,7 +46,7 @@ export function LandingHow(): React.JSX.Element {
             title={card.title}
             body={card.body}
             bodyMaxWidth={MERCHANT_BODY_WIDTH[index]}
-            art={<Scene label={card.alt} />}
+            art={drawScene(card.alt)}
           />
         );
       })}

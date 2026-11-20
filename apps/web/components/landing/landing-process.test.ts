@@ -76,7 +76,8 @@ describe("LandingProcess", () => {
     expect(text).toContain("TEX");
     expect(text).toContain("ARK");
     expect(text).toContain("Live · 17 – 17");
-    expect(text).toContain("Final · 31 – 17");
+    // Visitors first, as the app's tickets draw a game: Arkansas 17, Texas 31.
+    expect(text).toContain("Final · 17 – 31");
     // The promise is the copy's, its figure lit, on the fan's page and on the ticket: each screen is
     // drawn twice (beside its step and in the sticky card), so four times.
     expect(text.match(/<span class="ps-pct">100%<\/span> back if Texas wins!/g)).toHaveLength(4);
