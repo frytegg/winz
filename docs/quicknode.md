@@ -1,7 +1,10 @@
 # QuickNode : endpoint Arc testnet et Stream des événements de l'escrow
 
-> **Vérifié sur la documentation seulement, jamais contre le service.** Rien de cette page n'a été
-> essayé sur un vrai compte QuickNode. Les pages de QuickNode ont été lues en entier le 18 novembre
+> **En production depuis le 20 novembre 2026.** Le Stream décrit ici tourne sur Arc testnet et a livré
+> les règlements réels du 20 novembre à `POST /api/webhooks/quicknode` : signature vérifiée, et huit
+> événements écrits par la livraison avant le reçu du relayer
+> (`docs/receipts/prod/settlements-2026-11-19.md`, section « QuickNode Streams »). Aucune livraison n'a
+> encore été enregistrée comme fichier d'exemple (étape 5). Les pages de QuickNode ont été lues en entier le 18 novembre
 > 2026, et celles des limites d'`eth_getLogs`, de la facturation des Streams, de la taille des lots
 > et des prix relues le 19 novembre (liste en fin de page). Trois points restent à confirmer sur la première livraison réelle
 > (étape 5) parce que la documentation ne les écrit pas : le nom du réseau d'Arc testnet dans les

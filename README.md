@@ -159,7 +159,8 @@ receipt and an `eth_getLogs` poll every 5 s (SPEC HE-1). The first path to arriv
   [refund](https://explorer.testnet.arc.io/tx/0xf704c9b68cfe44b9b5c8ccee44b3eeff5476b1c46bc7f5a6795fe50530449935)
   and [merchant payout](https://explorer.testnet.arc.io/tx/0x479b0b3be6a110d9d2fc9556b40aef722ae82937b5aac764af8bf8cff133f3ef).
 - Measured on 20 Nov over the previous 6 hours of production `chain_events` (read-only), from each
-  event's block timestamp to its write:
+  event's block timestamp to its write (query and figures in the
+  [receipt](docs/receipts/prod/settlements-2026-11-19.md#quicknode-streams)):
 
   | Path that wrote the event first | Events | Average | Min | Max |
   | --- | --- | --- | --- | --- |
@@ -211,9 +212,9 @@ passing, on 20 Nov, then checked that the committed ABI matches the compiler's o
 
 **Production proof.** The five promos above. Ticket 674 of promo 17 was
 [refunded on-chain](https://explorer.testnet.arc.io/tx/0xf704c9b68cfe44b9b5c8ccee44b3eeff5476b1c46bc7f5a6795fe50530449935)
-$12.00, half of the $24.00 paid, 3 s after `settle`. In a rehearsal on 18 Nov, 140 tickets were
-refunded in 3 batches within 4 blocks, 2 s of chain time after `settle`
-([receipt](docs/rehearsals/20261118T125036Z-5042002-yes.md)).
+$12.00, half of the $24.00 paid, 3 s after `settle`. In a rehearsal on 18 Nov, 300 tickets were
+refunded in 6 batches within 8 blocks, 4 s of chain time after `settle`
+([receipt](docs/rehearsals/20261118T170112Z-5042002-yes.md)).
 
 ## Architecture and layout
 
@@ -265,7 +266,9 @@ takes accounts and keys ([`docs/deploy.md`](docs/deploy.md)).
   coverage table open. Among them:
   - Q-02, the browser suite against the real stack. `pnpm e2e:ui` runs on the simulated API in
     Chromium, not on Safari, Privy, Stripe or the chain ([UI receipts](docs/receipts/ui/README.md)).
-  - Q-03, refunding 300 tickets within 10 s of `settle`; the largest measured run is 140.
+  - Q-03, a sale on the merchant's dashboard within 3 s under load: with three buyers at once on
+    the public node the median was 3.0 s on 18 Nov (one sale at a time: 1.1 to 2.5 s). The 300
+    tickets refunded within 10 s of `settle` were met (4 s, same rehearsal).
   - Q-05, timing the merchant and fan flows on a phone with real Apple Pay.
   - Q-06, two full rehearsals in a row on testnet with no manual fix.
   - S-04 and A-06, a recorded QuickNode delivery saved as a test file:
