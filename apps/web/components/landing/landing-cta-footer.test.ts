@@ -142,8 +142,8 @@ describe("LandingFooter", () => {
   it("says what COPY.md section 8 says, in order", () => {
     const text = textOf(renderToStaticMarkup(createElement(LandingFooter, { links: ALL })));
     const order = [
-      "Every promo is a bet.",
-      "Winz hedges it.",
+      "Every promo takes a risk.",
+      "Winz covers it.",
       "Get the app",
       "Winz is a web app. Add it to your home screen.",
       "Add to Home Screen",
@@ -159,7 +159,7 @@ describe("LandingFooter", () => {
       "Consumer app track",
       "Austin, Texas",
       "© 2026 Winz · Built by Téo and Alexandre.",
-      "Hackathon prototype on test networks. No real funds, no real bets.",
+      "Hackathon prototype on test networks. No real funds.",
     ];
     let from = 0;
     for (const line of order) {
@@ -171,8 +171,8 @@ describe("LandingFooter", () => {
 
   it("sets the statement in two tones, gray then black", () => {
     const html = renderToStaticMarkup(createElement(LandingFooter, { links: ALL }));
-    expect(html).toMatch(/text-landing-gray-faint">Every promo is a bet\./);
-    expect(html).toMatch(/text-ink">Winz hedges it\./);
+    expect(html).toMatch(/text-landing-gray-faint">Every promo takes a risk\./);
+    expect(html).toMatch(/text-ink">Winz covers it\./);
   });
 
   it("renders no dead link while nothing is decided: no #, no empty href, no Project column", () => {
