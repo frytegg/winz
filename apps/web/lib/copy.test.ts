@@ -145,7 +145,7 @@ describe("the report after the game (MD « How it went »)", () => {
   });
 
   it("keeps the line of a promo that didn't hit", () => {
-    expect(t.sameAs("12.5%")).toBe("Same as a 12.5% discount… but only when you win.");
+    expect(t.sameAs("12.5%")).toBe("Same as a 12.5% discount, and every customer paid full price.");
     expect(t.sameAs("12.5%")).not.toBe(t.sameAsWon("12.5%"));
   });
 

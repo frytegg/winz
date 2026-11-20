@@ -12,7 +12,7 @@ import { promoResult, resultWords, statusBadge } from "./status";
 describe("the result of a promo", () => {
   it("won: the promo hit", () => {
     expect(promoResult("settled_yes", "yes")).toBe("won");
-    expect(statusBadge("settled_yes")).toBe("Won");
+    expect(statusBadge("settled_yes")).toBe("Refunded");
     expect(resultWords("won")).toEqual({
       badge: copy.campaignDetail.report.won,
       body: copy.campaignDetail.report.wonBody,
