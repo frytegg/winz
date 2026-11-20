@@ -14,6 +14,7 @@ export const landingLinks: LandingLinks = {
   videoUrl: null,
   githubUrl: null,
   devpostUrl: null,
+  repoUrl: "https://github.com/frytegg/winz/",
   teamLinks: [
     { name: "Téo", url: null },
     { name: "Alexandre", url: null },

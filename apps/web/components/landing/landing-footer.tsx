@@ -2,7 +2,7 @@ import { Fragment } from "react";
 
 import { landingCopy } from "@/lib/landing/copy";
 import { nameSeparator, projectLinks, teamNames } from "@/lib/landing/footer";
-import type { LandingLinks } from "@/lib/landing/links";
+import { linkOrNull, type LandingLinks } from "@/lib/landing/links";
 
 import { FooterInstallButton } from "./footer-install-button";
 import { Wordmark } from "./wordmark";
@@ -29,11 +29,12 @@ export function LandingFooter({
 }: {
   links: Pick<
     LandingLinks,
-    "githubUrl" | "devpostUrl" | "videoUrl" | "teamLinks" | "appInstallUrl"
+    "githubUrl" | "devpostUrl" | "videoUrl" | "repoUrl" | "teamLinks" | "appInstallUrl"
   >;
 }): React.JSX.Element {
   const project = projectLinks(links, footer.project);
   const names = teamNames(links.teamLinks);
+  const repo = linkOrNull(links.repoUrl);
 
   return (
     <footer
@@ -73,6 +74,14 @@ export function LandingFooter({
                 </a>
               </li>
             ))}
+            {repo === null ? null : (
+              <li>
+                <a href={repo} target="_blank" rel="noopener noreferrer" className={LINK}>
+                  {footer.github}
+                  <span className="sr-only"> (opens in a new tab)</span>
+                </a>
+              </li>
+            )}
           </ul>
         </div>
 

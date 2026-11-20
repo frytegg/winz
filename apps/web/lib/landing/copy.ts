@@ -294,6 +294,8 @@ export const landingCopy = {
   cta: {
     title: "Refunded if the team wins.",
     button: "View the code",
+    /** The secondary link under the button: the repository, whatever the state of the primary one. */
+    repo: "View on GitHub",
     illustrationAlt:
       "The Winz app: picking a game, the opening screen and a live promo with its QR code.",
   },
@@ -322,6 +324,8 @@ export const landingCopy = {
         { label: "Live demo", href: "#live-demo" },
       ],
     },
+    /** The repository, last link of the Winz column (the anchors come first). */
+    github: "GitHub",
     project: { title: "Project", github: "GitHub", devpost: "Devpost", video: "Demo video" },
     builtAt: { title: "Built at", items: ["UBC 2026", "Consumer app track", "Austin, Texas"] },
     legal: {

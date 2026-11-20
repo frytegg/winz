@@ -1,5 +1,7 @@
 import { landingCopy } from "@/lib/landing/copy";
+import { linkOrNull } from "@/lib/landing/links";
 
+import { GithubIcon } from "./github-icon";
 import { LandingPicture } from "./landing-picture";
 import { PrimaryButton } from "./primary-button";
 import { RevealOnScroll } from "./reveal-on-scroll";
@@ -19,7 +21,15 @@ const { cta } = landingCopy;
  *
  * The phones hold a QR code that was re-exported to carry the app's address (JOURNAL 18 bis, 3).
  */
-export function LandingCta({ githubUrl }: { githubUrl: string | null }): React.JSX.Element {
+export function LandingCta({
+  githubUrl,
+  repoUrl,
+}: {
+  githubUrl: string | null;
+  /** `landingLinks.repoUrl`: `null` and the secondary link is not rendered. */
+  repoUrl: string | null;
+}): React.JSX.Element {
+  const repo = linkOrNull(repoUrl);
   return (
     <section
       id="cta"
@@ -48,8 +58,34 @@ export function LandingCta({ githubUrl }: { githubUrl: string | null }): React.J
           </PrimaryButton>
         </div>
 
+        {repo === null ? null : (
+          // Secondary: an outlined pill under the lime one, in the gap above the phones (which keep their place at 1728 px:
+          // their margin is this link's 44 px and its 10 px of margin less).
+          <div
+            className="cta-fade mt-2.5 lg:mt-[calc(10*var(--u))]"
+            style={{ "--i": 3 } as React.CSSProperties}
+          >
+            <a
+              href={repo}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-11 items-center gap-2.5 rounded-full border border-ink/25 px-5 text-base text-ink no-underline transition-colors duration-150 hover:border-ink hover:bg-ink/5 focus-visible:outline-ink"
+            >
+              <GithubIcon className="size-5" />
+              {cta.repo}
+              <span className="sr-only"> (opens in a new tab)</span>
+            </a>
+          </div>
+        )}
+
         {/* `leading-[0]` and `block`: the image is the last thing in the section, with no line box under it. */}
-        <div className="cta-rise mt-10 w-full max-w-[560px] leading-[0] md:w-[80%] md:max-w-none lg:mt-[calc(73*var(--u))] lg:w-[calc(849*var(--u))]">
+        <div
+          className={`cta-rise w-full max-w-[560px] leading-[0] md:w-[80%] md:max-w-none lg:w-[calc(849*var(--u))] ${
+            repo === null
+              ? "mt-10 lg:mt-[calc(73*var(--u))]"
+              : "mt-8 lg:mt-[max(12px,calc(73*var(--u)-54px))]"
+          }`}
+        >
           <LandingPicture
             base="/landing/cta/cta-illustration"
             widths={[849, 1698]}

@@ -13,11 +13,12 @@ import { TryDemoButton } from "./try-demo-button";
 /** Everything undecided, as the config is until the owner fills it. */
 const NONE: Pick<
   LandingLinks,
-  "githubUrl" | "devpostUrl" | "videoUrl" | "teamLinks" | "appInstallUrl"
+  "githubUrl" | "devpostUrl" | "videoUrl" | "repoUrl" | "teamLinks" | "appInstallUrl"
 > = {
   githubUrl: null,
   devpostUrl: null,
   videoUrl: null,
+  repoUrl: null,
   teamLinks: [
     { name: "Téo", url: null },
     { name: "Alexandre", url: null },
@@ -29,6 +30,7 @@ const ALL: typeof NONE = {
   githubUrl: "https://github.com/winz/winz",
   devpostUrl: "https://devpost.com/software/winz",
   videoUrl: "https://youtu.be/abcdefghijk",
+  repoUrl: "https://github.com/frytegg/winz/",
   teamLinks: [
     { name: "Téo", url: "https://example.com/teo" },
     { name: "Alexandre", url: "https://example.com/alexandre" },
@@ -55,7 +57,7 @@ function textOf(html: string): string {
 describe("LandingCta", () => {
   it("has the wordmark, the title and the button of COPY.md, in that order", () => {
     const html = renderToStaticMarkup(
-      createElement(LandingCta, { githubUrl: "https://github.com/winz" }),
+      createElement(LandingCta, { githubUrl: "https://github.com/winz", repoUrl: null }),
     );
     expect(html.indexOf("logo-winz-dark.svg")).toBeGreaterThan(-1);
     expect(html.indexOf("logo-winz-dark.svg")).toBeLessThan(
@@ -68,7 +70,7 @@ describe("LandingCta", () => {
 
   it("makes the button an external link when the repository is decided", () => {
     const html = renderToStaticMarkup(
-      createElement(LandingCta, { githubUrl: "https://github.com/winz" }),
+      createElement(LandingCta, { githubUrl: "https://github.com/winz", repoUrl: null }),
     );
     expect(html).toMatch(
       /<a [^>]*href="https:\/\/github\.com\/winz"[^>]*target="_blank"[^>]*rel="noopener noreferrer"/,
@@ -76,14 +78,18 @@ describe("LandingCta", () => {
   });
 
   it("makes the button inactive, with its hint, and not a link, while there is no repository", () => {
-    const html = renderToStaticMarkup(createElement(LandingCta, { githubUrl: null }));
+    const html = renderToStaticMarkup(
+      createElement(LandingCta, { githubUrl: null, repoUrl: null }),
+    );
     expect(html).toContain('aria-disabled="true"');
     expect(html).toContain(landingCopy.openingSoon);
     expect(hrefsOf(html)).toEqual([]);
   });
 
   it("carries the alt of COPY.md on the phones, and the heading is the only text of the section", () => {
-    const html = renderToStaticMarkup(createElement(LandingCta, { githubUrl: null }));
+    const html = renderToStaticMarkup(
+      createElement(LandingCta, { githubUrl: null, repoUrl: null }),
+    );
     expect(html).toContain(
       'alt="The Winz app: picking a game, the opening screen and a live promo with its QR code."',
     );
@@ -92,10 +98,43 @@ describe("LandingCta", () => {
   });
 
   it("is a section the animation can hold back and release", () => {
-    const html = renderToStaticMarkup(createElement(LandingCta, { githubUrl: null }));
+    const html = renderToStaticMarkup(
+      createElement(LandingCta, { githubUrl: null, repoUrl: null }),
+    );
     expect(html).toContain('data-reveal="visible"');
     expect(html).toContain("cta-fade");
     expect(html).toContain("cta-rise");
+  });
+});
+
+describe("LandingCta, the repository link", () => {
+  const REPO = "https://github.com/frytegg/winz/";
+  const render = (props: { githubUrl: string | null; repoUrl: string | null }): string =>
+    renderToStaticMarkup(createElement(LandingCta, props));
+
+  it("adds a secondary 'View on GitHub' after the primary button, in a new tab, with the GitHub mark", () => {
+    const html = render({ githubUrl: null, repoUrl: REPO });
+    expect(html).toMatch(
+      new RegExp(
+        `<a [^>]*href="${REPO}"[^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*>\\s*<svg[^>]*aria-hidden="true"`,
+      ),
+    );
+    expect(textOf(html)).toContain("View on GitHub");
+    expect(html.indexOf("View the code")).toBeLessThan(html.indexOf("View on GitHub"));
+  });
+
+  it("does not make the primary button an active link: that is githubUrl's, not the repository's", () => {
+    const html = render({ githubUrl: null, repoUrl: REPO });
+    expect(html).toContain('aria-disabled="true"');
+    expect(hrefsOf(html)).toEqual([REPO]);
+  });
+
+  it("is not rendered while the repository is not decided, or not usable", () => {
+    for (const repoUrl of [null, "#", "http://github.com/x", ""]) {
+      const html = render({ githubUrl: null, repoUrl });
+      expect(html).not.toContain("View on GitHub");
+      expect(hrefsOf(html)).toEqual([]);
+    }
   });
 });
 
@@ -171,6 +210,24 @@ describe("LandingFooter", () => {
     expect(html).toMatch(
       /href="https:\/\/github\.com\/winz\/winz" target="_blank" rel="noopener noreferrer"/,
     );
+  });
+
+  it("ends the Winz column on a GitHub link, after the anchors, in a new tab", () => {
+    const html = renderToStaticMarkup(createElement(LandingFooter, { links: ALL }));
+    const column = html.slice(
+      html.indexOf('id="footer-winz"'),
+      html.indexOf('id="footer-project"'),
+    );
+    expect(column.indexOf('href="#live-demo"')).toBeLessThan(column.indexOf("frytegg/winz"));
+    expect(column).toMatch(
+      /<a href="https:\/\/github\.com\/frytegg\/winz\/" target="_blank" rel="noopener noreferrer"[^>]*>GitHub/,
+    );
+  });
+
+  it("has no GitHub link in the Winz column while the repository is not decided", () => {
+    const html = renderToStaticMarkup(createElement(LandingFooter, { links: NONE }));
+    expect(html).not.toContain("github.com");
+    expect(html).not.toContain(">GitHub");
   });
 
   it("links the team's names when they have links", () => {
