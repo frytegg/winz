@@ -42,7 +42,7 @@
   "A-06": ["apps/web/app/api/webhooks/quicknode"],
   "U-06": ["apps/web/app/hedge-desk"],
   "U-07": ["apps/web/app/admin"],
-  "Q-02": ["e2e"],
+  "Q-02": ["apps/web/e2e/ui"],
   "J-02": ["apps/engine/src/jobs/handlers/create-campaign.ts"],
   "J-03": ["apps/engine/src/jobs/handlers/purchase.ts"],
   "H-02": ["apps/engine/src/sales/evaluate.ts", "apps/engine/src/sales/service.ts"],
