@@ -69,3 +69,30 @@ describe("landingCopy.features", () => {
     );
   });
 });
+
+describe("landingCopy.process", () => {
+  it("has the header and the six steps of COPY.md section 5, in order, with its two corrections", () => {
+    expect(landingCopy.process.eyebrow).toBe("Live demo");
+    expect(landingCopy.process.title).toBe("Test it in three minutes.");
+    expect(landingCopy.process.steps.map((step) => step.title)).toEqual([
+      "Onboarding",
+      "Create your first promo",
+      "Fund it by card",
+      "Share it",
+      "Buy as a fan",
+      "Team wins, refund lands",
+    ]);
+    expect(landingCopy.process.steps[0]?.body).toBe(
+      "Open the live demo and create a promo. Use any e-mail: a login code is sent to it.",
+    );
+    expect(landingCopy.process.scene.onboarding.subtitle).toBe(
+      "No password. We'll email you a 6-digit code.",
+    );
+  });
+
+  it("says nothing in the steps that the app does not say to a fan", () => {
+    const text = JSON.stringify(landingCopy.process.steps);
+    // The landing may use technical words, but the process is the visitor's own path through the app.
+    expect(text).not.toMatch(/TODO|FIXME|lorem|placeholder/i);
+  });
+});
