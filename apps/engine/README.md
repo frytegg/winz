@@ -239,10 +239,12 @@ says why). The step-by-step page, with the command that proves each step, is
 - **User.** The image's `node` user (uid 1000), never root.
 - **Health.** With `PORT` set, `src/health/server.ts` answers `GET /healthz` (node:http, no
   dependency): `{ status, role, startedAt, uptimeS, chain: { id, head, cursor }, db, sender, jobs,
-  lease: { holder, heldForS, renewedAgoMs } }`. A leader (`role: "leader"`) answers 200 when the
-  database (the event reader's `chain_cursor` row, read within 2 s) and the node
-  (`eth_blockNumber`, within 2 s) both answer and the sender and the job worker run; 503
-  otherwise, including while the engine starts or stops. A standby (`role: "standby"`, `sender`
+  lease: { holder, heldForS, renewedAgoMs }, loops, staleLoops }`. A leader (`role: "leader"`)
+  answers 200 when the database (the event reader's `chain_cursor` row, read within 2 s) and the
+  node (`eth_blockNumber`, within 2 s) both answer, the sender and the job worker run, and every
+  loop of the engine has completed a pass within its bound (see
+  [Frozen loops](#frozen-loops-healthz-and-the-database-bounds)); 503 otherwise, including while
+  the engine starts or stops. A standby (`role: "standby"`, `sender`
   and `jobs` `"stopped"`) answers 200 when the database and the node answer AND its latest ask
   for the lease was answered, no more than a ttl ago: that is what lets a redeploy hand over
   (below). A standby whose asks fail (the `engine_lease` table missing because the engine was
@@ -271,6 +273,93 @@ docker build -f apps/engine/Dockerfile -t winz-engine .
 docker run --rm --env-file engine.env -e PORT=8080 -p 8080:8080 winz-engine
 curl -s localhost:8080/healthz
 ```
+
+### Frozen loops, `/healthz` and the database bounds
+
+**What happened (19-20 November 2026).** The instance started at 22:51:54 UTC kept hedging and
+running jobs, and its `/healthz` answered 200, but its sale states stopped moving: their last
+write was at 23:23:45, and promo 15 (sales close 23:55) and promos 16 to 19 (00:55) stayed `live`
+until a redeploy at 01:02:49 closed all five in its first pass. Nothing was sold late (the web's
+checkout refuses a sale after the sales close on its own), but a frozen sale-state loop also means
+no automatic pause: no breaker pause, no budget pause, no price pause.
+
+**Why it could freeze.** A sale-state pass awaits nothing but the database: one read
+(`loadCampaignSaleRows`, `src/sales/store.ts`) and one short transaction per campaign whose state
+changes (`writeSaleState`). Passes never overlap, so one call that never settles freezes every
+sale state. The statement timeout those transactions set (5 s, server side) only ends a statement
+the server is running; Postgres.js 4.1.1 has no client bound by default (`query_timeout` and
+`queue_timeout` 0), so a query sent on a connection that goes silent (a pooler that stops answering
+on one connection, a path that drops packets without a reset) waited for as long as TCP takes to
+notice, and for good when the peer kept acknowledging at the TCP level, while the pool's other
+connections served the rest of the engine. The pass's watchdog only logged it (`sale state pass is
+overrunning`). Render's logs of that instance are gone, so which call hung is not known; the tests
+below reproduce both shapes (a silent connection, a promise that never settles) and show the code
+of the incident waiting forever on each (`src/sales/service.freeze.test.ts`).
+
+**What bounds it now.**
+
+| Bound | Value | Where | Why this value |
+| --- | --- | --- | --- |
+| One sale-state pass | 15 s (`DEFAULT_PASS_TIMEOUT_MS`) | `startSaleStates` | A pass is milliseconds; three statements at their 5 s cap make 15 s. Past it the pass is ended: its database call is cancelled through an `AbortSignal`, it writes and remembers nothing more, `sale state pass timed out` is logged at error level with what it was waiting on (`waitingOn`: the read, or the write of one campaign), and the next pass runs 2 s later. A stop ends the pass in flight too. |
+| One query, `begin` and `commit` included | 30 s (`query_timeout`) | `createDb`, every pool of the engine | The longest legitimate statement is seconds (DB-only transactions, catalogue upserts by 1 000 rows); 30 s is six times the sale states' own server-side cap. The client asks the server to cancel and rejects with `QUERY_TIMEOUT`. |
+| Waiting for a connection | 30 s (`queue_timeout`) | `createDb` | The job worker keeps connections free by construction; a longer wait is a pool held by stuck work. Rejected unsent (`QUEUE_TIMEOUT`), so retrying is safe. |
+| An unanswered cancel | 5 s (`cancel_timeout`) | `createDb` | The connection is then closed and the pool opens another: what gets rid of a silent connection (30 + 5 s). |
+| An idle connection | 120 s (`idle_timeout`) | `createDb` | Not reused after sitting long enough for a NAT or the pooler to have dropped it silently. |
+| Sale-state statements, server side | 5 s (`statement_timeout`, `lock_timeout`, per transaction) | `src/sales/store.ts` | Unchanged: ends a statement the server runs or a lock it waits for. |
+
+Every loop also guards its own iteration: an exception or a rejected promise costs one pass,
+logged, and the loop goes on. A service whose `stopped` settles while the engine runs has stopped
+by itself: `a service stopped by itself while the engine runs` is logged at error level and its
+loops are reported `stopped` at once.
+
+No server-side `statement_timeout` is set for the whole pool: the engine reaches Supabase through
+its session pooler, and a startup parameter the pooler does not accept would stop the engine from
+connecting at all, which could not be tried from here. A server-side bound for every statement of
+the engine belongs on its database role (`alter role … set statement_timeout`), a migration.
+
+**What `/healthz` says about the loops.** Each long-running loop tells `src/health/loops.ts` when
+it completes a pass (a pass that fails does not count: a loop that keeps failing does no work).
+`loops` lists them by name, each with `state` (`running`, `stale`, `stopped`), `sinceS` (seconds
+since its last completed pass, or since it started) and `boundS`; `staleLoops` names those that
+are not `running`. A leader with any of them answers **503**, and the log says
+`health check failed: a loop of the engine no longer completes its passes` at error level. Every
+loop gets its whole bound to complete its first pass (no 503 during start-up), and a standby runs
+no loop and reports none.
+
+| Loop | Bound | Its pace, and why the bound |
+| --- | --- | --- |
+| `sale-states` | 60 s | A pass every second, ended after 15 s; retries 2, 4, 8 s: 60 s is three stuck passes in a row. |
+| `jobs` | 120 s | The worker polls every 0.5 s; a poll is two queries, each ended within 35 s. |
+| `settlement` | 15 min | A pass every 15 s, but backs off up to 10 min after failures in a row. |
+| `chain-logs` | 5 min | Every 5 s, backoff up to 30 s, rate-limit pauses up to 30 s; beats for every range stored. |
+| `chain-projector` | 3 min | Every 1 s, backoff up to 30 s; beats for every batch. |
+| `hedging-exposure`, `hedging-tick`, `hedging-charge` | 3 min | Every 1 s or 2 s, backoff up to 30 s. |
+| `feed-refresh` | 120 s | The book feed reads the instruments to follow every 3 s. (Books themselves are watched by the sale states: a book older than 10 s pauses its sales.) |
+
+```text
+HTTP/1.1 503
+{"status":"unavailable","role":"leader",…,"db":"ok","sender":"running","jobs":"running",…,
+ "loops":{"chain-logs":{"state":"running","sinceS":2,"boundS":300},…,
+          "sale-states":{"state":"stale","sinceS":61,"boundS":60},…},
+ "staleLoops":["sale-states"]}
+```
+
+**What the operator sets and sees.**
+
+- **Render: Settings → Health Check Path = `/healthz`** (the service's settings, "Health Checks").
+  Render checks it every few seconds; an instance that fails for 60 s is restarted, which is the
+  last resort for a loop the bounds above could not unfreeze: the new process starts as a standby,
+  takes the lease and starts fresh loops on fresh connections. Without the path, Render only
+  checks that the port accepts a TCP connection and never sees a frozen loop.
+- **UptimeRobot.** A 503 for a stale loop still carries `"db":"ok"`: a keyword monitor looking
+  for the bare word `ok` would call it up (unless it also fails on the status code, which was not
+  checked here). The keyword that only a healthy answer carries is **`"status":"ok"`** (quotes
+  included); `/healthz` keeps the letters `ok` out of every loop name and state for that reason.
+- **The logs**, in the order an operator meets them: `sale state pass is overrunning` (10 s,
+  error), then `sale state pass timed out` with `waitingOn` (15 s, error), then
+  `sale states recovered` once a pass completes. If they keep timing out, `health check failed: a
+  loop of the engine no longer completes its passes` with `staleLoops`, and after 60 s of that a
+  restart in Render's **Events** page.
 
 ## One engine per database: the lease
 
