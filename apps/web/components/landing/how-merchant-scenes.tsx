@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { AppleMark } from "@/components/ui/icons";
 import { TeamBadge, TeamDot } from "@/components/winz/team-badge";
 import { landingCopy } from "@/lib/landing/copy";
+import { decorativeQr } from "@/lib/landing/qr-target";
 import { QR_GLYPH_PATH, QR_LOGO_RATIO, buildQrMatrix, qrPath } from "@/lib/qr";
 
 import { HELMET, SIDES, type Side } from "./example-teams";
@@ -136,10 +137,15 @@ export function FundScene({ label }: { label: string }): React.JSX.Element {
   );
 }
 
-/** The promo's QR code, as the app's `QrCode` draws it: dark modules on white, the Winz mark in the middle. */
-function PromoQr({ value }: { value: string }): React.JSX.Element {
+/**
+ * The promo's QR code, as the app's `QrCode` draws it: dark modules on white, the Winz mark in the middle.
+ * It encodes the live demo's address (`value`), not the example promo's link: the example promo does not
+ * exist in production, and a visitor who scans the picture must land somewhere real. Without an address,
+ * a pattern that cannot be read, as the Process section's share screen does.
+ */
+function PromoQr({ value }: { value: string | null }): React.JSX.Element {
   const quiet = 2;
-  const matrix = buildQrMatrix(value);
+  const matrix = value === null ? decorativeQr() : buildQrMatrix(value);
   const total = matrix.size + quiet * 2;
   const logo = matrix.size * QR_LOGO_RATIO;
   const start = quiet + (matrix.size - logo) / 2;
@@ -176,7 +182,13 @@ function PromoQr({ value }: { value: string }): React.JSX.Element {
 }
 
 /** Card 3, Show the QR: the promo's link with its copy button, its QR code, and Download QR. */
-export function ShareScene({ label }: { label: string }): React.JSX.Element {
+export function ShareScene({
+  label,
+  qrUrl,
+}: {
+  label: string;
+  qrUrl: string | null;
+}): React.JSX.Element {
   return (
     <Scene label={label}>
       <HowChip tone="lime" className="max-w-[306px] gap-2 pr-[2px]" style={{ left: 17, top: 49 }}>
@@ -191,7 +203,7 @@ export function ShareScene({ label }: { label: string }): React.JSX.Element {
         style={{ left: 99, top: 101, width: 142, height: 140 }}
       >
         <div className="size-[104px]">
-          <PromoQr value={`https://${scene.link}`} />
+          <PromoQr value={qrUrl} />
         </div>
       </div>
       <HowChip tone="lime" className="gap-2 pr-[2px]" style={{ right: 16, top: 253 }}>

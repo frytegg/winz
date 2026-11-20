@@ -40,6 +40,8 @@ export const metadata: Metadata = {
  * event from the first moment of the page, which hydration may reach too late.
  */
 export default function LandingPage(): React.JSX.Element {
+  // What the QR codes drawn in the illustrations encode: the live demo, where a scan must land.
+  const qrUrl = qrTarget(landingLinks.liveDemoUrl, landingLinks.appQrUrl);
   return (
     <InstallProvider
       demo={installTarget(landingLinks.liveDemoUrl, landingLinks.appQrUrl)}
@@ -51,9 +53,9 @@ export default function LandingPage(): React.JSX.Element {
         <main id="top">
           <LandingHero liveDemoUrl={landingLinks.liveDemoUrl} />
           <LogoStrip />
-          <LandingHow />
+          <LandingHow qrUrl={qrUrl} />
           <LandingDemo liveDemoUrl={landingLinks.liveDemoUrl} videoUrl={landingLinks.videoUrl} />
-          <LandingProcess qrUrl={qrTarget(landingLinks.liveDemoUrl, landingLinks.appQrUrl)} />
+          <LandingProcess qrUrl={qrUrl} />
           <LandingFeatures />
           <LandingCta githubUrl={landingLinks.githubUrl} repoUrl={landingLinks.repoUrl} />
         </main>

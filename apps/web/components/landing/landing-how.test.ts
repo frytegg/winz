@@ -3,10 +3,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { landingCopy } from "@/lib/landing/copy";
+import { decorativeQr } from "@/lib/landing/qr-target";
+import { buildQrMatrix, qrPath } from "@/lib/qr";
 
 import { LandingHow } from "./landing-how";
 
-const html = renderToStaticMarkup(createElement(LandingHow));
+const LIVE_DEMO = "https://winz-nu.vercel.app/";
+const html = renderToStaticMarkup(createElement(LandingHow, { qrUrl: LIVE_DEMO }));
 
 /** React writes an apostrophe in an attribute as `&#x27;`. */
 const attr = (text: string): string => text.replaceAll("'", "&#x27;");
@@ -74,10 +77,20 @@ describe("LandingHow", () => {
     ]) {
       expect(text).toContain(words);
     }
-    // The QR code is drawn from the promo's link (lib/qr.ts), with the Winz mark in its middle.
+    // The QR code is drawn by lib/qr.ts, with the Winz mark in its middle.
     expect(html).toMatch(
       /<svg viewBox="0 0 \d+ \d+"[^>]*>\s*<g transform="translate\(2 2\)"><path d="M/,
     );
+  });
+
+  it("makes the Show the QR code scan to the live demo, never to the example promo, which does not exist", () => {
+    expect(html).toContain(`<path d="${qrPath(buildQrMatrix(LIVE_DEMO))}"`);
+    expect(html).not.toContain(
+      `<path d="${qrPath(buildQrMatrix(`https://${landingCopy.example.link}`))}"`,
+    );
+    // Without a live demo address, a pattern that cannot be read rather than a code that leads nowhere.
+    const unlinked = renderToStaticMarkup(createElement(LandingHow, { qrUrl: null }));
+    expect(unlinked).toContain(`<path d="${qrPath(decorativeQr())}"`);
   });
 
   it("draws the two helmets of the example's teams, and no other", () => {
@@ -116,7 +129,8 @@ describe("LandingHow", () => {
     expect(landingCopy.how.scene.home).toBe("TEX");
     expect(landingCopy.how.scene.away).toBe("ARK");
     expect(landingCopy.how.scene.score).toEqual({ home: 31, away: 17 });
-    expect(html.replace(/<!-- -->/g, "")).toContain('31 <span class="text-muted">–</span> 17');
+    // Visitors first, as the app's tickets draw a game: Arkansas 17, Texas 31.
+    expect(html.replace(/<!-- -->/g, "")).toContain('17 <span class="text-muted">–</span> 31');
   });
 
   it("tells no other example than the demo video's, in its words or in its alt texts", () => {

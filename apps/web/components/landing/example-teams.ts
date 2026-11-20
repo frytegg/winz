@@ -13,9 +13,8 @@ export const HELMET = {
 export type Side = keyof typeof HELMET;
 
 /**
- * The order the teams are drawn in, left first, everywhere on the page (match card, tickets, scores):
- * Texas, at home, then Arkansas, the order the demo tells the score in ("Texas 31, Arkansas 17"). The
- * app's own match card and tickets put the visitors on the left; swapping this pair makes every
- * illustration of the page do the same.
+ * The order the teams are drawn in, left first, everywhere on the page (match card, tickets, scores): the
+ * visitors, Arkansas, then Texas at home, as the app's own match card and tickets draw a game, so the
+ * landing reads like the screens of the demo video ("ARK 17, TEX 31").
  */
-export const SIDES: readonly [Side, Side] = ["home", "away"];
+export const SIDES: readonly [Side, Side] = ["away", "home"];
