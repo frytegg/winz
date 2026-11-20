@@ -144,6 +144,19 @@ values ('engine', 'eng-0123456789ab', now(), now(), now() + interval '15 seconds
 insert into public.engine_identity (chain_id, escrow_address)
 values (5042002, '0x81d2d4050e617184b2b832c30be68f8811b37d2c');
 
+-- A run of the sandbox order check (HE-10) and the link of one order of the real adapter
+-- (apps/engine/src/venues/gemini).
+insert into public.venue_check_runs (id, venue, trigger, started_at, finished_at, outcome, instrument)
+values (
+  '50000000-0000-4000-8000-000000000001', 'gemini-sandbox', 'command',
+  now() - interval '10 seconds', now(), 'proven', 'GEMI-BTC2611202200-HI91000'
+);
+
+insert into public.venue_order_links (client_order_id, venue, instrument, side, kind,
+                                      limit_price_bps, qty, placed_at, venue_order_id, state)
+values ('vc-1-maker', 'gemini-sandbox', 'GEMI-BTC2611202200-HI91000', 'buy', 'maker', 3600,
+        1000000, now(), '73797746498585286', 'placed');
+
 -- The seed and the fixtures together put at least one row in every table.
 select test.count_is(
   format('select count(*) from (select 1 from public.%I limit 1) t', t.name),
