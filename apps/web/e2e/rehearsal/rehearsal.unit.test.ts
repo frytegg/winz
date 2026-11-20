@@ -551,7 +551,7 @@ describe("receipt", () => {
 
 describe("an RPC access token in an engine warning (viem quotes the URL in its errors)", () => {
   const TOKEN = "0123456789abcdef0123456789abcdef";
-  const RPC_URL = `https://still-silent-river.arc-testnet.quiknode.pro/${TOKEN}/`;
+  const RPC_URL = `https://name.arc-testnet.quiknode.pro/${TOKEN}/`;
   const options = {
     secrets: { relayerKey: KEY_A, oracleKey: KEY_B, demoSeed: SEED },
     rpcUrl: RPC_URL,

@@ -828,7 +828,7 @@ describe("the Stripe webhook of a top-up", () => {
 });
 
 // ---------------------------------------------------------------------------------------------
-// The follow-ups of the verifier: no call to the payment provider under the campaign's lock, the
+// Review follow-ups: no call to the payment provider under the campaign's lock, the
 // cancel without a repeatable key, a repeated request answered by the top-up's status
 // ---------------------------------------------------------------------------------------------
 

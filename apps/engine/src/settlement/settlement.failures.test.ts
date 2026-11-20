@@ -1,5 +1,5 @@
 /**
- * What goes wrong around a settlement (brief R-02, SPEC EC-7): tickets the hedging never charged,
+ * What goes wrong around a settlement (SPEC EC-7): tickets the hedging never charged,
  * a buyer blocked on the token, a treasury that cannot pay, a hedging lane or a node that fails,
  * and a transaction that reverts every time. The contract is real, so is every transaction.
  */

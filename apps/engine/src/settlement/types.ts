@@ -46,7 +46,7 @@ export interface SettlementReadClient {
   getBlock(request: { blockTag: "latest" }): Promise<{ timestamp: bigint }>;
 }
 
-/** The steps of the sequence, in their order (brief R-01 / R-02, steps a to e). */
+/** The steps of the sequence, in their order (steps a to e). */
 export const SETTLEMENT_STEPS = [
   "finalize",
   "charge",

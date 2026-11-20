@@ -5,7 +5,7 @@ import { copy } from "../copy";
 
 /**
  * The merchant space says "coverage", never "hedge", and no crypto word at all outside the folded
- * "Technical details" of the settings (BRIEF section 4, JOURNAL "Décisions"). The wizard and the
+ * "Technical details" of the settings. The wizard and the
  * fan groups have their own guards (`copy.test.ts`, `fan-screens.test.ts`).
  */
 

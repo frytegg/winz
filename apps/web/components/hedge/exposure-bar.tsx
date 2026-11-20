@@ -106,7 +106,7 @@ function Figure({
 /**
  * E, H and W of one instrument, in contracts: the exposure (what Winz owes if YES), what is held,
  * and what rests as maker orders. One bar of the exposure's length, held first (solid lime), then
- * working (striped), the rest empty. No chart library: a few layers (BRIEF section 6).
+ * working (striped), the rest empty. No chart library: a few layers.
  */
 export function ExposureBar({
   exposure,

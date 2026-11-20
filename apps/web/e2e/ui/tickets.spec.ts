@@ -8,7 +8,7 @@ import { expect, horizontalOverflow, test } from "./support/fixtures";
 import { signInAsFan } from "./support/sign-in";
 
 /**
- * « My tickets » (SPEC C4, LT-2, TASKS U-09) on the simulated API: the list in each scenario of
+ * « My tickets » (SPEC C4, LT-2) on the simulated API: the list in each scenario of
  * `GET /api/tickets` (`default`, `severalTickets`, `noTickets`, `demoTicket`, and the refusal
  * `ticketsUnavailable`), opening a ticket, and the way in for someone signed out.
  */

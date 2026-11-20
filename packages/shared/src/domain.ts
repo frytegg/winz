@@ -110,7 +110,7 @@ export const ORDER_STATUSES = [
 ] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
-/** Default risk parameters of the execution policy (SPEC 9.3). Still to be validated by Alexandre. */
+/** Default risk parameters of the execution policy (SPEC 9.3). */
 export const DEFAULT_RISK_PARAMS = {
   /** Largest unhedged notional per instrument, micro-USDC ($300). */
   uMaxMicroUsdc: 300_000_000n,

@@ -4,7 +4,7 @@ import { CRYPTO_WORDS } from "./crypto-words";
 import { copy, possessive } from "./copy";
 
 /**
- * No crypto word on a fan screen (BRIEF section 4). The merchant space may say "coverage", and
+ * No crypto word on a fan screen. The merchant space may say "coverage", and
  * its settings fold "Technical details", but everything a fan can read stays in plain words.
  */
 

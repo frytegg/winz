@@ -9,7 +9,7 @@ import { BottomNav } from "./bottom-nav";
 
 /**
  * The layout of every screen of the merchant space (home, promos, stats, balance, settings): the
- * route guard of BRIEF section 7 (not signed in → /start, no business yet → /business) and the
+ * route guard (not signed in → /start, no business yet → /business) and the
  * floating navigation, which stays in place while the screens change.
  */
 export function MerchantGuard({ children }: { children: ReactNode }): React.JSX.Element {

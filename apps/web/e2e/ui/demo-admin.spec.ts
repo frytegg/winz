@@ -7,7 +7,7 @@ import { expect, test, type Screens } from "./support/fixtures";
 import { signInAsMerchant } from "./support/sign-in";
 
 /**
- * The demo panel at `/admin` (TASKS U-07, SPEC MDB-4) and the DEMO MODE band, on a phone.
+ * The demo panel at `/admin` (SPEC MDB-4) and the DEMO MODE band, on a phone.
  *
  * The simulated API checks no key. To prove the panel against the real routes' answers, this spec
  * plays the server's key check itself: every request to `/api/admin/demo/*` passes through

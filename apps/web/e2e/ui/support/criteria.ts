@@ -1,8 +1,8 @@
 /**
  * The success criteria of SPEC section 17 that the browser suite measures. Each limit is strict, as
  * the specification words it: « moins de 2 minutes et moins de 15 taps » (criterion 1), « en moins
- * de 30 secondes » (criterion 2). A flow of exactly 15 taps misses criterion 1. (The brief of this
- * suite said « at most 15 »: the specification is the reference.)
+ * de 30 secondes » (criterion 2). A flow of exactly 15 taps misses criterion 1. (An earlier note
+ * said « at most 15 »: the specification is the reference.)
  */
 export const CRITERIA = {
   onboardingTaps: 15,

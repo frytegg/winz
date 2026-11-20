@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * The browser suite of the screens (TASKS Q-02, first half): the app in simulated mode, driven at
+ * The browser suite of the screens (merchant, fan and Hedge desk flows): the app in simulated mode, driven at
  * the iPhone 15's size. Run it with `pnpm e2e:ui` from the root. See `e2e/ui/README` in
  * `apps/web/README.md` and the receipts in `docs/receipts/ui/`.
  *
@@ -79,7 +79,7 @@ export default defineConfig({
       APP_API_MOCK: "true",
       NEXT_PUBLIC_APP_API_MOCK: "true",
       NEXT_TELEMETRY_DISABLED: "1",
-      // Nothing may touch a real network (brief): Sora comes from a local fixture, not Google Fonts
+      // Nothing may touch a real network: Sora comes from a local fixture, not Google Fonts
       // (`next/font/google` honours this variable; checked by harness.spec.ts), and every other
       // outgoing request of the server dies on a dead proxy.
       NEXT_FONT_GOOGLE_MOCKED_RESPONSES: FONT_FIXTURE,

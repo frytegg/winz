@@ -9,7 +9,7 @@ import { isFeedLive, oddsFromRow, wobble } from "./live-odds";
 /** How often the simulated figure moves. */
 const WOBBLE_MS = 2000;
 
-/** Seconds between two polls of the API when the live feed is not connected (BRIEF section 7). */
+/** Seconds between two polls of the API when the live feed is not connected. */
 export const FALLBACK_POLL_MS = 2000;
 
 interface LiveOdds {

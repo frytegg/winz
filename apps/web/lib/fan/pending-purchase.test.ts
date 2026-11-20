@@ -296,7 +296,7 @@ describe("resumeCheckout: the page picks up a purchase it lost", () => {
   });
 
   it("never lets an unseen card go when the status cannot be read: the record stays", async () => {
-    // The verifier's sequence: the page is lost between the card's authorization and its answer,
+    // A sequence found in review: the page is lost between the card's authorization and its answer,
     // then every status read fails (the network, a 5xx). Letting the record go would let the next
     // tap create a second payment while the first card may be authorized.
     for (const failure of [
@@ -325,7 +325,7 @@ describe("resumeCheckout: the page picks up a purchase it lost", () => {
   });
 
   it("does not take the status read's « unpaid » for Stripe's: it asks the confirmation", async () => {
-    // The verifier's case: the server could not read Stripe, so its status read answers the row,
+    // A case found in review: the server could not read Stripe, so its status read answers the row,
     // `requires_payment`, for a card that may be authorized. The confirmation reads Stripe itself
     // and answers 502 when it cannot: the record must stay.
     const deps = resumeDeps(unpaid);

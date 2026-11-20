@@ -2,7 +2,7 @@ import { formatContracts } from "@winz/shared";
 
 /**
  * How the Hedge desk writes its numbers. Everything is integer arithmetic on basis points and
- * micro-units: no float ever touches a quantity or a price (BRIEF section 4).
+ * micro-units: no float ever touches a quantity or a price.
  */
 
 function toBigInt(value: string | bigint): bigint {
