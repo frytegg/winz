@@ -152,6 +152,68 @@ export const landingCopy = {
   },
 
   /**
+   * Process, the "Test it in three minutes" section (COPY.md section 5, anchor `#live-demo`). The six
+   * steps' titles and descriptions are COPY.md's, with its two corrections (the e-mail sentence, and a
+   * single full stop at the end of step 01). `scene` is what the phone screens say: COPY.md's list for each
+   * step, and the same example data as How it works (Pittsburgh against Philadelphia, Joe's Pizza, $20.00).
+   * The screens are decoration (`aria-hidden`): the text of the steps carries the meaning.
+   */
+  process: {
+    eyebrow: "Live demo",
+    title: "Test it in three minutes.",
+    /** Followed by the step's number on two digits: "Step 01". */
+    stepLabel: "Step",
+    steps: [
+      {
+        title: "Onboarding",
+        body: "Open the live demo and create a promo. Use any e-mail: a login code is sent to it.",
+      },
+      {
+        title: "Create your first promo",
+        body: "Pick a game, write the promise and set a budget. $250 is enough for the demo.",
+      },
+      {
+        title: "Fund it by card",
+        body: "Pay with the test card 4242 4242 4242 4242, any future date, any CVC. The promo is live in about ten seconds.",
+      },
+      {
+        title: "Share it",
+        body: "Open the full-screen QR, copy the link or download the poster.",
+      },
+      {
+        title: "Buy as a fan",
+        body: "Scan the QR with your phone camera and pay with Apple Pay or a card. Your ticket shows up live.",
+      },
+      {
+        title: "Team wins, refund lands",
+        body: "When the team wins, the ticket turns to refunded. The fan has nothing to do.",
+      },
+    ],
+    scene: {
+      /** Step 01: the sign-in screen. The e-mail is typed into the field, then the code into its six boxes. */
+      onboarding: {
+        title: "Let's get you set up",
+        subtitle: "No password. We'll email you a 6-digit code.",
+        emailLabel: "Email",
+        emailPlaceholder: "Your email…",
+        email: "alex@joespizza.com",
+        codeLabel: "Code",
+        code: "428019",
+      },
+      /** Step 02: the first screen of the promo wizard. */
+      pick: {
+        title: "1. Pick a game",
+        home: "Pittsburgh",
+        away: "Philadelphia",
+        versus: "VS",
+        back: "100% back",
+        budget: "Budget",
+        amount: "$250",
+      },
+    },
+  },
+
+  /**
    * Features (COPY.md section 6). `icon` is the file of `public/landing/features/`. The icons are
    * decoration (the title says it all): icon-01 and icon-06 are the same file, as on the mockup.
    */
