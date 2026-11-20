@@ -52,6 +52,10 @@ start, naming each problem, when one is missing or malformed.
 | `NEXT_PUBLIC_PRIVY_APP_ID`, `PRIVY_APP_SECRET`        | together  | Buyers' embedded wallets. Without them `APP_DEMO_WALLET_SEED` is required.            |
 | `APP_DEMO_WALLET_SEED`                                | see above | 32-byte hex secret from which demo wallets are derived.                               |
 | `APP_EXECUTION_VENUE`                                 | no        | `paper` (default): fills simulated against the live Gemini book.                      |
+| `APP_VENUE_CHECK_ON_BOOT`                             | no        | `true`: the real-order proof on the Gemini sandbox once at boot (see below).          |
+| `GEMINI_SANDBOX_API_KEY`, `GEMINI_SANDBOX_API_SECRET` | see below | The sandbox key (Trader role). Required with `APP_EXECUTION_VENUE=gemini-sandbox`.   |
+| `GEMINI_SANDBOX_NONCE_MODE`                           | no        | `incremental` (default, epoch ms) or `time` (epoch s), as the key was created.        |
+| `APP_VENUE_CHECK_ACCEPT_TERMS`, `GEMINI_SANDBOX_CHECK_SYMBOL` | no | Let the check accept the Prediction Markets terms; impose its contract.          |
 | `DB_POOL_MAX`                                         | no        | Default 20.                                                                           |
 | `ARC_RPC_MAX_REQUESTS_PER_SECOND`                     | no        | Requests the engine starts in any one second, every method counted. Default 10.       |
 | `ARC_RPC_MAX_HEAVY_REQUESTS_PER_SECOND`               | no        | Of those, requests of the heavy methods. Default 4.                                   |
@@ -499,6 +503,32 @@ transaction for want of room, it is not taken: the sender sends the same bytes a
 make room; five refusals in a row are logged at error level and noted on the row, as for any
 refused broadcast. If a node keeps refusing, set `ARC_TX_MAX_IN_FLIGHT` under its cap. 1 sends one
 transaction at a time.
+
+## Real orders on the Gemini sandbox (H-07)
+
+`src/venues/gemini` is the real order adapter, `GeminiOrderVenue`, behind the same
+`ExecutionVenue` as the paper venue (SPEC HE-10): signed requests (HMAC-SHA384, a strictly
+increasing nonce, one request at a time), maker orders as `makerOrCancel`, takers as
+`immediate-or-cancel`, every state read back from Gemini's active orders and history, typed errors
+(key refused, nonce, funds, terms, 429 with backoff, no answer), answers validated with zod, and
+logs that never carry the key, the secret, a payload or a signature. Production stays on `paper`:
+`APP_EXECUTION_VENUE=gemini-sandbox` sends hedge orders to the sandbox, which lists no sports
+contract, and `gemini` (real money) is refused.
+
+The proof, three orders on a crypto contract of the sandbox (a maker that rests, its cancel, one
+filled order), recorded in `venue_check_runs` / `venue_checks` and shown on the Hedge desk:
+
+```bash
+GEMINI_SANDBOX_API_KEY=… GEMINI_SANDBOX_API_SECRET=… DB_URL=postgres://… \
+  pnpm --filter engine venue:check [--symbol <instrumentSymbol>] [--accept-terms] [--no-record]
+```
+
+or once at boot with `APP_VENUE_CHECK_ON_BOOT=true` and the two keys (Render has no shell): it
+runs beside the services, never blocks them, logs `venue check at boot PROVEN` or `… FAILED` with
+the step and the reason, and records the run either way. Account, key, Render steps and how to
+read a failure: [`docs/gemini-sandbox.md`](../../docs/gemini-sandbox.md). Without a sandbox account,
+the adapter is proven against the simulated Gemini of the tests only (`src/venues/gemini/sim-server.ts`),
+and that is all that may be claimed.
 
 ## Demo mode
 
