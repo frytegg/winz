@@ -97,12 +97,14 @@ Chacune répond à une incertitude de la revue (question ouverte 9). Si une sond
 - [ ] **S-04** · Qui : Agent `coder`, relu par A · Dép. : S-01 · HE-1
   QuickNode Streams : flux de logs sur Arc testnet filtré sur l'adresse du contrat de S-01, livré à un webhook de test.
   Fini quand : une livraison réelle est enregistrée comme fichier d'exemple, la vérification de signature passe, et le délai de livraison est mesuré.
+  État au 20 nov. : Stream créé en production (Arc testnet, filtre sur l'escrow, destination `/api/webhooks/quicknode`) ; les règlements du 20 nov. ont été livrés, signature vérifiée par la route, et 8 événements ont été écrits par QuickNode avant le reçu du relayer (`chain_events.source = streams`, `docs/receipts/prod/settlements-2026-11-19.md`). Reste : enregistrer une livraison comme fichier d'exemple (`pnpm quicknode:record`) et mesurer son délai.
 - [ ] **S-05** · Qui : Agent `coder`, relu par A · Dép. : F-04 · MD-2
   Gemini temps réel : se connecter à `wss://ws.gemini.com`, s'abonner à `@bookTicker`, `@depth10` et au flux des transactions d'un instrument sportif coté ; enregistrer 10 minutes.
   Fini quand : l'enregistrement est commité comme jeu de carnets pour les tests, les formats de message sont documentés, et la connexion marche depuis Render.
-- [ ] **S-06** · Qui : A · Dép. : F-01 · HE-10, question ouverte 1
+- [x] **S-06** · Qui : A · Dép. : F-01 · HE-10, question ouverte 1
   Sandbox Gemini : clé de rôle Trader, acceptation des conditions, un ordre `makerOrCancel` sur un marché crypto, puis son annulation.
   Fini quand : identifiants d'ordre notés. Si le compte est refusé : le noter ici, H-07 bascule sur un serveur simulé.
+  Preuve : compte sandbox ouvert le 20 nov., clé Trader sur Render. Ordres du 20 nov. 04:15 UTC sur `GEMI-ETH2611200500-HI1720` : maker 145853902324436356 posé puis annulé, taker 145853902324436442 exécuté (`docs/receipts/prod/settlements-2026-11-19.md`).
 
 ---
 
@@ -232,9 +234,10 @@ Lots parallèles : (H-03 → H-04 → H-05, H-06), (R-01 → R-02), (A-05, A-06,
 - [x] **H-08** · Qui : Agent `coder-high`, relu par A · Dép. : H-05 · HE-6
   Réconciliation à la fin des ventes : position ramenée à l'exposition à 0,01 contrat près, puis facturation de tous les lots restants.
   Fini quand : après clôture, `hedgeReserved == 0` on-chain pour chaque campagne de l'instrument.
-- [ ] **H-07** ◇ · Qui : Agent `coder-high`, relu par A · Dép. : H-03, S-06 · HE-10
+- [x] **H-07** ◇ · Qui : Agent `coder-high`, relu par A · Dép. : H-03, S-06 · HE-10
   Adaptateur d'ordres réels Gemini (authentification HMAC, `makerOrCancel`, annulation, suivi) derrière `ExecutionVenue`, et commande `venue:check` sur le sandbox avec un marché crypto.
   Fini quand : les identifiants des ordres du sandbox sont affichés sur le Hedge desk. Glisse seulement si S-06 a échoué.
+  Preuve : `apps/engine/src/venues/gemini`, `pnpm --filter engine venue:check` ou `APP_VENUE_CHECK_ON_BOOT=true` ; la preuve réelle du 20 nov. 04:15 UTC (`proven`, trois ordres) est affichée par le panneau « Real orders on Gemini sandbox » du Hedge desk de production (`docs/receipts/prod/settlements-2026-11-19.md`).
 - [ ] **H-09** ◇ · Qui : Agent `coder-high` · Dép. : H-05 · HE-7 (Should)
   Croisement interne des expositions complémentaires.
   État au 18 nov. : conçu et jugé (trois conceptions, trois juges, une synthèse), **non construit**. La version retenue est réduite : seulement les deux contrats YES d'un match à deux issues, avant le coup d'envoi, plafonnée par événement, derrière un réglage coupé par défaut. Elle demande 10 à 12 h d'agent, touche la décision d'achat de la politique de couverture (le cœur de la boucle prouvée), et ne se déclenche que si les deux côtés ont de l'exposition pas encore achetée. À décider après G3. La consigne de construction, avec les choix à confirmer et les risques qui restent, est dans `docs/design/he-7-internal-crossing.md`.
