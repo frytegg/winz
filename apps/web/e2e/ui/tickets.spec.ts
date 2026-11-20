@@ -70,7 +70,7 @@ test.describe("C4, « My tickets »", () => {
     // Each ticket reads as on its own page (copy.ticket.phases), a cancelled game included.
     await expect(live.getByText(copy.ticket.phases.pre_game, { exact: true })).toBeVisible();
     await expect(live.getByText(copy.ticket.phases.in_game, { exact: true })).toBeVisible();
-    await expect(live.getByText("14% chance this is free")).toBeVisible();
+    await expect(live.getByText("14% chance it's free")).toBeVisible();
     await expect(live.getByText("Large pizza × 2")).toBeVisible();
     await expect(live.getByText("$40.00 paid")).toBeVisible();
     await expect(won.getByText(copy.ticket.phases.refunded, { exact: true })).toBeVisible();

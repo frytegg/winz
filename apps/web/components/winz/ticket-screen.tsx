@@ -176,7 +176,8 @@ function LivePhase({ ticket, bps }: { ticket: Ticket; bps: number | null }): Rea
         <Gauge bps={bps} />
       ) : (
         <>
-          {/* SPEC 5.4, before the game: « 14 % chance this is free », in words under the ring. */}
+          {/* SPEC 5.4, before the game: the chance in words under the ring, « 14% chance it's
+              free », the one wording of C1, M4, the gauge and the tickets list. */}
           <Gauge bps={bps} caption={null} />
           <p className="-mt-2 text-center text-lead">
             {bps === null

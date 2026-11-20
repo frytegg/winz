@@ -153,7 +153,7 @@ test.describe("C2, the purchase by the simulated payment", () => {
 
     await expect(page, "the purchase ends on the ticket's own link").toHaveURL(/\/t\/[^/]+$/);
     await expect(
-      page.getByRole("img", { name: /% chance this is free$/ }),
+      page.getByRole("img", { name: /% chance it's free$/ }),
       "the ticket is on screen",
     ).toBeVisible();
     const elapsed = Date.now() - started - (screens.receiptMs - receiptsBefore);
@@ -321,7 +321,7 @@ const PHASES: readonly {
     receipt: "c3-ticket-pre-game",
     title: "before the game: the chance it is free, the gauge, the countdown",
     check: async (page) => {
-      await expect(page.getByRole("img", { name: /^\d+% chance this is free$/ })).toBeVisible();
+      await expect(page.getByRole("img", { name: /^\d+% chance it's free$/ })).toBeVisible();
       await expect(page.getByText(copy.ticket.kickoffIn)).toBeVisible();
       await expect(page.getByRole("button", { name: copy.ticket.addToHome })).toBeVisible();
     },
@@ -333,7 +333,7 @@ const PHASES: readonly {
     check: async (page) => {
       await expect(page.getByText(copy.ticket.gameOn, { exact: true })).toBeVisible();
       await expect(page.getByText(copy.ticket.gameOnBody)).toBeVisible();
-      await expect(page.getByRole("img", { name: /% chance this is free$/ })).toBeVisible();
+      await expect(page.getByRole("img", { name: /% chance it's free$/ })).toBeVisible();
     },
   },
   {
@@ -407,7 +407,7 @@ test.describe("C3, the ticket in each of its five phases (SPEC 5.4)", () => {
     await screens.shot("c3-ticket-not-found");
   });
 
-  test("before the game, the screen says « … chance this is free » (SPEC 5.4)", async ({
+  test("before the game, the screen says the chance in words, « … chance it's free » as C1 does (SPEC 5.4)", async ({
     page,
   }) => {
     await page.goto("/t/tkt_example_joes_texas?scenario=preGame");
@@ -415,12 +415,14 @@ test.describe("C3, the ticket in each of its five phases (SPEC 5.4)", () => {
       page.getByText(copy.ticket.showAtCounter, { exact: true }),
       "the ticket screen opens",
     ).toBeVisible();
-    await expect(page.getByRole("img", { name: /chance this is free$/ })).toBeVisible();
+    await expect(page.getByRole("img", { name: /chance it's free$/ })).toBeVisible();
 
     // Visible text, not the accessible name: what the fan reads.
-    await expect(page.locator("body")).toContainText(/\d+ ?% chance this is free/i, {
+    await expect(page.locator("body")).toContainText(/\d+ ?% chance it's free/i, {
       timeout: 5_000,
     });
+    // One wording on every fan screen (C1, the gauge, the tickets list): not a second one here.
+    await expect(page.locator("body")).not.toContainText(/chance this is free/i);
   });
 });
 
@@ -844,13 +846,13 @@ test.describe("C1 and C3 when the API cannot be read (review 2.4)", () => {
   }) => {
     screens.allowStatus(/\/api\/t\//, 503);
     await page.goto("/t/tkt_example_joes_texas?scenario=preGame");
-    await expect(page.getByRole("img", { name: /^\d+% chance this is free$/ })).toBeVisible();
+    await expect(page.getByRole("img", { name: /^\d+% chance it's free$/ })).toBeVisible();
     await failReads(page, "**/api/t/**");
     await expect(
       page.getByRole("img", { name: copy.pickPromo.staleBook }),
       "a failed read shows the chance as unknown",
     ).toBeVisible();
-    await expect(page.getByText(/\d+ ?% chance this is free/i)).toHaveCount(0);
+    await expect(page.getByText(/\d+ ?% chance it's free/i)).toHaveCount(0);
   });
 });
 

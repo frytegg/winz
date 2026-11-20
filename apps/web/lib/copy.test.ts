@@ -94,6 +94,46 @@ describe("the team a promo is about", () => {
   });
 });
 
+/** Every string of the whole copy, functions called with the samples of `collect`. */
+function allStrings(): Map<string, string> {
+  const strings = new Map<string, string>();
+  collect(copy, "copy", strings);
+  return strings;
+}
+
+describe("the app's own words, the same everywhere", () => {
+  const strings = allStrings();
+
+  it("says « promo », never « campaign », on any screen", () => {
+    const offenders = [...strings].filter(([, text]) => /\bcampaigns?\b/i.test(text));
+    expect(offenders).toEqual([]);
+  });
+
+  it("flags « campaign » when a string has it", () => {
+    expect(/\bcampaigns?\b/i.test("Live campaign")).toBe(true);
+    expect(/\bcampaigns?\b/i.test("Live promo")).toBe(false);
+  });
+
+  it("words the chance one way: « chance it's free », never « chance this is free »", () => {
+    const chances = [...strings].filter(([, text]) => /chance .*free/i.test(text));
+    expect(chances.length, "C1, M4, the gauge and the ticket all word it").toBeGreaterThanOrEqual(
+      4,
+    );
+    const offenders = chances.filter(([, text]) => !/chance it's free/i.test(text));
+    expect(offenders).toEqual([]);
+    expect(copy.ticket.chanceTitle(14)).toBe("14% chance it's free");
+    expect(copy.campaign.chanceFree(14)).toBe(copy.ticket.chanceTitle(14));
+    expect(copy.pickPromo.chance(14)).toBe(copy.ticket.chanceTitle(14));
+  });
+
+  it("uses no word of betting or insurance", () => {
+    const offenders = [...strings].filter(([, text]) =>
+      /\b(bet|bets|betting|wager\w*|gambl\w*|insur\w*)\b/i.test(text),
+    );
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe("the report after the game (MD « How it went »)", () => {
   const t = copy.campaignDetail.report;
 

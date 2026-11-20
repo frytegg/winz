@@ -80,6 +80,9 @@ test.describe("the merchant space (SPEC 5.2)", () => {
 
     const tabs = page.getByRole("tablist", { name: copy.campaignDetail.tabsLabel });
     await expect(tabs, "the detail opens on its tabs").toBeVisible();
+    // The app says « promo » everywhere, its badge included (not « Live campaign »).
+    await expect(page.getByText(copy.campaigns.liveBadge, { exact: true })).toBeVisible();
+    await expect(page.getByText(/campaign/i)).toHaveCount(0);
     await expect(page.getByText(copy.campaignDetail.coverage, { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: copy.campaignDetail.liveChance })).toBeVisible();
     await screens.shot("md-detail-live-stats");
