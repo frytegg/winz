@@ -1,10 +1,41 @@
 /**
+ * The one example the whole page tells, the one of the demo video and the README: Buzzball’s shop (the
+ * typographic apostrophe, as the name is stored in production) sells a $12.00 smash burger, 100% back if
+ * Texas wins, for Arkansas at Texas (Texas at home) on Saturday, November 21, kickoff 2:30 PM Central. The
+ * names, the abbreviations and the win chances are the app's own for that game
+ * (`packages/shared/src/api/examples.ts`, `lib/server/mock-answers.ts`); the promo link has the slug the
+ * engine would build from the merchant's name and the condition (`apps/engine/src/jobs/handlers/slug.ts`).
+ * How it works and the Process section both read it, so the two never tell different stories.
+ */
+const example = {
+  merchant: "Buzzball’s shop",
+  item: "Smash burger",
+  price: "$12.00",
+  promise: "100% back if Texas wins!",
+  /** What the fan gets back when Texas wins: the whole price. */
+  refund: "+$12.00",
+  home: { name: "Texas", abbreviation: "TEX", chance: 91 },
+  away: { name: "Arkansas", abbreviation: "ARK", chance: 9 },
+  /** Kickoff, as the app's match card writes it (Central time). */
+  kickoff: { time: "2:30", meridiem: "PM", date: "Nov 21" },
+  /** The score while the game is on, then the final one. */
+  scoreLive: { home: 17, away: 17 },
+  scoreFinal: { home: 31, away: 17 },
+  /** The promo's link, without the scheme, as the app's share screen shows it. */
+  link: "winz-nu.vercel.app/c/buzzballs-shop-texas-wins",
+  /** The merchant's e-mail typed in Process step 01: 18 characters, one step of `pe-type` each. */
+  email: "alex@buzzballs.com",
+} as const;
+
+/**
  * The landing page's own text. The only source of it is `winz-front-kit/landing/_integration/COPY.md`
  * (and the owner's decisions after it); the page's sections add their strings here, as they land. It
  * is not `lib/copy.ts`: that file is the app's, and its tests forbid words (USDC, hedge) that the
  * landing is allowed to use.
  */
 export const landingCopy = {
+  example,
+
   /** Under an inactive button (a link not decided yet), on hover, on focus and after a tap. */
   openingSoon: "Opening soon",
 
@@ -60,9 +91,9 @@ export const landingCopy = {
   /**
    * How it works (COPY.md section 3). The titles, the descriptions and the chips are COPY.md's; the
    * `alt` and `label` lines are not (the illustrations are pictures, and COPY.md does not describe
-   * them): they say what the picture shows, with the same example data (Pittsburgh against
-   * Philadelphia, Joe's Pizza, $20.00). The Fan tab says nothing a fan would not read in the app:
-   * no wallet, no chain, no token.
+   * them): they say what the picture shows, with the page's one example (`example` above: Arkansas at
+   * Texas, Buzzball’s shop, $12.00). The Fan tab says nothing a fan would not read in the app: no
+   * wallet, no chain, no token.
    */
   how: {
     eyebrow: "How it works",
@@ -75,55 +106,72 @@ export const landingCopy = {
       {
         title: "Pick a game and a budget",
         body: "Choose the match, the discount and the most you are willing to give away.",
-        alt: "A match card, Pittsburgh against Philadelphia at 7:00 on November 22, with the Budget and Promo steps ticked.",
+        alt: "A match card, Arkansas at Texas at 2:30 PM on November 21, with the Budget and Promo steps ticked.",
       },
       {
         title: "Pay by card",
         body: "The promo is live in about ten seconds.",
-        alt: "The promo's campaign card, 100% back if Pittsburgh wins at Joe's Pizza, with the Fund with Apple Pay and Fund with card buttons.",
+        alt: "The promo's campaign card, 100% back if Texas wins at Buzzball’s shop, with the Fund with Apple Pay and Fund with card buttons.",
       },
       {
         title: "Show the QR",
         body: "Put it on the counter or send the link.",
-        alt: "The promo's QR code, with its link and a Download QR button.",
+        alt: "The promo's QR code, with its link, winz-nu.vercel.app/c/buzzballs-shop-texas-wins, and a Download QR button.",
       },
     ],
     fan: [
       {
         title: "Scan and pay",
         body: "Apple Pay or a card. One tap, no app to install.",
-        alt: "The Joe's Pizza campaign card, 100% back if Pittsburgh wins, with a Scan the QR tag and a Pay with Apple Pay button.",
+        alt: "The Buzzball’s shop campaign card, 100% back if Texas wins, with a Scan the QR tag and a Pay with Apple Pay button.",
       },
       {
         title: "Follow your ticket",
         body: "It updates live during the game. No refresh.",
-        alt: "A live ticket for Pittsburgh against Philadelphia, with a 64% win chance.",
+        alt: "A live ticket for Texas against Arkansas, with a 64% win chance.",
       },
       {
         title: "Team wins, money back",
         body: "The refund lands on its own. Nothing to claim.",
-        alt: "The final ticket, Pittsburgh 24, Philadelphia 17, refunded $20.00.",
+        alt: "The final ticket, Texas 31, Arkansas 17, refunded $12.00.",
       },
     ],
-    /** The words inside the Fan illustrations (COPY.md: the chips), and the example they share. */
+    /**
+     * The words inside the illustrations of both tabs (COPY.md: the chips), and the example they share.
+     * `home` and `away` are the teams' abbreviations, `score` the final score.
+     */
     scene: {
       scanTheQr: "Scan the QR",
       payWithApplePay: "Pay with Apple Pay",
       campaign: "Campaign",
-      promise: "100% back if Pittsburgh wins!",
-      merchant: "Joe's Pizza",
+      promise: example.promise,
+      merchant: example.merchant,
       live: "Live",
       winChance: "Win chance",
       final: "Final",
       refunded: "Refunded",
-      amount: "+$20.00",
-      pit: "PIT",
-      phi: "PHI",
+      amount: example.refund,
+      home: example.home.abbreviation,
+      away: example.away.abbreviation,
       versus: "VS",
-      /** The final score, PIT first. */
-      score: [24, 17],
+      score: example.scoreFinal,
       /** The win chance the gauge sits on, and the two it swings between (percent). */
       chance: 64,
+    },
+    /**
+     * The Merchant illustrations: the match card of the wizard's first step (the app's `MatchCard`, its
+     * teams' full names and their chances to win), the funding step's two buttons, and the share step's
+     * link, QR and download button.
+     */
+    merchantScene: {
+      budget: "Budget",
+      promo: "Promo",
+      kickoff: example.kickoff,
+      teams: { home: example.home, away: example.away },
+      fundWithApplePay: "Fund with Apple Pay",
+      fundWithCard: "Fund with card",
+      link: example.link,
+      downloadQr: "Download QR",
     },
   },
 
@@ -155,7 +203,7 @@ export const landingCopy = {
    * Process, the "Test it in three minutes" section (COPY.md section 5, anchor `#live-demo`). The six
    * steps' titles and descriptions are COPY.md's, with its two corrections (the e-mail sentence, and a
    * single full stop at the end of step 01). `scene` is what the phone screens say: COPY.md's list for each
-   * step, and the same example data as How it works (Pittsburgh against Philadelphia, Joe's Pizza, $20.00).
+   * step, and the same example as How it works (`example` above: Arkansas at Texas, Buzzball’s shop, $12.00).
    * The screens are decoration (`aria-hidden`): the text of the steps carries the meaning.
    */
   process: {
@@ -196,14 +244,14 @@ export const landingCopy = {
         subtitle: "No password. We'll email you a 6-digit code.",
         emailLabel: "Email",
         emailPlaceholder: "Your email…",
-        email: "alex@joespizza.com",
+        email: example.email,
         code: "428019",
       },
       /** Step 02: the first screen of the promo wizard. The amount is counted up by the stylesheet, to $250. */
       pick: {
         title: "1. Pick a game",
-        home: "Pittsburgh",
-        away: "Philadelphia",
+        home: example.home.name,
+        away: example.away.name,
         versus: "VS",
         back: "100% back",
         budget: "Budget",
@@ -226,20 +274,20 @@ export const landingCopy = {
       },
       /** Steps 05 and 06: what the fan sees, and the ticket that comes of it. */
       fan: {
-        merchant: "Joe's Pizza",
-        promise: "100% back if Pittsburgh wins!",
+        merchant: example.merchant,
+        promise: example.promise,
         pay: "Pay with Apple Pay",
-        amount: "$20.00",
+        amount: example.price,
         winChance: "Win chance",
-        pit: "PIT",
-        phi: "PHI",
+        home: example.home.abbreviation,
+        away: example.away.abbreviation,
         live: "Live",
         final: "Final",
         refunded: "Refunded",
-        refund: "+$20.00",
-        /** The score while the game is on, then the final one, PIT first. */
-        scoreBefore: [17, 17],
-        score: [24, 17],
+        refund: example.refund,
+        /** The score while the game is on, then the final one. */
+        scoreBefore: example.scoreLive,
+        score: example.scoreFinal,
         ticket: "Your ticket",
       },
     },

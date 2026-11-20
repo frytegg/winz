@@ -5,7 +5,21 @@ import { landingCopy } from "@/lib/landing/copy";
 import { decorativeQr, hostOf } from "@/lib/landing/qr-target";
 import { buildQrMatrix, qrPath } from "@/lib/qr";
 
+import { HELMET, SIDES } from "./example-teams";
+
 const { onboarding, pick, fund, share, fan } = landingCopy.process.scene;
+const [LEFT, RIGHT] = SIDES;
+
+/** The promise with its figure lit ("100%" lime, then " back if Texas wins!"), as the screens set it. */
+function PromiseLine(): React.JSX.Element {
+  const [, figure = "", rest = fan.promise] = /^(\S*%)(.*)$/.exec(fan.promise) ?? [];
+  return (
+    <>
+      <span className="ps-pct">{figure}</span>
+      {rest}
+    </>
+  );
+}
 
 /**
  * The screens of the phone, one per step (`sections/05-process.md`): what the app shows at that moment, in HTML
@@ -97,13 +111,14 @@ export function PickScreen(): React.JSX.Element {
       <div className="pb ps-match" style={at(1)}>
         <div className="ps-match-card">
           <span className="ps-team">
-            <img src="/landing/how/helmet-pit.webp" alt="" width={128} height={128} />
-            <b>{pick.home}</b>
+            <img src={HELMET[LEFT]} alt="" width={128} height={128} />
+            <b>{pick[LEFT]}</b>
           </span>
           <span className="ps-vs pa p2-vs">{pick.versus}</span>
+          {/* `ps-team-away` is the team on the right: its helmet is turned to face the other one. */}
           <span className="ps-team ps-team-away">
-            <img src="/landing/how/helmet-phi.webp" alt="" width={128} height={128} />
-            <b>{pick.away}</b>
+            <img src={HELMET[RIGHT]} alt="" width={128} height={128} />
+            <b>{pick[RIGHT]}</b>
           </span>
           <span className="ps-match-ring pa p2-ring" />
         </div>
@@ -238,13 +253,13 @@ function Helmets({ between }: { between: ReactNode }): React.JSX.Element {
   return (
     <div className="ps-helmets">
       <span className="ps-team">
-        <img src="/landing/how/helmet-pit.webp" alt="" width={128} height={128} />
-        <b>{fan.pit}</b>
+        <img src={HELMET[LEFT]} alt="" width={128} height={128} />
+        <b>{fan[LEFT]}</b>
       </span>
       {between}
       <span className="ps-team ps-team-away">
-        <img src="/landing/how/helmet-phi.webp" alt="" width={128} height={128} />
-        <b>{fan.phi}</b>
+        <img src={HELMET[RIGHT]} alt="" width={128} height={128} />
+        <b>{fan[RIGHT]}</b>
       </span>
     </div>
   );
@@ -262,7 +277,7 @@ export function BuyScreen(): React.JSX.Element {
         <div className="ps-buy-page pa p5-page">
           <div className="ps-promo">
             <b>
-              <span className="ps-pct">100%</span> back if Pittsburgh wins!
+              <PromiseLine />
             </b>
           </div>
           <span className="ps-pay pa p5-pay">
@@ -317,10 +332,10 @@ export function RefundScreen(): React.JSX.Element {
               between={
                 <span className="ps-score">
                   <span className="ps-score-a pa p6-before">
-                    {fan.live} · {fan.scoreBefore[0]} – {fan.scoreBefore[1]}
+                    {fan.live} · {fan.scoreBefore[LEFT]} – {fan.scoreBefore[RIGHT]}
                   </span>
                   <span className="ps-score-b pa p6-after">
-                    {fan.final} · {fan.score[0]} – {fan.score[1]}
+                    {fan.final} · {fan.score[LEFT]} – {fan.score[RIGHT]}
                   </span>
                 </span>
               }
@@ -328,7 +343,7 @@ export function RefundScreen(): React.JSX.Element {
           }
           bottom={
             <p className="ps-promise">
-              <span className="ps-pct">100%</span> back if Pittsburgh wins!
+              <PromiseLine />
             </p>
           }
         />

@@ -130,7 +130,7 @@ export const copy = {
   business: {
     title: "Tell us about your spot",
     nameLabel: "Business name",
-    namePlaceholder: "Joe's Pizza",
+    namePlaceholder: "Your shop's name",
     categoryLabel: "Your category",
     logoLabel: "Add your logo",
     logoUrlPlaceholder: "https://",

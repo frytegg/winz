@@ -8,13 +8,14 @@ import { TeamBadge } from "@/components/winz/team-badge";
 import { TicketShell } from "@/components/winz/ticket-shell";
 import { landingCopy } from "@/lib/landing/copy";
 
+import { HELMET, SIDES } from "./example-teams";
 import { HowChip } from "./how-chip";
 
 const { scene } = landingCopy.how;
 
 /**
  * The three illustrations of the Fan tab (`sections/03-how.md`): what a fan sees in the app, with fixed
- * data, drawn on the same 340 x 295 canvas as the Merchant ones (`merchant-01..03.svg`) and with the
+ * data, drawn on the same 340 x 295 canvas as the Merchant ones (`how-merchant-scenes.tsx`) and with the
  * chips in the same places (card 1 of each tab: a pill above the card on one side and one below it on
  * the other, and so on).
  *
@@ -30,14 +31,8 @@ const { scene } = landingCopy.how;
  */
 const SCALE = 0.79;
 
-/** The two helmets of the Merchant tab's match card (extracted from `merchant-01.svg`, 128 px, WebP). */
-const HELMET = {
-  pit: "/landing/how/helmet-pit.webp",
-  phi: "/landing/how/helmet-phi.webp",
-} as const;
-
 /** A box of the 340 x 295 canvas, holding app components at their own size, scaled down to fit. */
-function Mini({
+export function Mini({
   x,
   y,
   width,
@@ -64,7 +59,13 @@ function Mini({
 }
 
 /** A scene is one picture for a screen reader: what it shows is in `label`, not in its pieces. */
-function Scene({ label, children }: { label: string; children: ReactNode }): React.JSX.Element {
+export function Scene({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}): React.JSX.Element {
   return (
     <div role="img" aria-label={label} className="absolute inset-0">
       {children}
@@ -98,11 +99,12 @@ function Team({
 
 /** The ticket's header: the two teams, and what stands between them (VS, then the score). */
 function Teams({ between }: { between: ReactNode }): React.JSX.Element {
+  const [left, right] = SIDES;
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-      <Team src={HELMET.pit} label={scene.pit} />
+      <Team src={HELMET[left]} label={scene[left]} />
       {between}
-      <Team src={HELMET.phi} label={scene.phi} mirrored />
+      <Team src={HELMET[right]} label={scene[right]} mirrored />
     </div>
   );
 }
@@ -126,7 +128,7 @@ function Ticket({ top, bottom }: { top: ReactNode; bottom: ReactNode }): React.J
  * `CampaignHero` imports the app's countdown, a client component, and with it a good part of the app's
  * client code, 60 kB on a page that has none of it (measured: /landing 129 kB to 189 kB).
  */
-function CampaignCard(): React.JSX.Element {
+export function CampaignCard(): React.JSX.Element {
   return (
     <Card tone="raised" diagonals className="p-6">
       <span className="flex items-center gap-2 text-label uppercase">
@@ -252,7 +254,8 @@ export function MoneyBackScene({ label }: { label: string }): React.JSX.Element 
             <Teams
               between={
                 <span className="figures whitespace-nowrap text-clock">
-                  {scene.score[0]} <span className="text-muted">–</span> {scene.score[1]}
+                  {scene.score[SIDES[0]]} <span className="text-muted">–</span>{" "}
+                  {scene.score[SIDES[1]]}
                 </span>
               }
             />
