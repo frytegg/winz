@@ -103,3 +103,287 @@ html:has(.landing-menu[open]) {
     mask-image: none;
   }
 }
+
+/*
+ * How it works (03-how.md). The cards are a fixed 340 x 413; their frame is a fixed 340 x 295 canvas that
+ * a card narrower than itself (a phone under 340 px) steps down, by container query on the card. The
+ * thresholds are the card's CONTENT width (its border box minus the 1 px border on each side): 337 is a
+ * 339 px card and down, and each step keeps the frame inside the card (340 x .94 = 320, .88 = 299, .8 = 272).
+ */
+.how-frame {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 340px;
+  height: 295px;
+  margin-left: -170px;
+  transform-origin: 50% 0;
+  text-align: left;
+}
+
+@container (max-width: 337px) {
+  .how-frame {
+    transform: scale(0.94);
+  }
+}
+
+@container (max-width: 317px) {
+  .how-frame {
+    transform: scale(0.88);
+  }
+}
+
+@container (max-width: 297px) {
+  .how-frame {
+    transform: scale(0.8);
+  }
+}
+
+/*
+ * The tab change. The panel that is not selected is out (visibility, so out of the accessibility tree and the
+ * tab order too), its cards at rest 8 px low and clear; the selected one's cards come in, fading and rising
+ * 8 px, 60 ms after one another (--i is the card's position). Leaving is immediate: the new cards are the
+ * motion. Only opacity and transform move.
+ */
+.how-panel {
+  grid-area: 1 / 1;
+  width: 100%;
+  visibility: hidden;
+}
+
+.how-panel[data-active="true"] {
+  visibility: visible;
+}
+
+.how-card {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.how-panel[data-active="true"] .how-card {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--i, 0) * 60ms);
+}
+
+/*
+ * The pill under the selected tab, slid by `transform` only. It is three layers so that its ends stay round
+ * while its width changes (Merchant is 142 px wide, Fan 86): a disc at each end, and a bar between them
+ * that is stretched (scaleX) and moved. The numbers are the buttons' fixed widths, unitless so they can be
+ * added (--x is the pill's left edge in px, --w its width, 40 its height).
+ */
+.how-tabs {
+  --x: 0;
+  --w: 142;
+}
+
+.how-tabs[data-tab="fan"] {
+  --x: 142;
+  --w: 86;
+}
+
+.how-pill {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  height: 40px;
+  background: var(--color-lime);
+  transition: transform 340ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.how-pill-left,
+.how-pill-right {
+  width: 40px;
+  border-radius: 9999px;
+}
+
+.how-pill-left {
+  transform: translateX(calc(var(--x) * 1px));
+}
+
+.how-pill-right {
+  transform: translateX(calc((var(--x) + var(--w) - 40) * 1px));
+}
+
+/* The bar starts at 1 px wide, at the middle of the left disc, and is stretched to the gap between the discs. */
+.how-pill-mid {
+  width: 1px;
+  transform-origin: 0 50%;
+  transform: translateX(calc((var(--x) + 20) * 1px)) scaleX(calc(var(--w) - 40));
+}
+
+/*
+ * The Fan illustrations' own motion. It runs only while the Fan tab is the selected one, and starts over each
+ * time it is selected again (the `animation` property is on the selector `data-active="true"`, so it is
+ * removed, and applied afresh, as the tab changes). All of it stops under prefers-reduced-motion.
+ */
+@property --how-pct {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 64;
+}
+
+/* Card 1: the Apple Pay button, pressed once and let go (0.96 then 1). */
+@keyframes how-press {
+  35% {
+    transform: scale(0.96);
+  }
+}
+
+.how-panel[data-active="true"] .how-press {
+  animation: how-press 380ms cubic-bezier(0.22, 1, 0.36, 1) 900ms both;
+}
+
+/*
+ * Card 2: the win chance swings between 58 and 66 around 64 on a 4 s loop. The bar is a transform; the number
+ * is a counter that reads the same animated value, so both are on the same clock and agree at every frame.
+ * With no motion, or no @property, it sits at 64.
+ */
+@keyframes how-swing-bar {
+  0%,
+  100% {
+    transform: scaleX(0.64);
+  }
+  30% {
+    transform: scaleX(0.58);
+  }
+  70% {
+    transform: scaleX(0.66);
+  }
+}
+
+@keyframes how-swing-number {
+  0%,
+  100% {
+    --how-pct: 64;
+  }
+  30% {
+    --how-pct: 58;
+  }
+  70% {
+    --how-pct: 66;
+  }
+}
+
+.how-gauge {
+  transform: scaleX(0.64);
+}
+
+.how-pct {
+  counter-reset: how-pct var(--how-pct, 64);
+}
+
+.how-pct::before {
+  content: counter(how-pct) "%";
+}
+
+.how-panel[data-active="true"] .how-gauge {
+  animation: how-swing-bar 4s ease-in-out infinite;
+}
+
+.how-panel[data-active="true"] .how-pct {
+  animation: how-swing-number 4s ease-in-out infinite;
+}
+
+/* The pulsing dots stand still while their tab is out of sight. */
+.how-panel:not([data-active="true"]) * {
+  animation-play-state: paused !important;
+}
+
+@keyframes how-live-dot {
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+
+.how-panel[data-active="true"] .how-live-dot {
+  animation: how-live-dot 2s cubic-bezier(0.77, 0, 0.175, 1) infinite;
+}
+
+/* Card 3: the Refunded chip appears (0.9 then 1) and its tick is drawn, once. */
+@keyframes how-refunded {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes how-check {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+.how-check {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+.how-panel[data-active="true"] .how-refunded {
+  animation: how-refunded 360ms cubic-bezier(0.22, 1, 0.36, 1) 1000ms both;
+}
+
+.how-panel[data-active="true"] .how-check {
+  animation: how-check 420ms cubic-bezier(0.65, 0, 0.35, 1) 1250ms both;
+}
+
+/* The global reduced-motion rule shortens a transition to 150 ms and an animation to 1 ms; here there is none. */
+@media (prefers-reduced-motion: reduce) {
+  .how-card,
+  .how-panel[data-active="true"] .how-card,
+  .how-pill {
+    transition: none !important;
+  }
+
+  .how-panel[data-active="true"] .how-press,
+  .how-panel[data-active="true"] .how-gauge,
+  .how-panel[data-active="true"] .how-pct,
+  .how-panel[data-active="true"] .how-live-dot,
+  .how-panel[data-active="true"] .how-refunded,
+  .how-panel[data-active="true"] .how-check {
+    animation: none;
+  }
+}
+
+/*
+ * The cards of a tab: one column on a phone (at most 400 px wide), two columns of 340 with the third card
+ * centered under them on a tablet, three of 340 from 1110 px (3 x 340 + 2 x 20 = the mockup's 1060).
+ * Written here and not as utilities: Tailwind sorts an arbitrary min-[1110px] before md, so the two
+ * would have fought.
+ */
+.how-grid {
+  display: grid;
+  width: 100%;
+  max-width: 400px;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+@media (min-width: 768px) {
+  .how-grid {
+    max-width: none;
+    grid-template-columns: repeat(2, 340px);
+    justify-content: center;
+  }
+
+  .how-grid > :nth-child(3) {
+    grid-column: span 2;
+    justify-self: center;
+  }
+}
+
+@media (min-width: 1110px) {
+  .how-grid {
+    grid-template-columns: repeat(3, 340px);
+  }
+
+  .how-grid > :nth-child(3) {
+    grid-column: auto;
+    justify-self: stretch;
+  }
+}

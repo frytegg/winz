@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { LandingHow } from "@/components/landing/landing-how";
 import { LandingHero } from "@/components/landing/landing-hero";
 import { LandingNav } from "@/components/landing/landing-nav";
 import { LogoStrip } from "@/components/landing/logo-strip";
@@ -32,6 +33,7 @@ export default function LandingPage(): React.JSX.Element {
       <main id="top">
         <LandingHero liveDemoUrl={landingLinks.liveDemoUrl} />
         <LogoStrip />
+        <LandingHow />
       </main>
     </div>
   );
