@@ -170,50 +170,34 @@ html:has(.landing-menu[open]) {
 }
 
 /*
- * The pill under the selected tab, slid by `transform` only. It is three layers so that its ends stay round
- * while its width changes (Merchant is 142 px wide, Fan 86): a disc at each end, and a bar between them
- * that is stretched (scaleX) and moved. The numbers are the buttons' fixed widths, unitless so they can be
- * added (--x is the pill's left edge in px, --w its width, 40 its height).
+ * The pill under the selected tab: ONE element, as wide as the selected button (Merchant 142 px, Fan 86) and
+ * as high as the track's inside (40), with a full radius. It slides by `transform` and follows the width of
+ * the button by `width`; both are written out per state, with no `calc()` and no custom property inside
+ * a transform.
+ *
+ * It used to be three layers (a disc at each end and a 1 px bar stretched between them by `scaleX`), which
+ * only looks like a pill while the three layers are rasterised, snapped and scaled in agreement. A 1 px
+ * layer stretched a hundred times is the part a browser may draw differently (blur at the seams, a bar that
+ * does not meet its discs), and a single element has no seam to show. `width` is the one thing animated
+ * besides `transform`: an absolutely positioned 40 px box, nothing else on the page depends on it.
  */
-.how-tabs {
-  --x: 0;
-  --w: 142;
-}
-
-.how-tabs[data-tab="fan"] {
-  --x: 142;
-  --w: 86;
-}
-
 .how-pill {
   position: absolute;
   top: 3px;
   left: 3px;
+  width: 142px;
   height: 40px;
-  background: var(--color-lime);
-  transition: transform 340ms cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: transform;
-}
-
-.how-pill-left,
-.how-pill-right {
-  width: 40px;
   border-radius: 9999px;
+  background: var(--color-lime);
+  transform: translateX(0);
+  transition:
+    transform 340ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 340ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.how-pill-left {
-  transform: translateX(calc(var(--x) * 1px));
-}
-
-.how-pill-right {
-  transform: translateX(calc((var(--x) + var(--w) - 40) * 1px));
-}
-
-/* The bar starts at 1 px wide, at the middle of the left disc, and is stretched to the gap between the discs. */
-.how-pill-mid {
-  width: 1px;
-  transform-origin: 0 50%;
-  transform: translateX(calc((var(--x) + 20) * 1px)) scaleX(calc(var(--w) - 40));
+.how-tabs[data-tab="fan"] .how-pill {
+  width: 86px;
+  transform: translateX(142px);
 }
 
 /*
