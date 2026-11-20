@@ -205,6 +205,7 @@ Tous parallèles entre eux dès que F-05 est figé. Lot à lancer ensemble : C-0
 - [ ] **U-04** · Qui : T · Dép. : U-02, U-03, A-01 à A-04
   Brancher les écrans sur l'API réelle : onboarding, page de campagne, paiement, ticket.
   Fini quand : **porte G1** passée sur le testnet, depuis un téléphone.
+  État au 20 nov. : la promo de test du 19 au soir est prouvée de la base à la chaîne dans `docs/receipts/prod/g1-2026-11-19.md` (campagne on-chain 15 créée et en ligne en 5 s, achat `ticketed`, ticket 672 par `buyFor`, couverture facturée par `chargeHedge`, hash sur l'explorateur, `pnpm smoke` : 6 contrôles passés). Reste pour cocher : les preuves que la base ne garde pas, à ajouter au reçu par qui a acheté : la capture du ticket affiché sur le téléphone, le modèle du téléphone, et l'événement Stripe avec le moyen de paiement et sa livraison en 200.
 
 ---
 
