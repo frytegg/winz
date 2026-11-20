@@ -163,6 +163,77 @@ describe("WsBookTransport", () => {
     expect(line?.error).toEqual({ code: -1013, msg: "Invalid stream name: x" });
   });
 
+  it("subscribes again, without it, the other streams of a request refused for one invalid stream", () => {
+    // Recorded from wss://ws.gemini.com on 20 Nov 2026: one settled instrument in a subscribe
+    // request makes Gemini refuse the whole request, and none of its other streams is sent.
+    const { transport, sockets, received, log } = setup();
+    transport.setSymbols(new Set([NYK, MURR, HOU]));
+    sockets.latest().open();
+    const socket = sockets.latest();
+    const first = JSON.parse(socket.sent[0] ?? "{}") as { id: number; params: string[] };
+    const invalid = `${MURR.toLowerCase()}@depth10@100ms`;
+    expect(first.params).toContain(invalid);
+    socket.receive(
+      JSON.stringify({
+        id: first.id,
+        status: 400,
+        error: { code: -1013, msg: `Invalid stream name: ${invalid}` },
+      }),
+    );
+    expect(socket.sent).toHaveLength(2);
+    const retry = JSON.parse(socket.sent[1] ?? "{}") as { id: number; params: string[] };
+    expect(retry.params.sort()).toEqual(first.params.filter((s) => s !== invalid).sort());
+
+    // The next invalid stream of the same instrument is dropped the same way.
+    const invalidTrade = `${MURR.toLowerCase()}@trade`;
+    socket.receive(
+      JSON.stringify({
+        id: retry.id,
+        status: 400,
+        error: { code: -1013, msg: `Invalid stream name: ${invalidTrade}` },
+      }),
+    );
+    const second = JSON.parse(socket.sent[2] ?? "{}") as { id: number; params: string[] };
+    expect(second.params.sort()).toEqual(
+      first.params.filter((s) => s !== invalid && s !== invalidTrade).sort(),
+    );
+    socket.receive(JSON.stringify({ id: second.id, status: 200 }));
+    expect(socket.sent).toHaveLength(3);
+
+    socket.receive(
+      JSON.stringify({ lastUpdateId: 7, symbol: NYK.toLowerCase(), bids: [], asks: [] }),
+    );
+    expect(received.books.map(({ book }) => book.instrumentSymbol)).toEqual([NYK]);
+    expect(
+      log.lines.filter(
+        (line) => line.msg === "gemini websocket stream refused, subscribing the others again",
+      ),
+    ).toHaveLength(2);
+  });
+
+  it("does not retry a refused request whose stream it cannot name, nor an unsubscribe", () => {
+    const { transport, sockets } = setup();
+    transport.setSymbols(new Set([NYK]));
+    sockets.latest().open();
+    sockets
+      .latest()
+      .receive('{"id":1,"status":400,"error":{"code":-1013,"msg":"Invalid stream name: x"}}');
+    expect(sockets.latest().sent).toHaveLength(1);
+    transport.setSymbols(new Set());
+    const unsubscribe = JSON.parse(sockets.latest().sent[1] ?? "{}") as {
+      id: number;
+      params: string[];
+    };
+    sockets.latest().receive(
+      JSON.stringify({
+        id: unsubscribe.id,
+        status: 400,
+        error: { code: -1013, msg: `Invalid stream name: ${unsubscribe.params[0] ?? ""}` },
+      }),
+    );
+    expect(sockets.latest().sent).toHaveLength(2);
+  });
+
   it("reconnects with exponential backoff and jitter, and subscribes again to everything", async () => {
     const { transport, sockets, scheduler, received } = setup({ baseReconnectDelayMs: 1_000 });
     transport.setSymbols(new Set([NYK, MURR]));
