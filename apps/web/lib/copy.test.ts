@@ -93,3 +93,25 @@ describe("the team a promo is about", () => {
     );
   });
 });
+
+describe("the report after the game (MD « How it went »)", () => {
+  const t = copy.campaignDetail.report;
+
+  it("ends a promo that hit with a line true for it: the refunds were covered", () => {
+    expect(t.sameAsWon("12.5%")).toBe(
+      "Same as a 12.5% discount. The refunds cost you nothing more.",
+    );
+    expect(t.sameAsWon("12.5%")).not.toMatch(/only when you win/i);
+  });
+
+  it("keeps the line of a promo that didn't hit", () => {
+    expect(t.sameAs("12.5%")).toBe("Same as a 12.5% discount… but only when you win.");
+    expect(t.sameAs("12.5%")).not.toBe(t.sameAsWon("12.5%"));
+  });
+
+  it("names a promo that didn't hit as the merchant sees it: « No refunds », never « Lost »", () => {
+    expect(t.lost).toBe("No refunds");
+    expect(copy.campaigns.status.settled_no).toBe("No refunds");
+    expect(copy.campaign.lost, "the fan's side keeps its words").toBe("Not this time");
+  });
+});

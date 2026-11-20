@@ -54,7 +54,9 @@ function ReportCard({
       </dl>
       {result === "cancelled" ? null : (
         <p className="mt-4 text-caption text-muted">
-          {t.sameAs(formatBpsOneDecimal(report.equivalentDiscountBps))}
+          {result === "won"
+            ? t.sameAsWon(formatBpsOneDecimal(report.equivalentDiscountBps))
+            : t.sameAs(formatBpsOneDecimal(report.equivalentDiscountBps))}
         </p>
       )}
     </Card>

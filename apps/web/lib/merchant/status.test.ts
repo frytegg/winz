@@ -19,13 +19,20 @@ describe("the result of a promo", () => {
     });
   });
 
-  it("lost: the promo did not hit", () => {
+  it("lost: the promo did not hit, which the merchant reads as « No refunds », never « Lost »", () => {
     expect(promoResult("settled_no", "no")).toBe("lost");
-    expect(statusBadge("settled_no")).toBe("Lost");
+    // The good outcome for the merchant: nobody was refunded and every sale is his.
+    expect(statusBadge("settled_no")).toBe("No refunds");
     expect(resultWords("lost")).toEqual({
       badge: copy.campaignDetail.report.lost,
       body: copy.campaignDetail.report.lostBody,
     });
+    expect(resultWords("lost").badge).toBe("No refunds");
+    for (const word of [statusBadge("settled_no"), resultWords("lost").badge]) {
+      expect(word).not.toMatch(/\blost\b/i);
+    }
+    // The fan's side keeps its own words.
+    expect(copy.ticket.phases.not_this_time).toBe("Not this time");
   });
 
   it("cancelled: the game did not count, and it is not a lost promo", () => {

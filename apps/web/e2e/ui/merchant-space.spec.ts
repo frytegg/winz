@@ -123,24 +123,29 @@ test.describe("the merchant space (SPEC 5.2)", () => {
     receipt: ReceiptName;
     badge: string;
     report: string | null;
+    /** The report's closing line, true for that result. */
+    closing: string | null;
   }[] = [
     {
       scenario: "paused",
       receipt: "md-detail-paused",
       badge: copy.campaigns.status.paused,
       report: null,
+      closing: null,
     },
     {
       scenario: "settledYes",
       receipt: "md-detail-settled-yes",
       badge: copy.campaigns.status.settled_yes,
       report: copy.campaignDetail.report.wonBody,
+      closing: "Same as a 12.5% discount. The refunds cost you nothing more.",
     },
     {
       scenario: "settledNo",
       receipt: "md-detail-settled-no",
       badge: copy.campaigns.status.settled_no,
       report: copy.campaignDetail.report.lostBody,
+      closing: "Same as a 12.5% discount… but only when you win.",
     },
   ];
 
@@ -164,9 +169,13 @@ test.describe("the merchant space (SPEC 5.2)", () => {
         await expect(page.getByText(status.report)).toBeVisible();
         await expect(page.getByText(copy.campaignDetail.report.newCustomers)).toBeVisible();
         await expect(
-          page.getByText(/^Same as a .+ discount… but only when you win\.$/),
+          page.getByText(status.closing ?? "", { exact: true }),
+          "the report ends with a line true for its result",
         ).toBeVisible();
+        await expect(page.getByText(/^Same as a .+ discount/)).toHaveCount(1);
       }
+      // The merchant's words: a promo that didn't hit is « No refunds », never « Lost ».
+      await expect(page.getByText(/\bLost\b/)).toHaveCount(0);
       await screens.shot(status.receipt);
     });
   }
