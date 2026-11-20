@@ -46,9 +46,10 @@ function isPaused(state: PublicCampaign["saleState"]): boolean {
 function Teams({ event }: { event: PublicCampaign["event"] }): React.JSX.Element {
   const teams = gameFromEvent(event);
   const side = (team: FanTeam, tone: "a" | "b"): React.JSX.Element => (
-    <div className="flex w-28 flex-col items-center gap-1.5">
+    <div className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
       <TeamBadge abbreviation={team.abbreviation} src={team.art} side={tone} size={72} />
-      <span className="max-w-full truncate text-lead">{team.name}</span>
+      {/* The whole name, on two lines when it needs them (« Arkansas / Razorbacks »), never cut. */}
+      <span className="w-full text-balance break-words text-lead leading-tight">{team.name}</span>
       <span className="text-label uppercase text-muted">{team.abbreviation}</span>
     </div>
   );
