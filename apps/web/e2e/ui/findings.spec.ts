@@ -72,11 +72,16 @@ test("M8: « Share » and « Download QR » keep their whole label, clear of the
         text: text.textContent,
         cut: text.scrollWidth > text.clientWidth,
         gap: Math.round(icon.getBoundingClientRect().left - label.getBoundingClientRect().right),
+        // The room the pill itself keeps, whatever the label's width: the suite draws the text
+        // with a stand-in for Sora (support/google-fonts-mock.cjs), narrower than the real
+        // font that made « Download QR » touch its icon on the recording.
+        minGap: Number.parseFloat(getComputedStyle(element).columnGap) || 0,
       };
     });
     expect(fit, `« ${name} » has a label and an icon`).not.toBeNull();
     expect(fit?.text).toBe(name);
     expect(fit?.cut, `« ${name} » is not cut`).toBe(false);
     expect(fit?.gap ?? 0, `« ${name} » has room before its icon`).toBeGreaterThanOrEqual(8);
+    expect(fit?.minGap ?? 0, `« ${name} » keeps room before its icon`).toBeGreaterThanOrEqual(8);
   }
 });
