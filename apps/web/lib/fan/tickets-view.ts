@@ -38,7 +38,7 @@ export interface TicketRow {
   phaseLabel: string;
   promise: string;
   merchantName: string;
-  /** "Large pizza", or "Large pizza × 2". */
+  /** "Smash burger", or "Smash burger × 2". */
   item: string;
   /** "$20.00 paid". */
   paidText: string;

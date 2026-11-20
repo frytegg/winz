@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { apiExamples } from "@winz/shared";
 
 import { copy } from "../../lib/copy";
 
@@ -96,7 +97,9 @@ test.describe("where a person lands after signing in (review 2.7, ID-1, ID-2)", 
     await signInAsMerchant(page);
     await page.goto("/tickets");
     await expect(page.getByRole("heading", { name: copy.tickets.title })).toBeVisible();
-    await expect(page.getByText(copy.tickets.signedInAs("joe@example.com"))).toBeVisible();
+    await expect(
+      page.getByText(copy.tickets.signedInAs(apiExamples.meExamples.merchant.user.email ?? "")),
+    ).toBeVisible();
     await expect(page.getByRole("list", { name: copy.tickets.listLabel("Live") })).toBeVisible();
   });
 });
@@ -105,7 +108,9 @@ test.describe("the sign-in's own messages (review section 3)", () => {
   test("a failed resend of the code is said on the code screen", async ({ page }) => {
     await page.clock.install();
     await page.goto("/start");
-    await page.getByLabel(copy.signIn.emailLabel).fill("joe@example.com");
+    await page
+      .getByLabel(copy.signIn.emailLabel)
+      .fill(apiExamples.meExamples.merchant.user.email ?? "");
     await page.getByRole("button", { name: copy.common.continue }).tap();
     await expect(page.getByRole("heading", { name: copy.signIn.codeTitle })).toBeVisible();
 

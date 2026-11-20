@@ -2,6 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 import { apiExamples } from "@winz/shared";
 
 import { copy } from "../../lib/copy";
+import { formatMoney } from "../../lib/format";
 
 import { expect, test } from "./support/fixtures";
 import type { ReceiptName } from "./support/receipts";
@@ -30,6 +31,9 @@ function figureOf(page: Page, label: string): Locator {
 /** `GET /api/campaigns/:id`, and only it (not `/pause`, `/resume`, `/close`, `/top-up`). */
 const DETAIL_URL = /\/api\/campaigns\/[^/?]+(\?.*)?$/;
 
+/** The merchant of the simulated API: his balance, from a settled promo (available) and a live one. */
+const BALANCE = apiExamples.meExamples.merchant.balance;
+
 test.describe("the merchant space (SPEC 5.2)", () => {
   test("home, and the list with its two tabs", async ({ page, screens }) => {
     await signInAsMerchant(page);
@@ -37,6 +41,13 @@ test.describe("the merchant space (SPEC 5.2)", () => {
       page.getByText(copy.home.activePromos),
       "the home lists the active promos",
     ).toBeVisible();
+    // The settled promo paid its sales: the balance is not « $0.00 » (the story of the examples).
+    expect(BigInt(BALANCE.available)).toBeGreaterThan(0n);
+    await expect(
+      page.getByLabel(formatMoney(BALANCE.available), { exact: true }).first(),
+      "the home shows the available balance",
+    ).toBeVisible();
+    await expect(page.getByLabel("$0.00", { exact: true })).toHaveCount(0);
     await screens.shot("md-home");
 
     await page
@@ -233,14 +244,14 @@ test.describe("the merchant space (SPEC 5.2)", () => {
     await page.route(DETAIL_URL, async (route) => {
       const response = await route.fetch();
       const body = (await response.json()) as Record<string, unknown>;
-      await route.fulfill({ response, json: { ...body, exposure: "120000000", hedgedBps: 6667 } });
+      await route.fulfill({ response, json: { ...body, exposure: "72000000", hedgedBps: 6667 } });
     });
     await page.goto(`${href}?scenario=live`);
 
     const exposure = figureOf(page, copy.campaignDetail.exposure);
     await expect(exposure, "the exposure is shown").toBeVisible();
-    await expect(exposure.getByLabel("$120", { exact: true })).toBeVisible();
-    await expect(figureOf(page, copy.campaignDetail.grossSales).getByLabel("$240")).toBeVisible();
+    await expect(exposure.getByLabel("$72", { exact: true })).toBeVisible();
+    await expect(figureOf(page, copy.campaignDetail.grossSales).getByLabel("$144")).toBeVisible();
 
     const gauge = page.getByRole("progressbar", { name: copy.campaignDetail.coverageBar });
     await expect(gauge, "the coverage is a gauge, not a bare number").toBeVisible();
@@ -267,7 +278,7 @@ test.describe("the merchant space (SPEC 5.2)", () => {
       const body = (await response.json()) as { sales: number; revenue: string };
       await route.fulfill({
         response,
-        json: sold ? { ...body, sales: body.sales + 1, revenue: "260000000" } : body,
+        json: sold ? { ...body, sales: body.sales + 1, revenue: "156000000" } : body,
       });
     });
     await page.goto(`${href}?scenario=live`);
@@ -289,7 +300,7 @@ test.describe("the merchant space (SPEC 5.2)", () => {
     );
     const elapsed = Date.now() - began;
     expect(elapsed, `the sale showed after ${elapsed.toString()} ms`).toBeLessThan(3000);
-    await expect(figureOf(page, copy.campaignDetail.grossSales).getByLabel("$260")).toBeVisible();
+    await expect(figureOf(page, copy.campaignDetail.grossSales).getByLabel("$156")).toBeVisible();
     await screens.shot("md-detail-polled-sale");
     // The poll goes on after the last check: stop answering it before the page closes.
     await page.unrouteAll({ behavior: "ignoreErrors" });
@@ -342,13 +353,13 @@ test.describe("the merchant space (SPEC 5.2)", () => {
     await signInAsMerchant(page);
 
     await page.goto("/home?scenario=withCancelled");
-    // 12 + 31 + 5 sales, $240 + $620 + $100.
-    await expect(figureOf(page, copy.home.grossSales).getByLabel("$960")).toBeVisible();
+    // 12 + 31 + 5 sales of $12: $144 + $372 + $60.
+    await expect(figureOf(page, copy.home.grossSales).getByLabel("$576")).toBeVisible();
     await expect(figureOf(page, copy.home.sales)).toHaveText(/^Sales\s*48$/);
     await screens.shot("md-home-with-cancelled");
 
     await page.goto("/stats?scenario=withCancelled");
-    await expect(figureOf(page, copy.stats.grossSales).getByLabel("$960")).toBeVisible();
+    await expect(figureOf(page, copy.stats.grossSales).getByLabel("$576")).toBeVisible();
     await expect(figureOf(page, copy.stats.sales)).toHaveText(/^Sales\s*48$/);
     await expect(figureOf(page, copy.stats.promos)).toHaveText(/^Promos run\s*3$/);
     await expect(page.getByText("100% back if Pitt wins by 7+")).toBeVisible();

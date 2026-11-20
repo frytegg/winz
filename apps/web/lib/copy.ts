@@ -205,7 +205,7 @@ export const copy = {
     defaults: {
       bar: { name: "Pint of beer", priceCents: 800 },
       pizza: { name: "Large pizza", priceCents: 2000 },
-      burger: { name: "Smash burger", priceCents: 1400 },
+      burger: { name: "Smash burger", priceCents: 1200 },
       retail: { name: "Team scarf", priceCents: 2500 },
       other: { name: "Game day special", priceCents: 1500 },
     } satisfies Record<MerchantCategory, { name: string; priceCents: number }>,
@@ -903,7 +903,7 @@ export const copy = {
       lead: "Buy as a fan without a card. Each send is a new sale.",
       slugLabel: "Promo slug",
       slugHint: "The end of the promo link, after /c/.",
-      slugPlaceholder: "joes-texas",
+      slugPlaceholder: "buzzballs-shop-texas-wins-by-14",
       qtyLabel: "Quantity",
       emailLabel: "Fan e-mail",
       emailHint: "The ticket is attached to this address.",

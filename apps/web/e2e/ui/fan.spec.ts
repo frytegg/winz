@@ -13,7 +13,8 @@ import { TapCounter } from "./support/taps";
 
 /** SPEC section 17, criterion 2: from the scan to the ticket on screen, strictly under 30 s. */
 const MAX_SCAN_TO_TICKET_SECONDS = CRITERIA.scanToTicketSeconds;
-const SLUG = "joes-texas";
+/** The public link of the running example (the simulated API answers its example for any slug). */
+const SLUG = apiExamples.publicCampaignExamples.live.slug;
 /** What the simulated API answers for C1 and C3 (packages/shared examples): the amounts to show. */
 const CAMPAIGN = apiExamples.publicCampaignExamples.live;
 const TICKET = apiExamples.ticketExamples;
@@ -171,8 +172,7 @@ test.describe("C2, the purchase by the simulated payment", () => {
       value: seconds(elapsed),
       unit: "s",
       limit: MAX_SCAN_TO_TICKET_SECONDS,
-      detail:
-        "navigation vers /c/joes-texas jusqu'à la jauge du ticket visible, hors prise des captures ; comprend 0,5 s d'autorisation simulée et le suivi du paiement (1 s)",
+      detail: `navigation vers /c/${SLUG} jusqu'à la jauge du ticket visible, hors prise des captures ; comprend 0,5 s d'autorisation simulée et le suivi du paiement (1 s)`,
     });
     process.stdout.write(
       `[fan] ${taps.count.toString()} taps, ${seconds(elapsed).toString()} s from the scan to the ticket: ${taps.log}\n`,
@@ -343,7 +343,7 @@ const PHASES: readonly {
     check: async (page) => {
       const refunded = page.getByRole("heading", { name: copy.ticket.refunded });
       await expect(refunded).toBeVisible();
-      // SPEC 5.4: « REFUNDED $20.00 », the amount the API says is refundable, under the heading.
+      // SPEC 5.4: « REFUNDED $12.00 », the amount the API says is refundable, under the heading.
       await expect(
         amount(refunded.locator("xpath=.."), formatMoney(TICKET.refunded.refundable)),
         "the refunded amount, to the cent",

@@ -29,8 +29,8 @@ describe("ticketRow", () => {
     const row = ticketRow(base);
     expect(row.href).toBe("/t/tkt_example_joes_texas");
     expect(row.phaseLabel).toBe(copy.ticket.phases.pre_game);
-    expect(row.item).toBe("Large pizza");
-    expect(row.paidText).toBe("$20.00 paid");
+    expect(row.item).toBe("Smash burger");
+    expect(row.paidText).toBe("$12.00 paid");
     expect(row.refundText).toBeNull();
     expect(row.chanceText).toBe(copy.ticket.chanceTitle(14));
   });
@@ -55,7 +55,7 @@ describe("ticketRow", () => {
   });
 
   it("says the quantity, and no chance when there is no fresh one", () => {
-    expect(ticketRow(ticket({ qty: 3 })).item).toBe("Large pizza × 3");
+    expect(ticketRow(ticket({ qty: 3 })).item).toBe("Smash burger × 3");
     expect(ticketRow(ticket({ phase: "in_game", probabilityBps: null })).chanceText).toBeNull();
   });
 
@@ -111,9 +111,7 @@ describe("ticketsView", () => {
     const view = ticketsView(response);
     expect(view.refundedTotalText).toBe("$12.34");
     expect(view.hasRefunds).toBe(true);
-    expect(ticketsView(apiExamples.ticketsExamples.severalTickets).refundedTotalText).toBe(
-      "$10.00",
-    );
+    expect(ticketsView(apiExamples.ticketsExamples.severalTickets).refundedTotalText).toBe("$6.00");
   });
 
   it("says when a demo ticket is in the list", () => {
