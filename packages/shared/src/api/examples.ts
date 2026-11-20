@@ -708,24 +708,64 @@ export const hedgeDeskExample: HedgeDeskResponse = {
     },
   ],
   totals: { makerSavings: "1800000", guaranteeLosses: "0", crossingGains: "0" },
+  // Not proven yet: the default desk shows what production shows until the real run is done.
+  venueCheck: null,
+  demo: false,
+};
+
+/**
+ * Scenario `venueCheckProven` of the Hedge desk: a run of the sandbox order check that proved the
+ * three steps. ILLUSTRATIVE values of the simulated mode (ids of the shape Gemini answers, a crypto
+ * contract of the shape the sandbox lists): not a receipt of a real run, which only the database
+ * of the deployed engine holds (docs/gemini-sandbox.md).
+ */
+export const hedgeDeskVenueCheckProven: HedgeDeskResponse = {
+  ...hedgeDeskExample,
   venueCheck: {
-    ranAt: "2026-11-18T16:00:00.000Z",
+    ranAt: "2026-11-20T16:05:12.000Z",
+    venue: "gemini-sandbox",
+    outcome: "proven",
+    failedStep: null,
+    failure: null,
     orders: [
       {
         venueOrderId: "73797746498585286",
-        instrumentSymbol: "GEMI-BTC2611190000-HI100000",
+        instrumentSymbol: "GEMI-BTC2611202200-HI91000",
         action: "placed_maker",
-        at: "2026-11-18T16:00:01.000Z",
+        at: "2026-11-20T16:05:06.000Z",
+        side: "buy",
+        kind: "maker",
+        priceBps: 3600,
+        qty: "1000000",
+        filledQty: "0",
+        status: "open",
       },
       {
         venueOrderId: "73797746498585286",
-        instrumentSymbol: "GEMI-BTC2611190000-HI100000",
+        instrumentSymbol: "GEMI-BTC2611202200-HI91000",
         action: "cancelled",
-        at: "2026-11-18T16:00:03.000Z",
+        at: "2026-11-20T16:05:08.000Z",
+        side: "buy",
+        kind: "maker",
+        priceBps: 3600,
+        qty: "1000000",
+        filledQty: "0",
+        status: "cancelled",
+      },
+      {
+        venueOrderId: "73797746498585291",
+        instrumentSymbol: "GEMI-BTC2611202200-HI91000",
+        action: "filled",
+        at: "2026-11-20T16:05:11.000Z",
+        side: "buy",
+        kind: "taker",
+        priceBps: 5700,
+        qty: "1000000",
+        filledQty: "1000000",
+        status: "filled",
       },
     ],
   },
-  demo: false,
 };
 
 /**

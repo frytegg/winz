@@ -71,7 +71,7 @@ réponse.
 | `GET /api/checkout/:pi`          | `default`, `processing`, `ticketed`, `cancelledPaused`, `failed`           |
 | `GET /api/t/:token`              | `default`, `preGame`, `inGame`, `refunded`, `notThisTime`, `cancelled`, `demo` |
 | `GET /api/tickets`               | `default`, `noTickets`, `severalTickets`, `demoTicket`                     |
-| `GET /api/hedge-desk`            | `default`, `demo`                                                          |
+| `GET /api/hedge-desk`            | `default`, `demo`, `venueCheckProven`                                      |
 | `POST /api/admin/demo/book`      | `default`                                                                  |
 | `POST /api/admin/demo/result`    | `default`                                                                  |
 | `POST /api/admin/demo/sale`      | `default`, `processing`                                                    |
@@ -528,8 +528,12 @@ Route publique, sans jeton, en lecture seule. Elle assemble ce que le moteur éc
   sont simulées sur le carnet réel de Gemini et que les exécutions maker sont optimistes ;
 - `params` : les paramètres de risque en vigueur (`uMax` en micro-USDC, comme tout montant) ;
 - `totals` : économie maker, pertes de garantie et gains de croisement, sur tous les matchs ;
-- `venueCheck` : le dernier contrôle des ordres réels sur le sandbox Gemini, ou `null` s'il n'a
-  jamais tourné ;
+- `venueCheck` : la dernière exécution du contrôle des ordres réels sur le sandbox Gemini (HE-10,
+  `docs/gemini-sandbox.md`), ou `null` s'il n'a jamais tourné : l'heure, le lieu (`venue`), le
+  verdict (`outcome` : `proven` ou `failed`, avec `failedStep` et `failure` en cas d'échec) et ses
+  ordres (identifiant Gemini, étape, sens, type, prix, quantité, quantité exécutée et statut relu
+  chez Gemini). Le scénario simulé `venueCheckProven` montre une exécution réussie avec des
+  identifiants d'exemple ; `default` n'en a pas (« Not proven yet ») ;
 - `demo` : `true` dès qu'une action du mode démo est en cours (un carnet piloté ou un résultat
   forcé existe).
 

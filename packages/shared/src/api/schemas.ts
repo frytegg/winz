@@ -575,16 +575,36 @@ export const hedgeDeskResponseSchema = z.object({
     guaranteeLosses: microUsdcSchema,
     crossingGains: microUsdcSchema,
   }),
-  /** Real orders placed on the Gemini sandbox to prove the order adapter; null if not run. */
+  /**
+   * The latest run of the real-order check on the Gemini sandbox (SPEC HE-10): a maker order
+   * placed, then cancelled, and an order filled, each read back from Gemini. Null when it never
+   * ran. A failed run says at which step and why. Runs recorded before the check had runs (rows of
+   * `venue_checks` alone) carry nulls in the fields they do not have.
+   */
   venueCheck: z
     .object({
       ranAt: isoDateSchema,
+      /** Where the orders went: "gemini-sandbox" (test funds). */
+      venue: executionVenueSchema.nullable(),
+      outcome: z.enum(["proven", "failed"]).nullable(),
+      failedStep: z
+        .enum(["preflight", "instrument", "placed_maker", "cancelled", "filled"])
+        .nullable(),
+      /** Why it failed, in one line. */
+      failure: z.string().nullable(),
       orders: z.array(
         z.object({
           venueOrderId: z.string(),
           instrumentSymbol: z.string(),
           action: z.enum(["placed_maker", "cancelled", "filled"]),
           at: isoDateSchema,
+          side: z.enum(["buy", "sell"]).nullable(),
+          kind: z.enum(ORDER_KINDS).nullable(),
+          priceBps: bpsSchema.nullable(),
+          qty: microContractsSchema.nullable(),
+          filledQty: microContractsSchema.nullable(),
+          /** Gemini's own status when read back: "open", "cancelled", "filled". */
+          status: z.string().nullable(),
         }),
       ),
     })

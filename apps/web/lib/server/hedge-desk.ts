@@ -13,7 +13,8 @@ import { digits, isoDate } from "./wire";
 
 /**
  * The public Hedge desk (A-05, SPEC MDB-3): read-only, for the jury, assembled from what the engine
- * writes (`live_hedge_desk`, `engine_pnl`, `engine_params`, `venue_checks`, `demo_overrides`). The
+ * writes (`live_hedge_desk`, `engine_pnl`, `engine_params`, `venue_check_runs` and
+ * `venue_checks`, `demo_overrides`). The
  * web app computes nothing here: it validates, orders and sums. No personal data, no wallet
  * address: an engine row that would carry one is dropped and logged rather than served.
  */
@@ -191,33 +192,52 @@ export function deskInstruments(rows: readonly DeskRow[]): HedgeInstrument[] {
 // Venue check
 // ---------------------------------------------------------------------------------------------
 
-type VenueCheckAction = "placed_maker" | "cancelled" | "filled";
+type VenueCheck = NonNullable<HedgeDeskResponse["venueCheck"]>;
+type VenueCheckAction = VenueCheck["orders"][number]["action"];
 
 export interface VenueCheckRow {
   venue_order_id: string;
   instrument: string;
   action: VenueCheckAction;
   at: Date;
+  side?: "buy" | "sell" | null;
+  kind?: "maker" | "taker" | null;
+  price_bps?: number | null;
+  qty?: bigint | string | null;
+  filled_qty?: bigint | string | null;
+  status?: string | null;
+}
+
+/** A run of the check (`venue_check_runs`, written by the engine's venue:check). */
+export interface VenueCheckRunRow {
+  id: string;
+  venue: string;
+  finished_at: Date;
+  outcome: "proven" | "failed";
+  failed_step: VenueCheck["failedStep"];
+  failure: string | null;
 }
 
 const ACTION_ORDER: Record<VenueCheckAction, number> = { placed_maker: 0, cancelled: 1, filled: 2 };
 
-/**
- * The latest run of the sandbox order check: the `venue_checks` rows that share the latest `at`
- * (the run time), or null when the table is empty. Rows carrying an e-mail or an address are left
- * out and logged.
- */
-export function latestVenueCheck(rows: readonly VenueCheckRow[]): HedgeDeskResponse["venueCheck"] {
-  const first = rows[0];
-  if (first === undefined) return null;
-  const ranAt = rows.reduce((latest, row) => (row.at > latest ? row.at : latest), first.at);
-  const orders = rows
-    .filter((row) => row.at.getTime() === ranAt.getTime())
+const CHECK_VENUES = new Set<string>(["paper", "gemini-sandbox", "gemini"]);
+
+function ordersOf(rows: readonly VenueCheckRow[]): VenueCheck["orders"] {
+  return rows
     .map((row) => ({
       venueOrderId: row.venue_order_id,
       instrumentSymbol: row.instrument,
       action: row.action,
       at: isoDate(row.at),
+      side: row.side ?? null,
+      kind: row.kind ?? null,
+      priceBps: row.price_bps ?? null,
+      qty: row.qty === null || row.qty === undefined ? null : digits(BigInt(row.qty)),
+      filledQty:
+        row.filled_qty === null || row.filled_qty === undefined
+          ? null
+          : digits(BigInt(row.filled_qty)),
+      status: row.status ?? null,
     }))
     .filter((order) => {
       if (!containsPersonalData(order)) return true;
@@ -232,7 +252,67 @@ export function latestVenueCheck(rows: readonly VenueCheckRow[]): HedgeDeskRespo
         ACTION_ORDER[a.action] - ACTION_ORDER[b.action] ||
         (a.venueOrderId < b.venueOrderId ? -1 : a.venueOrderId > b.venueOrderId ? 1 : 0),
     );
-  return { ranAt: isoDate(ranAt), orders };
+}
+
+/**
+ * The latest run of the sandbox order check, with its orders: the latest `venue_check_runs` row
+ * (by finish time) and its `venue_checks` rows. A run that failed says at which step and why.
+ * Without any run, the rows of `venue_checks` written before runs existed: those sharing the
+ * latest `at`, with nulls for what they do not carry. Null when there is neither. Rows carrying an
+ * e-mail or an address are left out and logged, and so is a failure reason carrying one.
+ */
+export function latestVenueCheck(
+  run: VenueCheckRunRow | null,
+  rows: readonly VenueCheckRow[],
+): HedgeDeskResponse["venueCheck"] {
+  if (run !== null) {
+    let failure = run.failure;
+    if (failure !== null && containsPersonalData(failure)) {
+      serverLogger("hedge-desk").error(
+        "venue_check_runs failure contains an e-mail or an address: left out",
+      );
+      failure = "(reason withheld)";
+    }
+    return {
+      ranAt: isoDate(run.finished_at),
+      venue: CHECK_VENUES.has(run.venue) ? (run.venue as VenueCheck["venue"]) : null,
+      outcome: run.outcome,
+      failedStep: run.failed_step,
+      failure,
+      orders: ordersOf(rows),
+    };
+  }
+  const first = rows[0];
+  if (first === undefined) return null;
+  const ranAt = rows.reduce((latest, row) => (row.at > latest ? row.at : latest), first.at);
+  return {
+    ranAt: isoDate(ranAt),
+    venue: null,
+    outcome: null,
+    failedStep: null,
+    failure: null,
+    orders: ordersOf(rows.filter((row) => row.at.getTime() === ranAt.getTime())),
+  };
+}
+
+async function readVenueCheck(db: Db): Promise<HedgeDeskResponse["venueCheck"]> {
+  const [run] = await db<VenueCheckRunRow[]>`
+    select id, venue, finished_at, outcome, failed_step, failure from venue_check_runs
+    order by finished_at desc, id desc limit 1
+  `;
+  if (run !== undefined) {
+    const rows = await db<VenueCheckRow[]>`
+      select venue_order_id, instrument, action, at, side, kind, price_bps, qty, filled_qty, status
+      from venue_checks where run_id = ${run.id}
+    `;
+    return latestVenueCheck(run, rows);
+  }
+  const rows = await db<VenueCheckRow[]>`
+    select venue_order_id, instrument, action, at, side, kind, price_bps, qty, filled_qty, status
+    from venue_checks
+    where run_id is null and at = (select max(at) from venue_checks where run_id is null)
+  `;
+  return latestVenueCheck(null, rows);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -251,7 +331,7 @@ interface TotalsRow {
  * use (any `demo_overrides` row).
  */
 export async function hedgeDesk(db: Db, venue: ExecutionVenueName): Promise<HedgeDeskResponse> {
-  const [deskRows, paramRows, totalsRows, checkRows, demoRows] = await Promise.all([
+  const [deskRows, paramRows, totalsRows, venueCheck, demoRows] = await Promise.all([
     db<DeskRow[]>`select instrument, payload from live_hedge_desk`,
     db<EngineParamRow[]>`select key, value from engine_params`,
     db<TotalsRow[]>`
@@ -261,10 +341,7 @@ export async function hedgeDesk(db: Db, venue: ExecutionVenueName): Promise<Hedg
         coalesce(sum(crossing_gains), 0)::bigint as crossing_gains
       from engine_pnl
     `,
-    db<VenueCheckRow[]>`
-      select venue_order_id, instrument, action, at from venue_checks
-      where at = (select max(at) from venue_checks)
-    `,
+    readVenueCheck(db),
     db<{ demo: boolean }[]>`select exists (select 1 from demo_overrides) as demo`,
   ]);
   const totals = totalsRows[0];
@@ -281,7 +358,7 @@ export async function hedgeDesk(db: Db, venue: ExecutionVenueName): Promise<Hedg
       guaranteeLosses: digits(totals.guarantee_losses),
       crossingGains: digits(totals.crossing_gains),
     },
-    venueCheck: latestVenueCheck(checkRows),
+    venueCheck,
     demo: demoRows[0]?.demo === true,
   };
 }

@@ -89,6 +89,7 @@ beforeEach(async () => {
   await db`delete from engine_params`;
   await db`delete from engine_pnl`;
   await db`delete from venue_checks`;
+  await db`delete from venue_check_runs`;
   await db`delete from demo_overrides`;
 });
 
@@ -177,7 +178,7 @@ describe("GET /api/hedge-desk", () => {
     });
   });
 
-  it("shows the latest venue check run only", async () => {
+  it("without a run, shows the latest rows written before runs existed", async () => {
     const old = new Date("2026-11-17T10:00:00.000Z");
     const ranAt = new Date("2026-11-18T16:00:00.000Z");
     await db`
@@ -190,26 +191,102 @@ describe("GET /api/hedge-desk", () => {
     const answer = await desk();
     expect(answer.venueCheck).toEqual({
       ranAt: ranAt.toISOString(),
+      venue: null,
+      outcome: null,
+      failedStep: null,
+      failure: null,
       orders: [
         {
           venueOrderId: "111",
           instrumentSymbol: "GEMI-BTC2611190000-HI100000",
           action: "placed_maker",
           at: ranAt.toISOString(),
+          side: null,
+          kind: null,
+          priceBps: null,
+          qty: null,
+          filledQty: null,
+          status: null,
         },
         {
           venueOrderId: "111",
           instrumentSymbol: "GEMI-BTC2611190000-HI100000",
           action: "cancelled",
           at: ranAt.toISOString(),
+          side: null,
+          kind: null,
+          priceBps: null,
+          qty: null,
+          filledQty: null,
+          status: null,
         },
         {
           venueOrderId: "222",
           instrumentSymbol: "GEMI-BTC2611190000-HI100000",
           action: "filled",
           at: ranAt.toISOString(),
+          side: null,
+          kind: null,
+          priceBps: null,
+          qty: null,
+          filledQty: null,
+          status: null,
         },
       ],
+    });
+  });
+
+  it("shows the latest run of the check, with its orders as read back from Gemini", async () => {
+    const symbol = "GEMI-BTC2611202200-HI91000";
+    await db`
+      insert into venue_check_runs (id, venue, trigger, started_at, finished_at, outcome,
+                                    failed_step, failure, instrument)
+      values
+        ('60000000-0000-4000-8000-000000000001', 'gemini-sandbox', 'command',
+         '2026-11-19T10:00:00Z', '2026-11-19T10:00:09Z', 'failed', 'preflight',
+         'gemini /v1/prediction-markets/terms/status HTTP 400 InvalidApiKey', null),
+        ('60000000-0000-4000-8000-000000000002', 'gemini-sandbox', 'boot',
+         '2026-11-20T16:05:00Z', '2026-11-20T16:05:12Z', 'proven', null, null, ${symbol})
+    `;
+    await db`
+      insert into venue_checks (venue_order_id, instrument, action, at, run_id, side, kind,
+                                price_bps, qty, filled_qty, status, avg_price)
+      values
+        ('73797746498585291', ${symbol}, 'filled', '2026-11-20T16:05:11Z',
+         '60000000-0000-4000-8000-000000000002', 'buy', 'taker', 5700, 1000000, 1000000,
+         'filled', '0.57'),
+        ('73797746498585286', ${symbol}, 'cancelled', '2026-11-20T16:05:08Z',
+         '60000000-0000-4000-8000-000000000002', 'buy', 'maker', 3600, 1000000, 0,
+         'cancelled', null),
+        ('73797746498585286', ${symbol}, 'placed_maker', '2026-11-20T16:05:06Z',
+         '60000000-0000-4000-8000-000000000002', 'buy', 'maker', 3600, 1000000, 0, 'open', null)
+    `;
+    const answer = await desk();
+    expect(answer.venueCheck).toEqual(apiExamples.hedgeDeskVenueCheckProven.venueCheck);
+  });
+
+  it("a failed latest run says at which step and why, with the orders it got to", async () => {
+    await db`
+      insert into venue_check_runs (id, venue, trigger, started_at, finished_at, outcome,
+                                    failed_step, failure, instrument)
+      values ('60000000-0000-4000-8000-000000000003', 'gemini-sandbox', 'boot',
+              '2026-11-20T16:05:00Z', '2026-11-20T16:05:04Z', 'failed', 'cancelled',
+              'the maker order filled before it could be cancelled', 'GEMI-X')
+    `;
+    await db`
+      insert into venue_checks (venue_order_id, instrument, action, at, run_id, side, kind,
+                                price_bps, qty, filled_qty, status)
+      values ('9001', 'GEMI-X', 'placed_maker', '2026-11-20T16:05:02Z',
+              '60000000-0000-4000-8000-000000000003', 'buy', 'maker', 3600, 1000000, 0, 'open')
+    `;
+    const answer = await desk();
+    expect(answer.venueCheck).toMatchObject({
+      ranAt: "2026-11-20T16:05:04.000Z",
+      venue: "gemini-sandbox",
+      outcome: "failed",
+      failedStep: "cancelled",
+      failure: "the maker order filled before it could be cancelled",
+      orders: [{ venueOrderId: "9001", action: "placed_maker", status: "open" }],
     });
   });
 

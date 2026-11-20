@@ -91,6 +91,8 @@ export const RECEIPTS = {
   "hd-desk": "Le Hedge desk public : lieu d'exécution en tête, totaux, limites, instruments.",
   "hd-desk-tripped":
     "Le Hedge desk, réponse servie par le test : coupe-circuit déclenché (carnet périmé), non couvert au-dessus de la limite.",
+  "hd-venue-check":
+    "Le Hedge desk, panneau « Real orders on Gemini sandbox » (scénario `venueCheckProven`) : les trois ordres relus chez Gemini. Valeurs d'exemple du mode simulé, pas la preuve réelle (docs/gemini-sandbox.md).",
   // Demo panel (U-07)
   "admin-key": "Le panneau démo, l'écran de la clé, bandeau « DEMO MODE » déjà affiché.",
   "admin-key-refused":

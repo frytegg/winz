@@ -184,7 +184,11 @@ export const API_ROUTES = {
     path: "/api/hedge-desk",
     auth: "public",
     response: schemas.hedgeDeskResponseSchema,
-    examples: { default: examples.hedgeDeskExample, demo: examples.demoFlagExamples.hedgeDesk },
+    examples: {
+      default: examples.hedgeDeskExample,
+      demo: examples.demoFlagExamples.hedgeDesk,
+      venueCheckProven: examples.hedgeDeskVenueCheckProven,
+    },
   },
   demoBook: {
     method: "POST",
