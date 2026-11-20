@@ -62,7 +62,8 @@ function min(a: bigint, b: bigint): bigint {
  *   limit; qty = min(order remaining, what the print had left after orders with priority).
  *
  * Throws `FillReplayError` when the reference itself contradicts the fill (wrong instrument, a
- * level beyond the limit, a taker fill on a print).
+ * level beyond the limit, a taker fill on a print), and for a fill a real venue reported
+ * (`source: "venue"`), which no book reproduces.
  *
  * Known limit: the fee is recomputed with the same `fillFee` the venue used, so the replay checks
  * that the fee matches the referenced price and quantity under that rule, not that the rule
@@ -76,6 +77,13 @@ export function replayFill(fill: VenueFill): ReplayedFill {
   }
   if (ref.orderRemainingQty <= 0n) {
     throw new FillReplayError(fill.fillId, "order had nothing left to fill");
+  }
+
+  if (ref.source === "venue") {
+    throw new FillReplayError(
+      fill.fillId,
+      "a fill reported by a real venue is not replayable from a book: it is what the venue said",
+    );
   }
 
   if (ref.source === "trade") {
