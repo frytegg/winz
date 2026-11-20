@@ -4,7 +4,7 @@
 et ce fichier sont réécrits à chaque passage ; `measures.json` garde les mesures (une mesure qu'un
 passage partiel n'a pas refaite garde sa date d'origine, dans la dernière colonne).
 
-Dernier passage : 2026-11-20T00:05:24.059Z (UTC).
+Dernier passage : 2026-11-20T00:48:00.090Z (UTC).
 
 ## Mesures du dernier passage
 
@@ -17,11 +17,11 @@ de 30 secondes ») : une valeur égale à la limite est notée DÉPASSÉ.
 
 | Mesure | Valeur | Limite stricte (SPEC 17) | Détail | Mesurée le (UTC) |
 | --- | --- | --- | --- | --- |
-| Compilation des pages et des routes par `next dev` avant les parcours (non comptée dans les parcours) | 117,1 s | – | 15 pages, 15 routes d'API, une requête chacune | 2026-11-19T23:59:47.840Z |
-| Achat client, du scan (ouverture de C1) au ticket affiché | 5,7 s (tenu) | 30 s | navigation vers /c/joes-texas jusqu'à la jauge du ticket visible, hors prise des captures ; comprend 0,5 s d'autorisation simulée et le suivi du paiement (1 s) | 2026-11-20T00:00:04.036Z |
-| Achat client, C1 → C3 : taps | 2 taps | – | 1. tap « Buy with Apple Pay » (C1) · 2. tap the simulated payment (C2) | 2026-11-20T00:00:04.036Z |
-| Onboarding commerçant, M0 → M8 : durée | 12,2 s (tenu) | 120 s | de M0 affiché au QR de M8 affiché, hors prise des captures ; gestes d'un robot, un humain lit et tape plus lentement | 2026-11-20T00:02:28.394Z |
-| Onboarding commerçant, M0 → M8 : taps | 12 taps (tenu) | 15 taps | 1. tap « Start a promo » (M0) · 2. type the e-mail (M1) · 3. tap Continue (M1) · 4. type the 6-digit code (M1) · 5. type the business name (M2) · 6. tap the category « Bar » (M2) · 7. tap Continue (M2) · 8. tap the first game (M3) · 9. tap the recommended promo (M4) · 10. tap Continue (M5) · 11. tap « Review the promo » (M6) · 12. tap the simulated payment (M7) | 2026-11-20T00:02:28.393Z |
+| Compilation des pages et des routes par `next dev` avant les parcours (non comptée dans les parcours) | 137,8 s | – | 15 pages, 15 routes d'API, une requête chacune | 2026-11-20T00:42:33.947Z |
+| Achat client, du scan (ouverture de C1) au ticket affiché | 6,3 s (tenu) | 30 s | navigation vers /c/joes-texas jusqu'à la jauge du ticket visible, hors prise des captures ; comprend 0,5 s d'autorisation simulée et le suivi du paiement (1 s) | 2026-11-20T00:42:50.584Z |
+| Achat client, C1 → C3 : taps | 2 taps | – | 1. tap « Buy with Apple Pay » (C1) · 2. tap the simulated payment (C2) | 2026-11-20T00:42:50.584Z |
+| Onboarding commerçant, M0 → M8 : durée | 14,1 s (tenu) | 120 s | de M0 affiché au QR de M8 affiché, hors prise des captures ; gestes d'un robot, un humain lit et tape plus lentement | 2026-11-20T00:45:08.368Z |
+| Onboarding commerçant, M0 → M8 : taps | 12 taps (tenu) | 15 taps | 1. tap « Start a promo » (M0) · 2. type the e-mail (M1) · 3. tap Continue (M1) · 4. type the 6-digit code (M1) · 5. type the business name (M2) · 6. tap the category « Bar » (M2) · 7. tap Continue (M2) · 8. tap the first game (M3) · 9. tap the recommended promo (M4) · 10. tap Continue (M5) · 11. tap « Review the promo » (M6) · 12. tap the simulated payment (M7) | 2026-11-20T00:45:08.368Z |
 
 ## Les images
 
