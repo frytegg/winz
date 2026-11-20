@@ -7,7 +7,7 @@ export function possessive(name: string): string {
 
 /**
  * Product copy, US English. Every user-facing string lives here (SPEC section 14), grouped by
- * screen (winz-front-kit/SCREENS.md). No crypto word in anything a fan reads: wallet, USDC,
+ * screen. No crypto word in anything a fan reads: wallet, USDC,
  * blockchain, chain, gas, seed, token, crypto, on-chain, hedge. A merchant sees "coverage".
  */
 export const copy = {

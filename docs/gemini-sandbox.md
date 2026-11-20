@@ -1,4 +1,4 @@
-# Gemini sandbox : la preuve d'ordres réels (HE-10)
+# Gemini sandbox : la preuve d'ordres réels
 
 > **Exécutée sur le vrai sandbox le 2026-11-20 à 04:15:08 UTC, résultat `proven`** : sur
 > `GEMI-ETH2611200500-HI1720`, l'ordre maker `145853902324436356` placé puis annulé, l'ordre taker
@@ -13,7 +13,7 @@
 > `400 {"result":"error","reason":"InvalidApiKey"}`. Le reste vient de la documentation officielle
 > (liste en fin de page) et de la spécification OpenAPI des Prediction Markets, lue en entier.
 
-Ce que la preuve montre (HE-10), sur un contrat crypto du sandbox, chaque étape relue chez
+Ce que la preuve montre, sur un contrat crypto du sandbox, chaque étape relue chez
 Gemini et jamais déduite de la seule réponse au placement :
 
 1. **un ordre maker** (`makerOrCancel: true`, `good-til-cancel`) d'achat de 1 contrat YES, deux
@@ -44,7 +44,7 @@ achat qui repose ; les plus proches de 50 % d'abord (les plus vivants), puis l'�
 lointaine ; elle lit au plus 6 carnets, un par seconde, et prend le premier à deux côtés. Pour
 imposer un contrat : `--symbol <instrumentSymbol>` ou `GEMINI_SANDBOX_CHECK_SYMBOL`.
 
-## 1. Le compte sandbox (A, 10 min)
+## 1. Le compte sandbox (10 min)
 
 1. S'inscrire sur [exchange.sandbox.gemini.com](https://exchange.sandbox.gemini.com). Le sandbox
    crédite le nouveau compte de soldes de test (100 000 $ USD, entre autres) et n'envoie **aucun
@@ -59,7 +59,7 @@ imposer un contrat : `--symbol <instrumentSymbol>` ou `GEMINI_SANDBOX_CHECK_SYMB
 
 Si le compte est refusé : voir **Repli** en fin de page.
 
-## 2. La clé API (A, 5 min)
+## 2. La clé API (5 min)
 
 Dans le sandbox, **Settings → API** ([exchange.sandbox.gemini.com/settings/api](https://exchange.sandbox.gemini.com/settings/api)),
 créer une clé :
@@ -75,7 +75,7 @@ Gemini montre la clé et son secret **une seule fois**. Les copier directement d
 (étape 4), **jamais** dans le chat, un ticket, un fichier du dépôt, un `.env` commité ni Vercel :
 le web n'en a pas besoin, et `pnpm env:check web` refuse un nom de secret du moteur posé côté web.
 
-## 3. La table de la preuve (A, 2 min)
+## 3. La table de la preuve (2 min)
 
 La migration `supabase/migrations/20261120000000_venue_checks.sql` crée `venue_check_runs` (une
 ligne par exécution, réussie ou non), ajoute à `venue_checks` ce qui a été relu chez Gemini (sens,
@@ -204,7 +204,7 @@ dans le log.
 
 ## Repli : pas de compte sandbox
 
-Si Gemini refuse le compte ou la clé, HE-10 est remplacé par les tests
+Si Gemini refuse le compte ou la clé, la preuve d'ordres réels est remplacée par les tests
 de l'adaptateur contre un **serveur Gemini simulé** (`apps/engine/src/venues/gemini/sim-server.ts`,
 `node:http` sur 127.0.0.1). Ce serveur vérifie chaque requête privée comme la documentation le
 décrit (clé, corps vide, charge utile base64 dont `request` est le chemin, nonce strictement

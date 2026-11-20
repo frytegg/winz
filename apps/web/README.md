@@ -116,10 +116,10 @@ Quel exemple sert `default` :
 Le contenu des exemples est dans `packages/shared/src/api/examples.ts`, et le type de chaque
 réponse dans `packages/shared/src/api/schemas.ts`.
 
-### Ajouté avant le gel des formes
+### Champs à connaître
 
-Rien n'a été renommé ni retiré, et chaque scénario simulé porte déjà ces champs. Un seul ajout
-n'est pas facultatif : `requestId`, obligatoire depuis le 20 novembre.
+`requestId` est obligatoire sur `POST /api/campaigns` ; les autres champs ci-dessous sont présents
+dans chaque réponse, simulée ou réelle.
 
 - `POST /api/campaigns` prend `requestId` (un `uuid` tiré une fois par appui sur « Fund » et
   renvoyé tel quel à chaque nouvelle tentative). Le même `requestId` rend la même campagne et le
@@ -319,7 +319,7 @@ La réponse est l'état tel que le commerçant le verra en relisant le détail, 
 Une action impossible dans l'état actuel (déjà en pause, ventes closes, campagne réglée) répond
 `409 conflict` ; la campagne d'un autre commerçant répond `404`.
 
-### Recharger le budget (CA-6)
+### Recharger le budget
 
 `POST /api/campaigns/:id/top-up` prend `{ amount, requestId }` (micro-USDC, un `uuid` gardé par le
 front pour ses nouvelles tentatives, dans le `sessionStorage` par promo ; sur un `409` de demande
@@ -831,7 +831,7 @@ libération. Puis le moteur est arrêté, les portefeuilles sont rapatriés et l
 l'escrow (une campagne non libérée) y est écrit. Code de sortie : 0 si tout est passé (ou après
 `--estimate`), 1 si une étape ou un invariant a échoué, 2 si elle a refusé de démarrer.
 
-### La cote du ticket (critère 7)
+### La cote du ticket
 
 Le critère : « le ticket vivant suit la cote avec moins de 2 secondes de décalage ». Il n'y a pas
 encore de page de ticket dans `apps/web` ; ce qu'elle lit est fixé par les données : la réponse de

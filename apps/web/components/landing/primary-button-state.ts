@@ -5,7 +5,7 @@ export type PrimaryButtonKind =
   { kind: "inactive" } | { kind: "link"; href: string; external: boolean } | { kind: "action" };
 
 /**
- * One rule for the three shapes of the button (00-CONTEXTE.md, "Liens"):
+ * One rule for the three shapes of the button:
  *  - `href` is a usable link: a link. An absolute URL is external (a new tab) unless `external` says
  *    otherwise; a path of this site is not.
  *  - `href` is `null` or unusable (`#`, ``, `http:`): INACTIVE. Never a link to `#`.

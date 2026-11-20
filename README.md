@@ -315,5 +315,6 @@ takes accounts and keys ([`docs/deploy.md`](docs/deploy.md)).
   - Two full rehearsals in a row on testnet with no manual fix.
   - A recorded QuickNode delivery saved as a test file:
     [`fixtures/quicknode`](apps/engine/fixtures/quicknode) holds only its README.
-- **Language.** The production receipts, `apps/web/README.md` and three docs (`deploy.md`,
-  `quicknode.md`, `gemini-sandbox.md`) are in French.
+- **Language.** The production and UI receipts, `apps/web/README.md`,
+  `design-system/winz/MASTER.md`, `apps/engine/fixtures/quicknode/README.md` and three docs
+  (`deploy.md`, `quicknode.md`, `gemini-sandbox.md`) are in French.

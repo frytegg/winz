@@ -1,5 +1,5 @@
 /**
- * The rehearsal command (gate G2, Q-03, Q-04). From apps/web:
+ * The rehearsal command. From apps/web:
  *
  *   ARC_RELAYER_PRIVATE_KEY=… ARC_ORACLE_PRIVATE_KEY=… APP_DEMO_WALLET_SEED=… \
  *     pnpm exec tsx e2e/rehearsal/run.ts --rpc-url <url> --throwaway-db [--estimate]

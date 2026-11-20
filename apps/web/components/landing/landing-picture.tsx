@@ -30,7 +30,7 @@ export interface LandingPictureProps {
 
 /**
  * An image the page exports itself, in AVIF with a WebP fallback, at a few widths
- * (`winz-front-kit/landing/tools/build-assets.mjs`). Not `next/image`: its ladder of sizes (384, 640,
+ * (exported with the designer's asset kit, kept outside this repository). Not `next/image`: its ladder of sizes (384, 640,
  * 750, 828, 1080 ...) cannot say "three files, 860, 1033 and 2066 px wide", and would send the 72 KB
  * file where a 1728 px screen needs the 37 KB one; it would also run a second compression over
  * files that are already compressed. What it adds (a reserved box, `fetchpriority`, lazy loading,

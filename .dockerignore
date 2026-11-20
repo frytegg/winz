@@ -15,6 +15,7 @@
 **/.env.*
 
 # Not used by the engine image.
+/.*
 docs
 e2e
 apps/web/app

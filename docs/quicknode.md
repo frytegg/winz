@@ -6,8 +6,8 @@
 > (`docs/receipts/prod/settlements-2026-11-19.md`, section « QuickNode Streams »). Aucune livraison n'a
 > encore été enregistrée comme fichier d'exemple (étape 5). Les pages de QuickNode ont été lues en entier le 18 novembre
 > 2026, et celles des limites d'`eth_getLogs`, de la facturation des Streams, de la taille des lots
-> et des prix relues le 19 novembre (liste en fin de page). Trois points restent à confirmer sur la première livraison réelle
-> (étape 5) parce que la documentation ne les écrit pas : le nom du réseau d'Arc testnet dans les
+> et des prix relues le 19 novembre (liste en fin de page). La documentation n'écrit pas trois points
+> (étape 5) : le nom du réseau d'Arc testnet dans les
 > métadonnées, la forme exacte du corps quand un filtre est actif, et si une nouvelle tentative
 > porte un nouvel horodatage. Le code les accepte sous toutes les formes plausibles et le log de
 > la route dit ce qu'il a reçu.
@@ -131,8 +131,8 @@ lots de toute taille.
 RPC du moteur, qui puisent dans le même lot. Le Free trial (10 M, sans dépassement) est donc vidé
 par le Stream seul en **moins de trois jours** ; Build (80 M par mois) le tient environ trois
 semaines. Le moteur n'a pas besoin du Stream (il lit les événements par `eth_getLogs` et par les
-reçus) : **ne pas le créer ce matin**. Sur le Free trial, le créer le plus tard possible (vendredi
-soir pour le samedi), ou le laisser en pause jusqu'à la démo ; à la reprise, repartir du dernier
+reçus) : sur le Free trial, le créer le plus tard possible avant l'usage, ou le mettre en pause
+entre deux usages ; à la reprise, repartir du dernier
 bloc. Preuve, une heure après sa création : le compteur de crédits du tableau de bord a avancé
 d'environ 141 000 plus ce que le moteur consomme ; comparer avec le compteur relevé juste avant.
 Ce qui se passe quand les crédits sont épuisés n'est pas écrit dans les pages lues : si QuickNode

@@ -137,7 +137,7 @@ import {
 } from "./types";
 
 /**
- * The rehearsal (gate G2, A-07, Q-03, Q-04): the whole loop in demo mode, on a real chain, in
+ * The rehearsal: the whole loop in demo mode, on a real chain, in
  * real time, with the engine's production intervals. It drives only the public surface, exactly
  * as the end-to-end tests do (route handlers of the merchant and the admin, the simulated Stripe
  * for the merchant's budget payment and its webhook), measures it, checks its invariants, sweeps

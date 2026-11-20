@@ -10,7 +10,7 @@
  * tailwind-merge, and the landing's type is fluid (clamp) anyway.
  *
  * Values are measured on the mockups (winz-landing.png and the section PNGs, 1728 px wide), by the
- * most frequent pixel of a 9 x 9 window. 00-CONTEXTE.md gave approximations; these replace them
+ * most frequent pixel of a 9 x 9 window. The mockup notes gave approximations; these replace them
  * (hero ink #1C1B20 and not #1E1E21, chip #2E2E2E and not #2E2E31, cards #FAFAFA and not #F8F8F8),
  * except the two grays of text, which are darkened for contrast (below).
  *

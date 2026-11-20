@@ -541,7 +541,7 @@ async function failReads(page: Page, pattern: string): Promise<void> {
   );
 }
 
-test.describe("C2 and C3, the fan's money path (review of 19 November)", () => {
+test.describe("C2 and C3, the fan's money path", () => {
   test("an answer lost after the tap: the next tap pays the same payment, and one ticket", async ({
     page,
   }) => {

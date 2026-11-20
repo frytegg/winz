@@ -222,7 +222,7 @@ test("a tripped breaker and an unhedged amount over the limit are said in words"
 });
 
 /**
- * SPEC HE-10 (« les identifiants des ordres du sandbox sont affichés sur le Hedge desk »):
+ * SPEC HE-10: the sandbox order ids are shown on the Hedge desk.
  * the panel « Real orders on Gemini sandbox » at 393 × 852, from `GET /api/hedge-desk`. Scenario
  * `venueCheckProven` of the simulated API (illustrative ids, not the real run): the time of the run,
  * the venue in plain words, « Proven », and for each of the three steps Gemini's order id, the

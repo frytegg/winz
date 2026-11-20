@@ -8,7 +8,7 @@ export interface FooterLink {
 
 /**
  * The Project column: GitHub, Devpost and the demo video, in that order, and ONLY those that are decided
- * (00-CONTEXTE.md: a `null` is never rendered as a dead link). The column itself is not rendered when it is
+ * (a `null` is never rendered as a dead link). The column itself is not rendered when it is
  * empty: a title over nothing is a dead end too.
  */
 export function projectLinks(
