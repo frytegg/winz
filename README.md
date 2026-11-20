@@ -360,6 +360,19 @@ The screens run without any service or secret on the simulated API:
 `APP_API_MOCK=true NEXT_PUBLIC_APP_API_MOCK=true pnpm --filter @winz/web dev`. Deploying the stack
 takes accounts and keys ([`docs/deploy.md`](docs/deploy.md)).
 
+## Business model and what's next
+
+Winz will charge the shop a 2.5 % commission on each sale that goes through the escrow, never the
+fan. It is not built yet. Next: real money on Gemini's production venue and Arc mainnet, more sports
+and kinds of promises, and a plug-in for the point-of-sale systems bars already use.
+
+## Team
+
+- Téo: product design, the app's screens and the landing page
+  ([GitHub](https://github.com/teo-creativ), [LinkedIn](https://www.linkedin.com/in/t%C3%A9o-creativ/)).
+- Alexandre Lemiere: the engine, the escrow contract and the API
+  ([GitHub](https://github.com/frytegg), [LinkedIn](https://www.linkedin.com/in/alexandre-lemiere)).
+
 ## Limits
 
 - **Testnet and test mode.** Every promo ran on Arc testnet with testnet USDC, and every card

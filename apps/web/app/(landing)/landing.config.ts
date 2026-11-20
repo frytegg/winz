@@ -16,8 +16,8 @@ export const landingLinks: LandingLinks = {
   devpostUrl: null,
   repoUrl: "https://github.com/frytegg/winz/",
   teamLinks: [
-    { name: "Téo", url: null },
-    { name: "Alexandre", url: null },
+    { name: "Téo", url: "https://www.linkedin.com/in/t%C3%A9o-creativ/" },
+    { name: "Alexandre", url: "https://www.linkedin.com/in/alexandre-lemiere" },
   ],
   appInstallUrl: "/",
   appQrUrl: "https://winz-nu.vercel.app/",
