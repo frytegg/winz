@@ -357,7 +357,7 @@ export const landingCopy = {
    */
   footer: {
     label: "Footer",
-    statement: { first: "Every promo is a bet.", second: "Winz hedges it." },
+    statement: { first: "Every promo takes a risk.", second: "Winz covers it." },
     app: {
       title: "Get the app",
       body: "Winz is a web app. Add it to your home screen.",
@@ -380,7 +380,7 @@ export const landingCopy = {
       copyright: "© 2026 Winz",
       builtBy: "Built by",
       and: "and",
-      note: "Hackathon prototype on test networks. No real funds, no real bets.",
+      note: "Hackathon prototype on test networks. No real funds.",
     },
   },
 

@@ -110,7 +110,7 @@ describe("landingCopy.footer", () => {
   it("has the statement, the app block and the three columns of COPY.md section 8", () => {
     const { footer } = landingCopy;
     expect(`${footer.statement.first} ${footer.statement.second}`).toBe(
-      "Every promo is a bet. Winz hedges it.",
+      "Every promo takes a risk. Winz covers it.",
     );
     expect(footer.app.title).toBe("Get the app");
     expect(footer.app.body).toBe("Winz is a web app. Add it to your home screen.");
@@ -138,7 +138,7 @@ describe("landingCopy.footer", () => {
   it("has the two legal lines", () => {
     expect(landingCopy.footer.legal.copyright).toBe("© 2026 Winz");
     expect(landingCopy.footer.legal.note).toBe(
-      "Hackathon prototype on test networks. No real funds, no real bets.",
+      "Hackathon prototype on test networks. No real funds.",
     );
   });
 });
