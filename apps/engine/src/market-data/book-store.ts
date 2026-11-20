@@ -6,8 +6,8 @@ import type { BookSource } from "./book-transport";
 /** What the book feed reads and writes in Postgres. */
 export interface BookStore {
   /**
-   * Instruments to follow: those of campaigns whose status is live or paused, plus the
-   * tracked_instruments rows whose expires_at is after `nowMs`.
+   * Instruments to follow: those of campaigns whose status is live, paused or sales_closed (not
+   * settled yet), plus the tracked_instruments rows whose expires_at is after `nowMs`.
    */
   listTrackedSymbols(nowMs: number): Promise<string[]>;
   /** Upserts book_cache and live_instruments (stale = false). An older book never overwrites a newer one. */
@@ -53,7 +53,13 @@ export function topOfBook(book: Book): {
   };
 }
 
-const TRACKED_CAMPAIGN_STATUSES = ["live", "paused"] as const;
+/**
+ * A campaign needs its book until it settles, not only while it sells: once sales close (at
+ * kick-off) the ticket shows the live chance during the game (SPEC 5.4), the merchant dashboard
+ * and the Hedge desk follow it, and the hedge reconciles at sales close on it (HE-6). The same
+ * statuses as the catalogue's and the settlement's "not settled yet".
+ */
+const TRACKED_CAMPAIGN_STATUSES = ["live", "paused", "sales_closed"] as const;
 
 export class PgBookStore implements BookStore {
   constructor(private readonly db: Db) {}
