@@ -1356,6 +1356,11 @@ describe("startSaleStates", () => {
       init(asyncId: number, type: string): void {
         if (type !== "Timeout") return;
         const stack = new Error().stack ?? "";
+        const frames = stack.split("\n");
+        // The database pool's own timers (a connection's idle timer, a query's time bound) are
+        // armed and cleared by the pool, even when the service is lower on the stack.
+        const caller = frames[frames.findIndex((frame) => /\bsetTimeout\b/u.test(frame)) + 1] ?? "";
+        if (/node_modules[\\/].*postgres[\\/]/u.test(caller)) return;
         if (/sales[\\/]service\.ts|chain[\\/]clock\.ts/u.test(stack)) pending.add(asyncId);
       },
       destroy(asyncId: number): void {

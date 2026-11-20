@@ -242,7 +242,12 @@ function watchHedgingTimers(): TimerWatch {
       Error.stackTraceLimit = 50;
       const stack = new Error("timer armed here").stack ?? "";
       Error.stackTraceLimit = limit;
-      if (stack.split("\n").some(isHedgingSourceFrame)) armed.set(asyncId, stack);
+      const frames = stack.split("\n");
+      // The database pool's own timers (a connection's idle timer, a query's time bound) are
+      // armed and cleared by the pool, even when a hedging call is lower on the stack.
+      const caller = frames[frames.findIndex((frame) => /\bsetTimeout\b/.test(frame)) + 1] ?? "";
+      if (/node_modules[\\/].*postgres[\\/]/.test(caller)) return;
+      if (frames.some(isHedgingSourceFrame)) armed.set(asyncId, stack);
     },
     destroy(asyncId: number): void {
       armed.delete(asyncId);
