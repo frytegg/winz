@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { LandingDemo } from "@/components/landing/landing-demo";
+import { LandingFeatures } from "@/components/landing/landing-features";
 import { LandingHow } from "@/components/landing/landing-how";
 import { LandingHero } from "@/components/landing/landing-hero";
 import { LandingNav } from "@/components/landing/landing-nav";
@@ -34,6 +36,9 @@ export default function LandingPage(): React.JSX.Element {
         <LandingHero liveDemoUrl={landingLinks.liveDemoUrl} />
         <LogoStrip />
         <LandingHow />
+        <LandingDemo liveDemoUrl={landingLinks.liveDemoUrl} videoUrl={landingLinks.videoUrl} />
+        {/* Process (P4) goes here: the mockup has it between the Demo and Features. */}
+        <LandingFeatures />
       </main>
     </div>
   );
