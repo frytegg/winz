@@ -186,3 +186,35 @@ for (const blocked of BLOCKED) {
     ).toBeVisible();
   });
 }
+
+test("M6: the figures follow the minimum margin and the budget the merchant sets (computed by the server's pricing)", async ({
+  page,
+}) => {
+  await reachMargin(page, "open");
+  const review = page.getByRole("button", { name: copy.margin.reviewCta });
+  await expect(review, "M6 has its first figures").toBeEnabled();
+  const pauses = page.getByText(/^Your promo pauses if .+ chances go above \d+%\.$/);
+  const capacity = page.getByText(/^Up to [\d,]+ sales$/);
+  await expect(pauses).toBeVisible();
+  const pausesAt45 = await pauses.innerText();
+  const capacityAt1000 = await capacity.innerText();
+
+  // A minimum margin of 50% leaves 15% of the price for the cost: the threshold comes down.
+  await page.getByRole("slider", { name: copy.margin.minMargin }).fill("50");
+  await expect(pauses, "the pause threshold follows the minimum margin").not.toHaveText(
+    pausesAt45,
+    { timeout: 10_000 },
+  );
+  await page.getByRole("slider", { name: copy.margin.minMargin }).fill("45");
+  await expect(pauses, "and comes back with it").toHaveText(pausesAt45, { timeout: 10_000 });
+
+  // A $250 budget covers fewer sales than $1,000.
+  await page
+    .getByRole("group", { name: copy.margin.budgetChipsLabel })
+    .getByRole("button", { name: "$250" })
+    .tap();
+  await expect(capacity, "the capacity follows the budget").not.toHaveText(capacityAt1000, {
+    timeout: 10_000,
+  });
+  await expect(page.getByText(copy.margin.limitedByBudget)).toBeVisible();
+});

@@ -11,6 +11,7 @@ import type { ZodType, z } from "zod";
 
 import { isApiMock } from "./env";
 import { serverLogger } from "./logger";
+import { mockAnswer } from "./mock-answers";
 
 // ---------------------------------------------------------------------------------------------
 // Types
@@ -164,7 +165,12 @@ export function mockScenarios(name: ApiRouteName): string[] {
   return [...Object.keys(route.examples), ...Object.keys(MOCK_REFUSALS[name] ?? {})];
 }
 
-function mockResponse(name: ApiRouteName, route: RouteSpec, request: Request): Response {
+function mockResponse(
+  name: ApiRouteName,
+  route: RouteSpec,
+  request: Request,
+  input: { params: Record<string, string>; body: unknown },
+): Response {
   const scenario = request.headers.get(MOCK_SCENARIO_HEADER)?.trim() || "default";
   // Own names only: `toString` or `constructor` would otherwise be found on the object's prototype
   // and answered as a refusal with no status.
@@ -180,7 +186,16 @@ function mockResponse(name: ApiRouteName, route: RouteSpec, request: Request): R
         `Valid scenarios: ${mockScenarios(name).join(", ")}`,
     );
   }
-  return Response.json(route.examples[scenario]);
+  // A few answers follow the request or the clock (the ticket of the token, M6's figures, the dates
+  // of the games): mock-answers.ts. The others are the example as it is.
+  const answer = mockAnswer(
+    name,
+    { scenario, params: input.params, body: input.body, now: new Date() },
+    route.examples[scenario],
+  );
+  return answer.kind === "json"
+    ? Response.json(answer.body)
+    : errorResponse(answer.status, answer.code, answer.message);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -227,7 +242,8 @@ function readQuery(route: RouteSpec, request: Request): unknown {
  * Builds the handler of one entry of `API_ROUTES`.
  *
  * - Mock mode (`APP_API_MOCK=true`): validates the input, then answers the example named by the
- *   `x-mock-scenario` header (`default` when absent). No backing service, no secret needed.
+ *   `x-mock-scenario` header (`default` when absent), or for the few routes of `mock-answers.ts`
+ *   what that example becomes for this request. No backing service, no secret needed.
  * - Otherwise: runs `implementation` and validates what it returns against the route's response
  *   schema, or answers 501 while none is registered.
  *
@@ -243,9 +259,9 @@ export function defineRoute<N extends ApiRouteName>(
   return async (request, context) => {
     try {
       if (isApiMock()) {
-        await readBody(route, request);
+        const body = await readBody(route, request);
         readQuery(route, request);
-        return mockResponse(name, route, request);
+        return mockResponse(name, route, request, { params: await context.params, body });
       }
 
       if (!implementation) return errorResponse(501, "internal", "Not implemented yet");

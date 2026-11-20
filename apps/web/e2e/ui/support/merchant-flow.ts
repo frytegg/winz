@@ -1,4 +1,5 @@
 import type { Locator, Page, Request, Route } from "@playwright/test";
+import type { CampaignPreviewResponse } from "@winz/shared";
 
 import { copy } from "../../../lib/copy";
 
@@ -64,6 +65,28 @@ export function requestIdOf(request: Request): string {
 export async function loseAnswer(route: Route): Promise<void> {
   await route.fetch();
   await route.abort("blockedbyclient");
+}
+
+/**
+ * Follows the answers of `POST /api/campaigns/preview` the page receives: the simulated API computes
+ * them from the terms M6 sends (lib/server/mock-answers.ts), so what M6 and M7 must show is the
+ * last one answered. The returned function waits for one, then gives it.
+ */
+export function followPreviews(page: Page): () => Promise<CampaignPreviewResponse> {
+  let last: Promise<CampaignPreviewResponse | null> | null = null;
+  page.on("response", (response) => {
+    if (new URL(response.url()).pathname !== "/api/campaigns/preview" || !response.ok()) return;
+    last = response.json().then(
+      (body: unknown) => body as CampaignPreviewResponse,
+      () => null,
+    );
+  });
+  return async () => {
+    await expect.poll(() => last !== null, { message: "a preview has answered" }).toBe(true);
+    const answer = await last;
+    if (answer === null || answer === undefined) throw new Error("the preview answer was not JSON");
+    return answer;
+  };
 }
 
 /** `POST /api/campaigns` exactly (not the preview, not a campaign's own routes). */

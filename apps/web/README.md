@@ -9,7 +9,10 @@ Mise en ligne (Supabase, Render, Privy, Vercel, Stripe), réglages du projet Ver
 ## Construire les écrans sans le back : l'API simulée
 
 Toutes les routes de la section 10 de `SPEC.md` existent déjà. En mode simulé, chacune renvoie une
-réponse d'exemple figée, au format exact que renverra le vrai back. Aucun service n'a besoin de
+réponse d'exemple, au format exact que renverra le vrai back. Les exemples racontent l'histoire des
+promos filmées pour la vidéo : le commerçant « Buzzball’s shop » (apostrophe typographique, comme en
+production) vend un « Smash burger » à 12 $, 100 % remboursé si Texas gagne de 14 points ou plus ;
+chaque montant (ventes, exposition, remboursements, bilan, solde, tickets) en découle. Aucun service n'a besoin de
 tourner et aucun secret n'est nécessaire : ni base de données, ni Stripe, ni Privy.
 
 ```bash
@@ -19,7 +22,7 @@ APP_API_MOCK=true NEXT_PUBLIC_APP_API_MOCK=true pnpm --filter @winz/web dev
 L'application est sur `http://localhost:3000`. Pour vérifier que l'API répond :
 
 ```bash
-curl http://localhost:3000/api/c/joes-texas
+curl http://localhost:3000/api/c/buzzballs-shop-texas-wins-by-14
 ```
 
 Sans `APP_API_MOCK=true`, une route qui n'est pas encore branchée répond `501` avec
@@ -32,13 +35,13 @@ Chaque route a un scénario `default`, servi quand on ne demande rien. Pour en o
 ajouter l'en-tête `x-mock-scenario` à la requête :
 
 ```bash
-curl -H "x-mock-scenario: settledYes" http://localhost:3000/api/c/joes-texas
+curl -H "x-mock-scenario: settledYes" http://localhost:3000/api/c/buzzballs-shop-texas-wins-by-14
 ```
 
 ```ts
 import { MOCK_SCENARIO_HEADER } from "@winz/shared";
 
-const response = await fetch("/api/c/joes-texas", {
+const response = await fetch("/api/c/buzzballs-shop-texas-wins-by-14", {
   headers: { [MOCK_SCENARIO_HEADER]: "settledYes" },
 });
 ```
@@ -46,15 +49,28 @@ const response = await fetch("/api/c/joes-texas", {
 Un nom de scénario inconnu répond `400 invalid_request`, et le message donne la liste des noms
 valides pour cette route.
 
-Les paramètres du chemin (`:id`, `:slug`, `:pi`, `:token`) sont ignorés en mode simulé :
-`/api/c/nimporte-quoi` renvoie le même exemple que `/api/c/joes-texas`. Seul l'en-tête change la
-réponse.
+Les paramètres du chemin `:id`, `:slug` et `:pi` sont ignorés en mode simulé :
+`/api/c/nimporte-quoi` renvoie le même exemple que `/api/c/buzzballs-shop-texas-wins-by-14`. Trois
+réponses suivent la requête ou l'horloge (`lib/server/mock-answers.ts`) :
+
+- `GET /api/t/:token`, sans scénario, répond le ticket de ce jeton parmi les tickets des exemples
+  (ceux de « My tickets ») : le ticket ouvert depuis la liste est celui de sa carte. Un jeton
+  qu'aucun exemple n'a répond `404 not_found`, comme la vraie route. Avec un scénario (`inGame`…),
+  c'est l'exemple de ce scénario, quel que soit le jeton.
+- `GET /api/events` date les matchs autres que celui de l'exemple (Arkansas-Texas, que partagent
+  toutes les promos et tous les tickets) à partir de l'heure du serveur, quatre jours plus tard :
+  M3 ne propose jamais un match passé.
+- `POST /api/campaigns/preview` calcule les chiffres de M6 avec la fonction de prix du vrai serveur
+  (`limits()` de `@winz/pricing`, comme `lib/server/preview.ts`) sur un carnet simulé par
+  instrument : ils suivent le prix, les marges et le budget. `aboveThreshold` lit un carnet passé
+  au-dessus du seuil, `noBook` aucun carnet. Les exemples `open` et `aboveThreshold` sont ce calcul
+  pour la requête d'exemple, et un test le vérifie.
 
 ### Scénarios par route
 
 | Route                            | Scénarios                                                                  |
 | -------------------------------- | -------------------------------------------------------------------------- |
-| `GET /api/me`                    | `default`, `merchant`, `newUser`, `fan`                                    |
+| `GET /api/me`                    | `default`, `merchant`, `newUser`, `fan`, et le fan sous `noTickets`, `severalTickets`, `demoTicket`, `ticketsUnavailable` |
 | `POST /api/merchants`            | `default`                                                                  |
 | `GET /api/events`                | `default`                                                                  |
 | `POST /api/campaigns/preview`    | `default`, `open`, `aboveThreshold`, `noBook`                              |
@@ -182,7 +198,7 @@ simulée envoie donc déjà des requêtes que le vrai back acceptera.
 ```bash
 curl -X POST http://localhost:3000/api/checkout \
   -H "content-type: application/json" \
-  -d '{"slug":"joes-texas","qty":1}'
+  -d '{"slug":"buzzballs-shop-texas-wins-by-14","qty":1}'
 ```
 
 ### Ce que l'API simulée ne fait pas
@@ -601,7 +617,8 @@ de sa page (`copy.ticket.phases`) et ouvre son ticket vivant (`/t/<token>`). En 
 remboursé tel que l'API l'envoie (`refundedTotal`, jamais recalculé). Sans ticket : quoi faire, et
 « Use another email ». Erreur : le message et « Try again ». Le bandeau « DEMO MODE » suit la
 réponse (un ticket `demo`). Scénarios : `noTickets`, `severalTickets` (un ticket par phase, dont
-deux pizzas), `demoTicket`, et le refus `ticketsUnavailable`.
+deux smash burgers), `demoTicket`, et le refus `ticketsUnavailable`. Sous ces scénarios,
+`GET /api/me` répond le fan (`maya@example.com`), pas le commerçant.
 
 ### Le bandeau « DEMO MODE »
 

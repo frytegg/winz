@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { apiExamples } from "@winz/shared";
 
 import { copy } from "../../lib/copy";
 import { CRYPTO_WORDS } from "../../lib/crypto-words";
@@ -13,6 +14,9 @@ import { signInAsFan } from "./support/sign-in";
  */
 
 const SCENARIO_KEY = "winz.mock-scenario";
+/** Who `GET /api/me` answers: the fan in the fan's scenarios, the merchant by default. */
+const FAN_EMAIL = apiExamples.meExamples.fan.user.email ?? "";
+const MERCHANT_EMAIL = apiExamples.meExamples.merchant.user.email ?? "";
 
 /** No crypto word on a fan's screen (SPEC section 5 and criterion 2). */
 async function expectNoCryptoWord(page: Page, screen: string): Promise<void> {
@@ -87,16 +91,35 @@ test.describe("C4, « My tickets »", () => {
     await screens.shot("c4-tickets");
   });
 
-  test("opening a ticket shows its live page", async ({ page }) => {
+  test("opening a ticket shows its live page, the very ticket of its card", async ({ page }) => {
     await signInAsFan(page, "severalTickets");
     const first = group(page, "Live").getByRole("link").first();
     await expect(first).toHaveAttribute("href", "/t/tkt_example_joes_texas_two");
+    // The card: two smash burgers, $24.00 paid.
+    await expect(first).toContainText("Smash burger × 2");
+    await expect(first).toContainText(copy.ticket.paid("$24.00"));
     await first.tap();
     await expect(page).toHaveURL(/\/t\/tkt_example_joes_texas_two$/);
     await expect(
       page.getByText(copy.ticket.showAtCounter, { exact: true }),
       "the live ticket opens",
     ).toBeVisible();
+    // The page of that token, not another ticket of the list (the single burger of $12.00).
+    await expect(
+      page.getByText(copy.checkout.lineItem("Smash burger", 2), { exact: true }),
+      "the opened ticket has the quantity of its card",
+    ).toBeVisible();
+    await expect(
+      page.getByLabel(copy.ticket.paid("$24.00"), { exact: true }),
+      "the opened ticket has the amount of its card",
+    ).toBeVisible();
+  });
+
+  test("the fan's scenarios sign in the fan, not the merchant", async ({ page }) => {
+    await signInAsFan(page, "severalTickets");
+    await expect(page.getByRole("heading", { name: copy.tickets.title })).toBeVisible();
+    await expect(page.getByText(copy.tickets.signedInAs(FAN_EMAIL))).toBeVisible();
+    await expect(page.getByText(copy.tickets.signedInAs(MERCHANT_EMAIL))).toHaveCount(0);
   });
 
   test("no ticket yet: says what to do, and offers another e-mail", async ({ page, screens }) => {
