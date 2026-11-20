@@ -286,4 +286,75 @@ export const landingCopy = {
       },
     ],
   },
+
+  /**
+   * The closing call to action (COPY.md section 7). The alt describes what the picture shows, as COPY.md
+   * words it. `button` is the one primary button: inactive ("Opening soon") while there is no repository.
+   */
+  cta: {
+    title: "Refunded if the team wins.",
+    button: "View the code",
+    illustrationAlt:
+      "The Winz app: picking a game, the opening screen and a live promo with its QR code.",
+  },
+
+  /**
+   * The footer (COPY.md section 8, designed in `sections/08-footer.md`). The statement is set in two tones:
+   * `first` in gray, `second` in black. `links` of the Winz column are the page's own anchors; the Project
+   * column's links are `landingLinks`' and a link that is not decided is not rendered (its label waits here
+   * for the day it is). `builtAt` is text, not links. The legal line is built from `builtBy` and the names in
+   * `landingLinks.teamLinks` (a name is a link when it has one).
+   */
+  footer: {
+    label: "Footer",
+    statement: { first: "Every promo is a bet.", second: "Winz hedges it." },
+    app: {
+      title: "Get the app",
+      body: "Winz is a web app. Add it to your home screen.",
+      button: "Add to Home Screen",
+    },
+    winz: {
+      title: "Winz",
+      links: [
+        { label: "How it works", href: "#how" },
+        { label: "Demo video", href: "#demo" },
+        { label: "Features", href: "#features" },
+        { label: "Live demo", href: "#live-demo" },
+      ],
+    },
+    project: { title: "Project", github: "GitHub", devpost: "Devpost", video: "Demo video" },
+    builtAt: { title: "Built at", items: ["UBC 2026", "Consumer app track", "Austin, Texas"] },
+    legal: {
+      copyright: "© 2026 Winz",
+      builtBy: "Built by",
+      and: "and",
+      note: "Hackathon prototype on test networks. No real funds, no real bets.",
+    },
+  },
+
+  /**
+   * The sheet "Get Winz on your phone" (COPY.md section 9), shared by the three "Try the live demo" buttons
+   * and the footer's "Add to Home Screen". The lines COPY.md does not have are the names of things a
+   * screen reader needs (`close`, `qrLabel`, `steps`' icons) and the copy fallback (`copyFailed`).
+   */
+  install: {
+    title: "Get Winz on your phone",
+    subtitle: "It's a web app. No store, no download.",
+    addToHome: "Add to Home Screen",
+    accepted: "Winz is on your home screen. Open it from there.",
+    androidMenu: "Open the browser menu (⋮), then choose Add to Home screen or Install app.",
+    iosSteps: ["Tap Share", "Choose Add to Home Screen", "Open Winz from your home screen"],
+    /** Said to a screen reader while the arrow points at the toolbar (an iPhone's is at the bottom). */
+    iosArrowIphone: "The Share button is in the bar at the bottom of the screen.",
+    iosArrowIpad: "The Share button is at the top of the screen.",
+    inApp: "Open this page in Safari (or Chrome) to install Winz.",
+    copyLink: "Copy link",
+    linkCopied: "Link copied",
+    copyFailed: "Copying is not allowed here. Select the address below and copy it.",
+    desktop: "Scan with your phone to open Winz.",
+    openInBrowser: "Open in browser instead",
+    bestOnPhone: "Best on your phone",
+    close: "Close",
+    qrLabel: "A QR code that opens Winz",
+  },
 } as const;

@@ -95,3 +95,82 @@ describe("landingCopy.process", () => {
     expect(text).not.toMatch(/TODO|FIXME|lorem/i);
   });
 });
+
+describe("landingCopy.cta", () => {
+  it("has the words of COPY.md section 7", () => {
+    expect(landingCopy.cta.title).toBe("Refunded if the team wins.");
+    expect(landingCopy.cta.button).toBe("View the code");
+    expect(landingCopy.cta.illustrationAlt).toBe(
+      "The Winz app: picking a game, the opening screen and a live promo with its QR code.",
+    );
+  });
+});
+
+describe("landingCopy.footer", () => {
+  it("has the statement, the app block and the three columns of COPY.md section 8", () => {
+    const { footer } = landingCopy;
+    expect(`${footer.statement.first} ${footer.statement.second}`).toBe(
+      "Every promo is a bet. Winz hedges it.",
+    );
+    expect(footer.app.title).toBe("Get the app");
+    expect(footer.app.body).toBe("Winz is a web app. Add it to your home screen.");
+    expect(footer.app.button).toBe("Add to Home Screen");
+    expect(footer.winz.links.map((link) => link.label)).toEqual([
+      "How it works",
+      "Demo video",
+      "Features",
+      "Live demo",
+    ]);
+    expect([footer.project.github, footer.project.devpost, footer.project.video]).toEqual([
+      "GitHub",
+      "Devpost",
+      "Demo video",
+    ]);
+    expect(footer.builtAt.items).toEqual(["UBC 2026", "Consumer app track", "Austin, Texas"]);
+  });
+
+  it("points its Winz column at the same anchors as the navigation", () => {
+    expect(landingCopy.footer.winz.links.map((link) => link.href)).toEqual(
+      landingCopy.nav.links.map((link) => link.href),
+    );
+  });
+
+  it("has the two legal lines", () => {
+    expect(landingCopy.footer.legal.copyright).toBe("© 2026 Winz");
+    expect(landingCopy.footer.legal.note).toBe(
+      "Hackathon prototype on test networks. No real funds, no real bets.",
+    );
+  });
+});
+
+describe("landingCopy.install", () => {
+  const { install } = landingCopy;
+
+  it("has the words of COPY.md section 9", () => {
+    expect(install.title).toBe("Get Winz on your phone");
+    expect(install.subtitle).toBe("It's a web app. No store, no download.");
+    expect(install.addToHome).toBe("Add to Home Screen");
+    expect(install.accepted).toBe("Winz is on your home screen. Open it from there.");
+    expect(install.androidMenu).toBe(
+      "Open the browser menu (⋮), then choose Add to Home screen or Install app.",
+    );
+    expect(install.iosSteps).toEqual([
+      "Tap Share",
+      "Choose Add to Home Screen",
+      "Open Winz from your home screen",
+    ]);
+    expect(install.inApp).toBe("Open this page in Safari (or Chrome) to install Winz.");
+    expect(install.copyLink).toBe("Copy link");
+    expect(install.linkCopied).toBe("Link copied");
+    expect(install.desktop).toBe("Scan with your phone to open Winz.");
+    expect(install.openInBrowser).toBe("Open in browser instead");
+    expect(install.bestOnPhone).toBe("Best on your phone");
+  });
+
+  it("says nothing a visitor has to know about wallets, chains or stores to install", () => {
+    const words = JSON.stringify(install).toLowerCase();
+    for (const forbidden of ["wallet", "crypto", "usdc", "token", "blockchain"]) {
+      expect(words).not.toContain(forbidden);
+    }
+  });
+});
