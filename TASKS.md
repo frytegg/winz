@@ -275,6 +275,7 @@ Lots parallèles : (H-03 → H-04 → H-05, H-06), (R-01 → R-02), (A-05, A-06,
   Preuve : `e2e/ui/demo-admin.spec.ts` (10 tests : clé refusée puis acceptée, les quatre actions, refus 400, 404 et 409, bandeau sur C1, C3, le détail commerçant, le Hedge desk et le panneau) ; captures `admin-*.png` et `c4-tickets-demo.png`.
 - [ ] **U-08** · Qui : T, avec Agent · Dép. : A-02 · CA-3, CO-1
   Lien court, QR plein écran, partage natif ; affiche PNG ◇ ; aperçu Open Graph ◇.
+  État au 20 nov. : QR plein écran ouvert par un tap puis fermé, test « M8: a tap opens the QR code full screen » (`e2e/ui/merchant-onboarding.spec.ts`, 99 tests passés), capture `docs/receipts/ui/m8-qr-fullscreen.png` ; affiche et aperçu Open Graph servis en production pour la promo de test (`200 image/png`, 83 451 et 63 476 octets), dans `docs/receipts/prod/` avec leur README. Reste pour cocher : le partage natif essayé sur un téléphone, et le lien court ouvert sur un ordinateur jusqu'à C1 (CA-3), sans reçu à ce jour.
 - [x] **U-09** · Qui : T · Dép. : A-04 · LT-2, C4
   « My tickets » ◇.
   Preuve : `e2e/ui/tickets.spec.ts` (7 tests) ; captures `c4-sign-in`, `c4-tickets`, `c4-tickets-empty`, `c4-tickets-error`, `c4-tickets-demo.png` ; commits 4621d22 et 75b46bb.

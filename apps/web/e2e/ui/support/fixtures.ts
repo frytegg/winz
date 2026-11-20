@@ -151,8 +151,10 @@ export class Screens {
   /**
    * The receipt of one screen: a full-page screenshot under a stable name, after checking that the
    * screen does not scroll sideways, and noting its links for the check at the end of the test.
+   * `viewport: true` takes only what the phone shows: for a layer that covers the screen (the
+   * full-screen QR code), which a full-page capture would draw in the middle of a taller page.
    */
-  async shot(name: ReceiptName): Promise<void> {
+  async shot(name: ReceiptName, options: { viewport?: boolean } = {}): Promise<void> {
     const began = Date.now();
     const { page } = this;
     const overflow = await horizontalOverflow(page);
@@ -173,7 +175,7 @@ export class Screens {
     mkdirSync(RECEIPTS_DIR, { recursive: true });
     await page.screenshot({
       path: join(RECEIPTS_DIR, `${name}.png`),
-      fullPage: true,
+      fullPage: options.viewport !== true,
       animations: "disabled",
       caret: "hide",
       style: RECEIPT_STYLE,

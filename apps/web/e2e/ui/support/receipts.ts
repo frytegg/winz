@@ -22,6 +22,8 @@ export const RECEIPTS = {
   "m7-review":
     "M7, le récapitulatif (budget de 1 000 $, coût et marge par vente) et le paiement simulé du budget.",
   "m8-live": "M8, la promo en ligne : compte à rebours, QR, lien court, partage.",
+  "m8-qr-fullscreen":
+    "M8, le QR ouvert en plein écran par un tap (pour le scan de l'autre côté du comptoir), bouton « Close » ; l'écran du téléphone seul, pas la page entière.",
   // Fan, C1 to C3
   "c1-open": "C1, la page de campagne qui vend (scénario `live`).",
   "c1-paused": "C1, promo en pause (scénario `paused`) : boutons d'achat désactivés.",
