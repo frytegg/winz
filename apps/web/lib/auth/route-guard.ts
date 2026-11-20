@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import { useAuth, type AuthStatus } from "./auth-context";
 
 /**
- * BRIEF section 7: not signed in → `/start`; signed in without a merchant → `/business`;
+ * The rule: not signed in → `/start`; signed in without a merchant → `/business`;
  * otherwise the screen asked for. A fan is not a merchant to be (review 2.7, ID-1): whoever signs
  * in from the fan's entry lands on « My tickets ».
  *

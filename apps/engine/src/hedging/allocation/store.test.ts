@@ -239,7 +239,7 @@ describe("recordFill", () => {
   });
 
   it("a sale decided before a late lot arrived is recorded first: the sold contracts never cover that lot", async () => {
-    // The verifier's sequence: 1.0 bought, lot A of 0.3 covered, 0.7 held; the reconciliation
+    // A sequence found in review: 1.0 bought, lot A of 0.3 covered, 0.7 held; the reconciliation
     // sells the 0.7 surplus, and a late TicketPurchased creates lot B of 0.5 before the venue's
     // sell fill is recorded.
     const a = await createCampaign(database.db, market);

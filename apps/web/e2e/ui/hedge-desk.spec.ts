@@ -58,14 +58,14 @@ test("the Hedge desk, without sign-in: venue first, exposure, position, orders, 
 const DESK: HedgeDeskResponse = apiExamples.hedgeDeskExample;
 
 /**
- * SPEC MDB-3, 9.3 and 9.7, and TASKS U-06, line by line at 393 × 852, each figure as the API sends
+ * SPEC MDB-3, 9.3 and 9.7, line by line at 393 × 852, each figure as the API sends
  * it (`GET /api/hedge-desk`, scenario `default`) written by the app's own formatters: exposure,
  * position, resting orders, orders, fills, maker economics, circuit breaker, the venue in clear,
  * the risk parameters, and the sandbox proof of HE-10.
  */
 test.describe("at the iPhone 15's full screen, 393 × 852", () => {
-  // Playwright's iPhone 15 profile is 393 × 659 (the screen minus Safari's bars); the review asks
-  // for the whole screen, 393 × 852 (REVUE-FRONT-19-NOV.md section 4, U-06).
+  // Playwright's iPhone 15 profile is 393 × 659 (the screen minus Safari's bars); the check runs
+  // at the whole screen, 393 × 852.
   test.use({ viewport: { width: PHONE_WIDTH, height: 852 } });
 
   test("the Hedge desk at 393 × 852, line by line, with the API's numbers", async ({ page }) => {
@@ -222,7 +222,7 @@ test("a tripped breaker and an unhedged amount over the limit are said in words"
 });
 
 /**
- * SPEC HE-10, TASKS H-07 (« les identifiants des ordres du sandbox sont affichés sur le Hedge desk »):
+ * SPEC HE-10 (« les identifiants des ordres du sandbox sont affichés sur le Hedge desk »):
  * the panel « Real orders on Gemini sandbox » at 393 × 852, from `GET /api/hedge-desk`. Scenario
  * `venueCheckProven` of the simulated API (illustrative ids, not the real run): the time of the run,
  * the venue in plain words, « Proven », and for each of the three steps Gemini's order id, the

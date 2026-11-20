@@ -156,7 +156,7 @@ function eventTicketId(event: DecodedEvent): bigint | null {
 }
 
 /**
- * The settlement sequence of one campaign (brief steps a to e), resumable from any point: every
+ * The settlement sequence of one campaign (steps a to e), resumable from any point: every
  * decision is taken from the chain (`getCampaign`, `getTicket`) and from the watcher's own
  * transactions in the outbox, never from the projection alone.
  *

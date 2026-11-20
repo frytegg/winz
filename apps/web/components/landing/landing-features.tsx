@@ -8,7 +8,7 @@ const { features } = landingCopy;
  * Features (`sections/06-features.md`, mockup `features/features-winz.png`, COPY.md section 6). The mockup is
  * 1376 px wide, not 1728 like the others: everything below is its measure times 1728 / 1376 (1.2558), so
  * that it sits on the page the way the full-page mockup (`winz-landing.png`) shows it. The cards come out at
- * 340 x 204 with 20 px between them, the grid at 1060 px, as How's: the brief said ~272 x 162 and a 1290 px
+ * 340 x 204 with 20 px between them, the grid at 1060 px, as How's: the mockup notes said ~272 x 162 and a 1290 px
  * grid, which are the mockup's own pixels before the scale and not the page's.
  *
  * The background fades from white (26 % down) to the pale lime the CTA starts on (`--color-landing-lime-from`),

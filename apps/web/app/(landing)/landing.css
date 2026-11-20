@@ -18,7 +18,7 @@ html:has(.landing) {
  * while they fade in, 60 ms after one another (--rise-step). The phones rise 40 px from the edge of the
  * hero (which clips them) and DO NOT fade: they are the page's LCP, and Chrome does not report an image
  * that starts at opacity 0 as the LCP (measured: with the fade the phones were not the LCP at all, with
- * it removed they are, at ~90 ms). The brief asks for both a fade and "no fade that delays the image";
+ * it removed they are, at ~90 ms). The design asks for both a fade and "no fade that delays the image";
  * the second is the one a score measures, so the fade goes. Only opacity and transform move. Whoever
  * asks for less motion gets the final state at once, and the global reduced-motion rule (globals.css)
  * is not trusted to do that: it shortens an animation to 1 ms, it does not remove it.

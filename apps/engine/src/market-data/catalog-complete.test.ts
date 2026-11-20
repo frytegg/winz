@@ -219,7 +219,7 @@ describe("GeminiRestClient.readActiveListing", () => {
   });
 
   describe("an empty page proves the end only as the first page", () => {
-    it("the verifier's probe: 20 of the first 90 of 105 end before the second request, total 85: not complete", async () => {
+    it("a probe found in review: 20 of the first 90 of 105 end before the second request, total 85: not complete", async () => {
       const events = filler("NCAAF", 105);
       let listed = events;
       const { client, http } = clientOn((url, call) => {

@@ -1,6 +1,6 @@
 /**
  * Which campaigns the watcher settles, and when it must not: a forced demo result, sales still
- * open, no result yet, and the emergency window (brief R-01 / R-02).
+ * open, no result yet, and the emergency window.
  */
 import { afterEach, describe, expect, it } from "vitest";
 

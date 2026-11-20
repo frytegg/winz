@@ -15,7 +15,7 @@ import type {
 } from "./types";
 
 /**
- * The invariants checked at the end of a run (TASKS.md Q-04, SPEC section 17 criteria 3, 4, 5;
+ * The invariants checked at the end of a run (SPEC section 17 criteria 3, 4, 5;
  * and Q-03, criterion 7, for the ticket's odds), each with the numbers it was decided on. Pure:
  * everything is measured before.
  */

@@ -299,7 +299,7 @@ export class SaleStateRunner {
   }
 
   /**
-   * Decides one campaign. The breaker and the book feed are other lanes' code: when one of them
+   * Decides one campaign. The breaker and the book feed are other modules' code: when one of them
    * throws, the campaign is decided as if it could not sell (breaker active, no book, book stale)
    * and the error is returned; when the evaluation itself throws, `failedEvaluation` keeps it from
    * selling. Never throws.

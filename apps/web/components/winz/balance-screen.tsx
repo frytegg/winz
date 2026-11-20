@@ -16,7 +16,7 @@ import { MerchantFrame } from "./merchant-header";
 import { WithdrawSheet } from "./withdraw-sheet";
 
 /**
- * The "Balance" tab (JOURNAL, navigation): the available balance, what is pending, and the
+ * The "Balance" tab: the available balance, what is pending, and the
  * simulated withdrawal. The settings are one tap away. "Deposit" of the mockup is not in the spec.
  */
 export function BalanceScreen(): React.JSX.Element {

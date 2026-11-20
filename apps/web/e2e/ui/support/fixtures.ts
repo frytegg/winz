@@ -91,7 +91,7 @@ interface AllowedStatus {
 }
 
 /**
- * Watches one page for everything the brief forbids across all flows: a request answered 404 or
+ * Watches one page for everything the suite forbids across all flows: a request answered 404 or
  * 5xx (or a 4xx of the API) that the scenario did not ask for, an uncaught page error, a console error, a request that
  * leaves this machine, sideways scroll at 393 px, and a link to a page that does not exist.
  */

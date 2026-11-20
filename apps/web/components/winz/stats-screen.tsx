@@ -21,7 +21,7 @@ import { StatTile } from "./stat-tile";
 /**
  * MS: what the merchant's promos sold, added up on the device from `GET /api/campaigns` (SCREENS:
  * "Agrégats locaux"). Gross sales, sales, the average sale, and a bar per promo. The coverage cost of
- * each promo is not in the list, so it is not here (DEMANDES-ALEXANDRE, item 10).
+ * each promo is not in the list, so it is not here.
  */
 export function StatsScreen(): React.JSX.Element {
   const campaigns = useAsync((signal) => apiFetch("campaigns", { signal }), [], { pollMs: 10_000 });

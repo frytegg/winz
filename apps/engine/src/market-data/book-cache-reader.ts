@@ -6,7 +6,7 @@ import type { Db } from "../db";
 
 /**
  * Reads book_cache back into the shared `Book`. Written for the engine, meant to be copied by the
- * web app's API lane (which never talks to Gemini): it depends on zod and the row only.
+ * web app's API (which never talks to Gemini): it depends on zod and the row only.
  */
 
 const storedLevelSchema = z

@@ -19,7 +19,7 @@ const { cta } = landingCopy;
  * `--color-landing-lime-from` and ends on `--color-landing-lime-to`, the footer's white meets it with a
  * straight edge (the mockup's page ends there).
  *
- * The phones hold a QR code that was re-exported to carry the app's address (JOURNAL 18 bis, 3).
+ * The phones hold a QR code that was re-exported to carry the app's address.
  */
 export function LandingCta({
   githubUrl,

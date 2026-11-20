@@ -1,5 +1,5 @@
 /**
- * The words a fan never reads (BRIEF section 4, MASTER section 8). Used by the tests that guard the
+ * The words a fan never reads (MASTER section 8). Used by the tests that guard the
  * fan copy and the fan screens; not by the app.
  */
 export const CRYPTO_WORDS =

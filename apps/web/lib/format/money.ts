@@ -7,7 +7,7 @@ import {
   UnitParseError,
 } from "@winz/shared";
 
-/** A card payment is at least $0.50 and at most $999,999.99, in whole cents (BRIEF section 4). */
+/** A card payment is at least $0.50 and at most $999,999.99, in whole cents. */
 export const MIN_CARD_AMOUNT_MICRO = 500_000n;
 export const MAX_CARD_AMOUNT_MICRO = 999_999_990_000n;
 export const MIN_CARD_AMOUNT_CENTS = 50;

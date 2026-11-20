@@ -38,7 +38,7 @@ function isHttpUrl(text: string): boolean {
 
 /**
  * M2: the business name and category (the API's five), and an optional logo given as a link: the
- * API takes a URL and has no upload route yet (see DEMANDES-ALEXANDRE).
+ * API takes a URL and has no upload route yet.
  */
 export function BusinessForm(): React.JSX.Element {
   const { adoptMerchant, refreshMe } = useAuth();

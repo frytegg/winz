@@ -18,7 +18,7 @@
  * the lime word of the titles, all identical). The app's `--color-lime` is #D8FE35: 12, 12 and 18
  * levels brighter, ΔE 4.1. It is the same gap measured on the app mockups in U-02, still undecided.
  * Decided: the landing keeps the app's token. The AVIF/WebP backgrounds and phones were drawn with
- * #CCF223, so the two sit side by side in the hero. The token does not change (JOURNAL §4 and §18).
+ * #CCF223, so the two sit side by side in the hero. The token does not change.
  */
 @theme {
   /* Dark sections (hero, demo): the top of the gradient the background images fade from. */

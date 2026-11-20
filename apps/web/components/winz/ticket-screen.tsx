@@ -29,7 +29,7 @@ import { Celebration } from "./celebration";
 import { Money } from "./money";
 import { TicketShell } from "./ticket-shell";
 
-/** Ticket polling when the live feed carries the odds (BRIEF section 7: 2 to 3 seconds). */
+/** Ticket polling when the live feed carries the odds (2 to 3 seconds). */
 const POLL_MS = 3000;
 const CELEBRATED_PREFIX = "winz.refunded.";
 

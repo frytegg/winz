@@ -23,7 +23,7 @@ interface AsyncOptions<T> {
 }
 
 /**
- * Fetch + revalidation, small on purpose (BRIEF section 7: no cache library). `fetcher` receives an
+ * Fetch + revalidation, small on purpose (no cache library). `fetcher` receives an
  * `AbortSignal`: when `deps` change, the request in flight is cancelled, so a slow answer to an old
  * input can never overwrite the answer to the new one.
  */

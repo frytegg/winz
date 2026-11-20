@@ -10,7 +10,7 @@ const { demo, demoTitle } = landingCopy;
  * Demo (`sections/04-demo.md`, mockup `demo/demo-winz.png`, 1728 x 1211; text in `COPY.md` section 4).
  * Written in the mockup's pixels times `--u` (set once by the page), as the hero and How are: a dark
  * block that is the page's full width and 1211 px tall at 1728, its four corners rounded (64 px measured:
- * the brief said ~48), the eyebrow 152 px from its top, the title, the button, and the player.
+ * the mockup notes said ~48), the eyebrow 152 px from its top, the title, the button, and the player.
  *
  * The block is inset by 16 px on a phone and keeps its corners (28 px there). Its background is the
  * mockup's gradient with the lines, an opaque image the block clips itself (`public/landing/demo/`).
