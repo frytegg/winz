@@ -264,7 +264,7 @@ describe("anchorPanel", () => {
       panel,
       viewport,
     });
-    expect(position).toEqual({ left: 600 + 130 - 160, top: 455 + 12 });
+    expect(position).toEqual({ left: 600 + 130 - 160, top: 455 + 12, scrollBy: 0 });
   });
 
   it("flips above the button when there is no room below it", () => {
@@ -291,12 +291,95 @@ describe("anchorPanel", () => {
     expect(right.left).toBe(1440 - 320 - 16);
   });
 
-  it("sits at the top margin when the window is too short for it either way", () => {
+  it("does not scroll the page when it flips above the button", () => {
+    const position = anchorPanel({
+      anchor: { left: 600, right: 860, top: 780, bottom: 835 },
+      panel,
+      viewport,
+      scrollRoom: 5000,
+    });
+    expect(position.scrollBy).toBe(0);
+  });
+
+  // The hero's button is in the middle of a 900 px window and the panel is half as tall as the window:
+  // below it there is no room, above it neither. It must not land on the button.
+  it("scrolls the page up by what is missing, when neither side has room", () => {
+    const tall = { width: 320, height: 498 };
+    const position = anchorPanel({
+      anchor: { left: 868, right: 1046, top: 459, bottom: 503 },
+      panel: tall,
+      viewport,
+      scrollRoom: 8000,
+    });
+    // Below the button: 503 + 12 + 498 = 1013, 129 more than the 884 the window allows.
+    expect(position.scrollBy).toBe(129);
+    // The button moved up by what the page scrolled; the panel is under it, at its new place.
+    expect(position.top).toBe(503 + 12 - 129);
+    expect(position.top).toBeGreaterThanOrEqual(503 - 129);
+    expect(position.top + tall.height).toBeLessThanOrEqual(900 - 16);
+  });
+
+  it("goes beside the button when the page cannot scroll far enough, never over it", () => {
+    // The footer's button: near the end of the page, no room above it, and no page left to scroll.
+    const tall = { width: 320, height: 482 };
+    const anchor = { left: 1002, right: 1251, top: 418, bottom: 466 };
+    const position = anchorPanel({ anchor, panel: tall, viewport, scrollRoom: 0 });
+    expect(position.scrollBy).toBe(0);
+    // To the right it would leave the window (1251 + 12 + 320 > 1424): to the left, 12 px from the button.
+    expect(position.left).toBe(1002 - 12 - 320);
+    expect(position.left + tall.width).toBeLessThanOrEqual(anchor.left);
+    // Centred on the button, inside the window.
+    expect(position.top).toBe(Math.round(418 + 24 - 241));
+    expect(position.top + tall.height).toBeLessThanOrEqual(900 - 16);
+  });
+
+  it("goes to the right of the button when there is room there", () => {
+    const tall = { width: 320, height: 482 };
+    const anchor = { left: 100, right: 349, top: 418, bottom: 466 };
+    const position = anchorPanel({ anchor, panel: tall, viewport, scrollRoom: 0 });
+    expect(position.left).toBe(349 + 12);
+    expect(position.scrollBy).toBe(0);
+  });
+
+  it("scrolls by what the page has when that is all it takes, and not when it is not", () => {
+    const tall = { width: 320, height: 498 };
+    const anchor = { left: 868, right: 1046, top: 459, bottom: 503 };
+    expect(anchorPanel({ anchor, panel: tall, viewport, scrollRoom: 129 }).scrollBy).toBe(129);
+    // 40 px of page is not enough: the panel goes beside the button instead of half under it.
+    expect(anchorPanel({ anchor, panel: tall, viewport, scrollRoom: 40 })).toMatchObject({
+      scrollBy: 0,
+      left: 1046 + 12,
+    });
+  });
+
+  it("never scrolls the button off the top of the window", () => {
+    const position = anchorPanel({
+      anchor: { left: 868, right: 1046, top: 60, bottom: 104 },
+      panel: { width: 320, height: 880 },
+      viewport,
+      scrollRoom: 8000,
+    });
+    expect(60 - position.scrollBy).toBeGreaterThanOrEqual(16);
+  });
+
+  it("goes beside the button, at the top margin, in a window too short for above or below", () => {
     const position = anchorPanel({
       anchor: { left: 600, right: 860, top: 100, bottom: 155 },
       panel,
       viewport: { width: 1440, height: 400 },
     });
     expect(position.top).toBe(16);
+    expect(position.left).toBe(860 + 12);
+    expect(position.scrollBy).toBe(0);
+  });
+
+  it("covers the button only when there is no room beside it either, in a window too small for anything", () => {
+    const position = anchorPanel({
+      anchor: { left: 20, right: 380, top: 100, bottom: 155 },
+      panel: { width: 320, height: 380 },
+      viewport: { width: 400, height: 400 },
+    });
+    expect(position.top).toBe(16);
+    expect(position.scrollBy).toBe(0);
   });
 });

@@ -1,7 +1,7 @@
 import { landingCopy } from "@/lib/landing/copy";
 
 import { NavMenu } from "./nav-menu";
-import { PrimaryButton } from "./primary-button";
+import { TryDemoButton } from "./try-demo-button";
 import { Wordmark } from "./wordmark";
 
 const { nav, hero } = landingCopy;
@@ -42,15 +42,15 @@ export function LandingNav({ liveDemoUrl }: { liveDemoUrl: string | null }): Rea
               </li>
             ))}
           </ul>
-          <PrimaryButton href={liveDemoUrl} tone="on-dark">
+          <TryDemoButton href={liveDemoUrl} tone="on-dark">
             {hero.cta}
-          </PrimaryButton>
+          </TryDemoButton>
         </nav>
 
         <NavMenu links={nav.links}>
-          <PrimaryButton href={liveDemoUrl} tone="on-dark">
+          <TryDemoButton href={liveDemoUrl} tone="on-dark">
             {hero.cta}
-          </PrimaryButton>
+          </TryDemoButton>
         </NavMenu>
       </div>
     </header>

@@ -24,6 +24,12 @@ export interface PrimaryButtonProps {
    * a client component: a server component cannot hand a function to a button.
    */
   onClick?: MouseEventHandler<HTMLButtonElement>;
+  /**
+   * Called when the LINK is clicked, before the browser follows it:  there keeps the visitor
+   * on the page (the install sheet takes over on a phone). Without a script the link just goes where it
+   * points, which is why "Try the live demo" is a link first.
+   */
+  onLinkClick?: MouseEventHandler<HTMLAnchorElement>;
   /** Show it inactive whatever else is set (for "Try the live demo": `liveDemoUrl` is null). */
   unavailable?: boolean;
   /** What an inactive button says under itself. */
@@ -43,6 +49,7 @@ export function PrimaryButton({
   href,
   external,
   onClick,
+  onLinkClick,
   unavailable,
   hint = landingCopy.openingSoon,
   tone = "on-dark",
@@ -68,14 +75,20 @@ export function PrimaryButton({
     const face = <PrimaryButtonFace state="active">{children}</PrimaryButtonFace>;
     if (shape.external) {
       return (
-        <a href={shape.href} target="_blank" rel="noopener noreferrer" className={classes}>
+        <a
+          href={shape.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={classes}
+          onClick={onLinkClick}
+        >
           {face}
           <span className="sr-only"> (opens in a new tab)</span>
         </a>
       );
     }
     return (
-      <Link href={shape.href} className={classes}>
+      <Link href={shape.href} className={classes} onClick={onLinkClick}>
         {face}
       </Link>
     );
