@@ -334,15 +334,32 @@ afterAll(async () => {
   await database.drop();
 });
 
+/**
+ * A test that stops a service mid-pass cancels the pass's query in flight (`.signal()`), and Postgres
+ * delivers a cancel to a backend, not to a query: when that query has already finished and its
+ * connection went back to the pool, a cancel that arrives late lands on whatever statement the
+ * connection runs next, here the next test's cleanup ("canceling statement due to user request",
+ * SQLSTATE 57014). The cleanup only deletes, so it runs again; any other error still fails the test.
+ */
+async function cleanUp(attempt = 1): Promise<void> {
+  try {
+    await db`delete from live_campaigns`;
+    await db`delete from lots`;
+    await db`delete from tickets`;
+    await db`delete from jobs`;
+    await db`delete from chain_events`;
+    await db`delete from positions`;
+    await db`delete from campaigns`;
+  } catch (error: unknown) {
+    const lateCancel = (error as { code?: unknown } | null)?.code === "57014";
+    if (!lateCancel || attempt >= 3) throw error;
+    await cleanUp(attempt + 1);
+  }
+}
+
 beforeEach(async () => {
   // Each test starts with no campaign on the shared instruments.
-  await db`delete from live_campaigns`;
-  await db`delete from lots`;
-  await db`delete from tickets`;
-  await db`delete from jobs`;
-  await db`delete from chain_events`;
-  await db`delete from positions`;
-  await db`delete from campaigns`;
+  await cleanUp();
 });
 
 describe("SaleStateRunner against Postgres", () => {
