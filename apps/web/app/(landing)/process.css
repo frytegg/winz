@@ -327,7 +327,6 @@
   }
 
   .process-art {
-    order: 0;
     flex: none;
     width: calc(634 * var(--u));
     max-width: none;
