@@ -28,11 +28,12 @@
 
 ## Landing page (`apps/web/public/landing/`)
 
-- Logos (`logos/`: Stripe, Arc, Gemini, Privy, Supabase, Vercel): the marks of their owners, shown only to
+- Logos (`logos/`: Stripe, Arc, Gemini, QuickNode): the marks of their owners, shown only to
   say which technologies Winz is built with, with no suggestion that they endorse it. The files are the
-  designer's mockup assets, not the vendors' official files: five are bitmaps re-rendered at four times
+  designer's mockup assets, not the vendors' official files: all are bitmaps re-rendered at four times
   their display size and wrapped in an SVG (the originals embedded images thousands of pixels wide), at
-  the 0.48 grey opacity of the mockup; Vercel is vector. Replace them with the official SVGs from each
+  the 0.48 grey opacity of the mockup (QuickNode's file came at 0.67 and 74 KB with two embedded 2195 px
+  images: re-rendered, 5 KB). Replace them with the official SVGs from each
   brand page if a vendor asks, or when a clean vector is wanted.
 - Illustrations (`hero/`, `cta/`, `how/`): drawn for the mockups by the designer. The hero and CTA phones
   are exported from SVG files that wrap bitmaps (AVIF and WebP, the sources stay in the front kit).

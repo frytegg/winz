@@ -6,27 +6,31 @@ import { cn } from "@/lib/utils";
 const { logos } = landingCopy;
 
 /**
- * The tools, in the order of COPY.md. `width` and `height` are the size of the file, which is also the
- * size the mockup shows it at (1728 px wide), so `--logo-u` scales them all together. `opacity` is for
- * a logo that is a plain black vector (Vercel): the others are bitmaps in an SVG, exported already gray
- * at 0.48 like the mockup.
+ * The tools. `width` and `height` are the size of the file, which is also the size the mockup shows it at
+ * (1728 px wide), so `--logo-u` scales them all together. Every file is a bitmap in an SVG, exported
+ * already gray at 0.48 like the mockup: nothing is dimmed here.
  */
 const LOGOS: readonly {
   readonly name: string;
   readonly src: string;
   readonly width: number;
   readonly height: number;
-  readonly opacity?: number;
 }[] = [
   { name: "Stripe", src: "/landing/logos/stripe.svg", width: 83, height: 37 },
   { name: "Arc", src: "/landing/logos/arc.svg", width: 88, height: 32 },
   { name: "Gemini", src: "/landing/logos/gemini.svg", width: 169, height: 37 },
-  { name: "Privy", src: "/landing/logos/privy.svg", width: 130, height: 32 },
-  { name: "Supabase", src: "/landing/logos/supabase.svg", width: 191, height: 37 },
-  { name: "Vercel", src: "/landing/logos/vercel.svg", width: 151, height: 30, opacity: 0.48 },
+  { name: "QuickNode", src: "/landing/logos/quicknode.svg", width: 159, height: 37 },
 ];
 
-/** One run of the six logos. The same markup is rendered twice, so that the loop has no seam. */
+/**
+ * How many lists make half of the track. The loop moves the track by half of its width and is seamless only
+ * if that half is wider than the window it scrolls in: one list of four logos is about 820 px at 1728 px,
+ * the window 1014, and on a wide monitor 4600. Six lists are 4900 px, enough up to a 5120 px screen.
+ * `--marquee-duration` (landing.css) is the time of these six, at the same 40 px/s as before.
+ */
+export const MARQUEE_RUNS = 6;
+
+/** One list of the logos. The same markup is rendered `2 * MARQUEE_RUNS` times, so that the loop has no seam. */
 function LogoList({ copy }: { copy: boolean }): React.JSX.Element {
   return (
     <ul
@@ -56,7 +60,6 @@ function LogoList({ copy }: { copy: boolean }): React.JSX.Element {
             style={{
               width: `calc(${logo.width} * var(--logo-u))`,
               height: `calc(${logo.height} * var(--logo-u))`,
-              ...(logo.opacity === undefined ? {} : { opacity: logo.opacity }),
             }}
             className="max-w-none"
           />
@@ -70,9 +73,9 @@ function LogoList({ copy }: { copy: boolean }): React.JSX.Element {
  * The logo strip (`sections/02-logos.md`, mockup `logo/logo-winz.png`): "Built with the best tools" on
  * the left, and the tools scrolling to the left without end, with a fade at both edges.
  *
- * The scroll is CSS only (`landing.css`, `.landing-marquee-track`): the list is rendered twice in one
- * track, which moves by exactly half its width, the width of one list, so the second copy takes the
- * first one's place and the loop closes without a jump. It stops under the pointer, while the
+ * The scroll is CSS only (`landing.css`, `.landing-marquee-track`): the list is rendered twelve times in
+ * one track, which moves by exactly half its width, six lists, so the second half takes the first one's
+ * place and the loop closes without a jump, and never shows an empty end (see `MARQUEE_RUNS`). It stops under the pointer, while the
  * checkbox has focus (the one control a keyboard has; checked, it stays stopped), and entirely under
  * `prefers-reduced-motion`. A server component: nothing here needs JavaScript.
  *
@@ -102,8 +105,9 @@ export function LogoStrip(): React.JSX.Element {
             className="landing-marquee-pause peer sr-only motion-reduce:hidden"
           />
           <div className="landing-marquee-track flex w-max motion-reduce:w-full motion-reduce:justify-center">
-            <LogoList copy={false} />
-            <LogoList copy />
+            {Array.from({ length: 2 * MARQUEE_RUNS }, (_, index) => (
+              <LogoList key={index} copy={index > 0} />
+            ))}
           </div>
         </div>
       </div>

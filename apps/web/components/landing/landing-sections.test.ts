@@ -7,7 +7,7 @@ import { landingCopy } from "@/lib/landing/copy";
 import { LandingHero } from "./landing-hero";
 import { LandingNav } from "./landing-nav";
 import { exportedSrcSet, LandingPicture } from "./landing-picture";
-import { LogoStrip } from "./logo-strip";
+import { LogoStrip, MARQUEE_RUNS } from "./logo-strip";
 
 /** The page's markup as a string, plus the `href` of every link in it. */
 function render(node: React.ReactElement): { html: string; hrefs: string[] } {
@@ -78,31 +78,27 @@ describe("LogoStrip", () => {
   const { html } = render(createElement(LogoStrip));
   const lists = html.split("<ul").slice(1);
 
-  it("is two identical lists of the six tools, so that the loop has no seam", () => {
-    expect(lists).toHaveLength(2);
+  it("is twelve identical lists of the four tools, so that the loop has no seam and no empty end", () => {
+    expect(lists).toHaveLength(2 * MARQUEE_RUNS);
     const names = (list: string): string[] =>
       [...list.matchAll(/src="\/landing\/logos\/([a-z]+)\.svg"/g)].map((match) => match[1] ?? "");
-    expect(names(lists[0] ?? "")).toEqual([
-      "stripe",
-      "arc",
-      "gemini",
-      "privy",
-      "supabase",
-      "vercel",
-    ]);
-    expect(names(lists[1] ?? "")).toEqual(names(lists[0] ?? ""));
+    expect(names(lists[0] ?? "")).toEqual(["stripe", "arc", "gemini", "quicknode"]);
+    for (const list of lists) expect(names(list)).toEqual(names(lists[0] ?? ""));
   });
 
   it("names the visible list and hides its copy from assistive technology", () => {
     expect(lists[0]).toContain('aria-label="Technologies used"');
     expect(lists[0]).not.toContain("aria-hidden");
-    expect(lists[1]).toContain('aria-hidden="true"');
-    expect(lists[1]).not.toContain("aria-label");
+    for (const copy of lists.slice(1)) {
+      expect(copy).toContain('aria-hidden="true"');
+      expect(copy).not.toContain("aria-label");
+      expect(copy).not.toMatch(/alt="[A-Za-z]/);
+    }
     // Each visible logo has its name; the copy has none, or a screen reader says every tool twice.
-    for (const name of ["Stripe", "Arc", "Gemini", "Privy", "Supabase", "Vercel"]) {
+    for (const name of ["Stripe", "Arc", "Gemini", "QuickNode"]) {
       expect(lists[0]).toContain(`alt="${name}"`);
     }
-    expect(lists[1]).not.toMatch(/alt="[A-Za-z]/);
+    for (const gone of ["Privy", "Supabase", "Vercel"]) expect(html).not.toContain(gone);
   });
 
   it("has the label of COPY.md and a pause control for a keyboard", () => {
