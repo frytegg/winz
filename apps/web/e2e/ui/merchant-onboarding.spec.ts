@@ -411,6 +411,42 @@ test("M2: a business already created by a lost first tap: the second tap's 409 m
   expect(meAsked, "the session was read again after the 409").toBeGreaterThan(0);
 });
 
+test("M2 → M3: Continue keeps M2 on screen until the games are there, with no splash in between", async ({
+  page,
+}) => {
+  await signInAsNewUser(page);
+  await page.getByLabel(copy.business.nameLabel).fill("Buzzball’s shop");
+  await page.getByRole("button", { name: copy.business.categories.burger }).tap();
+
+  // From here on, every element the page adds is looked at, the moment it is added: a splash that
+  // shows for a single frame and is gone the next (the « logo flash » of the onboarding film, 0.3 s
+  // of the full-screen W between M2 and M3) is counted as surely as one that stays.
+  await page.evaluate(() => {
+    const seen = { splashes: 0 };
+    (window as unknown as { __seen: typeof seen }).__seen = seen;
+    new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (!(node instanceof Element)) continue;
+          if (node.matches("[data-splash]") || node.querySelector("[data-splash]") !== null) {
+            seen.splashes += 1;
+          }
+        }
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+  const splashes = (): Promise<number> =>
+    page.evaluate(() => (window as unknown as { __seen: { splashes: number } }).__seen.splashes);
+
+  await page.getByRole("button", { name: copy.common.continue }).tap();
+  await expect(
+    page.getByRole("heading", { name: copy.wizard.steps.game }),
+    "M2 leads to M3",
+  ).toBeVisible();
+  // The page was not reloaded on the way (the watcher is still there to answer).
+  expect(await splashes(), "no splash was shown between M2 and M3").toBe(0);
+});
+
 test.describe("M8: every state the promo can be in (review 2.9)", () => {
   const states: readonly {
     name: string;
