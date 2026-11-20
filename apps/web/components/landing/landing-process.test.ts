@@ -6,7 +6,10 @@ import { landingCopy } from "@/lib/landing/copy";
 
 import { LandingProcess } from "./landing-process";
 
-const html = renderToStaticMarkup(createElement(LandingProcess));
+const QR_URL = "https://winz-nu.vercel.app/";
+const render = (qrUrl: string | null): string =>
+  renderToStaticMarkup(createElement(LandingProcess, { qrUrl }));
+const html = render(QR_URL);
 const { steps } = landingCopy.process;
 
 describe("LandingProcess", () => {
@@ -49,6 +52,36 @@ describe("LandingProcess", () => {
     expect(html).toContain("Let&#x27;s get you set up");
     expect(html).toContain("alex@joespizza.com");
     expect(html).toContain("Your email…");
+  });
+
+  it("has a screen with its words for each of the six steps", () => {
+    for (const words of [
+      "Pick a game",
+      "Pay by card",
+      "Fund with card",
+      "Putting your promo live…",
+      "Link copied",
+      "Download poster",
+      "Pay with Apple Pay",
+      "$20.00",
+      "Refunded",
+      "+$20.00",
+    ]) {
+      expect(html.toLowerCase()).toContain(words.toLowerCase());
+    }
+    expect(html).toContain("PIT");
+    expect(html).toContain("Final · 24 – 17");
+  });
+
+  it("draws the live demo's address as the QR, and shows its host in the chip", () => {
+    expect(html).toContain("winz-nu.vercel.app");
+    expect(html).toMatch(/<svg[^>]*viewBox="-2 -2 [^"]*"[^>]*>\s*<path d="M0 0h7v1h-7z/);
+  });
+
+  it("draws a pattern that is not a code, and no host, when there is no live demo", () => {
+    const decoration = render(null);
+    expect(decoration).toContain("Your promo link");
+    expect(decoration).not.toContain("winz-nu.vercel.app");
   });
 
   it("holds no link, no dead anchor and no marker of unfinished work", () => {

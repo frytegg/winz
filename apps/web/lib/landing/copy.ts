@@ -199,7 +199,7 @@ export const landingCopy = {
         email: "alex@joespizza.com",
         code: "428019",
       },
-      /** Step 02: the first screen of the promo wizard. */
+      /** Step 02: the first screen of the promo wizard. The amount is counted up by the stylesheet, to $250. */
       pick: {
         title: "1. Pick a game",
         home: "Pittsburgh",
@@ -207,7 +207,40 @@ export const landingCopy = {
         versus: "VS",
         back: "100% back",
         budget: "Budget",
-        amount: "$250",
+      },
+      /** Step 03: paying the promo by card. */
+      fund: {
+        title: "Pay by card",
+        cardLabel: "Card number",
+        /** The groups of the test card, one per step of the typing. */
+        card: ["4242", "4242", "4242", "4242"],
+        button: "Fund with card",
+        pending: "Putting your promo live…",
+        live: "Live",
+      },
+      /** Step 04: the promo's QR, its link and its poster. `linkFallback` when the page has no link to show. */
+      share: {
+        linkFallback: "Your promo link",
+        toast: "Link copied",
+        poster: "Download poster",
+      },
+      /** Steps 05 and 06: what the fan sees, and the ticket that comes of it. */
+      fan: {
+        merchant: "Joe's Pizza",
+        promise: "100% back if Pittsburgh wins!",
+        pay: "Pay with Apple Pay",
+        amount: "$20.00",
+        winChance: "Win chance",
+        pit: "PIT",
+        phi: "PHI",
+        live: "Live",
+        final: "Final",
+        refunded: "Refunded",
+        refund: "+$20.00",
+        /** The score while the game is on, then the final one, PIT first. */
+        scoreBefore: [17, 17],
+        score: [24, 17],
+        ticket: "Your ticket",
       },
     },
   },

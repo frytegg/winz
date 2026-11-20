@@ -4,25 +4,25 @@ import { landingCopy } from "@/lib/landing/copy";
 
 import { ProcessPhone } from "./process-phone";
 import { ProcessScroll } from "./process-scroll";
-import { OnboardingScreen, PendingScreen, PickScreen } from "./process-screens";
-
-const { process: copy } = landingCopy;
-
-/** What each step's screen is, in order. */
-const SCREENS = [
+import {
+  BuyScreen,
+  FundScreen,
   OnboardingScreen,
   PickScreen,
-  PendingScreen,
-  PendingScreen,
-  PendingScreen,
-  PendingScreen,
-] as const;
+  RefundScreen,
+  ShareScreen,
+} from "./process-screens";
+
+const { process: copy } = landingCopy;
 
 /**
  * The share of the phone's progress bar each step stands for. The first is the mockup's (66 of 254 px); the
  * last is a full bar, and the four between are evenly spaced.
  */
 const FILLS = [0.26, 0.408, 0.556, 0.704, 0.852, 1] as const;
+
+/** Every step has a screen. */
+const STEPS = 6;
 
 const two = (n: number): string => String(n).padStart(2, "0");
 
@@ -36,15 +36,29 @@ const two = (n: number): string => String(n).padStart(2, "0");
  * Both pictures are in the markup (one is hidden by CSS at any width): they are decoration, so `aria-hidden`,
  * and a reader meets the section as a header and six steps in order, the sticky card last.
  */
-export function LandingProcess(): React.JSX.Element {
-  const screen = (index: number): React.JSX.Element => {
-    const Screen = SCREENS[index] ?? PendingScreen;
-    return (
-      <div className="process-screen" data-process-screen data-index={index}>
-        <Screen />
-      </div>
-    );
+export function LandingProcess({ qrUrl }: { qrUrl: string | null }): React.JSX.Element {
+  const content = (index: number): React.JSX.Element => {
+    switch (index) {
+      case 0:
+        return <OnboardingScreen />;
+      case 1:
+        return <PickScreen />;
+      case 2:
+        return <FundScreen />;
+      case 3:
+        return <ShareScreen qrUrl={qrUrl} />;
+      case 4:
+        return <BuyScreen />;
+      default:
+        return <RefundScreen />;
+    }
   };
+
+  const screen = (index: number): React.JSX.Element => (
+    <div className="process-screen" data-process-screen data-index={index}>
+      {content(index)}
+    </div>
+  );
 
   return (
     <section
@@ -103,7 +117,7 @@ export function LandingProcess(): React.JSX.Element {
             <div className="process-sticky">
               <div className="process-box">
                 <ProcessPhone fill={FILLS[0]}>
-                  {SCREENS.map((_, index) => (
+                  {Array.from({ length: STEPS }, (_, index) => (
                     <Fragment key={index}>{screen(index)}</Fragment>
                   ))}
                 </ProcessPhone>
