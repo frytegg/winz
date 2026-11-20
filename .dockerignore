@@ -8,7 +8,6 @@
 **/*.tsbuildinfo
 .git
 .github
-.claude
 .env
 .env.*
 !.env.example
