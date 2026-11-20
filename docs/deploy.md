@@ -29,9 +29,17 @@ ligne suivante sans la preuve.
 
 ## Ce qui a été exécuté ici, et ce qui ne l'a pas été
 
-**Rien de cette page n'a été essayé sur un compte** : ni Supabase, ni Render, ni Vercel, ni
-Stripe, ni Privy, ni QuickNode hébergés. Chaque commande de preuve est à lancer par vous contre
-eux ; c'est pour cela qu'elle est écrite.
+**Mise en ligne le 19 novembre 2026** : le web tourne sur Vercel (`https://winz-nu.vercel.app`),
+le moteur sur Render (`https://winz-kfwm.onrender.com`, `/healthz` en `leader`, base `ok`, chaîne
+5042002), et les 10 migrations sont appliquées sur le projet Supabase hébergé
+(`supabase_migrations.schema_migrations`, de `20261117000000` à `20261119020000`). Une vraie promo
+y a été créée puis achetée le soir même (campagne on-chain 15, budget payé, ticket émis par
+`buyFor`, couverture papier facturée par `chargeHedge`), et `pnpm smoke` passe ses 6 contrôles
+contre la production : reçu `docs/receipts/prod/g1-2026-11-19.md`. Rien dans le dépôt ne prouve
+encore, au 20 novembre : le Stream QuickNode (ligne 12), la vérification Realtime et RLS avec la
+clé publique (ligne 11), le domaine de paiement Apple Pay noté `active` (ligne 8), et les preuves
+de G1 que la base ne garde pas (le ticket affiché sur un téléphone, la livraison Stripe lue dans son journal). Les
+commandes de preuve de chaque étape restent à lancer contre ces comptes pour ce qui manque.
 
 Mise à jour du 19 novembre 2026, sans compte : les pages des fournisseurs citées en fin de page
 relues ce jour-là (Supabase, Vercel, QuickNode ; Render n'a pas été relu, son étape n'a pas changé
