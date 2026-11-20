@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { maxCostBps, pauseThresholdBps } from "@winz/pricing";
 import {
   JOB_KINDS,
@@ -5,6 +7,7 @@ import {
   createCampaignResponseSchema,
   jobIdempotencyKey,
   type CreateCampaignRequest,
+  type CreateCampaignResponse,
 } from "@winz/shared";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -49,6 +52,7 @@ const terms: CreateCampaignRequest = {
   usualMarginBps: 6500,
   minMarginBps: 4500,
   budget: "1000000000",
+  requestId: "6f1d1c3e-9b7a-4c55-8f3e-2a1b0c9d8e7f",
 };
 
 async function expectApiError(
@@ -154,8 +158,21 @@ describe("createCampaign", () => {
     payments = new FakePaymentGateway();
   });
 
+  /** One "Fund" tap: these terms under a fresh `requestId`, so no test answers another's request. */
+  function create(body: CreateCampaignRequest = terms): Promise<CreateCampaignResponse> {
+    return createCampaign(db, payments, joe, { ...body, requestId: randomUUID() }, now);
+  }
+
+  async function rowsOfRequest(
+    requestId: string,
+  ): Promise<{ status: string; budget_pi: string | null }[]> {
+    return db<{ status: string; budget_pi: string | null }[]>`
+      select status, budget_pi from campaigns where merchant_id = ${joe} and request_id = ${requestId}
+    `;
+  }
+
   it("inserts a funding campaign with its budget payment and the computed terms", async () => {
-    const response = await createCampaign(db, payments, joe, terms, now);
+    const response = await create();
     expect(createCampaignResponseSchema.parse(response)).toEqual(response);
     expect(response.status).toBe("funding");
     expect(response.budgetPayment.amount).toBe("1000000000");
@@ -199,7 +216,7 @@ describe("createCampaign", () => {
   });
 
   it("prints a partial refund in the promise", async () => {
-    const response = await createCampaign(db, payments, joe, { ...terms, refundBps: 5000 }, now);
+    const response = await create({ ...terms, refundBps: 5000 });
     const [row] = await db<{ promise: string }[]>`
       select promise from campaigns where id = ${response.campaignId}
     `;
@@ -209,7 +226,7 @@ describe("createCampaign", () => {
   it("refuses a price that is not whole cents before creating anything", async () => {
     const before = await countRows("campaigns");
     await expectApiError(
-      createCampaign(db, payments, joe, { ...terms, unitPrice: "19999999" }, now),
+      create({ ...terms, unitPrice: "19999999" }),
       400,
       "invalid_request",
       /whole number of cents/,
@@ -223,36 +240,44 @@ describe("createCampaign", () => {
     ["inactive", INACTIVE_SYMBOL],
     ["settled", SETTLED_SYMBOL],
   ])("refuses an %s instrument with 404", async (_case, symbol) => {
-    await expectApiError(
-      createCampaign(db, payments, joe, { ...terms, instrumentSymbol: symbol }, now),
-      404,
-      "not_found",
-    );
+    await expectApiError(create({ ...terms, instrumentSymbol: symbol }), 404, "not_found");
     expect(payments.createCalls).toBe(0);
   });
 
   it("refuses a game whose sales already closed", async () => {
-    await expectApiError(
-      createCampaign(db, payments, joe, { ...terms, instrumentSymbol: PAST_SYMBOL }, now),
-      409,
-      "sales_closed",
-    );
+    await expectApiError(create({ ...terms, instrumentSymbol: PAST_SYMBOL }), 409, "sales_closed");
     expect(payments.createCalls).toBe(0);
   });
 
-  it("leaves no campaign when the payment provider fails", async () => {
+  it("answers 502 when the payment provider fails, and its retry makes one campaign", async () => {
     payments.failure = new PaymentGatewayError("Stripe is down");
+    const body = { ...terms, requestId: randomUUID() };
     const before = await countRows("campaigns");
-    await expectApiError(createCampaign(db, payments, joe, terms, now), 502, "internal");
+    await expectApiError(createCampaign(db, payments, joe, body, now), 502, "internal");
     expect(payments.createCalls).toBe(1);
-    expect(await countRows("campaigns")).toBe(before);
+    // The claim stays, unpaid and without a payment, for the retry of the same request to find.
+    expect(await rowsOfRequest(body.requestId)).toEqual([{ status: "funding", budget_pi: null }]);
+
+    payments.failure = null;
+    const retried = await createCampaign(db, payments, joe, body, now);
+    expect(await countRows("campaigns")).toBe(before + 1);
+    expect(await rowsOfRequest(body.requestId)).toEqual([
+      { status: "funding", budget_pi: retried.budgetPayment.paymentIntentId },
+    ]);
   });
 
-  it("leaves no campaign when the provider throws something unexpected", async () => {
+  it("lets an unexpected provider error through, and its retry makes one campaign", async () => {
     payments.failure = new Error("boom");
+    const body = { ...terms, requestId: randomUUID() };
     const before = await countRows("campaigns");
-    await expect(createCampaign(db, payments, joe, terms, now)).rejects.toThrow("boom");
-    expect(await countRows("campaigns")).toBe(before);
+    await expect(createCampaign(db, payments, joe, body, now)).rejects.toThrow("boom");
+
+    payments.failure = null;
+    const retried = await createCampaign(db, payments, joe, body, now);
+    expect(await countRows("campaigns")).toBe(before + 1);
+    expect(await rowsOfRequest(body.requestId)).toEqual([
+      { status: "funding", budget_pi: retried.budgetPayment.paymentIntentId },
+    ]);
   });
 });
 

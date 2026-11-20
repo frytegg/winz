@@ -252,24 +252,24 @@ export const campaignPreviewResponseSchema = z.object({
 });
 
 /**
- * POST /api/campaigns: creates the draft and the payment of its budget (screen M7). With a
- * `requestId`, the request is idempotent: sent again by the same merchant, it answers the same
- * campaign and the same payment and creates nothing (one exception, on `requestId` below).
+ * POST /api/campaigns: creates the draft and the payment of its budget (screen M7). The request is
+ * idempotent on its `requestId`: sent again by the same merchant, it answers the same campaign and
+ * the same payment and creates nothing (one exception, on `requestId` below).
  */
 export const createCampaignRequestSchema = campaignTermsSchema.extend({
   product: z.string().min(1).max(80),
   /**
    * Chosen by the front once per "Fund" tap (a uuid) and kept for every retry of that request.
-   * Every client must send it: a request without it is still accepted, but it is not protected
-   * (a double tap or a retry after a network cut creates a second campaign and a second payment).
-   * Optional only until the shapes are frozen, then required. The same `requestId` with other
-   * terms answers 409.
+   * Required: a request without it is refused 400 (`invalid_request`), because nothing else
+   * tells a double tap or a retry after a network cut from a new request, and either would
+   * create a second campaign and a second payment. The same `requestId` with other terms
+   * answers 409.
    * One exception to "the same campaign and the same payment": a `funding` campaign whose payment
    * was cancelled at Stripe before being paid is discarded, and the repeat answers a NEW
    * `campaignId` and a new payment; the front always uses the `campaignId` and `clientSecret` of
    * the LAST answer.
    */
-  requestId: z.uuid().optional(),
+  requestId: z.uuid(),
 });
 export const createCampaignResponseSchema = z.object({
   campaignId: z.string(),

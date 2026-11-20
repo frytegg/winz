@@ -84,11 +84,11 @@ function request(overrides: Partial<CreateCampaignRequest> = {}): CreateCampaign
 }
 
 async function campaignsOf(
-  requestId: string | undefined,
+  requestId: string,
 ): Promise<{ id: string; budget_pi: string | null; status: string }[]> {
   return db<{ id: string; budget_pi: string | null; status: string }[]>`
     select id, budget_pi, status from campaigns
-    where merchant_id = ${joe} and request_id = ${requestId ?? ""}
+    where merchant_id = ${joe} and request_id = ${requestId}
   `;
 }
 

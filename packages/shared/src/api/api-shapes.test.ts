@@ -30,10 +30,13 @@ const TERMS = {
 };
 
 describe("createCampaignRequestSchema.requestId", () => {
-  it("is optional: the front's current call, without it, still parses and compiles", () => {
-    // A typed literal without the field: this line stops compiling if the field becomes required.
+  it("is required: a body without it is refused, naming the field", () => {
+    const result = createCampaignRequestSchema.safeParse({ ...TERMS });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(["requestId"]);
+    // @ts-expect-error A typed body without `requestId` does not compile: every client sends it.
     const body: CreateCampaignRequest = { ...TERMS };
-    expect(createCampaignRequestSchema.safeParse(body).success).toBe(true);
+    expect(createCampaignRequestSchema.safeParse(body).success).toBe(false);
   });
 
   it("accepts a uuid and refuses anything else", () => {
