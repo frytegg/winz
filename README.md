@@ -1,17 +1,39 @@
 # Winz
 
-Winz lets a shop run a game-night promo like "free if Texas wins" at a cost known before the first
-sale, because each sale is covered on Gemini's prediction market as it is paid.
+Winz lets a shop run a game-night promo like "free if Texas wins" and know its cost before the
+first sale. Each sale is covered on the prediction market of Gemini, the exchange, as it is paid.
 
 **[Live app](https://winz-nu.vercel.app)** ·
 **[Hedge desk](https://winz-nu.vercel.app/hedge-desk)** ·
 **[Production receipts](docs/receipts/prod/settlements-2026-11-19.md)** ·
 **[Escrow on Arc testnet](https://explorer.testnet.arc.io/address/0x81d2d4050E617184b2B832c30BE68f8811b37D2c)**
 
-Status on 20 November 2026: five promos sold, covered and settled in production on Arc testnet,
-with testnet USDC and cards in Stripe test mode. Production covers each sale with paper fills
-against Gemini's live order book; real orders were placed on Gemini's sandbox only. What is not
-done is under [Limits](#limits).
+Status on 20 November 2026: deployed and used on Arc testnet with test money only (testnet USDC,
+cards in Stripe test mode). Five promos were sold, covered and settled there. The cover runs as
+paper fills against Gemini's live order book; real orders were placed on Gemini's sandbox only.
+What is not done is under [Limits](#limits).
+
+## One sale, in numbers
+
+Promo 15 on 19 November: a $10 Smash burger, half back if Northeastern vs Butler goes over 169.5
+points. Gemini's market put that at about 36 %.
+
+- At the sale, the escrow locks the $5 that may be refunded and forwards the other $5 to the shop.
+  The card is paid through Stripe; Winz's treasury puts the matching USDC on-chain.
+- The engine buys 5 YES contracts, each worth $1 if the game goes over: 5 × $0.36 plus a $0.081
+  fee, $1.881, charged to the shop's promo budget. The quote signed for that sale capped it at
+  $1.931, and the contract refuses any charge above the cap.
+- Over 169.5: the fan gets $5 back from the escrow, and the 5 contracts pay $5, which the treasury
+  passes to the shop (`payMerchant`). Not over: the escrow releases the $5 to the shop. Either way
+  the shop keeps its $10 and has paid $1.881, about 19 % of the price.
+- The game stayed under: the shop kept its $10 ([settlement](https://explorer.testnet.arc.io/tx/0x408942bb054f3c5e8f897115c9031cd6c9dffd227a82ba08986fa2f599eec46f)).
+
+The chance moves after launch, so the cost per sale is held two ways. Each sale's cover is capped
+by its signed quote, and sales pause when the chance passes what the shop's margin can pay. The
+escrow is on-chain so that the fan's refund is locked at the sale and paid by the contract, never
+out of Winz's treasury. If a promo is still unsettled 7 days after sales close, a ticket holder can
+claim the refund directly (`emergencyClaim`). In production the cover is paper, so in the over case the
+treasury would pay the shop's $5 from its own testnet USDC, not from a real Gemini payout.
 
 ## How it works
 
@@ -22,13 +44,16 @@ done is under [Limits](#limits).
 2. **The fan pays the normal price** with Apple Pay and gets a live ticket showing the chance the
    condition comes true. The engine records the sale with `buyFor`, carrying a quote signed by the
    oracle that caps what covering this sale may cost.
-3. **Each sale is covered on Gemini.** The engine buys YES contracts on the game's market for the
-   refundable amount, maker first with taker as fallback, then bills the real cost to the
-   merchant's budget with `chargeHedge`. The contract refuses a charge above the quote's cap.
+3. **Each sale is covered on Gemini.** The engine buys YES contracts on the game's market, each
+   paying $1 if the condition comes true, for the refundable amount: a resting limit order first,
+   a market order if it does not fill. It bills the real cost to the merchant's budget with
+   `chargeHedge`; the contract refuses a charge above the quote's cap. In production these are
+   paper fills against Gemini's live book.
 4. **Gemini publishes the result**, which the engine reads.
 5. **The escrow on Arc settles.** If the condition came true, `refundBatch` pays every ticket its
-   promised share in USDC, `payMerchant` pays the merchant from the treasury, and `release` returns
-   the unspent budget. If not, `release` pays the merchant the escrowed share and the budget left.
+   promised share in USDC from the escrow, `payMerchant` pays the merchant what the YES contracts
+   paid (from the treasury), and `release` returns the unspent budget. If not, `release` pays the
+   merchant the escrowed share and the budget left.
 
 ```text
 merchant phone --card (Stripe test)--> web (Vercel) --job--> engine (Render)
@@ -44,11 +69,11 @@ WinzEscrow logs --QuickNode Stream--> web POST /api/webhooks/quicknode --> chain
 One merchant, Buzzball's shop, sold a Smash burger under five promos, each promising 50 % back.
 "Settled after" runs from Gemini's published result to the block of `CampaignSettled`. Source: [`settlements-2026-11-19.md`](docs/receipts/prod/settlements-2026-11-19.md).
 
-| Promo | Condition | Price | Sold | Gemini result | Settled after | On-chain settlement |
+| Promo | Condition | Price | Burgers sold | Gemini result | Settled after | On-chain settlement |
 | --- | --- | --- | --- | --- | --- | --- |
 | 15 | Over 169.5 points, Northeastern vs Butler | $10 | 1 | No | 192 s | [settled](https://explorer.testnet.arc.io/tx/0x408942bb054f3c5e8f897115c9031cd6c9dffd227a82ba08986fa2f599eec46f), [released to the merchant](https://explorer.testnet.arc.io/tx/0xda8b02d15b410748575d144280aeb397268ee8da5f4510a5617374f90cce2216) |
 | 16 | Golden State wins | $12 | 1 | No | 12 s | [settled](https://explorer.testnet.arc.io/tx/0x0aecf75bb08c229651f7dd9b9784635d300a977a6933a5d7f446176eb8463b76), [released to the merchant](https://explorer.testnet.arc.io/tx/0x7a52f69c504e31c2441ca880194ef9af841fbcb4bb0d29930a7f2063ea69a57f) |
-| 17 | Memphis wins by 15+ | $12 | 2 | **Yes** | 14 s | [settled](https://explorer.testnet.arc.io/tx/0x310bed1d85fd0c967875b03551075c2805ae078e6bfe69c462f1cda62e95a4d0), [$12.00 refunded to the fan](https://explorer.testnet.arc.io/tx/0xf704c9b68cfe44b9b5c8ccee44b3eeff5476b1c46bc7f5a6795fe50530449935), [$12.00 paid to the merchant](https://explorer.testnet.arc.io/tx/0x479b0b3be6a110d9d2fc9556b40aef722ae82937b5aac764af8bf8cff133f3ef), [budget left released](https://explorer.testnet.arc.io/tx/0xcb07030e2ed524887c28d6a06cc7436ab997ef02b6c2e3248a39cf76d6c67253) |
+| 17 | Memphis wins by 15+ | $12 | 2 ($24) | **Yes** | 14 s | [settled](https://explorer.testnet.arc.io/tx/0x310bed1d85fd0c967875b03551075c2805ae078e6bfe69c462f1cda62e95a4d0), [$12.00 (half of $24) refunded to the fan](https://explorer.testnet.arc.io/tx/0xf704c9b68cfe44b9b5c8ccee44b3eeff5476b1c46bc7f5a6795fe50530449935), [$12.00 paid to the merchant](https://explorer.testnet.arc.io/tx/0x479b0b3be6a110d9d2fc9556b40aef722ae82937b5aac764af8bf8cff133f3ef), [budget left released](https://explorer.testnet.arc.io/tx/0xcb07030e2ed524887c28d6a06cc7436ab997ef02b6c2e3248a39cf76d6c67253) |
 | 18 | New York wins by 10+ | $12 | 1 | No | 17 s | [settled](https://explorer.testnet.arc.io/tx/0x60df923f45da36b8b5ca31896ef8b93a0f0e223cf4a94f3436d250035053bd65), [released to the merchant](https://explorer.testnet.arc.io/tx/0xd629b3ac0871be06c3a98967d7aadeb6032dfe37c5e2c86d23d436482234a571) |
 | 19 | Minnesota wins by 9+ | $12 | 1 | No | 15 s | [settled](https://explorer.testnet.arc.io/tx/0xb22ddd1af806f7f79b0702ea1e67ad4d2236ab5054ee7a8fa42500151ac5354b), [released to the merchant](https://explorer.testnet.arc.io/tx/0xd9903ec3ad126857b29ed10671dcc4ecbc6b129fb8cad0b6122c56655694b273) |
 
