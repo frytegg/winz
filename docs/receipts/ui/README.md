@@ -4,7 +4,7 @@
 et ce fichier sont réécrits à chaque passage ; `measures.json` garde les mesures (une mesure qu'un
 passage partiel n'a pas refaite garde sa date d'origine, dans la dernière colonne).
 
-Dernier passage : 2026-11-20T01:48:18.105Z (UTC).
+Dernier passage : 2026-11-20T03:12:15.048Z (UTC).
 
 ## Mesures du dernier passage
 
@@ -17,11 +17,11 @@ de 30 secondes ») : une valeur égale à la limite est notée DÉPASSÉ.
 
 | Mesure | Valeur | Limite stricte (SPEC 17) | Détail | Mesurée le (UTC) |
 | --- | --- | --- | --- | --- |
-| Compilation des pages et des routes par `next dev` avant les parcours (non comptée dans les parcours) | 132 s | – | 15 pages, 15 routes d'API, une requête chacune | 2026-11-20T01:42:12.576Z |
-| Achat client, du scan (ouverture de C1) au ticket affiché | 7,6 s (tenu) | 30 s | navigation vers /c/joes-texas jusqu'à la jauge du ticket visible, hors prise des captures ; comprend 0,5 s d'autorisation simulée et le suivi du paiement (1 s) | 2026-11-20T01:42:37.065Z |
-| Achat client, C1 → C3 : taps | 2 taps | – | 1. tap « Buy with Apple Pay » (C1) · 2. tap the simulated payment (C2) | 2026-11-20T01:42:37.065Z |
-| Onboarding commerçant, M0 → M8 : durée | 11,4 s (tenu) | 120 s | de M0 affiché au QR de M8 affiché, hors prise des captures ; gestes d'un robot, un humain lit et tape plus lentement | 2026-11-20T01:45:17.090Z |
-| Onboarding commerçant, M0 → M8 : taps | 12 taps (tenu) | 15 taps | 1. tap « Start a promo » (M0) · 2. type the e-mail (M1) · 3. tap Continue (M1) · 4. type the 6-digit code (M1) · 5. type the business name (M2) · 6. tap the category « Bar » (M2) · 7. tap Continue (M2) · 8. tap the first game (M3) · 9. tap the recommended promo (M4) · 10. tap Continue (M5) · 11. tap « Review the promo » (M6) · 12. tap the simulated payment (M7) | 2026-11-20T01:45:17.090Z |
+| Compilation des pages et des routes par `next dev` avant les parcours (non comptée dans les parcours) | 106,1 s | – | 15 pages, 15 routes d'API, une requête chacune | 2026-11-20T03:06:56.910Z |
+| Achat client, du scan (ouverture de C1) au ticket affiché | 5,5 s (tenu) | 30 s | navigation vers /c/buzzballs-shop-texas-wins-by-14 jusqu'à la jauge du ticket visible, hors prise des captures ; comprend 0,5 s d'autorisation simulée et le suivi du paiement (1 s) | 2026-11-20T03:07:14.991Z |
+| Achat client, C1 → C3 : taps | 2 taps | – | 1. tap « Buy with Apple Pay » (C1) · 2. tap the simulated payment (C2) | 2026-11-20T03:07:14.991Z |
+| Onboarding commerçant, M0 → M8 : durée | 10,9 s (tenu) | 120 s | de M0 affiché au QR de M8 affiché, hors prise des captures ; gestes d'un robot, un humain lit et tape plus lentement | 2026-11-20T03:09:26.921Z |
+| Onboarding commerçant, M0 → M8 : taps | 12 taps (tenu) | 15 taps | 1. tap « Start a promo » (M0) · 2. type the e-mail (M1) · 3. tap Continue (M1) · 4. type the 6-digit code (M1) · 5. type the business name (M2) · 6. tap the category « Bar » (M2) · 7. tap Continue (M2) · 8. tap the first game (M3) · 9. tap the recommended promo (M4) · 10. tap Continue (M5) · 11. tap « Review the promo » (M6) · 12. tap the simulated payment (M7) | 2026-11-20T03:09:26.921Z |
 
 ## Les images
 
@@ -55,9 +55,9 @@ Pleine page, viewport de l'iPhone 15 (393 px de large) à l'échelle 2, sans vid
 | [`c2-refused-sales-closed.png`](./c2-refused-sales-closed.png) | C2, refus `409 sales_closed` du paiement (scénario `salesClosed` sur la seule requête de paiement) : le message de l'API. |
 | [`c2-ended-failed.png`](./c2-ended-failed.png) | C2, paiement qui n'a pas abouti (scénario `failed`) : le message de l'API, « Try again » et le retour à la promo. |
 | [`c2-ended-cancelled-paused.png`](./c2-ended-cancelled-paused.png) | C2, achat annulé car la promo s'est mise en pause pendant l'attente (scénario `cancelledPaused`). |
-| [`c3-ticket-pre-game.png`](./c3-ticket-pre-game.png) | C3, le ticket avant le match (« … chance this is free », compte à rebours). |
+| [`c3-ticket-pre-game.png`](./c3-ticket-pre-game.png) | C3, le ticket avant le match (« … chance it's free », compte à rebours). |
 | [`c3-ticket-in-game.png`](./c3-ticket-in-game.png) | C3, le ticket pendant le match (« Game on »). |
-| [`c3-ticket-refunded.png`](./c3-ticket-refunded.png) | C3, le ticket remboursé : écran lime, « Refunded » et le montant (20,00 $). |
+| [`c3-ticket-refunded.png`](./c3-ticket-refunded.png) | C3, le ticket remboursé : écran lime, « Refunded » et le montant (12,00 $). |
 | [`c3-ticket-not-this-time.png`](./c3-ticket-not-this-time.png) | C3, le ticket perdu : « Not this time… », « Find another promo ». |
 | [`c3-ticket-cancelled.png`](./c3-ticket-cancelled.png) | C3, le match annulé : « Game cancelled · your purchase stands ». |
 | [`c3-ticket-not-found.png`](./c3-ticket-not-found.png) | C3, un lien de ticket inconnu (404 renvoyé par le test lui-même). |
