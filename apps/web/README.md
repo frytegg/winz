@@ -375,6 +375,38 @@ la même demande a enregistré la recharge entre-temps : l'appel répond alors c
    repasse en `processing`. Un événement d'échec Stripe arrivé en retard ne fait jamais passer en
    `failed` un paiement autorisé depuis : le serveur relit l'état chez Stripe, et dès que l'achat
    est transmis au moteur, seul le moteur décide de l'issue.
+
+   Un paiement `failed` sans job d'achat (une carte refusée, marquée par le webhook) n'est donc pas
+   une fin : le même intent peut être payé par une autre carte, et le webhook qui le transmettrait
+   peut être encore en route. `GET /api/checkout/:pi` le relit chez Stripe comme un paiement
+   `requires_payment` (au plus une fois par 5 s) et le répond sur la parole de Stripe, jamais sur
+   la ligne :
+   - `failed` (avec le message de la ligne) si cette lecture trouve l'intent impayé ou fini
+     (`requires_payment_method`, `requires_confirmation`, `canceled`, ou annulé ici comme abandonné) ;
+   - `processing` si elle trouve la carte autorisée (l'achat est transmis au moteur) ou en attente
+     chez Stripe (`requires_action`, `processing`) ;
+   - `requires_payment` si elle n'a pas lu Stripe (dans la fenêtre de 5 s, ou une autre lecture
+     tient la place), n'a pas pu le lire, ou a trouvé un intent qui ne correspond pas à la ligne.
+
+   Un `failed` de cette route est ainsi toujours la parole de Stripe ou la fin donnée par le moteur.
+   La confirmation répond de même `processing` pour un tel paiement quand Stripe le dit en attente,
+   et `failed` quand il le dit impayé. Un paiement `failed` dont le job d'achat existe appartient au
+   moteur : ni la lecture du statut ni la confirmation ne le relisent ou ne le reprennent.
+
+   L'app web n'a pas de planificateur : un intent abandonné est annulé quand on le croise. Quand la
+   lecture du statut ou la confirmation trouve un intent qui attend le fan (`requires_action`, une
+   validation 3-D Secure laissée ouverte, `requires_payment_method` ou `requires_confirmation`),
+   sans job d'achat, plus de 15 min après la création du paiement
+   (`ABANDONED_PURCHASE_AFTER_SECONDS`, mesuré sur `created_at` par l'horloge de la base, pas sur
+   `updated_at` que chaque lecture tamponne), elle l'annule chez Stripe et passe le paiement `failed`
+   avec le message d'annulation (« Your payment was cancelled, you were not charged »). Quinze
+   minutes, c'est quinze fois la minute pendant laquelle la page suit un achat, et bien plus que le
+   temps d'un tap à une autorisation, validation dans l'app de la banque comprise. Jamais un intent
+   autorisé (`requires_capture`) ni un paiement dont le job existe : ceux-là sont au moteur. Un
+   refus de Stripe (l'intent a avancé entre-temps) ne change rien ; une panne de Stripe est
+   journalisée et rien n'est marqué, la lecture suivante réessaie. Annuler ne peut pas débiter : un
+   intent annulé ne se capture plus, et la feuille qui le gardait en paie un nouveau, une seule fois.
+
 5. Un `pi` inconnu répond `404`. Ces réponses ne contiennent jamais l'e-mail, l'adresse de
    l'acheteur ni aucun terme on-chain.
 
@@ -385,9 +417,16 @@ et `lib/fan/pending-purchase.ts`, testées à côté) :
   gardée par la feuille, pour cette promo et cette quantité, et l'essai suivant paie ce même
   PaymentIntent au lieu d'en créer un autre. Elle n'est oubliée que quand ce paiement est fini : un
   ticket, une fin sans ticket après la confirmation (`cancelled_paused`, `failed`), un intent
-  `canceled` chez Stripe (annulé par le moteur, ou autorisation expirée : l'essai en crée alors un
-  nouveau, une seule fois), ou une autre quantité. Une carte refusée ne finit pas le paiement :
-  l'intent repasse `requires_payment_method` et le tap suivant le paie avec une autre carte.
+  `canceled` chez Stripe (annulé par le moteur, abandonné depuis plus de 15 min, ou autorisation
+  expirée : l'essai en crée alors un nouveau, une seule fois), ou une autre quantité. Une carte
+  refusée ne finit pas le paiement : l'intent repasse `requires_payment_method` et le tap suivant le
+  paie avec une autre carte (le serveur, qui a marqué le paiement `failed`, le reprend dès que
+  cette carte est autorisée). Après un tap dont la carte est autorisée, un `failed` de la lecture du
+  statut ne finit l'attente que si la confirmation a répondu pour cet essai, ou qu'une lecture a
+  répondu `processing` (l'achat est transmis, ou Stripe a été lu) : confirmation perdue, le
+  paiement refusé avec la carte précédente peut encore dire `failed` avant que la lecture relise
+  Stripe et trouve la nouvelle carte autorisée. L'attente continue alors, dans sa minute.
+  `cancelled_paused` et une carte refusée au tap finissent toujours aussitôt.
   La règle tient au-delà de la page : un tap sur « Pay » alors que le navigateur garde pour cette
   promo un achat dont la carte a été vue autorisée, ou un achat repris après un rechargement ou une
   redirection (la feuille n'en a plus le `clientSecret`), suit d'abord cet achat jusqu'à sa fin
@@ -410,28 +449,34 @@ et `lib/fan/pending-purchase.ts`, testées à côté) :
   en attente chez Stripe (`requires_action`, une validation 3-D Secure ouverte dans l'app de la
   banque, ou `processing`) répond `processing` : l'attente est affichée, et la lecture du statut le
   prend dès que Stripe passe à `requires_capture`. Le `requires_payment` de la lecture du statut ne
-  suffit jamais, puisqu'elle répond la ligne quand Stripe ne répond pas, et un 404 ne fait oublier
-  le paiement que s'il porte le code `not_found` de l'API (pas un 404 d'un déploiement cassé). Sans
-  ces réponses, le paiement reste gardé et le tap suivant le suit au lieu de payer. Le retour d'une
-  redirection de paiement
-  (3-D Secure, `?payment_intent=…&redirect_status=…` sur la page de la promo) est suivi de la même
-  façon, même dans un navigateur qui n'a rien gardé. Aucun e-mail n'est envoyé : l'e-mail sert à
-  retrouver ses tickets dans « My tickets ».
+  suffit jamais, puisqu'elle répond la ligne quand Stripe ne répond pas, ni son `failed` pour une
+  carte jamais vue autorisée (un paiement refusé avec une première carte, puis payé avec une autre
+  avant que la page soit perdue) : il est suivi comme `requires_payment`, et seule la confirmation
+  décide. Un intent abandonné plus de 15 min est annulé par la lecture qui le trouve : la reprise
+  voit alors une fin et oublie le paiement, au lieu de le suivre une minute à chaque visite. Un 404
+  ne fait oublier le paiement que s'il porte le code `not_found` de l'API (pas un 404 d'un
+  déploiement cassé). Sans ces réponses, le paiement reste gardé et le tap suivant le suit au lieu
+  de payer. Le retour d'une redirection de paiement (3-D Secure,
+  `?payment_intent=…&redirect_status=…` sur la page de la promo) est suivi de la même façon, même
+  dans un navigateur qui n'a rien gardé. Aucun e-mail n'est envoyé : l'e-mail sert à retrouver ses
+  tickets dans « My tickets ».
 - **L'attente a une fin.** Le suivi d'un achat en cours ne rappelle jamais la confirmation (la
   lecture du statut complète seule un paiement autorisé ; seule la reprise d'un paiement jamais vu
   autorisé la demande, voir plus haut) et s'arrête après 60 s (`WAIT_LIMIT_SECONDS`). Après un tap,
-  la minute part de « Securing your promo… » : le temps de la confirmation compte, une
-  confirmation qui ne répond pas est coupée au bout de la minute, et chaque lecture du statut ne
-  dispose que du temps restant. Pour la
-  reprise, c'est la même borne dure : elle est vérifiée après chaque appel, dans tous les cas, sur
-  l'heure relue après l'appel, et chaque appel (lecture du statut ou confirmation) ne dispose que du
-  temps restant avant les 60 s (au moins une seconde, pour que la dernière lecture ait lieu ;
-  `withinBound`, un `AbortController` enfant et un `setTimeout`, sans `AbortSignal.any` que les
-  vieux Safari iOS n'ont pas). Un appel coupé par cette borne compte comme « pas de réponse », jamais
-  comme un abandon de la page, même quand Stripe met 47 s à répondre à chaque route. Une réponse qui
-  tranche gagne quand elle arrive ; sinon la reprise finit `unresolved` et le paiement reste gardé.
-  L'écran dit alors que rien n'est débité avant que le ticket existe, que rouvrir la promo sur ce
-  téléphone reprend le suivi, et que payer à nouveau vérifie d'abord cet achat.
+  la minute part de « Securing your promo… » : le temps de la confirmation compte, une confirmation
+  qui ne répond pas est coupée au bout de la minute, et chaque lecture du statut ne dispose que du
+  temps restant. Pour la reprise, c'est la même borne dure : elle est vérifiée après chaque appel,
+  dans tous les cas, sur l'heure relue après l'appel, et chaque appel (lecture du statut ou
+  confirmation) ne dispose que du temps restant avant les 60 s (au moins une seconde, pour que la
+  dernière lecture ait lieu ; `withinBound`, un `AbortController` enfant et un `setTimeout`, sans
+  `AbortSignal.any` que les vieux Safari iOS n'ont pas). Un appel coupé par cette borne compte comme
+  « pas de réponse », jamais comme un abandon de la page, même quand Stripe met 47 s à répondre à
+  chaque route. Une réponse qui tranche gagne quand elle arrive ; sinon la reprise finit
+  `unresolved` et le paiement reste gardé. L'écran dit alors que rien n'est débité avant que le
+  ticket existe, que rouvrir la promo sur ce téléphone reprend le suivi, et que payer à nouveau
+  vérifie d'abord cet achat. Les deux bornes, après un tap comme à la reprise, se mesurent sur
+  `performance.now()`, une horloge qui ne recule jamais, et pas sur l'heure de l'appareil, qu'un
+  réglage ou une resynchronisation peut faire reculer (`monotonicNow`).
 - **Une cote n'est jamais affichée comme fraîche quand elle ne l'est pas.** Sur C1 et le ticket,
   une relecture qui échoue affiche la chance comme inconnue (« Odds updating… »), et C1 ne vend
   plus tant que la dernière lecture réussie a plus de 10 s (`BOOK_STALE_AFTER_MS`, la règle de

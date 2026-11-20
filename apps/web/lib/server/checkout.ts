@@ -22,8 +22,10 @@ import {
   paymentKindOf,
   type CreatedPaymentIntent,
   type PaymentGateway,
+  topUpGatewayOf,
   type PaymentIntentStatus,
   type PaymentIntentView,
+  type UnpaidCancellation,
 } from "./payments-gateway";
 import { ApiRouteError } from "./route";
 import { digits } from "./wire";
@@ -204,6 +206,35 @@ export const STRIPE_UNPAID_STATUSES: readonly PaymentIntentStatus[] = [
   "canceled",
 ];
 
+/**
+ * The Stripe statuses of a purchase intent that waits on the fan (a card to enter or to approve, a
+ * 3-D Secure approval left open): once its payment is older than ABANDONED_PURCHASE_AFTER_SECONDS
+ * with no purchase job, the status read and the confirmation cancel it at Stripe (see
+ * `cancelAbandonedPurchase`). Never `requires_capture` (authorized: the purchase is taken) nor
+ * `processing` (Stripe is settling it).
+ */
+export const ABANDONED_PURCHASE_STATUSES: readonly PaymentIntentStatus[] = [
+  "requires_action",
+  "requires_payment_method",
+  "requires_confirmation",
+];
+
+/**
+ * How old a purchase's payment row must be, by the database's clock on its `created_at` (the first
+ * tap on Pay, when `POST /api/checkout` created the intent), before an intent still waiting on the
+ * fan is taken for abandoned and cancelled. Fifteen minutes: fifteen times the minute the page
+ * follows a purchase, and far longer than a fan spends between a tap and the card's authorization,
+ * a 3-D Secure approval in a bank app included; short enough that the fan who comes back later is
+ * not held by a purchase nobody will finish. `created_at` and not `updated_at`: every status read
+ * that asks Stripe stamps `updated_at`, so it never ages while a page polls.
+ *
+ * Cancelling is safe for the money whatever happens meanwhile: a cancelled intent can never be
+ * captured, so the fan is not charged for it (Stripe releases an authorization that would have
+ * landed between our read and the cancellation), and the sheet that kept the intent pays a new one,
+ * once (`AuthorizeResult.ended`).
+ */
+export const ABANDONED_PURCHASE_AFTER_SECONDS = 15 * 60;
+
 interface PaymentRow {
   stripe_pi: string;
   campaign_id: string;
@@ -326,21 +357,17 @@ interface StatusRow {
   status: CheckoutStatus;
   message: string | null;
   access_token: string | null;
+  /** The purchase job exists: the engine owns the outcome. */
+  job: boolean;
 }
 
-/**
- * The payment's state from its row, as GET /api/checkout/:pi answers it (after its heal, see
- * `pollCheckoutStatus`) and as the confirmation answers it. `ticketToken` once ticketed (open
- * `/t/<ticketToken>`), the stored message (or a default) on `cancelled_paused` and `failed`. A
- * payment marked ticketed whose ticket row is not readable yet is reported `processing`, so the
- * front keeps polling instead of opening a broken link. 404 for an unknown id.
- */
-export async function checkoutStatus(
-  db: Db,
-  paymentIntentId: string,
-): Promise<CheckoutStatusResponse> {
+/** The payment's row with its ticket and whether its purchase job exists; 404 for an unknown id. */
+async function readStatusRow(db: Db, paymentIntentId: string): Promise<StatusRow> {
   const [row] = await db<StatusRow[]>`
-    select p.status, p.message, t.access_token
+    select p.status, p.message, t.access_token,
+      exists (
+        select 1 from jobs j where j.idempotency_key = ${jobIdempotencyKey.purchase(paymentIntentId)}
+      ) as job
     from payments p
     left join lateral (
       select access_token from tickets
@@ -351,6 +378,46 @@ export async function checkoutStatus(
     where p.stripe_pi = ${paymentIntentId}
   `;
   if (!row) throw new ApiRouteError(404, "not_found", "Payment not found");
+  return row;
+}
+
+/**
+ * A payment whose card may still be authorized on its intent, so that its row is not the last
+ * word: `requires_payment`, or `failed` with no purchase job (a declined attempt: the sheet keeps
+ * the intent and the fan may pay it with another card, which `takeAuthorizedIntent` takes back).
+ * A `failed` payment whose job exists is the engine's ending, final.
+ */
+function isOpen(row: StatusRow): boolean {
+  return row.status === "requires_payment" || (row.status === "failed" && !row.job);
+}
+
+const PROCESSING: CheckoutStatusResponse = {
+  status: "processing",
+  ticketToken: null,
+  message: null,
+};
+const REQUIRES_PAYMENT: CheckoutStatusResponse = {
+  status: "requires_payment",
+  ticketToken: null,
+  message: null,
+};
+
+/**
+ * The payment's state from its row, as the confirmation answers it and as GET /api/checkout/:pi
+ * answers it after its heal (see `pollCheckoutStatus`, which answers a `failed` row with no
+ * purchase job on Stripe's word only). `ticketToken` once ticketed (open `/t/<ticketToken>`), the
+ * stored message (or a default) on `cancelled_paused` and `failed`. A payment marked ticketed
+ * whose ticket row is not readable yet is reported `processing`, so the front keeps polling
+ * instead of opening a broken link. 404 for an unknown id.
+ */
+export async function checkoutStatus(
+  db: Db,
+  paymentIntentId: string,
+): Promise<CheckoutStatusResponse> {
+  return answerOfRow(paymentIntentId, await readStatusRow(db, paymentIntentId));
+}
+
+function answerOfRow(paymentIntentId: string, row: StatusRow): CheckoutStatusResponse {
   switch (row.status) {
     case "ticketed":
       if (row.access_token === null) {
@@ -377,10 +444,28 @@ export async function checkoutStatus(
 }
 
 /**
- * How long a payment stays `requires_payment` before a status read asks Stripe about it, and the
- * shortest time between two such reads of one payment, in seconds. Both are measured on the
- * row's `updated_at` by the database's clock: the row is created `requires_payment`, nothing
- * touches it until the confirmation or the webhook moves it on, and each read stamps it.
+ * What Stripe said of a payment's intent, as the status read and the confirmation act on it:
+ *
+ * - `unread`: Stripe was not asked (the heal's window, a claim lost to another reader), could not
+ *   be read, or its intent does not match the row: nothing is known;
+ * - `unpaid`: unpaid or over (`STRIPE_UNPAID_STATUSES`), including an intent cancelled here as
+ *   abandoned: the card is not authorized and will not be without the fan paying again;
+ * - `pending`: anything else short of a purchase taken (`requires_action`, `processing`, an intent
+ *   Stripe would not cancel because it moved on): the card may still be authorized without the page;
+ * - `taken`: authorized, and handed to `takeAuthorizedIntent`; the row says the rest.
+ */
+type StripeWord = "unread" | "unpaid" | "pending" | "taken";
+
+function wordOf(status: PaymentIntentStatus): Exclude<StripeWord, "unread" | "taken"> {
+  return STRIPE_UNPAID_STATUSES.includes(status) ? "unpaid" : "pending";
+}
+
+/**
+ * How long a payment stays open (`requires_payment`, or `failed` with no purchase job, see
+ * `isOpen`) before a status read asks Stripe about it, and the shortest time between two such
+ * reads of one payment, in seconds. Both are measured on the row's `updated_at` by the database's
+ * clock: the row is created `requires_payment`, nothing touches it until the confirmation or the
+ * webhook moves it on (or fails a declined attempt), and each read stamps it.
  *
  * The ordinary case is left alone: the front polls only once its confirmation has answered, and
  * a confirmation that worked has moved the payment to `processing`, which no poll reads Stripe
@@ -391,48 +476,137 @@ export async function checkoutStatus(
 export const CHECKOUT_HEAL_AFTER_SECONDS = 5;
 
 /**
- * Claims the right to read Stripe for a payment still `requires_payment`, with one conditional
- * statement: it stamps `updated_at` only when the row is `requires_payment` and its `updated_at`
- * is at least `CHECKOUT_HEAL_AFTER_SECONDS` old, and returns the row when it did. Concurrent
- * callers (any number of pollers, on any number of server instances) queue on the row: the first
- * stamps it, the others re-check the stamped row and match nothing. No lock is held afterwards:
- * the statement commits on its own, before Stripe is called.
+ * Claims the right to read Stripe for a payment still open, with one conditional statement: it
+ * stamps `updated_at` only when the row is `requires_payment`, or `failed` with no purchase job (a
+ * declined attempt whose intent the fan may pay with another card), and its `updated_at` is at
+ * least `CHECKOUT_HEAL_AFTER_SECONDS` old, and returns the row when it did. Concurrent callers
+ * (any number of pollers, on any number of server instances) queue on the row: the first stamps
+ * it, the others re-check the stamped row and match nothing. No lock is held afterwards: the
+ * statement commits on its own, before Stripe is called. A `failed` payment whose job exists is
+ * the engine's and never claimed.
  */
 async function claimHealRead(db: Db, paymentIntentId: string): Promise<PaymentRow | undefined> {
   const [claimed] = await db<PaymentRow[]>`
-    update payments set updated_at = now()
-    where stripe_pi = ${paymentIntentId}
-      and status = 'requires_payment'
-      and updated_at <= now() - make_interval(secs => ${CHECKOUT_HEAL_AFTER_SECONDS})
-    returning stripe_pi, campaign_id, qty, amount, status
+    update payments p set updated_at = now()
+    where p.stripe_pi = ${paymentIntentId}
+      and (
+        p.status = 'requires_payment'
+        or (
+          p.status = 'failed'
+          and not exists (
+            select 1 from jobs j
+            where j.idempotency_key = ${jobIdempotencyKey.purchase(paymentIntentId)}
+          )
+        )
+      )
+      and p.updated_at <= now() - make_interval(secs => ${CHECKOUT_HEAL_AFTER_SECONDS})
+    returning p.stripe_pi, p.campaign_id, p.qty, p.amount, p.status
   `;
   return claimed;
 }
 
+/** What `cancelAbandonedPurchase` did. */
+type AbandonedCancellation =
+  /** Cancelled at Stripe (or found cancelled), and the payment failed with the cancellation. */
+  | "canceled"
+  /** Stripe refused: the intent moved on (authorized, or being paid). Nothing changed here. */
+  | "not_cancelable"
+  /** Not abandoned (too young, a job exists, a status worth waiting on), or Stripe failed. */
+  | "kept";
+
 /**
- * A payment the confirmation never moved on: asks Stripe once (under the claim of
- * `claimHealRead`) and applies what the confirmation or the webhook would have applied.
+ * Cancels at Stripe a purchase intent nobody is finishing, so that a page that picks it up sees an
+ * ending instead of following it for a minute on every visit (a 3-D Secure approval abandoned in a
+ * bank app keeps the intent `requires_action` for as long as Stripe keeps it). Only when Stripe's
+ * status (just read by the caller) is in ABANDONED_PURCHASE_STATUSES, the payment is open
+ * (`requires_payment`, or `failed` by a declined attempt) with no purchase job, and its row is
+ * older than ABANDONED_PURCHASE_AFTER_SECONDS. Never an intent whose job exists or that Stripe has
+ * authorized (`requires_capture`): those are the engine's to capture or cancel.
+ *
+ * Once Stripe says it is cancelled, the payment becomes `failed` with the cancellation message,
+ * replacing a declined attempt's message (the intent can never be paid any more). Stripe failing
+ * on the cancellation is logged and nothing is marked: the next read tries again. A route cut by
+ * its time limit between Stripe's cancellation and the mark is no worse: the next status read
+ * finds the intent `canceled` and fails the payment, and the confirmation answers it unpaid.
+ */
+async function cancelAbandonedPurchase(
+  db: Db,
+  payments: PaymentGateway,
+  paymentIntentId: string,
+  stripeStatus: PaymentIntentStatus,
+): Promise<AbandonedCancellation> {
+  if (!ABANDONED_PURCHASE_STATUSES.includes(stripeStatus)) return "kept";
+  const [row] = await db<{ abandoned: boolean }[]>`
+    select p.created_at <= now() - make_interval(secs => ${ABANDONED_PURCHASE_AFTER_SECONDS})
+      as abandoned
+    from payments p
+    where p.stripe_pi = ${paymentIntentId}
+      and p.status in ('requires_payment', 'failed')
+      and not exists (
+        select 1 from jobs j
+        where j.idempotency_key = ${jobIdempotencyKey.purchase(paymentIntentId)}
+      )
+  `;
+  if (row?.abandoned !== true) return "kept";
+
+  const log = serverLogger("checkout");
+  const gateway = topUpGatewayOf(payments);
+  if (gateway === null) {
+    log.warn({ paymentIntentId }, "abandoned purchase not cancelled: the gateway cannot cancel");
+    return "kept";
+  }
+  let cancelled: UnpaidCancellation;
+  try {
+    cancelled = await gateway.cancelUnpaidPaymentIntent(paymentIntentId);
+  } catch (error: unknown) {
+    if (error instanceof PaymentGatewayError) {
+      log.error(
+        { err: error, paymentIntentId, stripeStatus },
+        "abandoned purchase could not be cancelled at Stripe: left as it is",
+      );
+      return "kept";
+    }
+    throw error;
+  }
+  if (cancelled === "not_cancelable") {
+    log.info({ paymentIntentId, stripeStatus }, "abandoned purchase moved on at Stripe: kept");
+    return "not_cancelable";
+  }
+  const changed = await failPurchase(db, paymentIntentId, CUSTOMER_MESSAGES.cancelled, {
+    replaceFailed: true,
+  });
+  log.info({ paymentIntentId, stripeStatus, changed }, "abandoned purchase cancelled at Stripe");
+  return "canceled";
+}
+
+/**
+ * An open payment the confirmation never moved on (`requires_payment`, or `failed` by a declined
+ * attempt with no purchase job): asks Stripe once (under the claim of `claimHealRead`) and applies
+ * what the confirmation or the webhook would have applied, then says what Stripe said.
  *
  * - authorized (`requires_capture`): `takeAuthorizedIntent`, the very path of the confirmation
- *   and of the webhook, so one purchase job whoever gets there first;
+ *   and of the webhook, so one purchase job whoever gets there first (`taken`);
  * - cancelled (`canceled`, final at Stripe): `markPurchaseFailed` with the message the webhook
  *   writes for a cancellation; it is safe to call twice and never fails a payment whose purchase
- *   job exists;
- * - anything else, `requires_payment_method` included: nothing. Stripe shows that status both
- *   before the fan has paid and after a declined attempt, and only the webhook's event type tells
- *   them apart, so failing the payment from it could tell a fan still paying "you were not
+ *   job exists (`unpaid`);
+ * - waiting on the fan for longer than ABANDONED_PURCHASE_AFTER_SECONDS: cancelled at Stripe
+ *   (`cancelAbandonedPurchase`, `unpaid`; `pending` when Stripe refuses because it moved on);
+ * - anything else: nothing changes, and the answer is `unpaid` or `pending` by Stripe's status.
+ *   `requires_payment_method` never fails a `requires_payment` row here: Stripe shows that status
+ *   both before the fan has paid and after a declined attempt, and only the webhook's event type
+ *   tells them apart, so failing the payment from it could tell a fan still paying "you were not
  *   charged, your payment did not go through".
  *
- * Stripe failing is logged (once per claim, so once per window) and swallowed: the caller answers
- * the row as it is.
+ * `unread` when nothing was claimed, or when Stripe failed (logged once per claim, so once per
+ * window, and swallowed) or answered an intent that does not match the row.
  */
 async function healUnconfirmedPurchase(
   db: Db,
   payments: PaymentGateway,
   paymentIntentId: string,
-): Promise<void> {
+): Promise<StripeWord> {
   const claimed = await claimHealRead(db, paymentIntentId);
-  if (!claimed) return;
+  if (!claimed) return "unread";
   const log = serverLogger("checkout");
   let intent: PaymentIntentView | null;
   try {
@@ -443,55 +617,87 @@ async function healUnconfirmedPurchase(
         { err: error, paymentIntentId },
         "status read could not ask Stripe about an unconfirmed payment: answered from its row",
       );
-      return;
+      return "unread";
     }
     throw error;
   }
-  if (intent === null) return;
+  if (intent === null) return "unread";
   if (intent.status === "requires_capture") {
     const result = await takeAuthorizedIntent(db, paymentIntentId, intent);
     log.info(
       { paymentIntentId, ...result },
       "unconfirmed payment found authorized by a status read",
     );
-  } else if (intent.status === "canceled") {
+    return "taken";
+  }
+  if (intent.status === "canceled") {
     const changed = await markPurchaseFailed(db, paymentIntentId, CUSTOMER_MESSAGES.cancelled);
     log.info({ paymentIntentId, changed }, "unconfirmed payment found cancelled by a status read");
+    return "unpaid";
   }
+  const abandoned = await cancelAbandonedPurchase(db, payments, paymentIntentId, intent.status);
+  if (abandoned === "canceled") return "unpaid";
+  if (abandoned === "not_cancelable") return "pending";
+  return wordOf(intent.status);
 }
 
 /**
- * GET /api/checkout/:pi: `checkoutStatus`, after healing a payment that is still
- * `requires_payment` `CHECKOUT_HEAL_AFTER_SECONDS` after it was created or last looked at (see
+ * GET /api/checkout/:pi: `checkoutStatus`, after healing a payment still open
+ * `CHECKOUT_HEAL_AFTER_SECONDS` after it was created or last looked at (see
  * `healUnconfirmedPurchase`): the confirmation may have been lost and the webhook may never come,
  * and the fan polls this route until the end. Stripe is read at most once per payment per window,
- * whoever polls, and never for a payment that is `processing` or already ended. A Stripe failure
- * never fails the poll: it answers the row's state with its usual 200.
+ * whoever polls, and never for a payment that is `processing`, ended, or `failed` with its
+ * purchase job. A Stripe failure never fails the poll: it answers with its usual 200.
+ *
+ * A `failed` payment with no purchase job (a declined attempt) is not final: the fan may have paid
+ * the same intent with another card since, and a webhook still on its way would hand it to the
+ * engine. So this route answers it on Stripe's word only, never on the row's:
+ *
+ * - `failed` (the row's message) when this very read found Stripe's intent unpaid or over
+ *   (`STRIPE_UNPAID_STATUSES`, or cancelled here as abandoned);
+ * - `processing` when it found the card authorized (the purchase is taken: the row says so) or
+ *   pending at Stripe (`requires_action`, `processing`);
+ * - `requires_payment` when this read did not ask Stripe (inside the window, or another poll holds
+ *   the claim), could not read it, or found an intent that does not match the row: not authorized
+ *   as far as this read knows, and not over.
+ *
+ * Every other row is answered as it is: a `failed` this route answers is therefore always either
+ * Stripe's word or the engine's ending.
  */
 export async function pollCheckoutStatus(
   db: Db,
   payments: PaymentGateway,
   paymentIntentId: string,
 ): Promise<CheckoutStatusResponse> {
-  await healUnconfirmedPurchase(db, payments, paymentIntentId);
-  return checkoutStatus(db, paymentIntentId);
+  const word = await healUnconfirmedPurchase(db, payments, paymentIntentId);
+  const row = await readStatusRow(db, paymentIntentId);
+  if (row.status === "failed" && !row.job) {
+    if (word === "unpaid") return answerOfRow(paymentIntentId, row);
+    if (word === "pending" || word === "taken") return PROCESSING;
+    return REQUIRES_PAYMENT;
+  }
+  return answerOfRow(paymentIntentId, row);
 }
 
 /**
  * POST /api/checkout/:pi/confirm: called by the front once the payment sheet confirmed, and by the
  * pick-up of a purchase whose card the page never saw authorized. Runs `processAuthorizedPurchase`
  * (the same path as the webhook), which reads Stripe on every call, then answers the current
- * status. Its `requires_payment` therefore means Stripe itself said the card is unpaid or the
- * payment over (`STRIPE_UNPAID_STATUSES`), and the pick-up lets its record go on it:
+ * status. Its `requires_payment`, and its `failed` for a payment with no purchase job, therefore
+ * mean Stripe itself said the card is unpaid or the payment over (`STRIPE_UNPAID_STATUSES`), and
+ * the pick-up lets its record go on them:
  *
  * - Stripe cannot be read: 502 (`paymentUnavailable`);
  * - Stripe does not know the intent (404), or it does not match its row (another account, another
  *   mode, another purchase): 502 as well, logged. The row's `requires_payment` would say « not
  *   authorized » for a payment nobody could check;
  * - the card not authorized yet but pending at Stripe (`requires_action`, `processing`, or any
- *   status outside `STRIPE_UNPAID_STATUSES`) while the row is `requires_payment`: `processing`.
- *   The purchase may still be authorized without the page (a 3-D Secure approval in a bank app);
- *   the status read's heal takes it once Stripe says `requires_capture`;
+ *   status outside `STRIPE_UNPAID_STATUSES`) while the payment is open (`requires_payment`, or
+ *   `failed` by a declined attempt with no purchase job): `processing`. The purchase may still be
+ *   authorized without the page (a 3-D Secure approval in a bank app); the status read's heal
+ *   takes it once Stripe says `requires_capture`;
+ * - an intent waiting on the fan for longer than ABANDONED_PURCHASE_AFTER_SECONDS: cancelled at
+ *   Stripe (`cancelAbandonedPurchase`), and `failed` with the cancellation message;
  * - an unknown payment: 404 `not_found`.
  */
 export async function confirmCheckout(
@@ -520,19 +726,33 @@ export async function confirmCheckout(
     );
     throw paymentUnavailable();
   }
-  const current = await checkoutStatus(db, paymentIntentId);
-  if (
-    result.outcome === "not_authorized" &&
-    current.status === "requires_payment" &&
-    !STRIPE_UNPAID_STATUSES.includes(result.stripeStatus)
-  ) {
+  let word: StripeWord = "taken";
+  if (result.outcome === "not_authorized") {
+    const abandoned = await cancelAbandonedPurchase(
+      db,
+      payments,
+      paymentIntentId,
+      result.stripeStatus,
+    );
+    word =
+      abandoned === "canceled"
+        ? "unpaid"
+        : abandoned === "not_cancelable"
+          ? "pending"
+          : wordOf(result.stripeStatus);
+  }
+  const row = await readStatusRow(db, paymentIntentId);
+  if (word === "pending" && isOpen(row)) {
     log.info(
-      { paymentIntentId, stripeStatus: result.stripeStatus },
+      {
+        paymentIntentId,
+        stripeStatus: result.outcome === "not_authorized" ? result.stripeStatus : null,
+      },
       "confirmation found the payment pending at Stripe: answered processing",
     );
-    return { status: "processing", ticketToken: null, message: null };
+    return PROCESSING;
   }
-  return current;
+  return answerOfRow(paymentIntentId, row);
 }
 
 /**
@@ -551,12 +771,28 @@ export async function markPurchaseFailed(
   paymentIntentId: string,
   message: string,
 ): Promise<boolean> {
+  return failPurchase(db, paymentIntentId, message, { replaceFailed: false });
+}
+
+/**
+ * `markPurchaseFailed`, and with `replaceFailed` also a payment already `failed` (with no purchase
+ * job) whose message is replaced: an intent cancelled at Stripe after a declined attempt says so.
+ */
+async function failPurchase(
+  db: Db,
+  paymentIntentId: string,
+  message: string,
+  { replaceFailed }: { replaceFailed: boolean },
+): Promise<boolean> {
   const key = jobIdempotencyKey.purchase(paymentIntentId);
+  const ended: readonly CheckoutStatus[] = replaceFailed
+    ? ["ticketed", "cancelled_paused"]
+    : ["ticketed", "cancelled_paused", "failed"];
   return db.begin(async (tx) => {
     const [locked] = await tx<{ status: CheckoutStatus }[]>`
       select status from payments where stripe_pi = ${paymentIntentId} for update
     `;
-    if (!locked || ["ticketed", "cancelled_paused", "failed"].includes(locked.status)) {
+    if (!locked || ended.includes(locked.status)) {
       return false;
     }
     const [job] = await tx<{ found: boolean }[]>`

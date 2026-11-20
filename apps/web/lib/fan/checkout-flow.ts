@@ -29,6 +29,11 @@ import { copy } from "@/lib/copy";
  * payable with another card, and the back end takes it again once authorized), an error from Stripe
  * or the network, a form that is not valid, and a wait that reached its bound.
  *
+ * A `failed` status read is the end only once this attempt has a word that read Stripe or the
+ * engine (see `followCheckout`): a payment failed by a declined attempt is taken again when another
+ * card authorizes the same intent, and a status read that has not asked Stripe yet can still say
+ * `failed` for it.
+ *
  * It is written against `CheckoutDeps` so it can be tested without a network, and against a
  * `validate` and an `authorize` step so that Stripe (or a stand-in) plugs in without touching the rest.
  */
@@ -85,8 +90,19 @@ export interface CheckoutDeps {
   confirm: (pi: string, signal: AbortSignal) => Promise<CheckoutStatusResponse>;
   status: (pi: string, signal: AbortSignal) => Promise<CheckoutStatusResponse>;
   sleep: (ms: number, signal: AbortSignal) => Promise<void>;
-  /** The clock of the wait's bound; `Date.now` when left out. */
+  /** The clock of the wait's bound, in ms; `monotonicNow` when left out. */
   now?: () => number;
+}
+
+/**
+ * The default clock of the bounds: `performance.now()`, which only moves forward, where the page
+ * has it, else `Date.now()`. The device's wall clock can jump backwards (a manual change, a network
+ * time correction), which would stretch a minute measured on it.
+ */
+export function monotonicNow(): number {
+  return typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
 }
 
 /**
@@ -269,7 +285,10 @@ export interface FollowInput {
   signal: AbortSignal;
   /** Called after each poll that found the purchase still on its way, with the seconds waited. */
   onWaiting?: (seconds: number) => void;
-  /** A first answer already in hand (the confirmation's): no poll when it is final. */
+  /**
+   * The confirmation's answer for this attempt, when it answered: no poll when it is final, and
+   * the status read's `failed` is the end from the first poll. Null when it did not answer.
+   */
   first?: CheckoutStatusResponse | null;
   /**
    * When the wait began on `deps.now`, so that the time the confirmation took counts toward the
@@ -284,13 +303,22 @@ export interface FollowInput {
  * (`unresolved`). A poll that fails on the network is tried again, never turned into a failure.
  * Each poll runs within the time left before that bound (`withinBound`): a read that hangs is cut
  * and counts as no answer, so the wait ends on time whatever the network does.
+ *
+ * A status read's `failed` ends the wait only once this attempt has a word from Stripe or the
+ * engine: the confirmation answered (`first`), or a status read answered `processing` (the
+ * purchase was taken, or Stripe was read and said pending). Before that, it is followed as « not
+ * yet »: when the confirmation was lost, a payment failed by an earlier declined card says
+ * `failed` until a read asks Stripe, whose answer may be the card this tap just authorized.
+ * `cancelled_paused` and `ticketed` end it at once, as always.
  */
 export async function followCheckout(
   paymentIntentId: string,
   { signal, onWaiting, first = null, startedAt: since, deps = apiCheckoutDeps }: FollowInput,
 ): Promise<CheckoutOutcome> {
-  const now = deps.now ?? Date.now;
+  const now = deps.now ?? monotonicNow;
   let outcome = first === null ? null : outcomeOf(first);
+  // This attempt has a word that read Stripe or the engine: a `failed` read is then the end.
+  let settled = first !== null;
   const startedAt = since ?? now();
   const deadline = startedAt + WAIT_LIMIT_SECONDS * 1000;
   while (outcome === null) {
@@ -303,7 +331,11 @@ export async function followCheckout(
         signal,
         Math.max(STATUS_POLL_MS, deadline - now()),
       );
-      if (read !== null) outcome = outcomeOf(read);
+      if (read !== null) {
+        if (read.status === "processing") settled = true;
+        // Not the end yet: a payment failed by an earlier attempt, before any word on this one.
+        outcome = read.status === "failed" && !settled ? null : outcomeOf(read);
+      }
     } catch (error: unknown) {
       if (isAbortError(error)) throw error;
       // A dropped connection: ask again.
@@ -375,7 +407,7 @@ export async function runCheckout({
 
   // The minute of the wait starts here: a confirmation that hangs is cut at its end, and the time
   // it took counts toward it.
-  const securingSince = (deps.now ?? Date.now)();
+  const securingSince = (deps.now ?? monotonicNow)();
   let latest: CheckoutStatusResponse | null = null;
   try {
     latest = await withinBound(
@@ -428,16 +460,19 @@ export interface ResumeInput {
  *   - `ticketed`: the ticket opens;
  *   - `processing`, or `requires_payment` for a card this page saw authorized: the wait is shown
  *     (`onSecuring`) and followed as after a tap, up to WAIT_LIMIT_SECONDS (`unresolved`);
- *   - `requires_payment` for a card never seen authorized: followed quietly; past
+ *   - `requires_payment` or `failed` for a card never seen authorized: followed quietly; past
  *     RESUME_UNSEEN_LIMIT_SECONDS the confirmation is asked (`POST /api/checkout/:pi/confirm`, at
  *     most once per RESUME_VERIFY_EVERY_SECONDS), which reads Stripe itself. Only its
  *     `requires_payment` (Stripe said unpaid or over) lets the record go (`gone`), and so does any
  *     other end it answers before a ticket. Its `processing` (authorized, or pending at Stripe:
  *     a 3-D Secure approval still open) shows the wait. The status read's own `requires_payment`
- *     is never enough: it answers the row when it could not read Stripe. A failed call (a 502
- *     when Stripe cannot be read, the network) proves nothing and the record stays;
- *   - `cancelled_paused` or `failed`: the ending, when the wait was shown or the card was seen
- *     authorized; otherwise `gone` (a card declined, then the page left);
+ *     is never enough: it answers the row when it could not read Stripe. Nor is its `failed`: a
+ *     payment failed by a declined card is taken again when another card authorizes the same
+ *     intent, and the webhook that would hand it over may still be on its way. A failed call (a
+ *     502 when Stripe cannot be read, the network) proves nothing and the record stays;
+ *   - `cancelled_paused`: the ending, when the wait was shown or the card was seen authorized;
+ *     otherwise `gone` (the promo paused before the card was seen authorized). `failed` likewise,
+ *     once the wait was shown or the card was seen authorized;
  *   - a payment the API does not know (a JSON 404 `not_found`, from the status read or the
  *     confirmation): `gone`. Any other 404 (a broken deployment) is a failed call.
  *
@@ -457,7 +492,7 @@ export async function resumeCheckout({
   onWaiting,
   deps = apiCheckoutDeps,
 }: ResumeInput): Promise<ResumeOutcome> {
-  const now = deps.now ?? Date.now;
+  const now = deps.now ?? monotonicNow;
   const startedAt = now();
   const elapsedSeconds = (): number => Math.round((now() - startedAt) / 1000);
   const timeLeftMs = (): number =>
@@ -485,7 +520,10 @@ export async function resumeCheckout({
       if (isUnknownPayment(error)) return { kind: "gone" };
       // A dropped connection, a 5xx: ask again.
     }
-    if (response !== null) {
+    // For a card never seen authorized, the status read's `failed` is no proof that it is over:
+    // followed as its `requires_payment` is, until the confirmation says so.
+    const unproven = response?.status === "requires_payment" || response?.status === "failed";
+    if (response !== null && !(unproven && !shown)) {
       const outcome = outcomeOf(response);
       if (outcome !== null) {
         if (outcome.kind === "ticketed" || shown) return outcome;
@@ -496,7 +534,7 @@ export async function resumeCheckout({
     let seconds = elapsedSeconds();
     if (
       !shown &&
-      response?.status === "requires_payment" &&
+      unproven &&
       seconds >= RESUME_UNSEEN_LIMIT_SECONDS &&
       seconds >= nextVerifyAt &&
       seconds < WAIT_LIMIT_SECONDS

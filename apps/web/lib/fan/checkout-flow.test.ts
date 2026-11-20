@@ -8,6 +8,7 @@ import {
   WAIT_LIMIT_SECONDS,
   apiCheckoutDeps,
   createCheckoutMemory,
+  monotonicNow,
   outcomeOf,
   runCheckout,
   type Authorize,
@@ -29,6 +30,16 @@ const ticketed: CheckoutStatusResponse = {
   status: "ticketed",
   ticketToken: "tkt_1",
   message: null,
+};
+
+const failed: CheckoutStatusResponse = {
+  status: "failed",
+  ticketToken: null,
+  message: "Your payment did not go through, you were not charged",
+};
+const declined: CheckoutOutcome = {
+  kind: "failed",
+  message: "Your payment did not go through, you were not charged",
 };
 
 const authorized: Authorize = () => Promise.resolve({ ok: true });
@@ -222,6 +233,12 @@ describe("runCheckout", () => {
     expect(status).toHaveBeenCalledTimes(2);
   });
 
+  it("stops on the confirmation's failed: its word was read at Stripe or is the engine's", async () => {
+    const d = deps({ confirm: vi.fn().mockResolvedValue(failed) });
+    expect(await run(d)).toEqual(declined);
+    expect(d.status).not.toHaveBeenCalled();
+  });
+
   it("rejects when the shopper leaves", async () => {
     const controller = new AbortController();
     const d = deps({
@@ -239,6 +256,115 @@ describe("runCheckout", () => {
         deps: d,
       }),
     ).rejects.toThrow("Aborted");
+  });
+});
+
+describe("after a tap: a status read's failed is the end only once this attempt has had a word", () => {
+  // A payment failed by an earlier declined card (the webhook, no purchase job) is taken again when
+  // this tap's card authorizes the same intent. When the confirmation is lost, a status read that
+  // has not asked Stripe yet may still say `failed`: it is not the end of this attempt.
+
+  /** Deps whose clock moves with each sleep, whose status answers `answers` in turn. */
+  function clocked(
+    confirm: CheckoutDeps["confirm"],
+    ...answers: CheckoutStatusResponse[]
+  ): CheckoutDeps & { clock: () => number } {
+    let clock = 0;
+    let index = 0;
+    return {
+      create: vi.fn().mockResolvedValue(CHECKOUT),
+      confirm: vi.fn().mockImplementation(confirm),
+      status: vi.fn().mockImplementation(() => {
+        const answer = answers[Math.min(index, answers.length - 1)];
+        index += 1;
+        return Promise.resolve(answer);
+      }),
+      sleep: vi.fn().mockImplementation((ms: number) => {
+        clock += ms;
+        return Promise.resolve();
+      }),
+      now: () => clock,
+      clock: () => clock,
+    };
+  }
+
+  const lost = (): Promise<never> => Promise.reject(new ApiError(0, "network", "offline"));
+
+  function tap(d: CheckoutDeps, memory = createCheckoutMemory()): Promise<CheckoutOutcome> {
+    return runCheckout({
+      slug: "joes-texas",
+      qty: 2,
+      authorize: authorized,
+      signal: new AbortController().signal,
+      memory,
+      deps: d,
+    });
+  }
+
+  it("the confirmation lost, every read failed: followed to the bound, the payment kept", async () => {
+    const memory = createCheckoutMemory();
+    const d = clocked(lost, failed);
+    expect(await tap(d, memory)).toEqual({ kind: "unresolved" });
+    expect(d.clock()).toBe(WAIT_LIMIT_SECONDS * 1000);
+    // Kept: the next tap follows this payment instead of paying again.
+    expect(memory.peek()).toEqual(CHECKOUT);
+    expect(d.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("the confirmation lost, failed until a read asks Stripe: the purchase is followed to its ticket", async () => {
+    const memory = createCheckoutMemory();
+    const d = clocked(lost, failed, failed, processing, ticketed);
+    expect(await tap(d, memory)).toEqual({ kind: "ticketed", token: "tkt_1" });
+    expect(d.status).toHaveBeenCalledTimes(4);
+  });
+
+  it("the confirmation lost, failed after a read answered processing: the end (Stripe's or the engine's word)", async () => {
+    const memory = createCheckoutMemory();
+    const d = clocked(lost, failed, processing, failed);
+    expect(await tap(d, memory)).toEqual(declined);
+    expect(d.status).toHaveBeenCalledTimes(3);
+    expect(memory.peek()).toBeNull();
+  });
+
+  it("the confirmation answered: a status read's failed is the end, as before", async () => {
+    const memory = createCheckoutMemory();
+    const d = clocked(() => Promise.resolve(processing), failed);
+    expect(await tap(d, memory)).toEqual(declined);
+    expect(d.status).toHaveBeenCalledTimes(1);
+    expect(memory.peek()).toBeNull();
+  });
+
+  it("the confirmation lost, a promo paused between the tap and the capture: ends at once, as before", async () => {
+    const memory = createCheckoutMemory();
+    const d = clocked(lost, {
+      status: "cancelled_paused",
+      ticketToken: null,
+      message: "Promo just paused, you were not charged",
+    });
+    expect(await tap(d, memory)).toEqual({
+      kind: "cancelled",
+      message: "Promo just paused, you were not charged",
+    });
+    expect(d.status).toHaveBeenCalledTimes(1);
+    expect(memory.peek()).toBeNull();
+  });
+
+  it("a card declined at the tap ends at once, as before: nothing confirmed, nothing read", async () => {
+    const memory = createCheckoutMemory();
+    const d = clocked(lost, failed);
+    const outcome = await runCheckout({
+      slug: "joes-texas",
+      qty: 2,
+      authorize: () => Promise.resolve({ ok: false, message: "Card declined" }),
+      signal: new AbortController().signal,
+      memory,
+      deps: d,
+    });
+    expect(outcome).toEqual({ kind: "failed", message: "Card declined" });
+    expect(d.confirm).not.toHaveBeenCalled();
+    expect(d.status).not.toHaveBeenCalled();
+    // A declined card does not end the payment: the next tap pays it with another card.
+    expect(memory.peek()).toEqual(CHECKOUT);
   });
 });
 
@@ -261,7 +387,7 @@ describe("the wait after a tap ends on time whatever the network does", () => {
     });
   }
 
-  /** The production sleep and `Date.now`, both on vitest's fake timers. */
+  /** The production sleep and clock (`performance.now`), both on vitest's fake timers. */
   function timedDeps(overrides: Partial<CheckoutDeps>): CheckoutDeps {
     return {
       create: vi.fn().mockResolvedValue(CHECKOUT),
@@ -355,6 +481,52 @@ describe("the wait after a tap ends on time whatever the network does", () => {
     } finally {
       controller.abort();
     }
+  });
+
+  it("reads answer for 55 s, then one hangs: the wait still ends by about 62 s", async () => {
+    // Each read runs within the time left before the minute, not a minute of its own: a read
+    // that starts at 55 s and hangs is cut at 60 s, not at 115 s.
+    const controller = new AbortController();
+    const start0 = Date.now();
+    const status = vi
+      .fn()
+      .mockImplementation((pi: string, signal: AbortSignal) =>
+        Date.now() - start0 >= 55_000 ? hanging(pi, signal) : Promise.resolve(processing),
+      );
+    const d = timedDeps({ status });
+    const { settled, memory } = start(d, controller);
+    try {
+      await vi.advanceTimersByTimeAsync(55_000);
+      expect(settled()).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(7_000);
+      expect(settled()).toEqual({ kind: "unresolved" });
+      expect(memory.peek()).toEqual(CHECKOUT);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      controller.abort();
+    }
+  });
+
+  it("the device's clock set back an hour does not stretch the minute: the bound is monotonic", async () => {
+    const controller = new AbortController();
+    const d = timedDeps({ status: vi.fn().mockResolvedValue(processing) });
+    const { settled } = start(d, controller);
+    try {
+      await vi.advanceTimersByTimeAsync(30_000);
+      vi.setSystemTime(Date.now() - 3_600_000);
+      await vi.advanceTimersByTimeAsync(WAIT_LIMIT_SECONDS * 1000 - 30_000 + 2 * STATUS_POLL_MS);
+      expect(settled()).toEqual({ kind: "unresolved" });
+    } finally {
+      controller.abort();
+    }
+  });
+
+  it("the default clock is performance.now(), which vitest's fake timers drive", async () => {
+    const before = monotonicNow();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(monotonicNow() - before).toBe(5_000);
+    vi.setSystemTime(Date.now() - 3_600_000);
+    expect(monotonicNow() - before).toBe(5_000);
   });
 
   it("the shopper leaving during a confirmation that hangs still rejects with the abort", async () => {
