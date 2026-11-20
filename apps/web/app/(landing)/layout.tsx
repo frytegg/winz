@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import "./landing.css";
 import "./process.css";
+import "./install.css";
 import { landingLinks } from "./landing.config";
 
 /**

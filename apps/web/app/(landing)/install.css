@@ -1,0 +1,111 @@
+/*
+ * The install sheet (09-install-flow.md): one native <dialog>, a bottom sheet on a phone and a small panel
+ * under its button on a desktop. Scoped by class, loaded with the landing's layout.
+ *
+ * The app's global focus ring is lime, which does not show on white: inside the sheet and the footer it is ink.
+ */
+.install-sheet :focus-visible,
+.landing-footer :focus-visible {
+  outline-color: var(--color-ink);
+}
+
+.install-sheet {
+  margin: auto auto 0;
+  width: 100%;
+  max-width: 480px;
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 1rem);
+  padding: 0;
+  border: 0;
+  border-radius: 28px 28px 0 0;
+  background: #fff;
+  color: var(--color-ink);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-shadow: 0 -8px 40px rgb(19 19 20 / 0.14);
+}
+
+/* The page behind does not scroll under a thumb (the panel of a desktop leaves it alone: no scrollbar jump). */
+html:has(.install-sheet[open]:not([data-kind="desktop-qr"])) {
+  overflow: hidden;
+}
+
+/* Rising takes 240 ms and moves only a transform; the dimming behind it is an opacity. */
+@keyframes install-sheet-rise {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes install-sheet-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes install-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.install-sheet[open] {
+  animation: install-sheet-rise 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.install-sheet::backdrop {
+  background: rgb(19 19 20 / 0.55);
+}
+
+.install-sheet[open]::backdrop {
+  animation: install-sheet-fade 240ms ease-out;
+}
+
+/* A desktop: a panel anchored under its button (the position is set by the sheet, from the button's box). */
+.install-sheet[data-kind="desktop-qr"] {
+  position: fixed;
+  inset: auto;
+  left: var(--panel-left, 50%);
+  top: var(--panel-top, 50%);
+  margin: 0;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  border-radius: 20px;
+  box-shadow:
+    0 24px 64px rgb(19 19 20 / 0.22),
+    0 0 0 1px rgb(19 19 20 / 0.06);
+}
+
+.install-sheet[data-kind="desktop-qr"][open] {
+  animation: install-panel-in 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.install-sheet[data-kind="desktop-qr"]::backdrop {
+  background: transparent;
+}
+
+/* No handle on a panel: it is not dragged. */
+.install-sheet[data-kind="desktop-qr"] .install-handle {
+  display: none;
+}
+
+/* The arrow that points at the toolbar of Safari: it nudges toward it, forever, gently. */
+@keyframes install-arrow-nudge {
+  50% {
+    transform: translateY(3px);
+  }
+}
+
+.install-arrow {
+  animation: install-arrow-nudge 1.4s cubic-bezier(0.77, 0, 0.175, 1) infinite;
+}
+
+/* The global reduced-motion rule shortens an animation to 1 ms; here there is none at all. */
+@media (prefers-reduced-motion: reduce) {
+  .install-sheet[open],
+  .install-sheet[open]::backdrop,
+  .install-sheet[data-kind="desktop-qr"][open],
+  .install-arrow {
+    animation: none;
+  }
+}

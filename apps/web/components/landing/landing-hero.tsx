@@ -1,7 +1,7 @@
 import { landingCopy } from "@/lib/landing/copy";
 
 import { LandingPicture } from "./landing-picture";
-import { PrimaryButton } from "./primary-button";
+import { TryDemoButton } from "./try-demo-button";
 
 const { hero, heroTitle } = landingCopy;
 
@@ -55,9 +55,9 @@ export function LandingHero({
         </p>
 
         <div className="landing-rise mt-6 [--rise-step:3] lg:mt-[calc(19*var(--u))]">
-          <PrimaryButton href={liveDemoUrl} tone="on-dark">
+          <TryDemoButton href={liveDemoUrl} tone="on-dark" bestOnPhone>
             {hero.cta}
-          </PrimaryButton>
+          </TryDemoButton>
         </div>
 
         <div className="landing-rise-phones -mb-[1.2cqw] mt-10 w-full md:w-[90%] lg:mt-[calc(95*var(--u))] lg:w-[calc(1033*var(--u))]">

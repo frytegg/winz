@@ -2,7 +2,7 @@ import { landingCopy } from "@/lib/landing/copy";
 
 import { DemoPlayer } from "./demo-player";
 import { LandingPicture } from "./landing-picture";
-import { PrimaryButton } from "./primary-button";
+import { TryDemoButton } from "./try-demo-button";
 
 const { demo, demoTitle } = landingCopy;
 
@@ -52,9 +52,9 @@ export function LandingDemo({
         </h2>
 
         <div className="mt-6 lg:mt-[calc(16*var(--u))]">
-          <PrimaryButton href={liveDemoUrl} tone="on-dark">
+          <TryDemoButton href={liveDemoUrl} tone="on-dark" bestOnPhone>
             {demo.cta}
-          </PrimaryButton>
+          </TryDemoButton>
         </div>
 
         <div className="mt-10 w-full lg:mt-[calc(73*var(--u))]">

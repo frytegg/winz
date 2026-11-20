@@ -160,35 +160,82 @@ export function createSessionFlag(
   };
 }
 
-/** The panel's position: its top-left corner, in the window's coordinates. */
+/** The panel's position: its top-left corner in the window's coordinates, and how far to scroll first. */
 export interface PanelPosition {
   readonly left: number;
   readonly top: number;
+  /** Pixels to scroll the page DOWN before showing the panel, so that it fits under its button (0: none). `top` already counts it. */
+  readonly scrollBy: number;
 }
 
 /**
- * Where the desktop panel goes: under the button, its right edge on the button's right edge when that keeps
- * it in the window, flipped above the button when there is no room below, and always at least `margin` from
- * every edge. (A panel taller than the window sits at the top margin: the window scrolls it.)
+ * Where the desktop panel goes, never over its own button and always inside the window:
+ *  1. under the button, centred on it, when it fits;
+ *  2. above it, when it does not fit below and does fit there;
+ *  3. under it after scrolling the page up by what is missing, when the page can go that far and the button
+ *     stays in view (the middle of a first screen: the hero's button, with a panel half the window tall);
+ *  4. beside it (right, else left), centred on it vertically (a button near the end of the page, where
+ *     there is no room above and the page cannot scroll any more: the footer's);
+ *  5. in a window too small for any of that, at the bottom margin: it covers the button, which a modal may.
+ * At least `margin` from every edge.
  */
 export function anchorPanel(input: {
   anchor: { left: number; right: number; top: number; bottom: number };
   panel: { width: number; height: number };
   viewport: { width: number; height: number };
+  /** How far the page can still scroll down, in pixels. */
+  scrollRoom?: number;
   gap?: number;
   margin?: number;
 }): PanelPosition {
   const { anchor, panel, viewport } = input;
   const gap = input.gap ?? 12;
   const margin = input.margin ?? 16;
+  const clamp = (value: number, low: number, high: number): number =>
+    Math.max(low, Math.min(value, Math.max(low, high)));
 
   const maxLeft = Math.max(margin, viewport.width - panel.width - margin);
   const centred = anchor.left + (anchor.right - anchor.left) / 2 - panel.width / 2;
-  const left = Math.min(Math.max(centred, margin), maxLeft);
+  const left = Math.round(clamp(centred, margin, maxLeft));
+  const lowest = viewport.height - margin - panel.height;
 
   const below = anchor.bottom + gap;
-  const fitsBelow = below + panel.height <= viewport.height - margin;
+  const missing = below + panel.height - (viewport.height - margin);
+  if (missing <= 0) return { left, top: Math.round(below), scrollBy: 0 };
+
   const above = anchor.top - gap - panel.height;
-  const top = fitsBelow ? below : Math.max(margin, above);
-  return { left: Math.round(left), top: Math.round(top) };
+  if (above >= margin) return { left, top: Math.round(above), scrollBy: 0 };
+
+  const scrollBy = Math.round(
+    Math.max(0, Math.min(missing, anchor.top - margin, input.scrollRoom ?? 0)),
+  );
+  if (scrollBy >= missing) return { left, top: Math.round(below - scrollBy), scrollBy };
+
+  const middle = anchor.top + (anchor.bottom - anchor.top) / 2 - panel.height / 2;
+  const sideTop = Math.round(clamp(middle, margin, lowest));
+  const right = anchor.right + gap;
+  if (right + panel.width <= viewport.width - margin) {
+    return { left: Math.round(right), top: sideTop, scrollBy: 0 };
+  }
+  const leftSide = anchor.left - gap - panel.width;
+  if (leftSide >= margin) return { left: Math.round(leftSide), top: sideTop, scrollBy: 0 };
+
+  return { left, top: Math.round(clamp(below - scrollBy, margin, lowest)), scrollBy };
+}
+
+/** The QR code of an address, drawn by the server from its module matrix (`lib/qr.ts`). */
+export interface InstallQr {
+  readonly size: number;
+  /** An SVG path covering every dark module, one 1 x 1 square each. */
+  readonly path: string;
+  /** What it encodes, absolute. */
+  readonly target: string;
+  /** What a person reads under it: the host. */
+  readonly host: string;
+}
+
+/** Where the app is, for one family of buttons, and the QR that leads a phone there. */
+export interface InstallTarget {
+  readonly url: string | null;
+  readonly qr: InstallQr | null;
 }
