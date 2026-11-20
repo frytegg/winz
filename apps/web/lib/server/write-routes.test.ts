@@ -400,19 +400,44 @@ describe("checkout end to end", () => {
     await send("payment_intent.payment_failed", declined);
     await send("payment_intent.canceled", ticketed);
 
-    const read = async (pi: string): Promise<unknown> =>
-      json(await getCheckout(new Request(`http://localhost/api/checkout/${pi}`), params({ pi })));
-    const cancelledStatus = checkoutStatusResponseSchema.parse(await read(cancelled));
+    const rows = await db<{ stripe_pi: string; status: string; message: string | null }[]>`
+      select stripe_pi, status, message from payments where stripe_pi in ${db(pis)}
+    `;
+    expect(
+      Object.fromEntries(rows.map((row) => [row.stripe_pi, [row.status, row.message]])),
+    ).toEqual({
+      [cancelled]: ["failed", "Your payment was cancelled, you were not charged"],
+      [declined]: ["failed", "Your payment did not go through, you were not charged"],
+      [ticketed]: ["ticketed", null],
+    });
+
+    // A `failed` payment with no purchase job is answered on Stripe's word: the confirmation reads
+    // Stripe on every call; the status read reads it once its 5 s window has passed and answers
+    // `requires_payment` until then (another card may have paid the same intent since).
+    const confirmed = async (pi: string): Promise<unknown> =>
+      json(await postConfirm(post(`/api/checkout/${pi}/confirm`, ""), params({ pi })));
+    const cancelledStatus = checkoutStatusResponseSchema.parse(await confirmed(cancelled));
     expect(cancelledStatus).toEqual({
       status: "failed",
       ticketToken: null,
       message: "Your payment was cancelled, you were not charged",
     });
-    const declinedStatus = checkoutStatusResponseSchema.parse(await read(declined));
-    expect(declinedStatus.status).toBe("failed");
+    const declinedStatus = checkoutStatusResponseSchema.parse(await confirmed(declined));
+    expect(declinedStatus).toEqual({
+      status: "failed",
+      ticketToken: null,
+      message: "Your payment did not go through, you were not charged",
+    });
     expect(cryptoWordsIn([cancelledStatus, declinedStatus])).toEqual([]);
-    const [row] = await db`select status from payments where stripe_pi = ${ticketed}`;
-    expect(row?.status).toBe("ticketed");
+    const polled = checkoutStatusResponseSchema.parse(
+      await json(
+        await getCheckout(
+          new Request(`http://localhost/api/checkout/${declined}`),
+          params({ pi: declined }),
+        ),
+      ),
+    );
+    expect(polled).toEqual({ status: "requires_payment", ticketToken: null, message: null });
   });
 
   it("a late failure event never fails a payment that was authorized since", async () => {

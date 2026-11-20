@@ -230,6 +230,56 @@ describe("resumeCheckout: the page picks up a purchase it lost", () => {
     expect(await resume(resumeDeps(failed)).run).toEqual({ kind: "gone" });
   });
 
+  it("does not take the status read's failed for an unseen card's end: the confirmation decides", async () => {
+    // A payment failed by a declined card A, then card B authorized on the same intent and the
+    // page lost before it saw it: the status read can still say `failed` (its heal has not asked
+    // Stripe yet, or could not). Followed as « unpaid » is, until the confirmation answers.
+    const followed = resumeDeps(
+      ...Array.from({ length: RESUME_UNSEEN_LIMIT_SECONDS + 1 }, () => failed),
+      processing,
+      ticketed,
+    );
+    followed.confirm = vi.fn().mockImplementation(inTurn([processing]));
+    const shown = resume(followed);
+    expect(await shown.run).toEqual({ kind: "ticketed", token: "tkt_1" });
+    expect(shown.onSecuring).toHaveBeenCalledTimes(1);
+    expect(callsOf(followed.confirm)).toBe(1);
+
+    // The confirmation cannot read Stripe: no proof either way, the record stays.
+    const unknown = resumeDeps(failed);
+    unknown.confirm = vi
+      .fn()
+      .mockImplementation(inTurn([new ApiError(502, "internal", "Stripe is unreachable")]));
+    expect(await resume(unknown).run).toEqual({ kind: "unresolved" });
+    expect(callsOf(unknown.confirm)).toBeGreaterThan(1);
+
+    // The confirmation says the payment is over: it goes, quietly.
+    const over = resumeDeps(failed);
+    over.confirm = vi.fn().mockImplementation(inTurn([failed]));
+    const quiet = resume(over);
+    expect(await quiet.run).toEqual({ kind: "gone" });
+    expect(quiet.onSecuring).not.toHaveBeenCalled();
+    expect(callsOf(over.confirm)).toBe(1);
+    expect(callsOf(over.status)).toBe(RESUME_UNSEEN_LIMIT_SECONDS + 1);
+  });
+
+  it("still lets an unseen card go at once on cancelled_paused, and ends a seen one on failed", async () => {
+    const paused = resumeDeps({
+      status: "cancelled_paused",
+      ticketToken: null,
+      message: "Promo just paused, you were not charged",
+    });
+    expect(await resume(paused).run).toEqual({ kind: "gone" });
+    expect(paused.confirm).not.toHaveBeenCalled();
+    expect(paused.sleep).not.toHaveBeenCalled();
+    const seen = resumeDeps(failed);
+    expect(await resume(seen, true).run).toEqual({
+      kind: "failed",
+      message: "Something went wrong, you were not charged",
+    });
+    expect(seen.confirm).not.toHaveBeenCalled();
+  });
+
   it("lets go a payment the API does not know, and asks again after a dropped connection", async () => {
     // At the first read, and even for a card seen authorized (which would otherwise be followed
     // for a minute and end « unresolved »).
@@ -282,15 +332,26 @@ describe("resumeCheckout: the page picks up a purchase it lost", () => {
     deps.confirm = vi
       .fn()
       .mockImplementation(inTurn([new ApiError(502, "internal", "Stripe is unreachable")]));
+    const askedAt: number[] = [];
+    const answer = deps.confirm;
+    deps.confirm = vi.fn().mockImplementation((pi: string, signal: AbortSignal) => {
+      askedAt.push(deps.now?.() ?? NaN);
+      return answer(pi, signal);
+    });
     const { run } = resume(deps);
     expect(await run).toEqual({ kind: "unresolved" });
-    const asked = (deps.confirm as ReturnType<typeof vi.fn>).mock.calls.length;
-    expect(asked).toBeGreaterThan(0);
-    // At most once per RESUME_VERIFY_EVERY_SECONDS between the bound and the minute.
-    expect(asked).toBeLessThanOrEqual(
-      Math.ceil((WAIT_LIMIT_SECONDS - RESUME_UNSEEN_LIMIT_SECONDS) / RESUME_VERIFY_EVERY_SECONDS) +
-        1,
-    );
+    // Once per RESUME_VERIFY_EVERY_SECONDS from the unseen bound, and none at or past the minute:
+    // 15, 20, … 55 s.
+    const expected: number[] = [];
+    for (
+      let second = RESUME_UNSEEN_LIMIT_SECONDS;
+      second < WAIT_LIMIT_SECONDS;
+      second += RESUME_VERIFY_EVERY_SECONDS
+    ) {
+      expected.push(second * 1000);
+    }
+    expect(askedAt).toEqual(expected);
+    expect(askedAt.every((at) => at < WAIT_LIMIT_SECONDS * 1000)).toBe(true);
     expect(deps.create).not.toHaveBeenCalled();
   });
 
@@ -474,7 +535,7 @@ describe("resumeCheckout: the pick-up never outlives its bound (real clock and s
     vi.useRealTimers();
   });
 
-  /** The production sleep and `Date.now`, both on vitest's fake timers. */
+  /** The production sleep and clock (`performance.now`), both on vitest's fake timers. */
   function timedDeps(overrides: Partial<CheckoutDeps>): CheckoutDeps {
     return {
       create: vi.fn(),
@@ -535,6 +596,22 @@ describe("resumeCheckout: the pick-up never outlives its bound (real clock and s
       }
     },
   );
+
+  it("the device's clock set back an hour does not stretch the minute: the bound is monotonic", async () => {
+    const controller = new AbortController();
+    const deps = timedDeps({
+      confirm: vi.fn().mockRejectedValue(new ApiError(502, "internal", "x")),
+    });
+    const { settled } = start(deps, controller);
+    try {
+      await vi.advanceTimersByTimeAsync(30_000);
+      vi.setSystemTime(Date.now() - 3_600_000);
+      await vi.advanceTimersByTimeAsync(WAIT_LIMIT_SECONDS * 1000 - 30_000 + 2 * STATUS_POLL_MS);
+      expect(settled()).toEqual({ kind: "unresolved" });
+    } finally {
+      controller.abort();
+    }
+  });
 
   it.each([
     ["answers only when its signal aborts", hanging],

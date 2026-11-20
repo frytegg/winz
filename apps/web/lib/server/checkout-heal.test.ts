@@ -440,14 +440,21 @@ describe("what a heal never does", () => {
     expect(payments.retrieveCalls).toBe(1);
     // The webhook's cancellation arriving now changes nothing.
     expect(await webhook("payment_intent.canceled", pi)).toBe(200);
+    expect(payments.retrieveCalls).toBe(2); // The webhook's own read.
+    // A `failed` payment with no purchase job is still asked about (another card could have paid
+    // the same intent): Stripe says cancelled, so the poll answers the ending.
     await age(pi);
-    expect((await poll(pi)).body.message).toBe(CUSTOMER_MESSAGES.cancelled);
-    expect(payments.retrieveCalls).toBe(2); // The webhook's own read; the poll read nothing.
+    expect((await poll(pi)).body).toEqual({
+      status: "failed",
+      ticketToken: null,
+      message: CUSTOMER_MESSAGES.cancelled,
+    });
+    expect(payments.retrieveCalls).toBe(3);
     expect(await purchaseJobs(pi)).toEqual([]);
   });
 
   it("a payment processing or ended is never read by a poll", async () => {
-    const statuses = ["processing", "ticketed", "cancelled_paused", "failed"] as const;
+    const statuses = ["processing", "ticketed", "cancelled_paused"] as const;
     for (const status of statuses) {
       const pi = await authorized();
       await db`update payments set status = ${status} where stripe_pi = ${pi}`;
