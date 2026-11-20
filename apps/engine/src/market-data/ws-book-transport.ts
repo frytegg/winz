@@ -40,6 +40,9 @@ interface PendingRequest {
 
 const LIVENESS_CHECK_MS = 1_000;
 
+/** Gemini's refusal of a subscribe request, e.g. "Invalid stream name: gemi-…@depth10@100ms". */
+const INVALID_STREAM = /^Invalid stream name: (\S+)$/;
+
 /**
  * Books and trades from the Gemini WebSocket.
  *
@@ -269,6 +272,26 @@ export class WsBookTransport implements BookTransport {
     const request = id === null ? undefined : this.pending.get(id);
     if (id !== null) this.pending.delete(id);
     if (status === 200) return;
+    // Gemini refuses a whole subscribe request for one invalid stream (an instrument already
+    // settled at Gemini, checked on 20 Nov 2026) and sends none of the others: subscribe them
+    // again without it. Each retry is one stream shorter, so this ends; the instrument left out is
+    // filled from REST by the feed's gap filling.
+    const invalid = INVALID_STREAM.exec(error?.msg ?? "")?.[1];
+    if (
+      request?.method === "subscribe" &&
+      invalid !== undefined &&
+      request.streams.includes(invalid)
+    ) {
+      const others = request.streams.filter(
+        (stream) => stream !== invalid && this.followed.has(stream.split("@")[0] ?? ""),
+      );
+      this.logger.warn(
+        { id, stream: invalid, others: others.length },
+        "gemini websocket stream refused, subscribing the others again",
+      );
+      if (others.length > 0) this.request("subscribe", others);
+      return;
+    }
     this.logger.warn(
       {
         id,
