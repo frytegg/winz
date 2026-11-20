@@ -2,6 +2,7 @@ import type { Logger } from "pino";
 import type { Address } from "viem";
 
 import type { Db } from "../db";
+import type { LoopHeartbeat } from "../health/loops";
 import { abortableSleep } from "./clock";
 import { backoffDelayMs } from "./fees";
 import { summarizeError } from "./error-summary";
@@ -19,6 +20,12 @@ export interface ChainIngestOptions {
   logger: Logger;
   /** Aborting it stops both loops; work in flight finishes first. */
   signal: AbortSignal;
+  /**
+   * Told of every step of each loop that ran to its end without failing, and of every range the
+   * reader stores and every batch the projector goes through within a step (`/healthz`,
+   * `health/loops.ts`).
+   */
+  heartbeats?: { logs?: LoopHeartbeat; projector?: LoopHeartbeat };
   /** Time between two `eth_getLogs` polls (SPEC HE-1: 5 s). Default 5 000. */
   pollIntervalMs?: number;
   /**
@@ -71,6 +78,8 @@ async function runLoop(
     retryBaseMs: number;
     retryMaxMs: number;
     logger: Logger;
+    /** Told of every step that ran to its end without failing. */
+    onPass: () => void;
   },
 ): Promise<void> {
   const { signal, logger } = options;
@@ -79,6 +88,7 @@ async function runLoop(
     let delayMs = options.intervalMs;
     try {
       await step();
+      options.onPass();
       if (failures > 0) {
         try {
           logger.info({ loop: name, failures }, "chain ingest loop recovered");
@@ -134,10 +144,20 @@ export function startChainIngest(options: ChainIngestOptions): ChainIngest {
   );
   const projector = new ChainProjector(db, logger, { batchSize: options.projectBatchSize });
 
+  const beat = (heartbeat: LoopHeartbeat | undefined) => (): void => {
+    try {
+      heartbeat?.beat();
+    } catch {
+      // The health report must never stop a loop.
+    }
+  };
+  const logsBeat = beat(options.heartbeats?.logs);
+  const projectorBeat = beat(options.heartbeats?.projector);
+
   const pollLoop = runLoop(
     "logs",
     async () => {
-      const result = await poller.pollOnce(signal);
+      const result = await poller.pollOnce(signal, logsBeat);
       if (result.inserted > 0) {
         logger.info(
           { toBlock: result.toBlock, events: result.events, inserted: result.inserted },
@@ -145,12 +165,12 @@ export function startChainIngest(options: ChainIngestOptions): ChainIngest {
         );
       }
     },
-    { signal, intervalMs: pollIntervalMs, retryBaseMs, retryMaxMs, logger },
+    { signal, intervalMs: pollIntervalMs, retryBaseMs, retryMaxMs, logger, onPass: logsBeat },
   );
   const projectLoop = runLoop(
     "projector",
     async () => {
-      const result = await projector.runPass(signal);
+      const result = await projector.runPass(signal, projectorBeat);
       if (result.applied + result.ignored + result.failed > 0) {
         logger.debug(
           { ...result, failingEvents: projector.failingEvents },
@@ -158,7 +178,14 @@ export function startChainIngest(options: ChainIngestOptions): ChainIngest {
         );
       }
     },
-    { signal, intervalMs: projectIntervalMs, retryBaseMs, retryMaxMs, logger },
+    {
+      signal,
+      intervalMs: projectIntervalMs,
+      retryBaseMs,
+      retryMaxMs,
+      logger,
+      onPass: projectorBeat,
+    },
   );
 
   try {

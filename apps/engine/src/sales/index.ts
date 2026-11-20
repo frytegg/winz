@@ -18,9 +18,10 @@ export {
   type SaleTerms,
   type StartupGrace,
 } from "./evaluate";
-export { SaleStateConfigError, SaleStateRowError } from "./errors";
+export { SaleStateConfigError, SaleStatePassAbortedError, SaleStateRowError } from "./errors";
 export { isManuallyPaused, type ManualPauseInput, type PauseJobView } from "./manual-pause";
 export {
+  DEFAULT_PASS_TIMEOUT_MS,
   DEFAULT_STARTUP_GRACE_MS,
   NEVER_TRIPPED,
   SaleStateRunner,

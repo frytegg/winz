@@ -706,4 +706,50 @@ describe("JobWorker", () => {
       expect(line.workerId).toBe("worker-1");
     }
   });
+
+  it("tells its heartbeat of every poll that ran to its end, and of none while the database fails", async () => {
+    let beats = 0;
+    let failing = false;
+    // The database refuses every query while `failing`.
+    const flaky = new Proxy(db, {
+      apply: (target, thisArg, args: unknown[]): unknown => {
+        if (failing) throw new Error("connection refused");
+        return Reflect.apply(target, thisArg, args);
+      },
+    });
+    const worker = new JobWorker({
+      db: flaky,
+      logger,
+      config: {
+        concurrency: 2,
+        pollIntervalMs: 10,
+        visibilityTimeoutMs: 30_000,
+        workerId: "worker-heartbeat",
+        backoff: () => 20,
+        shutdownGraceMs: 1_000,
+      },
+      heartbeat: {
+        beat: () => {
+          beats += 1;
+        },
+      },
+    });
+    workers.push(worker);
+    worker.register("noop", async () => undefined);
+    worker.start();
+    await waitFor(() => beats >= 3);
+
+    failing = true;
+    await waitFor(() =>
+      logs.some((entry) => entry.msg === "job worker tick failed; retrying at the next poll"),
+    );
+    await sleep(30);
+    const during = beats;
+    await sleep(100);
+    expect(beats).toBe(during);
+
+    // Positive control: the database answers again and the polls beat again.
+    failing = false;
+    await waitFor(() => beats > during);
+  });
 });

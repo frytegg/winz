@@ -3,6 +3,7 @@ import type { Logger } from "pino";
 import { BOOK_STALE_AFTER_MS, type Book } from "@winz/shared";
 
 import type { Db } from "../db";
+import type { LoopHeartbeat } from "../health/loops";
 import { wsBookSocketFactory, type WsBookSocketOptions } from "./book-socket";
 import { PgBookStore, type BookStore, type MarkStaleOptions } from "./book-store";
 import type {
@@ -166,6 +167,7 @@ export class BookFeed {
   };
   private started = false;
   private stopping = false;
+  private refreshHeartbeat: LoopHeartbeat | undefined;
   private refreshInFlight: Promise<void> = Promise.resolve();
   private refreshFailing = false;
   private cancelRefresh: CancelTimer | null = null;
@@ -220,9 +222,14 @@ export class BookFeed {
     };
   }
 
-  start({ signal }: { signal: AbortSignal }): BookFeedRun {
+  /**
+   * Starts the transports and the refreshes. `heartbeat` is told of every read of the tracked set
+   * that succeeded (`/healthz`, `health/loops.ts`).
+   */
+  start({ signal, heartbeat }: { signal: AbortSignal; heartbeat?: LoopHeartbeat }): BookFeedRun {
     if (this.started) throw new Error("BookFeed: already started");
     this.started = true;
+    this.refreshHeartbeat = heartbeat;
     if (signal.aborted) {
       this.stopping = true;
       return { stopped: Promise.resolve() };
@@ -509,6 +516,11 @@ export class BookFeed {
     }
     if (this.refreshFailing) this.logger.info("tracked instruments readable again");
     this.refreshFailing = false;
+    try {
+      this.refreshHeartbeat?.beat();
+    } catch {
+      // The health report must never stop the feed.
+    }
     if (this.stopping) return;
     this.storeTracked = new Set(symbols);
     this.applyTracked(this.wantedSymbols());

@@ -6,6 +6,7 @@ import type { Outcome } from "@winz/shared";
 import type { EnqueueResult, TxOutcome, TxRequest } from "../chain";
 import type { Clock } from "../chain/types";
 import type { Db } from "../db";
+import type { LoopHeartbeat } from "../health/loops";
 
 /** A campaign the watcher settles: its rows' ids and the result it is settled with. */
 export interface SettlementCampaign {
@@ -105,6 +106,8 @@ export interface SettlementOptions {
    * at the abort may poll the database for up to one wait slice (1 s) after that.
    */
   signal: AbortSignal;
+  /** Told of every pass that ran to its end without failing (`/healthz`, `health/loops.ts`). */
+  heartbeat?: LoopHeartbeat;
   /** Time between two passes. Default 15 000. */
   intervalMs?: number;
   /** Transactions of one step that may revert (or fail simulation) before it is given up. Default 3. */

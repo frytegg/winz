@@ -11,6 +11,7 @@ import { CONTRACT_STEP_MICRO, type Book, type ExecutionVenueName } from "@winz/s
 
 import { abortableSleep } from "../../chain/clock";
 import type { Db } from "../../db";
+import type { LoopHeartbeat } from "../../health/loops";
 import type { BookFeedEvent } from "../../market-data/book-feed";
 import {
   PaperVenue,
@@ -93,6 +94,11 @@ export interface HedgingServiceOptions {
   logger: Logger;
   /** Aborting it stops every loop and runner; work in flight finishes first. */
   signal: AbortSignal;
+  /**
+   * Told of every pass of each loop that ran to its end without failing (`/healthz`,
+   * `health/loops.ts`): the exposure and instruments read, the runners' tick, the charges.
+   */
+  heartbeats?: { exposure?: LoopHeartbeat; tick?: LoopHeartbeat; charge?: LoopHeartbeat };
   /** Defaults to the system clock. The runners, the venue and the sales-close checks use it. */
   clock?: VenueClock;
   /** How often `positions.exposure` and the instruments are read. Default 1 000. */
@@ -191,6 +197,7 @@ export class HedgingService implements HedgeFinalizer {
   private readonly exposureIntervalMs: number;
   private readonly tickIntervalMs: number;
   private readonly chargeIntervalMs: number;
+  private readonly heartbeats: NonNullable<HedgingServiceOptions["heartbeats"]>;
   private readonly deskMinIntervalMs: number;
   private readonly lastDeskWriteMs = new Map<string, number>();
   private readonly reconcileTimeoutMs: number;
@@ -215,6 +222,7 @@ export class HedgingService implements HedgeFinalizer {
     this.testHooks = options.testHooks ?? {};
     this.exposureIntervalMs = positive(options.exposureIntervalMs ?? 1_000, "exposureIntervalMs");
     this.tickIntervalMs = positive(options.tickIntervalMs ?? 1_000, "tickIntervalMs");
+    this.heartbeats = options.heartbeats ?? {};
     this.chargeIntervalMs = positive(options.chargeIntervalMs ?? 2_000, "chargeIntervalMs");
     this.deskMinIntervalMs = positive(options.deskMinIntervalMs ?? 1_000, "deskMinIntervalMs");
     this.reconcileTimeoutMs = positive(options.reconcileTimeoutMs ?? 30_000, "reconcileTimeoutMs");
@@ -258,14 +266,24 @@ export class HedgingService implements HedgeFinalizer {
         return this.ready ? "done" : "again";
       });
       await Promise.all([
-        this.loop("exposure", this.exposureIntervalMs, async () => {
-          await this.syncInstruments();
-          return "again";
-        }),
-        this.loop("tick", this.tickIntervalMs, async () => {
-          await this.tick();
-          return "again";
-        }),
+        this.loop(
+          "exposure",
+          this.exposureIntervalMs,
+          async () => {
+            await this.syncInstruments();
+            return "again";
+          },
+          this.heartbeats.exposure,
+        ),
+        this.loop(
+          "tick",
+          this.tickIntervalMs,
+          async () => {
+            await this.tick();
+            return "again";
+          },
+          this.heartbeats.tick,
+        ),
         this.chargeLoop(),
       ]);
     } finally {
@@ -286,11 +304,15 @@ export class HedgingService implements HedgeFinalizer {
   // Loops
   // -------------------------------------------------------------------------------------------
 
-  /** Runs `step` every `intervalMs` until the signal aborts (or it says "done"). Never rejects. */
+  /**
+   * Runs `step` every `intervalMs` until the signal aborts (or it says "done"), telling
+   * `heartbeat` of every step that did not throw. Never rejects.
+   */
   private async loop(
     name: string,
     intervalMs: number,
     step: () => Promise<"again" | "done">,
+    heartbeat?: LoopHeartbeat,
   ): Promise<void> {
     let failures = 0;
     while (!this.signal.aborted) {
@@ -298,6 +320,7 @@ export class HedgingService implements HedgeFinalizer {
       try {
         if ((await step()) === "done") return;
         failures = 0;
+        this.beat(heartbeat);
       } catch (error: unknown) {
         failures += 1;
         delayMs = Math.min(intervalMs * 2 ** Math.min(failures, 5), 30_000);
@@ -315,9 +338,11 @@ export class HedgingService implements HedgeFinalizer {
   private async chargeLoop(): Promise<void> {
     while (!this.signal.aborted) {
       this.chargeRequested = false;
+      let passed = true;
       try {
         await this.charger.chargeCovered();
       } catch (error: unknown) {
+        passed = false;
         this.safeLog(
           "error",
           { loop: "charge", err: describeError(error) },
@@ -327,12 +352,14 @@ export class HedgingService implements HedgeFinalizer {
       try {
         await this.charger.recordMinedLosses();
       } catch (error: unknown) {
+        passed = false;
         this.safeLog(
           "error",
           { loop: "charge", err: describeError(error) },
           "guarantee losses of mined charges not booked: retried at the next pass",
         );
       }
+      if (passed) this.beat(this.heartbeats.charge);
       if (this.chargeRequested || this.signal.aborted) continue;
       const wake = new AbortController();
       const onAbort = (): void => wake.abort();
@@ -344,6 +371,14 @@ export class HedgingService implements HedgeFinalizer {
         this.chargeWake = null;
         this.signal.removeEventListener("abort", onAbort);
       }
+    }
+  }
+
+  private beat(heartbeat: LoopHeartbeat | undefined): void {
+    try {
+      heartbeat?.beat();
+    } catch {
+      // The health report must never stop a loop.
     }
   }
 

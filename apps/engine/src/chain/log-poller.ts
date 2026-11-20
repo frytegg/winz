@@ -232,7 +232,7 @@ export class LogPoller {
    * and asks again at once; a rate limit waits (`rateLimitDelayMs`) and asks again for the same
    * range, so that a node that keeps refusing is asked less and less often, never more.
    */
-  async pollOnce(signal?: AbortSignal): Promise<PollResult> {
+  async pollOnce(signal?: AbortSignal, onProgress?: () => void): Promise<PollResult> {
     const result: PollResult = {
       toBlock: null,
       requests: 0,
@@ -335,6 +335,7 @@ export class LogPoller {
       result.toBlock = to;
       result.events += events.length;
       result.inserted += inserted;
+      onProgress?.();
       if (events.length > 0) {
         this.logger.debug(
           { fromBlock: next, toBlock: to, events: events.length, inserted },

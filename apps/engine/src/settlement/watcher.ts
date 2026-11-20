@@ -250,6 +250,7 @@ export function startSettlement(options: SettlementOptions): Settlement {
         await service.runPass();
         if (failures > 0) safely(() => logger.info({ failures }, "settlement pass recovered"));
         failures = 0;
+        safely(() => options.heartbeat?.beat());
       } catch (error: unknown) {
         failures += 1;
         delayMs = retryDelayMs(failures, retryBaseMs, retryMaxMs);

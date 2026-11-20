@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import type { Db } from "../db";
 import type { LeaseView } from "../leader/leader";
+import type { LoopReport } from "./loops";
 
 /**
  * The engine's health listener: one route, `GET /healthz`, for the platform's health check
@@ -14,8 +15,10 @@ import type { LeaseView } from "../leader/leader";
  *
  * It reads what the engine already knows: its start time, the cursor of the escrow's event reader
  * (a database read, which is also the database probe), the chain's head (one `eth_blockNumber`),
- * whether the transaction sender and the job worker run, and the engine lease as this process
- * sees it (src/leader: `role` "leader" or "standby", without any query of its own). It never
+ * whether the transaction sender and the job worker run, the engine lease as this process sees it
+ * (src/leader: `role` "leader" or "standby", without any query of its own), and when each of the
+ * leader's long-running loops last completed a pass (`health/loops.ts`): a loop that has gone
+ * longer than its bound without one makes the answer 503 and is named in `staleLoops`. It never
  * answers a secret, a key's address or an e-mail.
  *
  * The URL is public: one probe (one query, one node call) serves every request that arrives while
@@ -70,6 +73,11 @@ export interface HealthSources {
   services: () => { sender: ServiceState; jobs: ServiceState };
   /** The engine lease as this process sees it (`EngineLeader.view()`). */
   lease: () => LeaseView;
+  /**
+   * The leader's long-running loops and when each last completed a pass (`LoopMonitor.report`).
+   * Empty, or absent, while no engine runs.
+   */
+  loops?: () => readonly LoopReport[];
   /** Epoch milliseconds. Defaults to the system clock. */
   now?: () => number;
   /** How long the database and the node each get to answer. Default 2 000 ms. */
@@ -95,6 +103,20 @@ const leaseReportSchema = z
   })
   .strict();
 
+/**
+ * One loop in the report: `state` ("running", "stale", "stopped"), the seconds since its last
+ * completed pass (since its start before the first one), and its bound in seconds. Field names and
+ * values avoid the letters "ok" in a row, so that a keyword monitor looking for `"status":"ok"`
+ * can only match the top-level status.
+ */
+const loopReportSchema = z
+  .object({
+    state: z.enum(["running", "stale", "stopped"]),
+    sinceS: z.number().int().nonnegative(),
+    boundS: z.number().int().positive(),
+  })
+  .strict();
+
 /** Body of `GET /healthz`, 200 or 503. `pnpm smoke --engine` checks a deployed engine against it. */
 export const healthReportSchema = z
   .object({
@@ -114,6 +136,14 @@ export const healthReportSchema = z
     sender: serviceStateSchema,
     jobs: serviceStateSchema,
     lease: leaseReportSchema,
+    /**
+     * The leader's loops by name (`health/loops.ts`); empty on a standby. This engine always
+     * answers it and `staleLoops`; both are optional so that `pnpm smoke --engine` still reads an
+     * engine deployed before them.
+     */
+    loops: z.record(z.string().regex(/^[a-z][a-z-]{1,40}$/), loopReportSchema).optional(),
+    /** The loops that make the answer 503 (`stale` or `stopped`), by name; empty when none. */
+    staleLoops: z.array(z.string()).optional(),
   })
   .strict();
 
@@ -185,8 +215,11 @@ export async function probeHealth(sources: HealthSources): Promise<HealthProbe> 
  * service, by design), so that a platform's health check passes on a new container while the old
  * one still holds the lease; 503 otherwise. A standby that cannot work the lease (the table
  * missing, no rights on it) would never take over: passing it would let the platform stop the
- * engine that works and leave none. `problems` names each failed condition, for the log; the
- * body does not carry it.
+ * engine that works and leave none. A leader is also 503 while one of its loops is `stale` (no
+ * completed pass for longer than its bound) or `stopped` (its service ended by itself): the engine
+ * answers and runs, but a part of it no longer works, as on 19-20 November when the sale states
+ * stopped closing promos for 98 minutes behind a 200. The body names those loops (`staleLoops`).
+ * `problems` names each failed condition, for the log.
  */
 export function healthVerdict(sources: HealthSources, probe: HealthProbe): HealthReading {
   const now = sources.now ?? Date.now;
@@ -203,6 +236,17 @@ export function healthVerdict(sources: HealthSources, probe: HealthProbe): Healt
     }
   } else if (services.sender !== "running" || services.jobs !== "running") {
     problems.push("leader: the transaction sender or the job worker is not running");
+  }
+  const loopReports = lease.role === "leader" ? (sources.loops?.() ?? []) : [];
+  const staleLoops: string[] = [];
+  for (const loop of loopReports) {
+    if (loop.state === "running") continue;
+    staleLoops.push(loop.name);
+    problems.push(
+      loop.state === "stopped"
+        ? `leader: loop ${loop.name} stopped (${loop.detail ?? "its service ended"})`
+        : `leader: loop ${loop.name} has not completed a pass for ${Math.floor(loop.sinceMs / 1_000).toString()} s (bound ${Math.floor(loop.staleAfterMs / 1_000).toString()} s)`,
+    );
   }
   const ok = problems.length === 0;
   return {
@@ -226,6 +270,17 @@ export function healthVerdict(sources: HealthSources, probe: HealthProbe): Healt
         heldForS: lease.heldForMs === null ? null : Math.floor(lease.heldForMs / 1_000),
         renewedAgoMs: lease.renewedAgoMs,
       },
+      loops: Object.fromEntries(
+        loopReports.map((loop) => [
+          loop.name,
+          {
+            state: loop.state,
+            sinceS: Math.floor(loop.sinceMs / 1_000),
+            boundS: Math.max(1, Math.floor(loop.staleAfterMs / 1_000)),
+          },
+        ]),
+      ),
+      staleLoops,
     },
   };
 }
@@ -314,7 +369,17 @@ export async function startHealthServer(options: HealthServerOptions): Promise<H
     }
     read()
       .then(({ httpStatus, report, problems }) => {
-        if (httpStatus !== 200) log.warn({ health: report, problems }, "health check failed");
+        if (httpStatus !== 200) {
+          // A loop that stopped working is an incident, not a passing hiccup of a dependency.
+          if (report.staleLoops !== undefined && report.staleLoops.length > 0) {
+            log.error(
+              { staleLoops: report.staleLoops, problems },
+              "health check failed: a loop of the engine no longer completes its passes",
+            );
+          } else {
+            log.warn({ health: report, problems }, "health check failed");
+          }
+        }
         send(response, httpStatus, report);
       })
       .catch((error: unknown) => {
