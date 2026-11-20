@@ -1,19 +1,19 @@
 {
   "warmup-seconds": {
     "label": "Compilation des pages et des routes par `next dev` avant les parcours (non comptée dans les parcours)",
-    "value": 132,
+    "value": 106.1,
     "unit": "s",
     "limit": null,
     "detail": "15 pages, 15 routes d'API, une requête chacune",
-    "measuredAt": "2026-11-20T01:42:12.576Z"
+    "measuredAt": "2026-11-20T03:06:56.910Z"
   },
   "fan-scan-to-ticket-seconds": {
     "label": "Achat client, du scan (ouverture de C1) au ticket affiché",
-    "value": 7.6,
+    "value": 5.5,
     "unit": "s",
     "limit": 30,
-    "detail": "navigation vers /c/joes-texas jusqu'à la jauge du ticket visible, hors prise des captures ; comprend 0,5 s d'autorisation simulée et le suivi du paiement (1 s)",
-    "measuredAt": "2026-11-20T01:42:37.065Z"
+    "detail": "navigation vers /c/buzzballs-shop-texas-wins-by-14 jusqu'à la jauge du ticket visible, hors prise des captures ; comprend 0,5 s d'autorisation simulée et le suivi du paiement (1 s)",
+    "measuredAt": "2026-11-20T03:07:14.991Z"
   },
   "fan-taps": {
     "label": "Achat client, C1 → C3 : taps",
@@ -21,15 +21,15 @@
     "unit": "taps",
     "limit": null,
     "detail": "1. tap « Buy with Apple Pay » (C1) · 2. tap the simulated payment (C2)",
-    "measuredAt": "2026-11-20T01:42:37.065Z"
+    "measuredAt": "2026-11-20T03:07:14.991Z"
   },
   "onboarding-seconds": {
     "label": "Onboarding commerçant, M0 → M8 : durée",
-    "value": 11.4,
+    "value": 10.9,
     "unit": "s",
     "limit": 120,
     "detail": "de M0 affiché au QR de M8 affiché, hors prise des captures ; gestes d'un robot, un humain lit et tape plus lentement",
-    "measuredAt": "2026-11-20T01:45:17.090Z"
+    "measuredAt": "2026-11-20T03:09:26.921Z"
   },
   "onboarding-taps": {
     "label": "Onboarding commerçant, M0 → M8 : taps",
@@ -37,6 +37,6 @@
     "unit": "taps",
     "limit": 15,
     "detail": "1. tap « Start a promo » (M0) · 2. type the e-mail (M1) · 3. tap Continue (M1) · 4. type the 6-digit code (M1) · 5. type the business name (M2) · 6. tap the category « Bar » (M2) · 7. tap Continue (M2) · 8. tap the first game (M3) · 9. tap the recommended promo (M4) · 10. tap Continue (M5) · 11. tap « Review the promo » (M6) · 12. tap the simulated payment (M7)",
-    "measuredAt": "2026-11-20T01:45:17.090Z"
+    "measuredAt": "2026-11-20T03:09:26.921Z"
   }
 }
