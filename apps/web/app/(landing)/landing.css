@@ -446,3 +446,49 @@ html:has(.landing-menu[open]) {
     animation: none;
   }
 }
+
+/*
+ * The closing call to action (07-cta.md): the title and then the button fade in and rise 12 px, 120 ms after
+ * one another (--i); the phones rise 40 px from the edge of the section, which clips them, and do not fade (as
+ * the hero's: they are the largest image of the section). Held back by RevealOnScroll only when the section
+ * is below the first screen, so nothing is ever hidden on the strength of a script that may not arrive.
+ */
+@keyframes landing-cta-fade {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@keyframes landing-cta-rise {
+  from {
+    transform: translateY(40px);
+  }
+}
+
+[data-reveal="armed"] .cta-fade {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+[data-reveal="armed"] .cta-rise {
+  transform: translateY(40px);
+}
+
+[data-reveal="in"] .cta-fade {
+  animation: landing-cta-fade 520ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 120ms);
+}
+
+[data-reveal="in"] .cta-rise {
+  animation: landing-cta-rise 650ms cubic-bezier(0.22, 1, 0.36, 1) 240ms backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] .cta-fade,
+  [data-reveal] .cta-rise {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+}
