@@ -1,7 +1,7 @@
-# Gemini WebSocket recordings (S-05)
+# Gemini WebSocket recordings
 
 Raw frames of the public Gemini WebSocket `wss://ws.gemini.com`, recorded on 17 Nov 2026 between
-16:19 and 16:29 UTC from the development sandbox, through its HTTP CONNECT proxy. The book feed
+16:19 and 16:29 UTC from a development machine, through an HTTP CONNECT proxy. The book feed
 tests (`apps/engine/src/market-data/*.test.ts`) replay them through a fake socket.
 
 ## Files
@@ -84,6 +84,5 @@ A client close without a code is reported as 1005.
 - Sessions longer than 5 minutes, server-initiated disconnects, connection or subscription limits
   beyond 79 streams in one request.
 - Trades on a sports instrument during a game (the shape was verified on crypto markets only).
-- That the connection works from Render, the engine's host (the S-05 done criterion): only this sandbox was tried.
-- TASKS.md asks for a 10-minute recording; the brief asked for 3 to 5. The longest session is 5
-  minutes, trimmed here to stay under 200 KB.
+- That the connection works from Render, the engine's host: only a development machine was tried.
+- A 10-minute recording. The longest session is 5 minutes, trimmed here to stay under 200 KB.

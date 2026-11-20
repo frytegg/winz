@@ -1,6 +1,6 @@
 # Reçus des écrans : Playwright, iPhone 15, API simulée
 
-Écrit par `pnpm e2e:ui` (suite `apps/web/e2e/ui`, TASKS Q-02 première moitié, U-01 à U-06). Les images
+Écrit par `pnpm e2e:ui` (suite `apps/web/e2e/ui` : parcours commerçant, client et Hedge desk). Les images
 et ce fichier sont réécrits à chaque passage ; `measures.json` garde les mesures (une mesure qu'un
 passage partiel n'a pas refaite garde sa date d'origine, dans la dernière colonne).
 
@@ -12,10 +12,10 @@ Un tap est un appui, une touche pressée seule, ou un champ saisi (un champ sais
 quelle que soit sa longueur). Les temps sont ceux de l'horloge, navigateur compris, sur l'API simulée
 et après la compilation des pages par `next dev` (première ligne).
 
-Les limites de la SPEC 17 sont strictes (« moins de 15 taps », « moins de 2 minutes », « en moins
+Les limites des critères de succès sont strictes (« moins de 15 taps », « moins de 2 minutes », « en moins
 de 30 secondes ») : une valeur égale à la limite est notée DÉPASSÉ.
 
-| Mesure | Valeur | Limite stricte (SPEC 17) | Détail | Mesurée le (UTC) |
+| Mesure | Valeur | Limite stricte | Détail | Mesurée le (UTC) |
 | --- | --- | --- | --- | --- |
 | Compilation des pages et des routes par `next dev` avant les parcours (non comptée dans les parcours) | 85,3 s | – | 15 pages, 15 routes d'API, une requête chacune | 2026-11-20T05:35:12.791Z |
 | Achat client, du scan (ouverture de C1) au ticket affiché | 4,6 s (tenu) | 30 s | navigation vers /c/buzzballs-shop-texas-wins-by-14 jusqu'à la jauge du ticket visible, hors prise des captures ; comprend 0,5 s d'autorisation simulée et le suivi du paiement (1 s) | 2026-11-20T05:35:29.027Z |

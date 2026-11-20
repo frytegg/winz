@@ -2,32 +2,12 @@
 
 Une seule page, dans l'ordre : Supabase, le moteur sur Render, Privy, l'application web sur
 Vercel, Stripe, et le premier essai depuis un téléphone. Chaque étape finit par une commande qui
-prouve qu'elle a marché. Qui fait quoi : Alexandre (A) Supabase, QuickNode, Render et le projet
-Vercel (le dépôt est dans son compte GitHub, celui de Téo ne le voit pas) ; Téo (T) Privy, Stripe
-et l'enregistrement du domaine chez eux (F-03).
+prouve qu'elle a marché.
 
 **La branche à déployer est `main`**, pour Render comme pour Vercel. Les étapes 2 et 4 disent où
 la vérifier.
 
-## L'ordre de la matinée
-
-Chaque ligne : qui, combien de temps environ, ce qui prouve que c'est fait. Ne pas passer à la
-ligne suivante sans la preuve.
-
-1. **A, 15 min — Supabase** (étape 1, points 1 à 5) : base vide vérifiée, migrations, pool à 30. Preuve : 10 versions dans `schema_migrations` (point 3), 0 table sans RLS, 3 tables publiées.
-2. **A, 5 min — endpoint QuickNode** (`docs/quicknode.md`, étapes 1 et 2). Preuve : `eth_chainId` répond `0x4cef52` (5042002).
-3. **T, 20 min, pendant 1 et 2 — Privy** (étape 3, points 1 à 4). Preuve : le jeu de clés répond, le secret donne 200.
-4. **T, 5 min — Stripe, clés et moyens de paiement** (étape 5, point 1). Preuve : `pk_test_`/`sk_test_` du même environnement ; Cards, Apple Pay et Google Pay actifs, rien d'autre.
-5. **A, 25 min — moteur sur Render** (étape 2), avec Privy, **sans** `APP_DEMO_WALLET_SEED`. Preuve : `/healthz` `"role":"leader"` et le log `start checks passed`.
-6. **A, 2 min, une minute après 5 — catalogue** (étape 2, point 5). Preuve : le match de samedi a ses instruments actifs.
-7. **A, 20 min — web sur Vercel** (étape 4) avec `STRIPE_WEBHOOK_SECRET=whsec_placeholder`. Preuve : `pnpm smoke https://<domaine>` → `4 checks passed`.
-8. **T, 10 min — webhook Stripe et domaine de paiement** (étape 5, points 2 à 5), puis A Redeploy. Preuve : POST non signé → `400` ; domaine `active`.
-9. **A ou T, 5 min — première connexion** (étape 3, point 5). Preuve : `/api/me` répond 200 avec `authorization: Bearer`.
-10. **A et T, 20 min — porte G1 depuis deux téléphones** (étape 6). Preuve : ticket affiché, `buyFor` sur l'explorateur, livraison Stripe en 200, `6 checks passed`.
-11. **A, 5 min — Realtime et RLS** (étape 1, point 6), sur la campagne de G1. Preuve : `200` sur `live_instruments`, `42501` sur `users`, une trame WebSocket.
-12. **A, pas ce matin — Stream QuickNode** (`docs/quicknode.md`, étape 3) : facultatif, et il use les crédits (vendredi soir au plus tôt).
-
-## Ce qui a été exécuté ici, et ce qui ne l'a pas été
+## Ce qui tourne, et ce qui reste à prouver
 
 **Mise en ligne le 19 novembre 2026** : le web tourne sur Vercel (`https://winz-nu.vercel.app`),
 le moteur sur Render (`https://winz-kfwm.onrender.com`, `/healthz` en `leader`, base `ok`, chaîne
@@ -36,23 +16,23 @@ le moteur sur Render (`https://winz-kfwm.onrender.com`, `/healthz` en `leader`, 
 y a été créée puis achetée le soir même (campagne on-chain 15, budget payé, ticket émis par
 `buyFor`, couverture papier facturée par `chargeHedge`), et `pnpm smoke` passe ses 6 contrôles
 contre la production : reçu `docs/receipts/prod/g1-2026-11-19.md`. Rien dans le dépôt ne prouve
-encore, au 20 novembre : le Stream QuickNode (ligne 12), la vérification Realtime et RLS avec la
-clé publique (ligne 11), le domaine de paiement Apple Pay noté `active` (ligne 8), et les preuves
-de G1 que la base ne garde pas (le ticket affiché sur un téléphone, la livraison Stripe lue dans son journal). Les
-commandes de preuve de chaque étape restent à lancer contre ces comptes pour ce qui manque.
+encore, au 20 novembre : la vérification Realtime et RLS avec la clé publique (étape 1, point 6),
+le domaine de paiement Apple Pay noté `active` (étape 5), et les preuves du premier essai que la
+base ne garde pas (le ticket affiché sur un téléphone, la livraison Stripe lue dans son journal,
+étape 6). Les commandes de preuve de chaque étape restent à lancer contre ces comptes pour ce qui
+manque.
 
-Mise à jour du 19 novembre 2026, sans compte : les pages des fournisseurs citées en fin de page
-relues ce jour-là (Supabase, Vercel, QuickNode ; Render n'a pas été relu, son étape n'a pas changé
-sur ce point) ; `docs.stripe.com` et `docs.privy.io` ne sont pas joignables d'ici, donc chaque
-réglage Stripe et Privy est écrit d'après les SDK installés (versions en fin de page) et
-accompagné d'une preuve d'une minute, jamais comme une certitude. Exécuté ici ce jour-là :
-`pnpm env:check engine --list` et `pnpm env:check web --list` (sortie recopiée aux étapes 2 et 4),
-et `pnpm env:check` sur des fichiers aux valeurs factices : `web` est complet avec
-`STRIPE_WEBHOOK_SECRET=whsec_placeholder` (étape 4), et `engine` sans Privy ni graine répond
-`MISSING APP_DEMO_WALLET_SEED` (étape 2, point 3 : la réponse est Privy, pas la graine). Les
-changements du code du 19 novembre (TLS vers la base, attente des connexions inactives côté web,
-vérifications de démarrage du moteur, catalogue par ligue) ont été testés en local par leurs
-auteurs ; ils n'ont pas été refaits pour cette page.
+Les pages des fournisseurs citées en fin de page ont été relues le 19 novembre (Supabase, Vercel,
+QuickNode ; Render n'a pas été relu, son étape n'a pas changé sur ce point). Les réglages Stripe et
+Privy sont écrits d'après les SDK installés (versions en fin de page), chacun accompagné d'une
+preuve d'une minute. Vérifié le même jour : `pnpm env:check engine --list` et
+`pnpm env:check web --list` (sortie recopiée aux étapes 2 et 4), et `pnpm env:check` sur des
+fichiers aux valeurs factices : `web` est complet avec `STRIPE_WEBHOOK_SECRET=whsec_placeholder`
+(étape 4), et `engine` sans Privy ni graine répond `MISSING APP_DEMO_WALLET_SEED` (étape 2,
+point 3 : la réponse est Privy, pas la graine). Les changements du code du 19 novembre (TLS vers
+la base, attente des connexions inactives côté web, vérifications de démarrage du moteur,
+catalogue par ligue) ont été testés en local par leurs auteurs ; ils n'ont pas été refaits pour
+cette page.
 
 Exécuté le 18 novembre, en local : l'image du moteur (`apps/engine/Dockerfile`, Docker 29,
 contexte = racine du dépôt) contre un Postgres 16 local (les 7 migrations d'alors et le seed) et
@@ -81,7 +61,7 @@ Pour les preuves qui demandent un secret (`curl` vers Stripe ou Privy), le lire 
 dans l'historique du terminal : `read -rs STRIPE_SECRET_KEY && export STRIPE_SECRET_KEY` (coller,
 Entrée), et de même pour `PRIVY_APP_SECRET`.
 
-## 1. Supabase (A)
+## 1. Supabase
 
 1. **Le projet.** Le créer sur supabase.com s'il n'existe pas. **Région** : la même zone que le
    moteur et les fonctions Vercel, et une région que Render a aussi (Oregon, Ohio, Virginia,
@@ -312,7 +292,7 @@ Entrée), et de même pour `PRIVY_APP_SECRET`.
    les deux variables manquent ou sont fausses (le flux ne démarre pas), ou la publication du
    point 3 est vide.
 
-## 2. Le moteur sur Render (A)
+## 2. Le moteur sur Render
 
 Ce qui est dans le dépôt : `apps/engine/Dockerfile` (Node 22, pnpm 10.28.0 par corepack,
 installation `--frozen-lockfile` filtrée sur le moteur, utilisateur non root, `node --import tsx
@@ -334,7 +314,7 @@ L'ancienne **Starter** s'appelle `0.5c-512mb` (mêmes specs, même prix) ; **Fre
 (`free`). L'écran peut montrer l'un ou l'autre nom.
 
 Avant cette étape : l'endpoint QuickNode (`docs/quicknode.md`, étapes 1 et 2 : il donne
-`ARC_RPC_URL`), les deux valeurs Privy de Téo (étape 3) et sa clé `sk_test_` (étape 5, point 1).
+`ARC_RPC_URL`), les deux valeurs Privy (étape 3) et la clé `sk_test_` (étape 5, point 1).
 
 1. **Quelle instance.** Deux façons, avec leurs vrais pièges :
 
@@ -390,7 +370,7 @@ Avant cette étape : l'endpoint QuickNode (`docs/quicknode.md`, étapes 1 et 2 :
    paid compute plan »). Les heures gratuites, 750 par espace de travail et par mois, couvrent un
    service allumé tout le mois (744 h au plus) s'il est le seul service Free de l'espace.
 
-   **Le Mac à côté, pas à la place.** Le Mac d'Alexandre peut faire tourner un second moteur sur
+   **Le Mac à côté, pas à la place.** Un Mac de l'équipe peut faire tourner un second moteur sur
    la même base de production, en plus de celui de Render : c'est sans danger pour l'exclusivité,
    parce que seul le détenteur du bail travaille (point 4), l'autre attend en
    standby sans aucun service démarré. Il prend la main quand celui de Render s'arrête (mise en
@@ -556,8 +536,8 @@ Avant cette étape : l'endpoint QuickNode (`docs/quicknode.md`, étapes 1 et 2 :
 
    « non » ne veut pas dire « inutile » : sans `STRIPE_SECRET_KEY` le moteur ne vend que les ventes
    rejouées par le mode démo (il le dit au démarrage : `Stripe is not configured`), et le schéma
-   exige Privy (les deux variables ensemble) ou la graine ; ici, **Privy**. Pour la porte G1, les
-   deux sont requis. Au démarrage, `Privy is not configured: buyers get demo wallets` dans les
+   exige Privy (les deux variables ensemble) ou la graine ; ici, **Privy**. Pour le premier essai
+   (étape 6), les deux sont requis. Au démarrage, `Privy is not configured: buyers get demo wallets` dans les
    logs veut dire que la graine a été posée à la place de Privy : corriger avant toute vente.
    `APP_HTTPS_PROXY_URL` et `APP_PROXY_CA_FILE` restent vides : ils ne servent que derrière un
    proxy sortant, et Render n'en impose aucun.
@@ -738,8 +718,7 @@ Avant cette étape : l'endpoint QuickNode (`docs/quicknode.md`, étapes 1 et 2 :
    `pnpm smoke https://<domaine> --engine https://<moteur>.onrender.com` (une fois le web en
    ligne, étape 4) vérifie aussi le corps de `/healthz` contre le schéma de l'écouteur et exige
    HTTP 200 ; il ne regarde pas le rôle : lire `role` dans la réponse du `curl`. Les logs ne
-   doivent pas montrer d'erreur WebSocket répétée de `book-feed` vers `wss://ws.gemini.com`
-   (S-05).
+   doivent pas montrer d'erreur WebSocket répétée de `book-feed` vers `wss://ws.gemini.com`.
 
    Page **Metrics** : la mémoire doit rester sous 512 Mo (mesuré en local : 160 à 185 Mo au
    démarrage, arbre de processus compris, avant le catalogue par ligue ; l'état stable n'a pas
@@ -803,13 +782,12 @@ Avant cette étape : l'endpoint QuickNode (`docs/quicknode.md`, étapes 1 et 2 :
    checked at boot: checked again under the lease`) : la vérification est refaite quand il prend
    le bail, et la même erreur l'arrête alors.
 
-## 3. Privy (T)
+## 3. Privy
 
 Rien de Privy ne se règle dans le code au-delà de ce que le tableau de bord autorise
 (`apps/web/lib/auth/privy-config.ts` ne peut que restreindre). La liste ci-dessous est tirée du
-code et des SDK (`@privy-io/react-auth` 3.52.0, `@privy-io/node` 0.40.0) ; la documentation de
-Privy n'a pas pu être lue d'ici, donc les noms exacts des écrans peuvent différer, et chaque
-réglage a sa preuve.
+code et des SDK (`@privy-io/react-auth` 3.52.0, `@privy-io/node` 0.40.0) ; les noms exacts des écrans
+peuvent différer, et chaque réglage a sa preuve.
 
 1. **Les deux valeurs**, dans les réglages de l'application Privy :
 
@@ -844,7 +822,7 @@ réglage a sa preuve.
    - (e) **cookies HttpOnly désactivés.** Le serveur ne lit que l'en-tête `Authorization: Bearer`,
      jamais un cookie ; le front obtient le jeton par `getAccessToken`. Avec les cookies HttpOnly,
      chaque `/api/me` serait un 401 et la personne serait déconnectée aussitôt ;
-   - (f) un **compte de test à code fixe** pour la démo (S-02), si le tableau de bord le
+   - (f) un **compte de test à code fixe** pour la démo, si le tableau de bord le
      propose : pas nécessaire ce matin ;
    - (g) **protection anti-robot / captcha désactivée.** L'écran M1 envoie le code sans
      l'interface de Privy (`sendCode`), et le SDK sait passer un jeton de captcha que notre
@@ -882,7 +860,7 @@ réglage a sa preuve.
    account » : la graine démo a tourné sur cette base (étape 2, point 3) ; `503` : les clés de
    Privy injoignables depuis Vercel, réessayer.
 
-## 4. L'application web sur Vercel (A)
+## 4. L'application web sur Vercel
 
 Pas de `vercel.json` : avec un monorepo pnpm, le projet Vercel pointe sur `apps/web`, et un
 `vercel.json` y serait lu, pas à la racine ; tout ce qu'il porterait se règle dans le tableau de
@@ -945,7 +923,7 @@ bord.
    ```
 
    Doit finir par `result: complete for the web`. **Le webhook Stripe n'existe pas encore** (il
-   lui faut le domaine, point 3, et c'est Téo qui le crée à l'étape 5) : mettre pour l'instant
+   lui faut le domaine, point 3, et il est créé à l'étape 5) : mettre pour l'instant
    **`STRIPE_WEBHOOK_SECRET=whsec_placeholder`** dans `web.env` et sur Vercel. Toute valeur non
    vide passe la vérification et laisse démarrer chaque route ; seule la route du webhook la lit,
    et elle répondra 400 aux événements jusqu'au remplacement (étape 5, point 2). Sans cette ligne,
@@ -982,10 +960,10 @@ bord.
      d'avance), `APP_EXECUTION_VENUE` égal à celui du moteur, `APP_ADMIN_DEMO_KEY` la même valeur
      que sur Render, `DB_URL` celui de l'étape 1 point 4 (le même que le moteur) ;
    - `STRIPE_SECRET_KEY` (`sk_test_…`) et **`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (`pk_test_…`)**,
-     de Téo (étape 5, point 1) : `env:check` exige la seconde et refuse une clé `pk_live_` ou un
+     (étape 5, point 1) : `env:check` exige la seconde et refuse une clé `pk_live_` ou un
      secret (`sk_`) sous ce nom ; sans elle, chaque écran de paiement afficherait « paiement
      indisponible » ;
-   - `NEXT_PUBLIC_PRIVY_APP_ID` et `PRIVY_APP_SECRET`, de Téo (étape 3) ;
+   - `NEXT_PUBLIC_PRIVY_APP_ID` et `PRIVY_APP_SECRET` (étape 3) ;
    - `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY` (étape 1, point 5 : la clé
      `sb_publishable_…` sous ce nom-là) ;
    - **`ARC_ESCROW_ADDRESS=0x81d2d4050E617184b2B832c30BE68f8811b37D2c`, toujours**, avec ou sans
@@ -1012,7 +990,7 @@ bord.
    construction : les définir avant le premier déploiement, et **redéployer après tout
    changement** (Deployments → … → Redeploy).
 
-3. Domaine : Settings → Domains → le domaine stable (F-03). Vercel propose d'ajouter aussi la
+3. Domaine : Settings → Domains → le domaine stable. Vercel propose d'ajouter aussi la
    variante `www` et d'en rediriger une vers l'autre : **noter l'hôte final**, celui qui sert la
    page après redirection ; c'est lui, et lui seul, qui va dans `APP_BASE_URL`, dans les origines
    de Privy (étape 3), et chez Stripe pour le webhook et le domaine de paiement (étape 5). Puis
@@ -1033,13 +1011,13 @@ bord.
    https://<moteur>.onrender.com` : `5 checks passed`. Enfin, deux minutes après, la requête
    `pg_stat_activity` de l'étape 1, point 4.
 
-## 5. Stripe, en mode test uniquement (T)
+## 5. Stripe, en mode test uniquement
 
 Tout se fait dans **un seul environnement de test** (le mode test du compte, ou un même
 sandbox) : les clés `pk_test_`/`sk_test_`, l'endpoint du webhook et son `whsec_`, et le domaine
 de paiement. Un endpoint créé dans un autre environnement que les clés ne reçoit jamais les
-événements de leurs paiements. `docs.stripe.com` n'a pas pu être lu d'ici : les emplacements
-dans le tableau de bord sont donnés tels qu'ils étaient connus, et chaque point a sa preuve.
+événements de leurs paiements. Les emplacements dans le tableau de bord
+sont donnés tels qu'ils étaient connus au 19 novembre, et chaque point a sa preuve.
 
 1. **Clés et moyens de paiement** (avant l'étape 2) :
    - Developers → API keys : `sk_test_…` → `STRIPE_SECRET_KEY` sur Vercel **et** sur Render ;
@@ -1061,7 +1039,7 @@ dans le tableau de bord sont donnés tels qu'ils étaient connus, et chaque poin
    exactement ces quatre événements : `payment_intent.succeeded`,
    `payment_intent.amount_capturable_updated`, `payment_intent.canceled`,
    `payment_intent.payment_failed`. Copier le signing secret (`whsec_…`) dans
-   `STRIPE_WEBHOOK_SECRET` sur Vercel **à la place de `whsec_placeholder`**, puis Redeploy (A).
+   `STRIPE_WEBHOOK_SECRET` sur Vercel **à la place de `whsec_placeholder`**, puis Redeploy.
 
    **Ce qui dépend du webhook, et de lui seul** : la création d'une campagne (le paiement du
    budget réussi met en file le job `campaign.create`, `apps/web/lib/server/stripe-webhook.ts`) et
@@ -1126,7 +1104,7 @@ QuickNode Streams (`/api/webhooks/quicknode`, jeton dans `QUICKNODE_STREAMS_TOKE
 est en place, la création du Stream est dans `docs/quicknode.md`. Le moteur lit déjà les
 événements de l'escrow par `eth_getLogs` : le flux ne fait qu'accélérer.
 
-## 6. Premier essai depuis un téléphone (porte G1)
+## 6. Premier essai depuis un téléphone
 
 Ce qui est déjà prouvé ailleurs, et ce qui ne l'est pas : `pnpm e2e:ui` (Playwright,
 `apps/web/README.md`) parcourt tous les écrans au format d'un iPhone 15, taps comptés, sur l'API
@@ -1254,7 +1232,7 @@ recherche), pour ce que cette version ajoute ou corrige :
   [Configuring maximum duration](https://vercel.com/docs/functions/configuring-functions/duration) ·
   [Deployment Protection](https://vercel.com/docs/deployment-protection) (« Standard Protection »
   laisse passer les domaines de production).
-- SDK installés, lus faute de documentation joignable : `stripe` 23.1.0
+- SDK installés, lus dans leur code : `stripe` 23.1.0
   (`cjs/resources/PaymentMethodDomains.d.ts`, `PaymentIntents.d.ts`), `@stripe/stripe-js` 10.3.0
   (`express-checkout.d.ts`), `@privy-io/node` 0.40.0 (`client.js` : authentification Basic et
   `privy-app-id` ; `resources/users/users.js` : `GET /v1/users`), `@privy-io/react-auth` 3.52.0

@@ -19,7 +19,7 @@ The web app never does either: it writes rows and enqueues jobs, and the engine 
 | `jobs`        | The work the web app enqueues: create a campaign, sell a ticket, pause, close sales, top up a budget.      |
 | `catalog-sync`| Gemini's catalogue of games (one listing per league) and their results, every minute: see below.           |
 
-The budget top-up job (`campaign.top_up`, one per paid top-up, SPEC CA-6) sends
+The budget top-up job (`campaign.top_up`, one per paid top-up) sends
 `topUpBudgetFor` (key `topUpBudget:<payment id>`, a barrier) and projects its `BudgetToppedUp`,
 or, when the campaign can no longer take it, refunds the merchant's card once: never both.
 
@@ -141,7 +141,7 @@ the process's own counters:
 
 | When (19 Nov 2026, UTC) | Duration | CPU (user + system) | Peak resident memory | Longest event-loop block |
 | --- | --- | --- | --- | --- |
-| 14:00, listing timeout 10 s (the orchestrator's measure) | 30.9 s | 2.8 s | 190 MB | 102 ms |
+| 14:00, listing timeout 10 s (first run) | 30.9 s | 2.8 s | 190 MB | 102 ms |
 | 14:22, listing timeout 30 s (stdout only, not kept) | 24.3 s | 2.6 + 0.3 s | 206 MB | 105 ms |
 | 15:03, listing timeout 30 s, the stop passed down (output kept) | 81.1 s | 4.2 + 0.6 s | 214 MB | 393 ms |
 
@@ -314,7 +314,7 @@ loops are reported `stopped` at once.
 
 No server-side `statement_timeout` is set for the whole pool: the engine reaches Supabase through
 its session pooler, and a startup parameter the pooler does not accept would stop the engine from
-connecting at all, which could not be tried from here. A server-side bound for every statement of
+connecting at all, which was not tried against the hosted pooler. A server-side bound for every statement of
 the engine belongs on its database role (`alter role … set statement_timeout`), a migration.
 
 **What `/healthz` says about the loops.** Each long-running loop tells `src/health/loops.ts` when
@@ -593,10 +593,10 @@ make room; five refusals in a row are logged at error level and noted on the row
 refused broadcast. If a node keeps refusing, set `ARC_TX_MAX_IN_FLIGHT` under its cap. 1 sends one
 transaction at a time.
 
-## Real orders on the Gemini sandbox (H-07)
+## Real orders on the Gemini sandbox
 
 `src/venues/gemini` is the real order adapter, `GeminiOrderVenue`, behind the same
-`ExecutionVenue` as the paper venue (SPEC HE-10): signed requests (HMAC-SHA384, a strictly
+`ExecutionVenue` as the paper venue (HE-10): signed requests (HMAC-SHA384, a strictly
 increasing nonce, one request at a time), maker orders as `makerOrCancel`, takers as
 `immediate-or-cancel`, every state read back from Gemini's active orders and history, typed errors
 (key refused, nonce, funds, terms, 429 with backoff, no answer), answers validated with zod, and

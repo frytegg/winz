@@ -1,6 +1,6 @@
 # @winz/contracts
 
-`WinzEscrow`, the escrow behind "refunded if the team wins" promotions (SPEC section 8), with
+`WinzEscrow`, the escrow behind "refunded if the team wins" promotions, with
 `TestUSDC`, a mintable 6-decimal token that can block an address. Foundry project, Solidity 0.8.28,
 EVM version Cancun. Testnet only: every script refuses to run on Ethereum mainnet (chain id 1) and
 Arc mainnet (chain id 5042).
@@ -50,7 +50,7 @@ byte-identical bytecode for both contracts.
 Nothing in this repository has been deployed by these scripts yet. The commands below are what to
 run; read them before running them.
 
-Arc specifics (SPEC section 8): gas is paid in USDC and the base fee never goes below 20 gwei, so
+Arc specifics: gas is paid in USDC and the base fee never goes below 20 gwei, so
 every transaction needs a `maxFeePerGas` of at least 20 gwei. `--with-gas-price` sets exactly that
 for EIP-1559 transactions. The public RPC is limited to about 10 requests per second: prefer the
 QuickNode URL.
@@ -70,7 +70,7 @@ export DEPLOY_TREASURY="$DEPLOY_RELAYER"
 export DEPLOY_OWNER="0x..."                       # the address allowed to rotate the roles
 # Token: unset means the USDC ERC-20 interface on Arc, 0x3600000000000000000000000000000000000000.
 # export DEPLOY_USDC="0x..."
-# Fallback when no testnet USDC allocation came through (SPEC hypothesis 8): deploy TestUSDC.
+# Fallback when no testnet USDC allocation came through: deploy TestUSDC.
 # export DEPLOY_TEST_USDC="true"
 ```
 
