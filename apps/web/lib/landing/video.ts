@@ -21,7 +21,12 @@ const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
 const DRIVE_ID = /^[A-Za-z0-9_-]{10,}$/;
 const VIDEO_FILE = /\.(mp4|webm|mov|m4v|ogv)$/i;
 
-const YOUTUBE_HOSTS = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"]);
+const YOUTUBE_HOSTS = new Set([
+  "youtube.com",
+  "www.youtube.com",
+  "m.youtube.com",
+  "music.youtube.com",
+]);
 const YOUTUBE_NOCOOKIE_HOSTS = new Set(["youtube-nocookie.com", "www.youtube-nocookie.com"]);
 
 /** The 11-character id of a YouTube link of any usual shape, or `null`. */
@@ -34,7 +39,8 @@ function youtubeId(url: URL): string | null {
     candidate = segments[0] ?? null;
   } else if (YOUTUBE_HOSTS.has(host)) {
     if (segments[0] === "watch") candidate = url.searchParams.get("v");
-    else if (["embed", "shorts", "live", "v"].includes(segments[0] ?? "")) candidate = segments[1] ?? null;
+    else if (["embed", "shorts", "live", "v"].includes(segments[0] ?? ""))
+      candidate = segments[1] ?? null;
   } else if (YOUTUBE_NOCOOKIE_HOSTS.has(host)) {
     if (segments[0] === "embed") candidate = segments[1] ?? null;
   }
