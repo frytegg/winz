@@ -596,6 +596,60 @@ describe("M1: a purchase intent abandoned at Stripe is cancelled lazily, by a re
     expect(await confirmCheckout(db, payments, pi)).toEqual(cancelled);
   });
 
+  it.each(["status read", "confirmation"] as const)(
+    "Stripe refusing the cancellation because the fan is paying it now: the %s answers processing, never the decline",
+    async (reader) => {
+      // Card A declined, card B left in 3-D Secure for 15 minutes, then paid right as we cancel.
+      const { pi } = await declinedThen("requires_action");
+      await created(pi, PAST_BOUND);
+      const cancel = payments.cancelUnpaidPaymentIntent.bind(payments);
+      payments.cancelUnpaidPaymentIntent = async (id: string, key?: string) => {
+        // Between our read (requires_action) and the cancellation, the payment starts at Stripe.
+        payments.pay(id, "processing", FAN);
+        return cancel(id, key);
+      };
+      const answer =
+        reader === "status read"
+          ? await pollCheckoutStatus(db, payments, pi)
+          : await confirmCheckout(db, payments, pi);
+      // Not the row's « declined, not charged »: Stripe is settling a payment.
+      expect(answer).toEqual({ status: "processing", ticketToken: null, message: null });
+      expect(payments.cancelCalls).toHaveLength(1);
+      expect(payments.intents.get(pi)?.status).toBe("processing");
+      expect(await paymentRow(pi)).toEqual({
+        status: "failed",
+        message: CUSTOMER_MESSAGES.declined,
+      });
+      expect(cancelLogs()).toBe(0);
+    },
+  );
+
+  it("a cancellation landing after the webhook took an approval: not charged, logged as an error", async () => {
+    const { pi } = await declinedThen("requires_action");
+    await created(pi, PAST_BOUND);
+    const cancel = payments.cancelUnpaidPaymentIntent.bind(payments);
+    payments.cancelUnpaidPaymentIntent = async (id: string, key?: string) => {
+      // Between our read and the cancellation: the fan approves, the webhook takes the purchase.
+      payments.pay(id, "requires_capture", FAN);
+      await webhook("payment_intent.amount_capturable_updated", id);
+      return cancel(id, key);
+    };
+    expect((await pollCheckoutStatus(db, payments, pi)).status).toBe("processing");
+    // Stripe released the authorization: it can never be captured, the fan is never charged.
+    expect(payments.intents.get(pi)?.status).toBe("canceled");
+    // One job, the engine's; the row stays its.
+    expect(await purchaseJobs(pi)).toHaveLength(1);
+    expect(await paymentRow(pi)).toMatchObject({ status: "processing" });
+    expect(
+      logged.filter(
+        (entry) =>
+          entry.level === "error" &&
+          entry.message ===
+            "abandoned purchase cancelled at Stripe after its purchase job was taken: the capture will fail, the fan is not charged",
+      ),
+    ).toHaveLength(1);
+  });
+
   it("the pick-up of an abandoned 3-D Secure lets go, and the next tap pays a new intent once", async () => {
     const { pi, slug, checkout: kept } = await checkout();
     payments.pay(pi, "requires_action", FAN);

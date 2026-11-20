@@ -228,10 +228,13 @@ export const ABANDONED_PURCHASE_STATUSES: readonly PaymentIntentStatus[] = [
  * not held by a purchase nobody will finish. `created_at` and not `updated_at`: every status read
  * that asks Stripe stamps `updated_at`, so it never ages while a page polls.
  *
- * Cancelling is safe for the money whatever happens meanwhile: a cancelled intent can never be
- * captured, so the fan is not charged for it (Stripe releases an authorization that would have
- * landed between our read and the cancellation), and the sheet that kept the intent pays a new one,
- * once (`AuthorizeResult.ended`).
+ * Cancelling is safe for the fan's money whatever happens meanwhile: a cancelled intent can never
+ * be captured, so the fan is not charged for it, and the sheet that kept the intent pays a new one,
+ * once (`AuthorizeResult.ended`). It is not free of loss in one narrow case: Stripe accepts the
+ * cancellation of an authorized intent (it releases the authorization), so an approval landing in
+ * the milliseconds between our read and the cancellation, on an intent already fifteen minutes old,
+ * is released; if the webhook had taken it meanwhile, the engine's capture then fails and the
+ * purchase ends cancelled, never charged. `cancelAbandonedPurchase` logs that case as an error.
  */
 export const ABANDONED_PURCHASE_AFTER_SECONDS = 15 * 60;
 
@@ -509,7 +512,10 @@ async function claimHealRead(db: Db, paymentIntentId: string): Promise<PaymentRo
 type AbandonedCancellation =
   /** Cancelled at Stripe (or found cancelled), and the payment failed with the cancellation. */
   | "canceled"
-  /** Stripe refused: the intent moved on (authorized, or being paid). Nothing changed here. */
+  /**
+   * Stripe refused: the intent is being paid (`processing`) or paid. Nothing changed here. Stripe
+   * does not refuse an authorized intent (`requires_capture`): it cancels it.
+   */
   | "not_cancelable"
   /** Not abandoned (too young, a job exists, a status worth waiting on), or Stripe failed. */
   | "kept";
@@ -576,6 +582,20 @@ async function cancelAbandonedPurchase(
     replaceFailed: true,
   });
   log.info({ paymentIntentId, stripeStatus, changed }, "abandoned purchase cancelled at Stripe");
+  // The narrow race: the fan approved between our read and the cancellation, and the webhook (or
+  // another read) took the authorization meanwhile. The fan is not charged (the intent can never be
+  // captured), but the engine's purchase now fails: a human should know.
+  const [taken] = await db<{ job: boolean }[]>`
+    select exists (
+      select 1 from jobs j where j.idempotency_key = ${jobIdempotencyKey.purchase(paymentIntentId)}
+    ) as job
+  `;
+  if (taken?.job === true) {
+    log.error(
+      { paymentIntentId, stripeStatus },
+      "abandoned purchase cancelled at Stripe after its purchase job was taken: the capture will fail, the fan is not charged",
+    );
+  }
   return "canceled";
 }
 

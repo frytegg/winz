@@ -405,10 +405,16 @@ la même demande a enregistré la recharge entre-temps : l'appel répond alors c
    avec le message d'annulation (« Your payment was cancelled, you were not charged »). Quinze
    minutes, c'est quinze fois la minute pendant laquelle la page suit un achat, et bien plus que le
    temps d'un tap à une autorisation, validation dans l'app de la banque comprise. Jamais un intent
-   autorisé (`requires_capture`) ni un paiement dont le job existe : ceux-là sont au moteur. Un
-   refus de Stripe (l'intent a avancé entre-temps) ne change rien ; une panne de Stripe est
-   journalisée et rien n'est marqué, la lecture suivante réessaie. Annuler ne peut pas débiter : un
-   intent annulé ne se capture plus, et la feuille qui le gardait en paie un nouveau, une seule fois.
+   lu autorisé (`requires_capture`) ni un paiement dont le job existe : ceux-là sont au moteur. Un
+   refus de Stripe (l'intent est en cours de paiement, `processing`) ne change rien et la réponse
+   reste `processing` ; une panne de Stripe est journalisée et rien n'est marqué, la lecture
+   suivante réessaie. Annuler ne peut pas débiter : un intent annulé ne se capture plus, et la
+   feuille qui le gardait en paie un nouveau, une seule fois. Une limite, étroite : Stripe accepte
+   d'annuler un intent autorisé (il libère l'autorisation). Une validation qui tomberait dans les
+   millisecondes entre notre lecture et l'annulation, sur un intent vieux de quinze minutes, est
+   donc libérée ; si le webhook l'avait déjà prise, la capture du moteur échoue et l'achat finit
+   annulé, jamais débité. Ce cas est journalisé en erreur (`abandoned purchase cancelled at Stripe
+   after its purchase job was taken`).
 
 5. Un `pi` inconnu répond `404`. Ces réponses ne contiennent jamais l'e-mail, l'adresse de
    l'acheteur ni aucun terme on-chain.
