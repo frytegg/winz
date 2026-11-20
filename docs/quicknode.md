@@ -120,8 +120,8 @@ Tableau de bord → **Streams** → **Create Stream** :
 Taille des lots : la documentation de l'API REST exige au moins 5 blocs par lot pour un Stream qui
 suit le sommet d'un réseau aux blocs plus rapides qu'une seconde (refus 422 sinon) et conseille
 Elastic Batch, qui livre sans attendre que le lot soit plein. **Arc testnet est dans ce cas** :
-0,51 s par bloc, mesuré le 19 novembre par la revue de déploiement sur `rpc.testnet.arc.io`
-(251 587 blocs en 128 353 s depuis le bloc de déploiement de l'escrow ; pas refait ici). Avec
+0,51 s par bloc, mesuré le 19 novembre sur `rpc.testnet.arc.io`
+(251 587 blocs en 128 353 s depuis le bloc de déploiement de l'escrow ; pas refait depuis). Avec
 Elastic Batch, un lot de 5 n'attend pas : les blocs partent dès qu'ils existent. La route lit les
 lots de toute taille.
 
@@ -192,7 +192,7 @@ sont lues par la configuration du serveur (`serverConfigOf`, `apps/web/lib/serve
   Une ligne `streams` apparaît dès que le webhook a écrit un événement avant le moteur ; un
   événement déjà écrit par le reçu ou par `eth_getLogs` garde sa source, ce qui est normal.
 
-## 5. Enregistrer la première livraison réelle (tâche S-04)
+## 5. Enregistrer la première livraison réelle
 
 Sur l'ordinateur, avec un tunnel HTTPS public vers le port local (cloudflared ou ngrok) :
 
@@ -209,7 +209,7 @@ pnpm quicknode:record --port 8787 --out apps/engine/fixtures/quicknode --once
    jeton, affiche le délai entre l'heure de chaque bloc et la réception, répond 200 et s'arrête.
 4. Remettre la destination sur `https://<domaine>/api/webhooks/quicknode`.
 5. `pnpm --filter @winz/web exec vitest run lib/server/quicknode-webhook.fixtures.test.ts` rejoue
-   le fichier dans la route : c'est le critère de fin de A-06. Format du fichier :
+   le fichier dans la route : c'est la preuve attendue. Format du fichier :
    `apps/engine/fixtures/quicknode/README.md`. Y lire aussi les trois points encore ouverts : le
    nom du réseau (`network`), la forme du corps filtré, et l'unité de `x-qn-timestamp`.
 

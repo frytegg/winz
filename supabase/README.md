@@ -1,6 +1,6 @@
 # supabase
 
-The Postgres schema of Winz (SPEC section 10). Postgres is the off-chain source of truth; the
+The Postgres schema of Winz. Postgres is the off-chain source of truth; the
 escrow contract stays the source of truth for money.
 
 ```
@@ -165,8 +165,8 @@ Both tables are private: service role only.
 
 ## Transaction outbox (fourth migration)
 
-`chain_txs` is the outbox of the engine's transaction sender (`apps/engine/src/chain`, SPEC
-section 7). `signer` is the role a request is addressed to (`relayer` or `oracle`); which key
+`chain_txs` is the outbox of the engine's transaction sender (`apps/engine/src/chain`).
+`signer` is the role a request is addressed to (`relayer` or `oracle`); which key
 serves that role is configuration. A nonce belongs to a key on a chain, so every row that holds a
 nonce also records:
 

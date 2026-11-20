@@ -6,9 +6,9 @@ par un test : chaque fichier date du relevé qui l'a produit.
 
 | Fichier | Ce qu'il montre | Relevé |
 | --- | --- | --- |
-| [`g1-2026-11-19.md`](./g1-2026-11-19.md) | La promo de test du 19 novembre (campagne on-chain 15) : création, achat, ticket, couverture, transactions, et `pnpm smoke` contre la production (TASKS U-04, porte G1). | 2026-11-20 00:30 UTC |
-| [`poster-buzzballs-shop-over-169-5-points.png`](./poster-buzzballs-shop-over-169-5-points.png) | L'affiche de cette promo, servie par `GET /poster/buzzballs-shop-over-169-5-points` (TASKS U-08) : `200`, `image/png`, 83 451 octets, 1080 × 1350. | 2026-11-20 00:30:11 UTC |
-| [`og-buzzballs-shop-over-169-5-points.png`](./og-buzzballs-shop-over-169-5-points.png) | L'aperçu Open Graph de la page de la promo (TASKS U-08) : `200`, `image/png`, 63 476 octets, 1200 × 630. | 2026-11-20 00:30:23 UTC |
+| [`g1-2026-11-19.md`](./g1-2026-11-19.md) | La promo de test du 19 novembre (campagne on-chain 15) : création, achat, ticket, couverture, transactions, et `pnpm smoke` contre la production. | 2026-11-20 00:30 UTC |
+| [`poster-buzzballs-shop-over-169-5-points.png`](./poster-buzzballs-shop-over-169-5-points.png) | L'affiche de cette promo, servie par `GET /poster/buzzballs-shop-over-169-5-points` : `200`, `image/png`, 83 451 octets, 1080 × 1350. | 2026-11-20 00:30:11 UTC |
+| [`og-buzzballs-shop-over-169-5-points.png`](./og-buzzballs-shop-over-169-5-points.png) | L'aperçu Open Graph de la page de la promo : `200`, `image/png`, 63 476 octets, 1200 × 630. | 2026-11-20 00:30:23 UTC |
 
 L'aperçu Open Graph n'est pas servi à `/c/<slug>/opengraph-image` (cette adresse répond `404`) :
 Next.js lui donne un suffixe, et l'adresse exacte est celle que la page publique annonce dans

@@ -1,8 +1,7 @@
 # Winz : direction visuelle (MASTER)
 
-Source : `SPEC.md` §2 + maquettes Figma de Téo (`winz-front-kit/mockups/`). Ce fichier fait foi pour le style ;
-la spec fait foi pour le contenu. Track **Consumer** : le design est noté. La barre est « app sportive premium
-qu'on croirait sortie de l'App Store », pas « dashboard généré ».
+Source : les maquettes Figma de l'équipe. Ce fichier fait foi pour le style. La barre est « app sportive
+premium qu'on croirait sortie de l'App Store ».
 
 ## 1. Personnalité
 
@@ -34,7 +33,7 @@ Règles : un seul gros élément lime par écran. Texte toujours noir (`#131314`
 
 ## 3. Typographie
 
-- **Famille** : géométrique grotesque large, celle des maquettes. Par défaut **Sora** (`next/font/google`, 300/400/600/700). Téo confirme dans Figma ; si c'est une autre (ex. Space Grotesk, Clash Display), on ne change que la variable `--font-sans`.
+- **Famille** : géométrique grotesque large, celle des maquettes. **Sora** (`next/font/google`, 300/400/600/700). Pour en changer (ex. Space Grotesk, Clash Display), on ne change que la variable `--font-sans`.
 - Chiffres : `font-variant-numeric: tabular-nums` partout où ça bouge (cotes, compte à rebours, montants).
 - Wordmark : **toujours le SVG** (`logo-winz-lime.svg`), jamais du texte (le « ı » sans point et le « w » sont dessinés).
 
@@ -90,6 +89,6 @@ Vif mais sobre. `prefers-reduced-motion` : tout passe en fondu ≤ 150 ms.
 - M8 « YOUR PROMO IS LIVE! » et REFUNDED : écran qui s'ouvre en balayage lime puis confettis **sobres** (15–20 losanges lime/blanc, 1,2 s, une fois).
 - Feuilles (C2, partage) : bottom sheet qui monte en 280 ms avec un ressort léger, fond assombri.
 
-## 8. Anti-modèles (refusés en revue)
+## 8. Anti-modèles (à éviter)
 
 Dégradés violets, cartes à ombre floue, emojis décoratifs, icônes de 4 styles différents (utiliser lucide, trait 1.5), texte blanc sur lime, plusieurs éléments lime géants sur un écran, données inventées (n° de table, code-barres, score), vocabulaire crypto côté fan, `Lorem`, `TODO` visibles, écrans vides sans état vide dessiné, spinners nus (utiliser des squelettes aux formes des cartes).

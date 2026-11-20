@@ -103,7 +103,7 @@ from chain_events where block_time > now() - interval '6 hours' group by source;
 
 Chaque ligne ne compte que les événements que son chemin a gagnés : elle compare des gagnants, pas les deux chemins sur un même événement.
 
-## Gemini sandbox : ordres réels (SPEC HE-10)
+## Gemini sandbox : ordres réels
 
 Preuve exécutée au démarrage du moteur (`APP_VENUE_CHECK_ON_BOOT=true`), lue sur le Hedge desk : `outcome = proven`, `2026-11-20T04:15:08.921Z`, lieu `gemini-sandbox`.
 

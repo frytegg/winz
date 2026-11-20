@@ -305,16 +305,15 @@ takes accounts and keys ([`docs/deploy.md`](docs/deploy.md)).
 - **The oracle is ours.** Winz's oracle key signs the quotes and posts the result Gemini published;
   the contract bounds what it can do (caps, refunds locked at the sale, `emergencyClaim` after 7
   days) but trusts it for the outcome.
-- **Open in TASKS.md.** `pnpm completion-check` on 20 Nov reports 15 of the 48 Must lines of its
-  coverage table open. Among them:
-  - Q-02, the browser suite against the real stack. `pnpm e2e:ui` runs on the simulated API in
+- **Not done yet.** Among the targets still open on 20 Nov:
+  - The browser suite against the real stack. `pnpm e2e:ui` runs on the simulated API in
     Chromium, not on Safari, Privy, Stripe or the chain ([UI receipts](docs/receipts/ui/README.md)).
-  - Q-03, a sale on the merchant's dashboard within 3 s under load: with three buyers at once on
+  - A sale on the merchant's dashboard within 3 s under load: with three buyers at once on
     the public node the median was 3.0 s on 18 Nov (one sale at a time: 1.1 to 2.5 s). The 300
     tickets refunded within 10 s of `settle` were met (4 s, same rehearsal).
-  - Q-05, timing the merchant and fan flows on a phone with real Apple Pay.
-  - Q-06, two full rehearsals in a row on testnet with no manual fix.
-  - S-04 and A-06, a recorded QuickNode delivery saved as a test file:
+  - Timing the merchant and fan flows on a phone with real Apple Pay.
+  - Two full rehearsals in a row on testnet with no manual fix.
+  - A recorded QuickNode delivery saved as a test file:
     [`fixtures/quicknode`](apps/engine/fixtures/quicknode) holds only its README.
-- **Language.** `SPEC.md`, `TASKS.md`, the production receipts and three docs (`deploy.md`,
+- **Language.** The production receipts, `apps/web/README.md` and three docs (`deploy.md`,
   `quicknode.md`, `gemini-sandbox.md`) are in French.

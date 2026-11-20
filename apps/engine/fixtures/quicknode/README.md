@@ -1,7 +1,7 @@
 # Livraisons QuickNode Streams enregistrées
 
 Ce dossier reçoit les livraisons **réelles** d'un Stream QuickNode sur Arc testnet, écrites par
-`pnpm quicknode:record` (tâche S-04, mode d'emploi dans `docs/quicknode.md`). Il est vide tant
+`pnpm quicknode:record` (mode d'emploi dans `docs/quicknode.md`). Il est vide tant
 qu'aucune livraison n'a été enregistrée.
 
 Chaque fichier `delivery-<heure de réception>-<premier bloc>-<dernier bloc>.json` contient une

@@ -1,17 +1,19 @@
-# Gemini sandbox : la preuve d'ordres réels (HE-10, tâche H-07)
+# Gemini sandbox : la preuve d'ordres réels (HE-10)
 
-> **Vérifié contre un serveur simulé seulement, jamais avec une clé du sandbox.** Aucune clé
-> n'existe dans l'environnement où l'adaptateur a été écrit : aucun ordre n'a été envoyé au vrai
-> sandbox. Ce qui a été lu en direct le 20 novembre 2026, sans clé : la liste publique des
-> événements du sandbox (81 événements crypto actifs ce soir-là, des carnets à deux côtés sur les
-> contrats horaires), un carnet (`GET /v1/book/GEMI-XRP2611200100-HI0D88`), et deux refus de la
-> partie privée : sans en-têtes, `401 {"result":"error","reason":"MissingSecurityHeaders"}` ; avec
-> une clé inventée, `400 {"result":"error","reason":"InvalidApiKey"}`. Le reste vient de la
-> documentation officielle (liste en fin de page) et de la spécification OpenAPI des Prediction
-> Markets, lue en entier. **La preuve réelle est la première exécution avec les clés** (étape 4) :
-> tant qu'elle n'a pas eu lieu, le Hedge desk affiche « Not proven yet ».
+> **Exécutée sur le vrai sandbox le 2026-11-20 à 04:15:08 UTC, résultat `proven`** : sur
+> `GEMI-ETH2611200500-HI1720`, l'ordre maker `145853902324436356` placé puis annulé, l'ordre taker
+> `145853902324436442` rempli. Reçu : [`receipts/prod/settlements-2026-11-19.md`](receipts/prod/settlements-2026-11-19.md),
+> section « Gemini sandbox : ordres réels ».
+>
+> L'adaptateur a d'abord été écrit et vérifié contre un serveur simulé, sans clé. Ce qui avait été
+> lu en direct le 20 novembre 2026, sans clé : la liste publique des événements du sandbox (81
+> événements crypto actifs ce soir-là, des carnets à deux côtés sur les contrats horaires), un
+> carnet (`GET /v1/book/GEMI-XRP2611200100-HI0D88`), et deux refus de la partie privée : sans
+> en-têtes, `401 {"result":"error","reason":"MissingSecurityHeaders"}` ; avec une clé inventée,
+> `400 {"result":"error","reason":"InvalidApiKey"}`. Le reste vient de la documentation officielle
+> (liste en fin de page) et de la spécification OpenAPI des Prediction Markets, lue en entier.
 
-Ce que la preuve montre (SPEC HE-10), sur un contrat crypto du sandbox, chaque étape relue chez
+Ce que la preuve montre (HE-10), sur un contrat crypto du sandbox, chaque étape relue chez
 Gemini et jamais déduite de la seule réponse au placement :
 
 1. **un ordre maker** (`makerOrCancel: true`, `good-til-cancel`) d'achat de 1 contrat YES, deux
@@ -26,7 +28,7 @@ Coût : moins de 1 $ de fonds de test par exécution (le contrat acheté vaut au
 
 ## Le marché choisi, et pourquoi
 
-Le sandbox ne liste **aucun marché sportif** (SPEC, hypothèses : 106 événements le 17 novembre,
+Le sandbox ne liste **aucun marché sportif** (relevé : 106 événements le 17 novembre,
 88 crypto et 18 matières premières ; 81 crypto actifs le 20 novembre). La preuve se fait donc sur
 un **contrat Prediction Markets crypto** (par exemple `GEMI-BTC2611202200-HI91000`, « BTC au-dessus
 de 91 000 $ à 17 h »), et non sur le marché spot `btcusd` : un contrat YES se traite exactement
@@ -55,7 +57,7 @@ imposer un contrat : `--symbol <instrumentSymbol>` ou `GEMINI_SANDBOX_CHECK_SYMB
    `APP_VENUE_CHECK_ACCEPT_TERMS=true` (étape 4) ; sans l'un ou l'autre elle s'arrête à l'étape
    `preflight` en le disant.
 
-Si le compte est refusé (question ouverte 1 du SPEC) : voir **Repli** en fin de page.
+Si le compte est refusé : voir **Repli** en fin de page.
 
 ## 2. La clé API (A, 5 min)
 
@@ -200,9 +202,9 @@ order by r.finished_at desc, c.at;
 Un échec laisse au plus un ordre au repos : la vérification l'annule avant de s'arrêter, et le dit
 dans le log.
 
-## Repli : pas de compte sandbox (question ouverte 1)
+## Repli : pas de compte sandbox
 
-Si Gemini refuse le compte ou la clé, HE-10 est remplacé, comme le SPEC le prévoit, par les tests
+Si Gemini refuse le compte ou la clé, HE-10 est remplacé par les tests
 de l'adaptateur contre un **serveur Gemini simulé** (`apps/engine/src/venues/gemini/sim-server.ts`,
 `node:http` sur 127.0.0.1). Ce serveur vérifie chaque requête privée comme la documentation le
 décrit (clé, corps vide, charge utile base64 dont `request` est le chemin, nonce strictement
@@ -226,7 +228,7 @@ Possible, mais **pas pour la production**, qui reste sur `paper` : le moteur cou
 sportifs que le sandbox ne liste pas, Gemini refuserait chaque ordre (`InvalidSymbol`, rendu comme
 un rejet `invalid_order`). Ce réglage exige les deux clés (le moteur refuse de démarrer sans) et
 envoie alors les ordres de couverture au sandbox par le même adaptateur. `gemini` (production,
-argent réel) est refusé exprès par `createVenue` (SPEC section 1, point 3).
+argent réel) est refusé exprès par `createVenue`.
 
 ## Limites connues de l'adaptateur
 

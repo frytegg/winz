@@ -8,7 +8,7 @@ Mise en ligne (Supabase, Render, Privy, Vercel, Stripe), réglages du projet Ver
 
 ## Construire les écrans sans le back : l'API simulée
 
-Toutes les routes de la section 10 de `SPEC.md` existent déjà. En mode simulé, chacune renvoie une
+Toutes les routes de l'API existent déjà. En mode simulé, chacune renvoie une
 réponse d'exemple, au format exact que renverra le vrai back. Les exemples racontent l'histoire des
 promos filmées pour la vidéo : le commerçant « Buzzball’s shop » (apostrophe typographique, comme en
 production) vend un « Smash burger » à 12 $, 100 % remboursé si Texas gagne de 14 points ou plus ;
@@ -116,7 +116,7 @@ Quel exemple sert `default` :
 Le contenu des exemples est dans `packages/shared/src/api/examples.ts`, et le type de chaque
 réponse dans `packages/shared/src/api/schemas.ts`.
 
-### Ajouté avant le gel des formes (F-05)
+### Ajouté avant le gel des formes
 
 Rien n'a été renommé ni retiré, et chaque scénario simulé porte déjà ces champs. Un seul ajout
 n'est pas facultatif : `requestId`, obligatoire depuis le 20 novembre.
@@ -609,7 +609,7 @@ sauf `sale` qui donne toujours un `paymentIntentId` et, si le ticket est déjà 
 
 ### « My tickets » (C4, `/tickets`)
 
-La liste de `GET /api/tickets`, en trois groupes comme le dit la SPEC C4 (`lib/fan/tickets-view.ts`) :
+La liste de `GET /api/tickets`, en trois groupes (`lib/fan/tickets-view.ts`) :
 **Live** (`pre_game`, `in_game`, le prochain match d'abord), **Won** (`refunded`) et **Not this time**
 (`not_this_time`, et `cancelled`, qui garde son étiquette « Cancelled » : pas de remboursement,
 l'achat tient), les deux derniers du match le plus récent au plus ancien. Chaque ticket porte le mot
@@ -680,7 +680,7 @@ fichier ; sans elle, seuls ses avertissements et erreurs sont gardés, et cités
 ## Les écrans dans un navigateur (`e2e/ui/`, Playwright)
 
 Une suite Playwright ouvre les écrans eux-mêmes, au format d'un iPhone 15, sur l'API simulée :
-l'onboarding M0 → M8 (taps comptés, moins de 15 comme le dit la SPEC 17, et durée), M4 et M6 quand
+l'onboarding M0 → M8 (taps comptés, moins de 15, et durée), M4 et M6 quand
 la promo ne se vendrait pas (scénarios `aboveThreshold` et `noBook` de l'aperçu), la page de
 campagne C1 dans chaque état des scénarios, l'achat C2 par le paiement simulé (durée du scan au
 ticket, moins de 30 s ; total au cent près selon la quantité ; refus `sales_paused` et
@@ -733,7 +733,7 @@ pnpm e2e:ui            # depuis la racine ; ou pnpm --filter @winz/web e2e:ui
 - **Ce qu'aucun scénario n'offre** n'est pas testé : une page de campagne C1 introuvable (l'API
   simulée ignore le slug, et C1 la lit côté serveur, hors d'atteinte du navigateur). Il faudrait un
   refus simulé `notFound` sur `publicCampaign` (`MOCK_REFUSALS`, `lib/server/route.ts`).
-- **Le panneau démo** (`e2e/ui/demo-admin.spec.ts`, U-07) : la mauvaise clé refusée et redemandée,
+- **Le panneau démo** (`e2e/ui/demo-admin.spec.ts`) : la mauvaise clé refusée et redemandée,
   les quatre actions avec le corps de « Le mode démo » ci-dessus, les bornes du carnet saisies au
   doigt, la confirmation avant un résultat forcé, un 400, un 404 et un 409 dits avec les mots de
   l'API, la clé en `sessionStorage` et dans le seul en-tête `x-admin-key`, aucun lien public vers
@@ -741,7 +741,7 @@ pnpm e2e:ui            # depuis la racine ; ou pnpm --filter @winz/web e2e:ui
   panneau (scénarios `demo`). L'API simulée ne vérifie aucune clé : c'est la spec qui joue le
   contrôle et demande le refus `wrongKey`. La vraie clé est prouvée par `lib/server/auth.test.ts`,
   les vraies routes par `lib/server/demo.test.ts`, et le moteur qui obéit au carnet et au résultat
-  par `e2e/demo.test.ts` (scénario D) et la répétition sur Arc testnet (A-07).
+  par `e2e/demo.test.ts` (scénario D) et la répétition sur Arc testnet.
 - vitest ignore `e2e/ui/` (`vitest.config.ts`) et Playwright ne lit que `e2e/ui/**/*.spec.ts`.
 
 Pas encore dans la CI : le runner devrait installer Chromium à chaque passage (`pnpm --filter
@@ -749,7 +749,7 @@ Pas encore dans la CI : le runner devrait installer Chromium à chaque passage (
 `mcr.microsoft.com/playwright` à la version de `@playwright/test`), puis lancer `pnpm e2e:ui` et
 garder `docs/receipts/ui/` en artefact. Compter quatre à cinq minutes, compilation comprise.
 
-## Répétition sur une vraie chaîne (`e2e/rehearsal/`, porte G2, Q-03, Q-04)
+## Répétition sur une vraie chaîne (`e2e/rehearsal/`)
 
 La répétition joue toute la boucle en mode démo, en temps réel, sur une chaîne réelle : le moteur
 démarre avec ses intervalles de production (`startEngine`, rien de raccourci), les routes du
@@ -796,7 +796,7 @@ Dans l'ordre :
    `POST /api/admin/demo/reset`, arrête le moteur et rapatrie chaque portefeuille démo vers la
    trésorerie (sur Arc, tout le solde natif moins le gaz du transfert, comme `sweepDemoWallets` ;
    sur une chaîne locale, le jeton de test, après un `anvil_setBalance` qui paie le gaz).
-5. Les invariants (Q-04, critères 3, 4 et 5) : chaque vente a son ticket ; aucune vente au-dessus du
+5. Les invariants (critères 3, 4 et 5) : chaque vente a son ticket ; aucune vente au-dessus du
    seuil de pause (le carnet piloté pendant les ventes est resté sous le seuil, aucun prix par vente
    n'étant stocké, et la sonde a vu le moteur suspendre les ventes au-dessus) ni au-delà du budget ;
    aucune facturation au-dessus de la garantie de son devis, aucune garantie au-dessus du plafond
@@ -804,7 +804,7 @@ Dans l'ordre :
    chaque seconde) ; l'escrow ne détient plus rien pour la campagne ; chaque remboursement égal au
    remboursable du ticket ; l'argent juste au micro-USDC près entre trésorerie, acheteurs,
    commerçant et escrow, gaz à part ; chaque réponse portant `demo` pour cette campagne à `true` ;
-   rien de la vente démo n'a atteint Stripe. Le douzième (Q-03, critère 7) : la cote du ticket suit
+   rien de la vente démo n'a atteint Stripe. Le douzième (critère 7) : la cote du ticket suit
    le carnet à moins de 2 s (section suivante).
 6. Le reçu, JSON et Markdown, nommé par l'heure UTC de départ, la chaîne et l'issue : chaîne,
    escrow, adresses des rôles et des portefeuilles (acheteurs numérotés, aucune adresse e-mail),
@@ -831,13 +831,13 @@ libération. Puis le moteur est arrêté, les portefeuilles sont rapatriés et l
 l'escrow (une campagne non libérée) y est écrit. Code de sortie : 0 si tout est passé (ou après
 `--estimate`), 1 si une étape ou un invariant a échoué, 2 si elle a refusé de démarrer.
 
-### La cote du ticket (critère 7, Q-03)
+### La cote du ticket (critère 7)
 
 Le critère : « le ticket vivant suit la cote avec moins de 2 secondes de décalage ». Il n'y a pas
 encore de page de ticket dans `apps/web` ; ce qu'elle lit est fixé par les données : la réponse de
 `GET /api/t/:token` porte `probabilityBps`, le `mid_bps` de la ligne `live_instruments` de
 l'instrument (premier affichage), et `instrumentSymbol`, par lequel la page suit cette ligne en
-Supabase Realtime (SPEC 7 ; la migration initiale donne `select` à `anon` sur les tables `live_*`
+Supabase Realtime (la migration initiale donne `select` à `anon` sur les tables `live_*`
 sous une politique `using (true)`). La répétition mesure donc les deux : la ligne lue **comme le
 rôle anonyme** (`set local role anon` dans une transaction, sûr derrière le pooler de Supabase, si
 bien que le droit et la politique RLS s'appliquent ; si la connexion ne peut pas prendre ce rôle,
