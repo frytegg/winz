@@ -210,6 +210,42 @@ test("M0 to M8: a new merchant puts a promo live in fewer than 15 taps and 2 min
   ).toBe(true);
 });
 
+test("M8: a tap opens the QR code full screen, and Close brings M8 back (U-08)", async ({
+  page,
+  screens,
+}) => {
+  await signInAsMerchant(page);
+  await page.goto("/new/cmp_joes_texas/live");
+  await expect(page.getByRole("heading", { name: copy.live.title }), "M8 opens").toBeVisible();
+
+  const enlarge = page.getByRole("button", { name: copy.live.enlargeQr });
+  await expect(enlarge, "M8's QR code can be enlarged").toBeVisible();
+  const smallQr = await enlarge.boundingBox();
+  await enlarge.tap();
+
+  const fullScreen = page.getByRole("dialog", { name: copy.live.qrAlt });
+  await expect(fullScreen, "the tap opens the full-screen QR code").toBeVisible();
+  await expect(fullScreen.getByText(copy.live.qrBrightness)).toBeVisible();
+  const qr = fullScreen.getByRole("img", { name: copy.live.qrAlt });
+  await expect(qr).toBeVisible();
+  const bigQr = await qr.boundingBox();
+  const viewport = page.viewportSize();
+  if (smallQr === null || bigQr === null || viewport === null) {
+    throw new Error("the QR code or the viewport has no size");
+  }
+  expect(bigQr.width, "the full-screen QR code is larger than M8's").toBeGreaterThan(smallQr.width);
+  expect(
+    bigQr.width,
+    "the full-screen QR code takes most of the phone's width",
+  ).toBeGreaterThanOrEqual(viewport.width * 0.8);
+  await screens.shot("m8-qr-fullscreen", { viewport: true });
+
+  await fullScreen.getByRole("button", { name: copy.live.closeQr }).tap();
+  await expect(fullScreen, "Close puts the full-screen QR code away").toBeHidden();
+  await expect(page.getByRole("heading", { name: copy.live.title }), "back on M8").toBeVisible();
+  await expect(enlarge).toBeVisible();
+});
+
 /** What the simulated `GET /api/campaigns/:id` answers for a live promo: M8's other states patch it. */
 const DETAIL = apiExamples.campaignDetailExamples.live;
 const CAMPAIGN_ID = DETAIL.id;

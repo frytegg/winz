@@ -42,6 +42,7 @@ Pleine page, viewport de l'iPhone 15 (393 px de large) à l'échelle 2, sans vid
 | [`m6-no-book.png`](./m6-no-book.png) | M6, aperçu `noBook` : le marché n'a pas encore de carnet, pas de coût par vente, « Pick another promo ». |
 | [`m7-review.png`](./m7-review.png) | M7, le récapitulatif (budget de 1 000 $, coût et marge par vente) et le paiement simulé du budget. |
 | [`m8-live.png`](./m8-live.png) | M8, la promo en ligne : compte à rebours, QR, lien court, partage. |
+| [`m8-qr-fullscreen.png`](./m8-qr-fullscreen.png) | M8, le QR ouvert en plein écran par un tap (pour le scan de l'autre côté du comptoir), bouton « Close » ; l'écran du téléphone seul, pas la page entière. |
 | [`c1-open.png`](./c1-open.png) | C1, la page de campagne qui vend (scénario `live`). |
 | [`c1-paused.png`](./c1-paused.png) | C1, promo en pause (scénario `paused`) : boutons d'achat désactivés. |
 | [`c1-sales-closed.png`](./c1-sales-closed.png) | C1, ventes closes (scénario `salesClosed`). |
