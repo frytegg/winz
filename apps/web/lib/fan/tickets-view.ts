@@ -44,7 +44,7 @@ export interface TicketRow {
   paidText: string;
   /** "Refunded $10.00" once refunded, `null` otherwise. */
   refundText: string | null;
-  /** "14% chance this is free" while the game is live and a fresh chance exists. */
+  /** "14% chance it's free" while the game is live and a fresh chance exists. */
   chanceText: string | null;
   event: CampaignEvent;
   startsAt: string;

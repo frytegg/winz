@@ -41,8 +41,7 @@ export const RECEIPTS = {
     "C2, paiement qui n'a pas abouti (scénario `failed`) : le message de l'API, « Try again » et le retour à la promo.",
   "c2-ended-cancelled-paused":
     "C2, achat annulé car la promo s'est mise en pause pendant l'attente (scénario `cancelledPaused`).",
-  "c3-ticket-pre-game":
-    "C3, le ticket avant le match (« … chance this is free », compte à rebours).",
+  "c3-ticket-pre-game": "C3, le ticket avant le match (« … chance it's free », compte à rebours).",
   "c3-ticket-in-game": "C3, le ticket pendant le match (« Game on »).",
   "c3-ticket-refunded":
     "C3, le ticket remboursé : écran lime, « Refunded » et le montant (20,00 $).",

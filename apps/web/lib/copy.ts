@@ -91,7 +91,7 @@ export const copy = {
         body: "Your share lands as soon as you sell. The rest after the final whistle.",
       },
       {
-        title: "Share your campaign.",
+        title: "Share your promo.",
         body: "One link, one QR. Fans pay with Apple Pay in seconds.",
       },
     ],
@@ -251,7 +251,7 @@ export const copy = {
 
   /** M7 */
   review: {
-    liveBadge: "Campaign",
+    liveBadge: "New promo",
     product: "Covered product",
     salesClose: "Sales close",
     budget: "Promo budget",
@@ -287,7 +287,7 @@ export const copy = {
     refundedBody: "This game can't take your promo any more, so your budget was refunded.",
     endedTitle: "This promo is no longer on sale",
     endedBody: "Its sales are closed. See how it went on its page.",
-    badge: "Live campaign",
+    badge: "Live promo",
     title: "Your promo is live!",
     days: "Days",
     hours: "Hrs",
@@ -372,7 +372,7 @@ export const copy = {
       void: "Cancelled",
       closed: "Closed",
     } satisfies Record<CampaignStatus, string>,
-    liveBadge: "Live campaign",
+    liveBadge: "Live promo",
     salesCloseIn: "Sales close in",
     salesCount: (sales: number): string => `${sales.toLocaleString("en-US")} sold`,
     open: (promise: string): string => `Open the promo: ${promise}`,
@@ -593,7 +593,7 @@ export const copy = {
     paid: (amount: string): string => `${amount} paid`,
     paidWord: "paid",
     bought: "Bought",
-    chanceTitle: (percent: number): string => `${percent.toString()}% chance this is free`,
+    chanceTitle: (percent: number): string => `${percent.toString()}% chance it's free`,
     chanceUnit: "Chance it's free",
     liveOdds: "Live odds",
     kickoffIn: "Kickoff in",
